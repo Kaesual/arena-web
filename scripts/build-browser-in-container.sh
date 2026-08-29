@@ -7,7 +7,7 @@
 #
 #   /src    read-only export of the pinned ioq3 commit, without Git metadata
 #   /ports  read-only, pre-fetched Emscripten port sources (offline build)
-#   /work   writable output tree; /work/tree is the CMake binary directory
+#   /work   writable CMake binary directory; the only writable mount
 
 set -euo pipefail
 
@@ -40,12 +40,12 @@ cat /work/toolchain.txt
 
 # The official upstream Emscripten target, with no product CMake arguments
 # beyond the build type upstream itself documents.
-emcmake cmake -S /src -B /work/tree -DCMAKE_BUILD_TYPE=Release
-cmake --build /work/tree --parallel "${ARENA_BUILD_JOBS}"
+emcmake cmake -S /src -B /work -DCMAKE_BUILD_TYPE=Release
+cmake --build /work --parallel "${ARENA_BUILD_JOBS}"
 
 # The restrictively licensed QVM build tools are host executables produced in
 # the CMake binary tree. Prove they never reach the distributable directory.
-if find /work/tree/Release \
+if find /work/Release \
   \( -name 'q3lcc*' -o -name 'q3rcc*' -o -name 'q3cpp*' -o -name 'lburg*' \) \
   -print | grep -q .; then
   printf 'refusing to accept build: QVM build tools reached the distributable tree\n' >&2

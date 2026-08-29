@@ -82,21 +82,23 @@ scripts/build-browser.sh --print-image
 4. Runs `scripts/build-browser-in-container.sh` inside the pinned image with
    `--network none`, `--pull never`, `--platform linux/amd64`, `--cap-drop
    all`, `--security-opt no-new-privileges` and a non-root user whose ID
-   matches the invoking user. Source is mounted read-only at `/src`, the
-   pre-fetched port sources read-only at `/ports`, the output tree read-write
-   at `/work`.
+   matches the invoking user. The source export is mounted read-only at
+   `/src` and the pre-fetched port sources read-only at `/ports`. The only
+   writable mount is `/work`, the CMake binary directory, so the build
+   cannot modify its own inputs and cannot reach the build log or the
+   manifest the host writes beside it.
 5. Inside the container, refuses any builder that does not report the
    baseline's Emscripten version, then runs the official upstream target
    unchanged:
 
    ```bash
-   emcmake cmake -S /src -B /work/tree -DCMAKE_BUILD_TYPE=Release
-   cmake --build /work/tree --parallel <jobs>
+   emcmake cmake -S /src -B /work -DCMAKE_BUILD_TYPE=Release
+   cmake --build /work --parallel <jobs>
    ```
 
 6. Refuses the result if a QVM build tool reached the distributable tree.
-7. Emits the artifact manifest from `/work/tree/Release`, refusing any
-   `.pk3` file, symlink or other non-regular file.
+7. Emits the artifact manifest from the build's `Release` directory, refusing
+   any `.pk3` file, symlink or other non-regular file.
 
 The container filesystem is writable, unlike `scripts/check-container.sh`'s
 read-only validation container: the Emscripten port build writes `libSDL2.a`
@@ -123,7 +125,7 @@ patched.
 | Deleted build tree | every build | No stale object may survive into an accepted build. |
 
 Observed effect: `-DPRODUCT_DATE="Jul 19 2026"` and `-DPRODUCT_VERSION="1.36"`
-in the compile flags of both accepted builds, and `build/tree/version.txt`
+in the compile flags of both accepted builds, and a generated `version.txt`
 containing `1.36`.
 
 ## Accepted builds
@@ -154,7 +156,7 @@ build.
 
 ### Toolchain identity in the log
 
-Each build writes `build/<name>/toolchain.txt`:
+Each build writes `build/<name>/tree/toolchain.txt`:
 
 ```text
 emscripten-version: 6.0.8
@@ -242,14 +244,14 @@ does so entirely on the build host side.
   toolchain file to it, so the sub-build detects the image's own native
   compiler — `The C compiler identification is GNU 13.3.0`, `/usr/bin/cc` —
   and produces native `q3lcc`, `q3rcc`, `q3cpp`, `lburg` and `q3asm`
-  executables in `build/<name>/tree/tools/Release/`.
+  executables in the CMake binary tree's `tools/Release/` directory.
 - The accepted build ran 170 `q3lcc` translation steps and 6 `q3asm` links,
   producing the three `baseq3` and three `missionpack` QVMs.
 - No lcc source or executable reaches a distributable artifact. The
-  distributable directory `tree/Release` contains exactly the ten files listed
-  above; the tools live in the sibling `tree/tools` directory, and
-  `scripts/build-browser-in-container.sh` fails the build if a tool binary ever
-  appears under `tree/Release`.
+  distributable `Release` directory contains exactly the ten files listed
+  above; the tools live in the sibling `tools` directory, and
+  `scripts/build-browser-in-container.sh` fails the build if a tool binary
+  ever appears under `Release`.
 
 The intended distribution therefore does not exceed WP0's boundary for lcc.
 `LicenseRef-LCC-1998` remains a build-tool-only registration whose source stays

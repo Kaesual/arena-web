@@ -37,6 +37,13 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --output-dir)
       output_dir="$(readlink -m "${2:?--output-dir needs a directory}")"
+      # The build root is deleted on every run, so it may only ever be inside
+      # the gitignored build directory.
+      if [[ "${output_dir}" != "${repo_dir}/build/"?* ]]; then
+        printf 'refusing to use %s: build output must live under %s/build\n' \
+          "${output_dir}" "${repo_dir}" >&2
+        exit 2
+      fi
       shift 2
       ;;
     --jobs)
@@ -126,7 +133,7 @@ runtime_arguments=(
   --env "HOME=/tmp"
   --env "SOURCE_DATE_EPOCH=${source_date_epoch}"
   --volume "${output_dir}/source:/src:ro"
-  --volume "${output_dir}:/work:rw"
+  --volume "${output_dir}/tree:/work:rw"
   --volume "${ports_dir}:/ports:ro"
   --volume "${repo_dir}/scripts:/arena-scripts:ro"
   --workdir /work

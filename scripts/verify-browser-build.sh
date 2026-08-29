@@ -46,6 +46,25 @@ if ! diff --recursive --brief "${first}/tree/Release" "${second}/tree/Release"; 
   exit 1
 fi
 
+# The committed manifest is the evidence of an earlier accepted build. A
+# rebuild from a later commit records its own producing commit, so everything
+# except `producer` must still agree exactly.
+committed="${repo_dir}/manifests/browser-client.json"
+if [[ -f "${committed}" ]]; then
+  python3 - "${committed}" "${first}/artifact-manifest.json" <<'PY'
+import json
+import sys
+
+committed, rebuilt = (json.loads(open(path, encoding="utf-8").read()) for path in sys.argv[1:3])
+if committed.pop("producer") != rebuilt["producer"]:
+    print("note: the rebuild records a different producing commit")
+rebuilt.pop("producer")
+if committed != rebuilt:
+    raise SystemExit("rebuild disagrees with the committed artifact manifest")
+print("rebuild agrees with the committed artifact manifest")
+PY
+fi
+
 manifest_digest="$(sha256sum "${first}/artifact-manifest.json" | cut -d' ' -f1)"
 printf 'identical artifact manifest sha256:%s\n' "${manifest_digest}"
 printf 'byte-identical distributable artifacts:\n'
