@@ -2,7 +2,7 @@
 
 # Browser arena: prototype work packages
 
-**Status:** Independently reviewed and approved; WP0 and WP1 complete
+**Status:** Independently reviewed and approved; WP0, WP1 and WP3 complete
 
 This document turns the reviewed direction in
 [`initial-plan.md`](initial-plan.md) into coherent, testable increments. It
@@ -40,7 +40,7 @@ is a plan change; adding another platform is later scope.
 | WP0 | Immutable toolchain and acceptance baseline | — | ✅ Complete — exact public pins, closed license/tree inventory, schemas, relay vector and fail-closed validation |
 | WP1 | Reproducible unmodified ioq3 browser build | WP0 | ✅ Complete — two clean offline builds in the pinned Emscripten 6.0.8 image produce byte-identical artifacts and one validated manifest, with the observed component, QVM/lcc, license-closure and isolation findings recorded |
 | WP2 | Relay conformance probe and routed-path measurement | WP0 | Approved |
-| WP3 | Audited deterministic minimal-content closure | WP0 | Approved |
+| WP3 | Audited deterministic minimal-content closure | WP0 | ✅ Complete — two clean assemblies produce a byte-identical 585-member `oa_pvomit` FFA pack from six digest-pinned Debian-cleaned OpenArena archives, every member `GPL-2.0-or-later` with resolved notices, and the static closure against the pinned `baseq3` QVM sources leaves no unresolved required reference |
 | WP4 | One-map offline browser arena with bots | WP1, WP3 | Approved |
 | WP5 | Matching native server and packet census | WP0, WP3 | Approved |
 | WP6 | Measured network-sizing decision | WP2, WP5 | Approved |
@@ -323,6 +323,43 @@ isolation and measurement correctness. Relay-side changes receive their own
 review in the repository that owns the shared implementation.
 
 ## WP3 — Audited minimal-content closure
+
+**State:** ✅ Complete. The evidence is
+[`wp3-content-closure.md`](wp3-content-closure.md); the member-level provenance
+is [`provenance/arena-web-ffa-content.json`](../provenance/arena-web-ffa-content.json)
+and the pack identity
+[`provenance/arena-web-ffa-content-manifest.json`](../provenance/arena-web-ffa-content-manifest.json).
+
+### Result
+
+The scope below was met from six digest-pinned Debian-cleaned OpenArena source
+packages, without OpenArena gamecode and without a schema or baseline change.
+Decided facts:
+
+- The audited free closure **does** satisfy the pinned `baseq3` QVM profile.
+  No required asset class is missing, so the WP4 failure boundary is not
+  approached from the content side.
+- Debian's per-file `debian/copyright` review is the licence evidence, checked
+  against the material's own `COPYING`, `README`, map credits and per-file bot
+  headers. Every packaged member is `GPL-2.0-or-later`; the two GPL-2-only
+  items in the upstream set (`merman`, `oa_thor`) are excluded by an enforced
+  rule, not by inspection.
+- The Debian `orig` tarballs carry the upstream asset sources alongside the
+  packaged files, so the preferred source form of the selected map, model and
+  textures travels in the same pinned artifact.
+- The member set is derived, not curated: it is the closure of what the pinned
+  `baseq3` translation units reference, with `MISSIONPACK` branches removed and
+  undecidable preprocessor conditions kept, expanded through the engine's own
+  image, sound, shader, MD3, skin, BSP and botfile resolution rules.
+- Two clean assemblies produce a byte-identical PK3, provenance record and
+  manifest. Determinism needs a sorted member order, a fixed ZIP timestamp and
+  mode, a fixed compression level and reads straight out of the digest-verified
+  archives — no unpacked intermediate tree exists.
+- The content-pack artifact manifest lives under `provenance/` rather than
+  `manifests/`, because the artifact-manifest validator requires
+  `emscripten-builder` as a declared baseline input for anything under
+  `manifests/` and no content assembly uses it. That is a placement decision;
+  nothing WP0 or WP1 owns was changed.
 
 ### Outcome
 

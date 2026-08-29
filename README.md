@@ -28,6 +28,13 @@ release.
 - `docs/wp1-build-evidence.md` records the accepted browser build: its inputs,
   determinism controls, artifact identities, license closure and findings.
 - `manifests/browser-client.json` is the artifact manifest of that build.
+- `docs/wp3-content-closure.md` records the accepted content pack: how its
+  members were selected, the per-file license verification, the static closure
+  result, the determinism proof and the license report.
+- `content/pack-recipe.json` is the committed content selection: the pinned
+  upstream archives, the game profile and every accepted exception.
+- `provenance/` holds the member-level provenance of the assembled pack and the
+  pack's own identity.
 - `LICENSE` applies GPL-2.0-or-later to original arena-web code and
   documentation. Pinned components and content retain their own licenses.
 
@@ -84,8 +91,26 @@ builds. Everything is written to the gitignored `build/` directory; the engine
 artifacts are not committed, their identities are.
 
 The build produces the engine runtime files and the `baseq3` and `missionpack`
-QVMs. It is not yet playable: no game content has been selected. See
-`docs/wp1-build-evidence.md`.
+QVMs. On its own it is not playable; the game content is assembled separately.
+See `docs/wp1-build-evidence.md`.
+
+## Building the content pack
+
+The pack is the dependency closure of what the pinned `baseq3` QVM sources
+reference, for one map, one player presentation and offline bots. It is
+assembled from license-verified upstream archives that are pinned by exact
+size and SHA-256 in `content/pack-recipe.json`.
+
+```bash
+scripts/fetch-content-sources.sh          # once, online; about 900 MB
+scripts/build-content-pack.sh             # one clean assembly
+scripts/verify-content-pack.sh            # two clean assemblies, compared
+```
+
+Only the first command uses the network, and it accepts an archive only if its
+size and digest match the recipe. Everything is written to the gitignored
+`build/` directory; the PK3 is not committed, its member-level provenance and
+identity are. See `docs/wp3-content-closure.md`.
 
 ## Licensing
 
@@ -93,6 +118,7 @@ Original arena-web code and documentation are licensed under
 GPL-2.0-or-later. The pinned ioquake3 core and game code retain their upstream
 GPL terms, while its bundled third-party components retain their individual
 licenses recorded in the immutable baseline. Maps, models, textures, audio and
-other content likewise retain their respective licenses. Every shipped content
-file will need machine-readable provenance. Proprietary Quake III game data is
-not part of this project.
+other content likewise retain their respective licenses; every member of the
+assembled content pack has machine-readable provenance under `provenance/`, and
+every member of the current pack is GPL-2.0-or-later. Proprietary Quake III
+game data is not part of this project.
