@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import math
 import struct
-from collections import deque
+from collections import Counter, deque
 from dataclasses import dataclass, field
 
 # docs/relay-datagram-contract.md, "Frame format". These are the same constants
@@ -941,7 +941,7 @@ def _validate_session(session, plan) -> int:
     _require_fields(session, _SESSION_FIELDS, "session")
     index = _require_int(session, "sessionIndex", "session", 0)
     ceiling = min(
-        plan.max_inner_datagram_bytes if plan else MAX_LENGTH_PREFIX_VALUE,
+        plan.max_inner_datagram_bytes if plan is not None else MAX_LENGTH_PREFIX_VALUE,
         MAX_LENGTH_PREFIX_VALUE,
     )
     max_datagram = _require_int(session, "maxDatagramSizeBytes", "session", 1)
@@ -1013,6 +1013,10 @@ def _validate_case(case, ceiling, max_datagram, planned, seen_ordinals) -> int:
         raise MeasurementReportError("receivedFrames is not a list")
     if len(received) > len(sizes):
         raise MeasurementReportError("more frames returned than datagrams sent")
+    # A returned frame is only recorded after a byte-exact match with something
+    # this case sent, so the returned sizes must be a sub-multiset of the sent
+    # ones whatever the outcome, not only when the case completed.
+    remaining = Counter(sizes)
     for entry in received:
         _require_fields(entry, ("frameBytes", "innerBytes"), "received frame")
         inner = _require_int(entry, "innerBytes", "received frame", 0)
@@ -1025,13 +1029,17 @@ def _validate_case(case, ceiling, max_datagram, planned, seen_ordinals) -> int:
                 "a returned frame does not carry the 42-byte single-datagram "
                 "overhead"
             )
+        if remaining[inner] <= 0:
+            raise MeasurementReportError(
+                f"a returned frame reports {inner} bytes, which this case did "
+                f"not send"
+            )
+        remaining[inner] -= 1
 
     round_trip = case["roundTripMilliseconds"]
     if case["outcome"] == OUTCOME_ECHOED:
         if len(received) != len(sizes):
             raise MeasurementReportError("an echoed case is missing a return frame")
-        if sorted(entry["innerBytes"] for entry in received) != sorted(sizes):
-            raise MeasurementReportError("an echoed case returned other sizes")
         if not isinstance(round_trip, (int, float)) or isinstance(round_trip, bool):
             raise MeasurementReportError("an echoed case has no round-trip time")
         if not math.isfinite(round_trip) or round_trip < 0:

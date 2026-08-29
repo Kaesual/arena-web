@@ -774,6 +774,36 @@ class ReportValidationTests(unittest.TestCase):
         case["receivedFrames"][0]["frameBytes"] += 1
         self.assert_rejected(report)
 
+    def test_a_returned_size_the_case_never_sent_is_rejected(self) -> None:
+        # Not only for echoed cases: a returned frame is recorded after a
+        # byte-exact match, so a timed-out case cannot have seen a foreign size.
+        report = self.valid()
+        case = next(
+            item
+            for item in report["sessions"][0]["cases"]
+            if item["sentInnerBytes"] == [16]
+        )
+        case["outcome"] = OUTCOME_TIMED_OUT
+        case["roundTripMilliseconds"] = None
+        case["receivedFrames"] = [
+            {"frameBytes": 99 + SINGLE_DATAGRAM_OVERHEAD_BYTES, "innerBytes": 99}
+        ]
+        self.assert_rejected(report)
+
+    def test_a_returned_size_cannot_be_counted_twice(self) -> None:
+        report = self.valid()
+        packed = next(
+            item
+            for item in report["sessions"][0]["cases"]
+            if item["kind"] == CASE_PACKED
+        )
+        packed["outcome"] = OUTCOME_TIMED_OUT
+        packed["roundTripMilliseconds"] = None
+        packed["receivedFrames"] = [
+            {"frameBytes": 16 + SINGLE_DATAGRAM_OVERHEAD_BYTES, "innerBytes": 16}
+        ] * 2
+        self.assert_rejected(report)
+
     def test_more_frames_than_datagrams_is_rejected(self) -> None:
         report = self.valid()
         case = report["sessions"][0]["cases"][1]

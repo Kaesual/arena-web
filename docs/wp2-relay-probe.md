@@ -29,7 +29,7 @@ or committed manifest was changed.
 | [`probe/conformance-vectors.json`](../probe/conformance-vectors.json) | 50 committed cases: 19 encoded frames, 15 rejections, 8 tags, 8 payloads |
 | `probe/relay-framing.js`, `probe/measurement.js`, `probe/adapters.js`, `probe/probe.js`, `probe/index.html` | the standalone browser probe |
 | [`scripts/serve-probe.sh`](../scripts/serve-probe.sh) | loopback static server for the probe |
-| [`tests/test_relay_probe.py`](../tests/test_relay_probe.py) | 92 deterministic tests, raising the suite from 162 to 254 |
+| [`tests/test_relay_probe.py`](../tests/test_relay_probe.py) | 94 deterministic tests, raising the suite from 162 to 256 |
 | [`tests/js_conformance_harness.mjs`](../tests/js_conformance_harness.mjs) | runs the browser sources under Node so the suite can compare the two implementations |
 
 The tests run in `scripts/check.sh` and in the containerized
@@ -120,8 +120,9 @@ The tests cover the acceptance evidence that does not need a network:
 - **Out-of-range measurement records** — the report validator rejects unknown
   and missing fields, a wrong kind, version or framing block, a non-SHA-256
   vector digest, a sent frame size that disagrees with its inner sizes, a
-  returned frame that does not carry the 42-byte overhead, a negative, infinite
-  or `NaN` round-trip time, a round-trip time on a case that did not echo, an
+  returned frame that does not carry the 42-byte overhead, a returned size the
+  case never sent or one counted more often than it was sent, a negative,
+  infinite or `NaN` round-trip time, a round-trip time on a case that did not echo, an
   echoed case that returned other sizes, more returned frames than datagrams
   sent, reused ordinals, non-ascending case or session indices, a size above the
   plan ceiling, a case whose kind disagrees with its datagram count, a refusal
@@ -237,7 +238,7 @@ and the report has no field in which any of them could be recorded.
 ## Repeating what exists
 
 ```bash
-scripts/check.sh                                  # 254 tests, no network
+scripts/check.sh                                  # 256 tests, no network
 CONTAINER_RUNTIME=podman scripts/check-container.sh
 python3 scripts/emit-relay-conformance-vectors.py --check
 scripts/serve-probe.sh                            # then open http://127.0.0.1:8173/probe/
