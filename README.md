@@ -17,19 +17,19 @@ release.
 - `ioq3/` pins the [Kaesual ioquake3 fork](https://github.com/Kaesual/ioq3).
   Engine and platform changes belong in that fork rather than as a permanent
   patch stack here.
-- `docs/initial-plan.md` records the initial feasibility findings, decisions,
-  risks and prototype sequence. Its product constraints are decided; the
-  proposed work packages derived from it still need review.
-- `docs/prototype-work-packages.md` contains the proposed, dependency-ordered
-  prototype increments. It remains a review draft until explicitly approved.
+- `docs/initial-plan.md` records the independently reviewed feasibility
+  findings, decisions, risks and prototype sequence.
+- `docs/prototype-work-packages.md` contains the approved, dependency-ordered
+  prototype increments and evidence gates. WP0 is next.
 - `LICENSE` applies GPL-2.0-or-later to original arena-web code and
   documentation. Pinned components and content retain their own licenses.
 
 Future product-owned build scripts, the browser shell, content lockfiles,
-license manifests, a public prototype relay/test fixture and the
-dedicated-server image will live in this repository. Large upstream asset
-archives and generated build products should not be committed here merely for
-convenience.
+license manifests, the public relay contract and browser conformance probe, and
+the dedicated-server image will live in this repository. The shared relay
+server implementation and environment-specific deployment remain outside this
+public repository. Large upstream asset archives and generated build products
+should not be committed here merely for convenience.
 
 ## Checkout
 

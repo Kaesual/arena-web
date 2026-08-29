@@ -1,6 +1,6 @@
 # Browser arena: prototype work packages
 
-**Status:** Draft for review; no implementation work package is authorized yet
+**Status:** Independently reviewed and approved; WP0 is ready
 
 This document turns the reviewed direction in
 [`initial-plan.md`](initial-plan.md) into coherent, testable increments. It
@@ -12,7 +12,9 @@ prototype.
 
 A work package is complete only when all of the following are true:
 
-1. Its declared inputs are immutable and publicly obtainable.
+1. Its build and source inputs are immutable and publicly obtainable. A routed
+   acceptance environment may be supplied at runtime only where the WP names
+   it explicitly; its public contract and non-secret evidence remain complete.
 2. Its automated checks and manual acceptance have passed.
 3. The complete diff has received a review proportional to its risk.
 4. Review findings are fixed or recorded as an explicit blocker.
@@ -33,14 +35,14 @@ is a plan change; adding another platform is later scope.
 
 | WP | Outcome | Depends on | State |
 | --- | --- | --- | --- |
-| WP0 | Immutable toolchain and acceptance baseline | — | Proposed |
-| WP1 | Reproducible unmodified ioq3 browser build | WP0 | Proposed |
-| WP2 | Public relay fixture and browser datagram probe | WP0 | Proposed |
-| WP3 | Audited deterministic minimal-content closure | WP0 | Proposed |
-| WP4 | One-map offline browser arena with bots | WP1, WP3 | Proposed |
-| WP5 | Matching native server and packet census | WP0, WP3 | Proposed |
-| WP6 | Measured network-sizing decision | WP2, WP5 | Proposed |
-| WP7 | Browser WebTransport network backend | WP4, WP6 | Scope gate |
+| WP0 | Immutable toolchain and acceptance baseline | — | Ready |
+| WP1 | Reproducible unmodified ioq3 browser build | WP0 | Approved |
+| WP2 | Relay conformance probe and routed-path measurement | WP0 | Approved |
+| WP3 | Audited deterministic minimal-content closure | WP0 | Approved |
+| WP4 | One-map offline browser arena with bots | WP1, WP3 | Approved |
+| WP5 | Matching native server and packet census | WP0, WP3 | Approved |
+| WP6 | Measured network-sizing decision | WP2, WP5 | Approved |
+| WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | Scope gate |
 | WP8 | Two-browser multiplayer acceptance | WP5, WP7 | Scope gate |
 | WP9 | Public product-integration blueprint | WP8 | Scope gate |
 
@@ -61,6 +63,7 @@ flowchart LR
     WP2 --> WP6
     WP5 --> WP6
     WP4 --> WP7
+    WP5 --> WP7
     WP6 --> WP7
     WP5 --> WP8
     WP7 --> WP8
@@ -81,15 +84,19 @@ download.
   `baseq3` gamecode input.
 - Pin the Emscripten builder by exact version and platform-specific OCI digest.
   Start from the version used by the pinned ioq3 upstream CI; any deviation
-  needs a written compatibility reason.
-- Pin the Rust toolchain and builder used by the public relay fixture by exact
-  version and platform-specific OCI digest.
+  needs a written compatibility reason. Record how upstream's CI action pin
+  maps to the selected OCI image and digest.
 - Pin the native builder/container base by platform-specific digest.
 - Pin one Linux x86_64 Chrome-for-Testing archive by full version, public URL
   and cryptographic digest, plus the exact desktop OS version used for manual
   acceptance.
 - Define the machine-readable lock and provenance formats used by later WPs.
 - Define the canonical artifact-manifest format and digest algorithm.
+- Record the routed-browser trust mechanism: public Web PKI or a pinned
+  `serverCertificateHashes` certificate satisfying browser constraints. Do not
+  rely on an undocumented machine-wide trust-store change.
+- Record the game-neutral WP2 measurement vector, including boundaries around
+  1,300, 1,307, 1,309, 1,312 and 1,314-byte inner UDP datagrams.
 - Add validation that rejects moving references, missing digests, unknown
   licenses and incomplete preferred-source records.
 
@@ -132,8 +139,11 @@ manifest.
 - Keep build output outside Git and produce a deterministic manifest of the
   JavaScript, WebAssembly, data and generated shell/configuration artifacts.
 - Run two clean builds in the pinned builder and compare their artifacts.
-- Record whether the Emscripten configuration builds the QVM host tools and
-  QVMs successfully or needs a separate, equally pinned host-tools phase.
+- Verify the existing upstream path in which Emscripten disables native game
+  libraries but leaves QVM builds enabled. Use a separate, equally pinned
+  host-tools phase only if the clean build disproves that prior evidence.
+- Record whether the resulting client actually requires cross-origin isolation;
+  the current non-threaded link configuration suggests that it may not.
 - Treat the generated upstream shell and retail-data configuration only as
   build evidence; do not package them as the product loader.
 
@@ -168,56 +178,77 @@ or patch the engine as an unreviewed side effect.
 Build/reproducibility review of scripts, clean-build enforcement, toolchain
 identity and artifact comparison.
 
-## WP2 — Public relay fixture and datagram probe
+## WP2 — Relay conformance probe and routed-path measurement
 
 ### Outcome
 
-A reviewer can run a public, local WebTransport-to-UDP reference fixture and a
-standalone browser probe that measures the usable datagram path without ioq3.
+A reviewer can run a public standalone browser probe against a compatible
+shared WebTransport-to-UDP relay and measure the usable routed datagram path
+without ioq3. This repository does not create a second relay server.
 
 ### Scope
 
-- Specify the smallest public protocol needed for authorization, one virtual
-  client address, one pinned virtual destination and bidirectional datagrams.
-- Implement the reference fixture as a small Rust crate in this repository,
-  without production credentials or undocumented services.
-- Generate short-lived local test credentials and certificates; commit no
-  private key or reusable secret.
-- Add a small browser probe that uses the WP0 browser and sends an exact range
-  of payload sizes in both directions.
-- Run the same public fixture/probe contract on loopback and across at least one
-  routed network path. Keep environment-specific endpoint details out of the
-  repository and record only non-secret topology characteristics.
-- Record the browser-reported datagram size, successful payload range, failure
-  behavior and relay-header overhead for each accepted session.
+- Specify the game-destination subset of the public protocol needed for
+  authorization, one virtual client address, one pinned virtual destination,
+  keep-alive and bidirectional datagrams. Write it independently from observed
+  wire behavior; copied implementation text or code retains its source notice.
+- Specify the fixed framing: a 40-byte relay header, one or more big-endian
+  `u16`-length-prefixed UDP datagrams from browser to server, and exactly one
+  such UDP datagram from server to browser. A single datagram therefore adds
+  42 bytes, and its destination port must match the projected endpoint exactly.
+- Add a small browser probe that accepts an endpoint, certificate/trust input,
+  short-lived authorization and virtual destination at runtime and commits none
+  of those environment-specific values.
+- Separate protocol framing and measurement logic from the browser transport so
+  deterministic tests can exercise them with an in-memory adapter.
+- Send the WP0 measurement vector, adjacent boundary sizes and
+  session-specific nonces in both directions through a configured UDP echo
+  destination behind the relay. Include single-datagram and bounded packed
+  multi-datagram cases while keeping the probe implementation game-neutral.
+- Run the public probe across at least one routed network path. Keep endpoint
+  details out of the repository and record only non-secret topology
+  characteristics.
+- Record the browser-reported datagram size, successful payload range and
+  failure behavior for each accepted session. Verify the known 42-byte
+  single-datagram framing overhead rather than treating it as a measured
+  transport constant.
 - Derive a conservative payload budget from repeated sessions. This is an
   input to WP6, not permission to change ioq3 packet sizing.
 
 ### Acceptance evidence
 
-- Automated tests reject missing/invalid authorization and unknown virtual
-  destinations.
-- Accepted traffic reaches only the configured local UDP echo endpoint and is
-  returned to the correct virtual client.
+- Automated probe tests reject missing runtime configuration, malformed relay
+  frames, mismatched nonces and out-of-range measurement records.
+- The routed endpoint rejects invalid authorization and accepts a fresh
+  short-lived authorization for only the configured virtual destination.
+- Two concurrent probe sessions with distinct virtual addresses and fresh
+  single-use allowances receive only their own nonce-tagged echo traffic.
 - Boundary tests cover empty, maximum accepted and oversized datagrams in both
-  directions without panic, unbounded allocation or cross-session delivery.
+  directions without unbounded allocation or an uncaught browser failure.
 - The real pinned browser completes repeated probe sessions and emits a
-  machine-readable measurement report for loopback and the routed path.
+  machine-readable measurement report for the routed path.
 - The report preserves per-session/per-path results and does not present one
   observed browser maximum as a universal transport constant.
-- A clean public checkout can reproduce the fixture and probe locally.
+- A clean public checkout can run every deterministic probe test and can repeat
+  the routed acceptance when supplied a compatible endpoint and one-time
+  credentials.
+- The published game-destination contract and in-memory adapter are complete
+  enough for an independent implementation to satisfy the same conformance
+  tests without access to the operational relay source.
 
 ### Explicit non-goals
 
-- Production relay hardening, deployment or operational integration.
+- A relay server implementation or game-specific proxy container.
+- Environment-specific relay deployment, credentials or operational details.
 - ioq3 or game-protocol awareness.
 - Tunnel fragmentation, WebSocket fallback or stream-assisted game traffic.
 - Multi-server routing or public server discovery.
 
 ### Review
 
-Security and protocol review covering authentication, routing isolation,
-resource bounds, certificate handling and measurement correctness.
+Protocol/client review covering runtime secret handling, framing, session
+isolation and measurement correctness. Relay-side changes receive their own
+review in the repository that owns the shared implementation.
 
 ## WP3 — Audited minimal-content closure
 
@@ -341,6 +372,9 @@ size census for WP6.
 - Distinguish netchan traffic from connectionless handshake/query traffic.
 - Record observed maximums and distributions at the engine/UDP boundary,
   including the client-to-server and server-to-client header asymmetry.
+- Record the effects of all relayed players sharing the relay's base IPv4
+  address: query/challenge rate limits and address bans do not distinguish the
+  per-player UDP source ports.
 - Keep instrumentation outside the game protocol where possible.
 
 ### Acceptance evidence
@@ -382,12 +416,17 @@ work begins.
   overhead and the full native census, including connectionless packets.
 - Derive code-level packet bounds for the fixed prototype profile and generate
   boundary cases that may not occur in a short observed session.
-- Replay worst-case recorded packet shapes through the public fixture where
+- Replay worst-case recorded packet shapes through the shared relay where
   possible.
-- Select one strategy in this order unless evidence justifies otherwise:
-  intact datagrams; symmetric documented ioq3 fragment-size reduction;
-  stream-assisted oversized reliable/handshake traffic; bounded tunnel
-  fragmentation.
+- Select one strategy in this ownership order unless evidence justifies
+  otherwise: intact datagrams with no engine change; a symmetric documented
+  fragment-size reduction in the pinned browser and server engines; or bounded
+  fragmentation implemented and reassembled by that matching engine pair.
+  The working scheduling assumption is the symmetric reduction because one
+  1,314-byte ioq3 datagram becomes a 1,356-byte relay payload.
+- Treat stream-assisted game traffic as a separately owned shared-relay change.
+  Selecting it requires a new cross-repository plan and review; WP6 cannot
+  authorize it inside this repository.
 - Specify all packet, fragment, byte, count and timeout limits required by the
   selected strategy.
 - Specify behavior when the live browser budget is below the accepted floor or
@@ -396,6 +435,8 @@ work begins.
   disconnects, reconnects, frame pacing, packet failures and latency overhead.
 - Replace WP7 and WP8's scope-gate text with implementation-ready contracts and
   review them before WP7 starts.
+- Require WP7 to rebuild and re-census the native server from the final `web`
+  engine pin whenever the selected strategy changes server-side packet logic.
 
 ### Acceptance evidence
 
@@ -408,6 +449,8 @@ work begins.
   explicit bounded alternate path.
 - A reviewer can recompute the decision from committed reports and scripts.
 - WP7 contains no transport mechanism that this decision did not authorize.
+- The decision identifies every changed owning component and the exact
+  post-change browser/server rebuild and census evidence required from WP7.
 
 ### Explicit non-goals
 
@@ -421,16 +464,17 @@ work begins.
 Mandatory independent protocol/security review. Any finding affecting the
 strategy, bounds or census reopens WP6 and keeps WP7 blocked.
 
-## WP7 — Browser WebTransport backend
+## WP7 — Browser backend and matching server rebuild
 
 **State:** Scope gate. This is an outcome envelope, not an authorized
 implementation WP. WP6 must replace the conditional parts and obtain review.
 
 ### Outcome envelope
 
-One WP0 browser client authenticates to the public relay contract, addresses
-the pinned virtual destination, connects to the WP5 server and completes the
-single-map FFA profile using the transport strategy selected by WP6.
+One WP0 browser client obtains fresh authorization, addresses the pinned
+virtual destination and completes the single-map FFA profile through the
+shared relay. Its matching native server is rebuilt from the same final engine
+pin and re-censused when WP6 changes server-side packet logic.
 
 ### Fixed boundaries
 
@@ -440,6 +484,12 @@ single-map FFA profile using the transport strategy selected by WP6.
   plumbing in this repository.
 - Choose and document one seam: platform socket replacement or the existing
   engine send/receive boundary.
+- Bridge asynchronous WebTransport receipt to synchronous engine polling with
+  an explicitly bounded queue and defined overflow/shutdown behavior.
+- Use a token-provider hook that obtains a fresh short-lived, single-use
+  allowance for every connection or reconnect attempt; never reuse a static
+  credential.
+- Implement the protocol keep-alive required for an idle authenticated session.
 - Preserve the engine's datagram semantics and WP6 bounds.
 - Fail closed on invalid authorization, unknown destination, path-budget
   violation and relay closure.
@@ -449,8 +499,11 @@ single-map FFA profile using the transport strategy selected by WP6.
 
 - Automated native/unit tests cover address conversion, queue limits, send and
   receive failures, shutdown and any WP6 framing logic.
-- The exact browser connects through the fixture/relay to the exact server and
+- The exact browser connects through the shared relay to the exact server and
   can join, move, fire, score, disconnect and reconnect.
+- If WP6 changed server-side packet logic, the server is rebuilt from the same
+  final `web` pin, its WP5 profile is re-censused and every WP6 bound still
+  passes before browser acceptance.
 - No packet is delivered across browser sessions or outside the authorized
   virtual destination.
 - Browser and server logs demonstrate exact engine/QVM/content identity.
@@ -486,23 +539,28 @@ matching native server while meeting the frozen WP6 thresholds.
 - One exact browser/OS contract and identical client artifacts.
 - At least 15 minutes of active two-player FFA after both clients join.
 - Planned disconnect/reconnect exercises for each client.
-- Server-side evidence that only assigned virtual client addresses are visible.
+- Server-side evidence that both players appear only as the relay's IPv4
+  endpoint with distinct per-player source ports, and that neither player's
+  public address appears.
 
 ### Evidence envelope
 
 - Connection/reconnect success, unexpected disconnect and packet-send failure
   counts.
-- Per-direction packet sizes, drops, ordering/reassembly failures if applicable
-  and relay queue bounds.
+- Browser- and server-side per-session evidence for packet sizes, drops,
+  ordering/reassembly failures if applicable and bounded queue behavior.
+- Relay-side non-identifying aggregate counters for rate-limit and malformed or
+  rejected traffic; do not require per-session relay metrics that do not exist.
 - End-to-end latency and relay-added overhead against the WP6 baseline.
 - Browser frame-time distribution, long tasks, console errors and memory/queue
   growth over the session.
-- Server logs and packet observations sufficient to verify virtual-address
+- Server logs and packet observations sufficient to verify relay-mediated
   privacy without recording player public addresses in committed evidence.
 
 ### Explicit non-goals
 
 - Load testing beyond two players.
+- Browser-hosted or peer-to-peer multiplayer.
 - Production SLOs, autoscaling or Internet-wide compatibility.
 - Accounts, progression, matchmaking, public catalogue or moderation.
 - Declaring support for untested browsers/platforms.
@@ -529,6 +587,8 @@ prototype.
 - Immutable artifact publication and cache invalidation.
 - Server catalogue and launch metadata boundaries.
 - Authentication-token handoff through the public relay contract.
+- Consequences of all relayed players sharing one server-visible base IPv4 for
+  query rate limits, bans and abuse controls.
 - Health/probe behavior and native-server lifecycle/resource contracts.
 - Source, license, notice and artifact delivery obligations.
 - Separation between public reusable components and environment-specific
@@ -547,8 +607,8 @@ integration implementation is scheduled.
 
 ## Review checkpoints
 
-1. **Plan approval:** approve WP0–WP6 and the WP7–WP9 envelopes. No code work
-   starts before this checkpoint.
+1. **Plan approval:** completed. WP0–WP6 and the WP7–WP9 envelopes are approved;
+   WP0 is the first authorized implementation increment.
 2. **Early evidence:** after WP1–WP3, review build reproducibility, browser-path
    measurements and content provenance before assembling the playable slice.
 3. **Network gate:** WP6 independently reviews the measurements and replaces
@@ -560,8 +620,13 @@ integration implementation is scheduled.
 
 No additional input is needed to review or begin WP0 if the Linux x86_64
 Chrome-for-Testing default is acceptable. Before WP2's routed-path acceptance,
-the operator must provide or approve a temporary publicly reachable test
-endpoint. Before WP8, the operator must provide or approve access to two
-independent client networks for the privacy and multiplayer acceptance.
-Product naming, additional platforms and production deployment choices are
-deliberately not prerequisites for this prototype.
+the operator must provide or approve a compatible integration relay endpoint,
+a browser-compatible trust mechanism, a UDP echo destination, two distinct
+virtual addresses and enough fresh single-use allowances for every session.
+Before WP7/WP8 routed acceptance, the integration environment must provide a
+fresh-token issuer or equivalent harness and host the matching rebuilt native
+server behind an exact virtual-address/UDP-port route. Before WP8, the operator
+must also provide or approve access to two independent client networks for the
+privacy and multiplayer acceptance. Product naming, additional platforms and
+production deployment choices are deliberately not prerequisites for this
+prototype.

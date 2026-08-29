@@ -1,7 +1,7 @@
 # Browser arena: initial findings and prototype plan
 
-**Status:** Prototype constraints independently reviewed; work-package draft
-awaiting review
+**Status:** Prototype constraints and work-package breakdown independently
+reviewed; WP0 is ready
 
 ## Goal
 
@@ -27,6 +27,9 @@ hosting platform.
 - **Playable slice:** one freely redistributable map, FFA, offline bots and two
   browser players for multiplayer acceptance. Additional maps and game modes
   follow the vertical slice.
+- **Server topology:** multiplayer uses a matching native dedicated server
+  behind the shared relay. Browser-hosted or peer-to-peer games are outside the
+  product direction, not a deferred prototype feature.
 - **Browser gate:** one exact Chromium version string on one exact desktop OS
   version. The owning work package records both before acceptance; other
   browsers, mobile and touch are later scope.
@@ -40,9 +43,10 @@ hosting platform.
   game, client-game and UI source compiled as QVMs. The content work must prove
   that its audited free data closure works with those QVMs; changing to
   OpenArena game code requires an explicit plan revision and immutable pin.
-- **Relay ownership:** this repository owns a runnable public prototype relay
-  or equivalent test fixture implementing the public WebTransport-to-UDP
-  contract. Production deployment integration is later scope.
+- **Relay boundary:** this repository owns the public WebTransport-to-UDP
+  contract and browser conformance probe, not a second relay server. One
+  game-neutral relay implementation is shared by the operational stack; its
+  environment-specific integration remains outside this public repository.
 
 ## Starting point
 
@@ -105,7 +109,7 @@ This product repository owns:
 - the browser loader and product-facing web files;
 - reproducible content selection, transformation and manifests;
 - the native dedicated-server build and container assembly;
-- public protocol documentation and a runnable prototype relay/test fixture;
+- public relay protocol documentation and a browser conformance probe;
 - verification and license/provenance reports.
 
 The ioquake3 fork owns only engine-level changes. It should remain close enough
@@ -138,8 +142,9 @@ browser
 
 The browser-facing relay contract provides authorization and a virtual client
 address. The dedicated server receives ordinary game UDP datagrams and does
-not learn the player's public address. The first prototype targets only its
-matching, pinned server and content set.
+not learn the player's public address: it sees the relay's IPv4 address and a
+per-player UDP source port, not the browser-side virtual IPv6 address. The first
+prototype targets only its matching, pinned server and content set.
 
 ## Principal technical risks
 
@@ -147,10 +152,13 @@ matching, pinned server and content set.
 
 ioquake3's netchan buffer is 1,400 bytes, but messages at or above its 1,300-byte
 fragment size are split. Including netchan headers, expected wire datagrams can
-reach roughly 1,312 bytes from server to client and 1,314 bytes from client to
-server. Connectionless handshake packets bypass netchan fragmentation and can
-follow a different size bound. The relay adds its own header, while the usable
-WebTransport datagram budget is session- and path-dependent and may change.
+reach 1,312 bytes from server to client and 1,314 bytes from client to server.
+Connectionless handshake packets bypass netchan fragmentation and can follow a
+different size bound. The existing relay adds a fixed 40-byte header and a
+two-byte length prefix for each enclosed UDP datagram, so the largest expected
+client fragment becomes a 1,356-byte WebTransport payload. The usable
+WebTransport datagram budget remains session- and path-dependent and may
+change.
 
 Before the browser backend is implemented, the prototype must probe a
 conservative WebTransport payload budget and record the observed range in each
@@ -159,14 +167,15 @@ connectionless handshake packets in each direction. Step 4 cannot start until
 both evidence sets exist.
 
 If all complete datagrams fit the conservative budget, the tunnel keeps them
-intact. Otherwise, the project evaluates a documented symmetric fragment-size
-reduction in its pinned client and server first, accepting the loss of stock
-server compatibility. Stream-assisted handling for oversized reliable or
-handshake traffic comes next. Bounded tunnel fragmentation is a last resort;
-it needs strict byte, fragment-count and time limits and treats any missing
-fragment as loss of the original UDP datagram. An asymmetric or undocumented
-engine-size change is never acceptable. A WebSocket fallback requires a new
-plan review rather than becoming implicit prototype scope.
+intact. The working expectation is instead a documented symmetric fragment-size
+reduction in the pinned browser and native server engines, accepting the loss
+of stock-server compatibility; measurements must confirm it. Bounded
+fragmentation implemented and reassembled by the matching engine pair is the
+next in-scope alternative and needs strict byte, fragment-count and time limits.
+Stream-assisted handling would change the separately owned shared relay and
+therefore requires a new cross-repository plan and review. An asymmetric or
+undocumented engine-size change is never acceptable. A WebSocket fallback also
+requires a new plan review rather than becoming implicit prototype scope.
 
 ### Browser timing and interaction
 
@@ -202,19 +211,20 @@ user-supplied retail Quake III data and ports of other id Tech 3 descendants.
 
 ## Agreed prototype sequence
 
-The following sequence captures the agreed direction. It still needs to be
-split into reviewed work packages with inputs, outputs, acceptance evidence and
-explicit non-goals.
+The following sequence captures the agreed direction and is reflected by the
+approved packages in
+[`prototype-work-packages.md`](prototype-work-packages.md).
 
 1. **Reproduce the upstream browser build.** Pin the ioquake3 commit and exact
    Emscripten toolchain, build the official Emscripten target without product
    networking changes and document the artifact identities. Acceptance is
    reproducible build evidence, not a playable runtime: no free content has
-   been selected yet. Record whether QVM creation works within that build or
-   needs a separate pinned host-tools step. Use the Emscripten version pinned
-   by upstream CI as the baseline or document and test a deliberate deviation.
+   been selected yet. Verify upstream's existing QVM build path and retain a
+   separate pinned host-tools step only as a documented fallback. Use the
+   Emscripten version pinned by upstream CI as the baseline or document and
+   test a deliberate deviation.
    In parallel, run a standalone WebTransport datagram-budget probe against the
-   public prototype relay/test fixture.
+   compatible shared relay in the routed integration environment.
 2. **Run a minimal free arena locally.** Select and license-audit one map, one
    player presentation and the required FFA/UI/bot data, then assemble their
    reproducible OpenArena-based dependency closure. Verify loading, UI,
@@ -253,24 +263,36 @@ These are bounded planning inputs, not open product scope:
    closure works with the pinned ioq3 `baseq3` QVMs or stop for plan review.
 3. Record the exact Chromium version string and desktop OS version used for
    prototype acceptance, plus how a reviewer obtains them.
-4. Specify the public prototype relay/test fixture, its immutable inputs and
-   the observable authorization, virtual-address and packet-size evidence.
+4. Specify the public relay contract and browser probe, plus the observable
+   authorization, virtual-address and packet-size evidence required from a
+   compatible routed integration endpoint.
 5. Define the conservative WebTransport payload budget and browser probe, then
    combine it with the native netchan and connectionless packet census to
-   select the no-fragment, symmetric-size, stream-assisted or tunnel-fragment
-   path before step 4 starts.
+   select intact datagrams, a symmetric engine-size reduction or bounded
+   engine-pair fragmentation. A stream-assisted strategy is a separately owned
+   relay change and needs a new cross-repository plan before step 4 starts.
 6. Put numeric pass/fail thresholds and the two-network acceptance topology on
    multiplayer loss, latency, reconnect and frame-time evidence.
 
-## Next planning action
+## Next implementation action
 
-Review the proposed packages in
+Begin WP0 from the approved packages in
 [`prototype-work-packages.md`](prototype-work-packages.md). Each package states
 its pinned inputs, concrete output, automated checks, manual acceptance,
-license evidence, security implications and explicit non-goals. Approve the
-breakdown before modifying the ioquake3 fork or introducing content downloads.
+license evidence, security implications and explicit non-goals.
 
 The independent read-only plan review completed before the breakdown phase;
 its source-backed corrections are incorporated above. The next review should
 focus on work-package boundaries and acceptance evidence rather than reopening
 the decided product scope without new evidence.
+
+Product review subsequently rejected a second public relay implementation: a
+duplicate would create an avoidable divergence risk from the one shared proxy.
+The public repository remains reproducible through its client, protocol and
+probe artifacts; routed end-to-end acceptance deliberately requires the shared
+integration endpoint.
+
+The work-package review then verified the relay framing and corrected the
+privacy evidence, post-sizing server rebuild, strategy ownership and runtime
+integration prerequisites. Those findings are incorporated in the approved
+breakdown.

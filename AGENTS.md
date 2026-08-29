@@ -61,8 +61,11 @@ cryptographic digest and license/provenance record instead.
 
 - The browser client uses WebTransport through a small game-neutral relay
   contract; browsers do not gain direct UDP access.
-- The public prototype relay and its test fixture live in this repository so a
-  reviewer can reproduce the networking evidence without private services.
+- Multiplayer targets a matching native dedicated server. Do not add
+  browser-hosted or peer-to-peer game scope.
+- This repository owns the public relay contract and browser conformance probe,
+  not a second relay server implementation. Routed acceptance uses a compatible
+  shared relay endpoint supplied by the integration environment.
 - Keep ioquake3's game datagrams intact at the engine boundary. Do not implement
   tunnel fragmentation before packet and browser-path measurements require it.
   Any such fragmentation must be bounded, authenticated, loss-tolerant and
