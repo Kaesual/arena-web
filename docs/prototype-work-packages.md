@@ -43,7 +43,7 @@ is a plan change; adding another platform is later scope.
 | WP2 | Relay conformance probe and routed-path measurement | WP0 | Deterministic part implemented — public contract, browser probe, in-memory adapter and 125 deterministic tests; routed acceptance pending operator-supplied runtime values |
 | WP3 | Audited deterministic minimal-content closure | WP0 | ✅ Complete — two clean assemblies in the pinned builder image produce a byte-identical 668-member `oa_pvomit` FFA pack from six digest-pinned Debian-cleaned OpenArena archives, every member `GPL-2.0-or-later` with resolved notices, and every reference the two static readings of the pinned `baseq3` QVM sources extract either resolves or is a recipe acceptance with a stated reason |
 | WP4 | One-map offline browser arena with bots | WP1, WP3 | Implemented, witnessed acceptance pending — the product loader, the digest-verified served set and the automated pre-acceptance are built and green in the pinned browser; a person at the WP0 desktop has not yet played it |
-| WP5 | Matching native server and packet census | WP0, WP3 | Stopped before implementation on a verified WP0 gap: the baseline has no record type for a redistributed runtime image. Resolution approved 2026-08-30: a reviewed WP0 amendment (see the WP5 State block), then WP5 proceeds |
+| WP5 | Matching native server and packet census | WP0, WP3 | Approved — the WP0 gap that stopped it (no record type for a redistributed runtime image) was closed by the reviewed amendment of 2026-08-30, which pinned the Debian `13-slim` server runtime base (see the WP5 State block) |
 | WP6 | Measured network-sizing decision | WP2, WP5 | Approved |
 | WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | Scope gate |
 | WP8 | Two-browser multiplayer acceptance | WP5, WP7 | Scope gate |
@@ -523,8 +523,9 @@ rendering alone is insufficient.
 
 ## WP5 — Matching native server and packet census
 
-**State:** stopped before implementation; a WP0 amendment was approved on
-2026-08-30 and must land first. No WP5 code exists yet.
+**State:** unblocked. The approved WP0 amendment landed on 2026-08-30,
+was independently reviewed at WP0 level and its findings were fixed in the
+same step; WP5 implementation may proceed. No WP5 code exists yet.
 
 ### Why WP5 stopped, and the approved resolution
 
@@ -573,6 +574,32 @@ license gate beside WP0's single one — a weakening); a fully static server on
 `scratch` (does not answer the native test client's runtime needs and leaves
 the WP0 gap open); deferring the pin (violates the empty-writable-state
 acceptance).
+
+**Amendment outcome (2026-08-30).** Implemented as one amendment commit and
+independently reviewed at WP0 level; the verdict was that the amendment
+preserves the fail-closed guarantees, with nothing blocking. The review's one
+MAJOR — the corresponding-source record over-claimed a third-party archive as
+a distributor's discharge — and its eight MINORs were all fixed in the same
+step: the committed record now also carries `written-offer-on-request` as
+arena-web's own backstop obligation, the validator forbids a redistributed
+image that reuses any digest or reference a `tools[]` entry pins as
+build-only, the third license class's whole gate lives in one function that
+the generic license gate refuses to serve, the pre-existing product/tool
+registry disjointness and two previously untested branches are pinned by
+tests, and `evidenceUrl` is a commit-pinned `docker-library/repo-info`
+locator. `docs/immutable-baseline.md` carries the amendment rationale; the
+baseline identity is now
+`sha256:036573866ac5d3da70fbe0b736d8196ebfa94f8b5002bca7fd31fd91943fc1eb` and
+no artifact digest moved (both deterministic builds re-verified by the
+implementer and independently reproduced by the coordinator). The coordinator
+reviewed the fix delta directly — gates, external evidence claims, a mutation
+check on the new validator branch — and recorded the decision that a second
+independent review round was not required for it.
+
+Recorded for WP5 rather than fixed here: `_baseline_input_identities`
+deliberately excludes the new record type, so a WP5 artifact manifest that
+declares `server-runtime-base` as a baseline input fails closed until WP5
+extends that mapping as part of its own reviewed change.
 
 ### Verified groundwork, recorded ahead of implementation
 
