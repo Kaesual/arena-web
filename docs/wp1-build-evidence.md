@@ -131,10 +131,10 @@ containing `1.36`.
 ## Accepted builds
 
 Two complete clean builds were run by `scripts/verify-browser-build.sh` from
-arena-web commit `f40b3f6366653fc7bf61625ed19052000c7b4ce4`. They produced
+arena-web commit `abf82e30d06e7dc9cae9fe07dcef8bb4fb998622`. They produced
 identical artifact manifests and byte-identical artifacts.
 
-Artifact manifest: `sha256:0f789d012697b59b04bbdfdb9dbc101e34afa68e85278d9fd28d8e29d40509cf`
+Artifact manifest: `sha256:3ec5a035f06058a0701dbab7c6295a205c4f61d54244bda996c87db2b081de49`
 
 ```text
 12d597a49bc351149d7459692a0311cc5e186cf4f376c703ddaa6cfa27a602e4  baseq3/vm/cgame.qvm
@@ -149,10 +149,18 @@ cd615ce97dd65b2879158b540f0d331eb27fb52be9af7c8350dcc403955e3f68  missionpack/vm
 80783e0cfe98e5ea0009863c02c56b3c022a7c74468b5218c4870ce178accec5  missionpack/vm/ui.qvm
 ```
 
-Two further builds run during development — one with container network access
-before the offline port pre-fetch existed, one offline — produced the same ten
-digests, so the result does not depend on network availability during the
-build.
+Four further builds run during development produced the same ten digests: one
+with container network access before the offline port pre-fetch existed, one
+offline, and an earlier accepted pair whose CMake binary directory sat one
+level deeper inside the container. The result therefore depends on neither
+network availability during the build nor the container path of the build
+directory.
+
+`producer.commit` names the commit whose orchestration produced the manifest,
+so a rebuild from a later commit records its own. `scripts/verify-browser-build.sh`
+compares a rebuild against `manifests/browser-client.json` on that basis: every
+field except `producer` must agree exactly, and a differing producing commit is
+reported rather than treated as a mismatch.
 
 ### Toolchain identity in the log
 
