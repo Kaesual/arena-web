@@ -57,10 +57,11 @@ object, and GitHub has changed archive generation before. The recoverable
 preferred source is therefore the upstream tag `release-2.32.10` in
 `https://github.com/libsdl-org/SDL`, recorded alongside the two archive
 digests. The exact upstream commit id could not be determined offline from the
-material at hand: the archive carries no revision metadata — its
-`.gitattributes` has no `export-subst` entry and `include/SDL_revision.h` is
-the unexpanded placeholder that defines `SDL_REVISION` to the empty string —
-and resolving the tag to a commit would need an unpinned network lookup. A
+material at hand: the archive carries no revision metadata — it contains no
+`.gitattributes` at all, so no `export-subst` expansion applies, and
+`include/SDL_revision.h` is the unexpanded placeholder that defines
+`SDL_REVISION` to the empty string — and resolving the tag to a commit would
+need an unpinned network lookup. A
 later WP that publishes a client should resolve and record that commit id once,
 under review.
 

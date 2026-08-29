@@ -32,10 +32,11 @@ ports_dir="${repo_dir}/build/emscripten-ports"
 # `--fetch` reads `VERSION` and `HASH` out of the pinned image's
 # `tools/ports/sdl2.py` and refuses to continue if either disagrees, and the
 # SDK then verifies its download against that same SHA-512. The remaining
-# values are arena-web's own records of what that produces — the archive's
-# SHA-256, the file name and top-level directory the SDK's unpacking creates,
-# and the URL the SDK composes from its VERSION — and they are enforced here
-# rather than by the SDK.
+# values are arena-web's own records of what that produces. The archive's
+# SHA-256 and the file name and top-level directory the SDK's unpacking
+# creates are enforced here; the URL the SDK composes from its VERSION is
+# enforced only indirectly, because a wrong record would stage a marker the
+# SDK rejects, which fails the offline build rather than fetching anything.
 port_name="sdl2"
 port_version="2.32.10"
 port_url="https://github.com/libsdl-org/SDL/archive/release-2.32.10.zip"
