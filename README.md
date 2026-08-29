@@ -35,12 +35,17 @@ release.
   upstream archives, the game profile and every accepted exception.
 - `provenance/` holds the member-level provenance of the assembled pack and the
   pack's own identity.
+- `docs/relay-datagram-contract.md` is the public routed datagram contract: the
+  protocol subset and byte-exact framing a browser needs to reach one game
+  destination through a compatible relay.
+- `probe/` is the standalone browser conformance probe for that contract, and
+  `docs/wp2-relay-probe.md` records what it implements and what its routed
+  acceptance still needs.
 - `LICENSE` applies GPL-2.0-or-later to original arena-web code and
   documentation. Pinned components and content retain their own licenses.
 
-The browser shell, content lockfiles, the public relay contract and browser
-conformance probe, and the dedicated-server image will live in this repository
-as later work packages add them. The shared relay server implementation and
+The browser shell and the dedicated-server image will live in this repository as
+later work packages add them. The shared relay server implementation and
 environment-specific deployment remain outside this public repository. Large
 upstream asset archives and generated build products should not be committed
 here merely for convenience.
@@ -111,6 +116,28 @@ Only the first command uses the network, and it accepts an archive only if its
 size and digest match the recipe. Everything is written to the gitignored
 `build/` directory; the PK3 is not committed, its member-level provenance and
 identity are. See `docs/wp3-content-closure.md`.
+
+## Running the relay conformance probe
+
+The probe measures the usable routed datagram path between a browser and one
+game destination behind a compatible WebTransport-to-UDP relay. It is
+game-neutral and this repository contains no relay server.
+
+```bash
+scripts/serve-probe.sh          # then open http://127.0.0.1:8173/probe/
+```
+
+The page first runs the committed conformance vectors and a complete in-memory
+session through its own implementation of
+`docs/relay-datagram-contract.md`, and refuses to open a network session if
+anything disagrees. The endpoint, trust input, short-lived authorization and
+routing prefix are typed in at runtime; none of them is committed here, and the
+measurement report has no field for them. Without those values the probe runs
+its self-test and stops, which is the intended state until an integration
+environment supplies them.
+
+The deterministic half of the contract needs no browser and runs in
+`scripts/check.sh`.
 
 ## Licensing
 

@@ -39,7 +39,7 @@ is a plan change; adding another platform is later scope.
 | --- | --- | --- | --- |
 | WP0 | Immutable toolchain and acceptance baseline | — | ✅ Complete — exact public pins, closed license/tree inventory, schemas, relay vector and fail-closed validation |
 | WP1 | Reproducible unmodified ioq3 browser build | WP0 | ✅ Complete — two clean offline builds in the pinned Emscripten 6.0.8 image produce byte-identical artifacts and one validated manifest, with the observed component, QVM/lcc, license-closure and isolation findings recorded |
-| WP2 | Relay conformance probe and routed-path measurement | WP0 | Approved |
+| WP2 | Relay conformance probe and routed-path measurement | WP0 | Deterministic part implemented — public contract, browser probe, in-memory adapter and 88 deterministic tests; routed acceptance pending operator-supplied runtime values |
 | WP3 | Audited deterministic minimal-content closure | WP0 | ✅ Complete — two clean assemblies in the pinned builder image produce a byte-identical 668-member `oa_pvomit` FFA pack from six digest-pinned Debian-cleaned OpenArena archives, every member `GPL-2.0-or-later` with resolved notices, and every reference the two static readings of the pinned `baseq3` QVM sources extract either resolves or is a recipe acceptance with a stated reason |
 | WP4 | One-map offline browser arena with bots | WP1, WP3 | Approved |
 | WP5 | Matching native server and packet census | WP0, WP3 | Approved |
@@ -248,6 +248,15 @@ Build/reproducibility review of scripts, clean-build enforcement, toolchain
 identity and artifact comparison.
 
 ## WP2 — Relay conformance probe and routed-path measurement
+
+**State:** deterministic part implemented, routed acceptance pending. The
+evidence is [`wp2-relay-probe.md`](wp2-relay-probe.md) and the published
+contract is
+[`relay-datagram-contract.md`](relay-datagram-contract.md). The specification,
+the browser probe, the in-memory adapter and the deterministic tests exist; no
+measurement against a real endpoint has been taken, and the payload budget WP6
+needs has not been derived. The evidence document lists the one-time runtime
+values an operator must supply before the routed round can begin.
 
 ### Outcome
 
