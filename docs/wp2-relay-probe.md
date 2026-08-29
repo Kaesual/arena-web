@@ -84,10 +84,15 @@ in the specification rather than buried in code:
 **The 40-byte header is opaque.** Its size and position are fixed; its interior
 is not defined by any input this repository is allowed to use, and it was not
 reverse-engineered. The contract therefore treats it as a routing prefix that a
-client never parses, and the probe takes it as runtime configuration. The two
-properties the contract does require of it — that it addresses exactly one
-destination and stays constant for the session — are enforced: the probe pins
-the first accepted return prefix and refuses any later frame that differs.
+client never parses, and the probe takes it as runtime configuration. Of the two
+properties the contract requires of it, only one is checkable from a client: the
+probe pins the first accepted return prefix, or compares against an
+operator-supplied one, and refuses any later frame that differs. That detects
+drift and is not a security mechanism — a probe that has never seen the correct
+prefix adopts whichever arrives first, and what attributes a datagram to a
+session is the payload tag. The other property, that the prefix addresses one
+destination on the projected port, cannot be checked at all from bytes the
+contract does not parse.
 
 **The 16-byte payload tag is a session nonce plus a datagram ordinal.** The
 vector fixes the length, the payload-prefix placement and that shorter payloads

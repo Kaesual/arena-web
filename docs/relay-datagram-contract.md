@@ -88,10 +88,18 @@ prefix, and this subset requires only two things of that prefix:
    projection is not a frame for this destination and is not routed.
 2. It is constant for the direction and session. A client therefore pins the
    prefix of the first accepted server-to-browser frame and rejects any later
-   frame whose prefix differs, rather than accepting traffic it cannot attribute
-   to its own destination.
+   frame whose prefix differs. Where the operator can state the return prefix in
+   advance, the client compares against that instead and the first frame is
+   checked like every other.
 
-Nothing else about the prefix is interpreted.
+Nothing else about the prefix is interpreted, and neither property is a security
+mechanism. The pin detects drift; it cannot authenticate anything, because a
+client that has never seen the correct prefix adopts whichever arrives first.
+What attributes a datagram to a session is the payload tag, not the prefix.
+
+Note also that a client cannot verify property 1 at all: the port lives inside
+bytes this subset does not parse. A client that needs the guarantee has to be
+told it.
 
 ## Frame format
 
