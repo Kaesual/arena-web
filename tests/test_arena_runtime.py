@@ -1,0 +1,1383 @@
+# SPDX-License-Identifier: GPL-2.0-or-later
+
+from __future__ import annotations
+
+import base64
+import copy
+import gc
+import hashlib
+import json
+import socket
+import struct
+import sys
+import tempfile
+import threading
+import unittest
+import warnings
+import zlib
+from pathlib import Path
+from typing import Any
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+from arena_acceptance import (  # noqa: E402
+    ACCEPTED_ENGINE_NOTES,
+    ENGINE_DEFECT_PATTERNS,
+    AcceptanceError,
+    Check,
+    RunResult,
+    classify_engine_log,
+    compare_runs,
+    pinned_browser_version,
+    png_pixel_statistics,
+)
+from arena_runtime import (  # noqa: E402
+    ArenaRuntimeError,
+    expected_engine_arguments,
+    load_profile,
+    manifest_index,
+    served_files,
+    stage,
+    verify_staged,
+)
+from browser_session import (  # noqa: E402
+    WEBSOCKET_GUID,
+    BrowserSessionError,
+    DevToolsSession,
+    WebSocketClient,
+    wait_until,
+)
+
+# --------------------------------------------------------------------------
+# A synthetic repository, so the fail-closed rules can be exercised without
+# touching the committed profile, manifests or recipe.
+# --------------------------------------------------------------------------
+
+ENGINE_FILES = {
+    "ioquake3.js": b"export default function ioquake3() {}\n",
+    "ioquake3.wasm": b"\x00asm\x01\x00\x00\x00",
+    "baseq3/vm/cgame.qvm": b"cgame-bytes",
+    "baseq3/vm/qagame.qvm": b"qagame-bytes",
+    "baseq3/vm/ui.qvm": b"ui-bytes",
+    "ioquake3.html": b"<!-- upstream shell -->",
+    "ioquake3-config.json": b"{}",
+    "missionpack/vm/ui.qvm": b"missionpack-ui",
+}
+CONTENT_FILES = {
+    "baseq3/arena-web-ffa.pk3": b"PK\x03\x04 pretend pack",
+    "baseq3/other.pk3": b"PK\x03\x04 another pack",
+}
+
+
+def _manifest(files: dict[str, bytes]) -> dict[str, Any]:
+    return {
+        "artifacts": [
+            {
+                "path": path,
+                "sha256": hashlib.sha256(data).hexdigest(),
+                "size": len(data),
+            }
+            for path, data in sorted(files.items())
+        ],
+        "digestAlgorithm": "sha256",
+        "formatVersion": 1,
+    }
+
+
+def _profile() -> dict[str, Any]:
+    return {
+        "$comment": ["synthetic"],
+        "formatVersion": 1,
+        "package": "arena-web-ffa-oa_pvomit",
+        "basegame": "arena",
+        "map": "oa_pvomit",
+        "playerModel": "skelebot/default",
+        "bots": [{"name": "Skelebot", "skill": 3}, {"name": "Rai", "skill": 3}],
+        "cvars": {
+            "bot_enable": "1",
+            "com_basegame": "arena",
+            "fraglimit": "15",
+            "g_gametype": "0",
+            "headmodel": "skelebot/default",
+            "model": "skelebot/default",
+            "net_enabled": "0",
+            "sv_maxclients": "8",
+            "sv_pure": "0",
+        },
+        "cvarNotes": {
+            name: "note"
+            for name in (
+                "bot_enable",
+                "com_basegame",
+                "fraglimit",
+                "g_gametype",
+                "headmodel",
+                "model",
+                "net_enabled",
+                "sv_maxclients",
+                "sv_pure",
+            )
+        },
+        "readyMarkers": {
+            "serverSpawned": "Server: oa_pvomit",
+            "clientGameLoaded": "CL_InitCGame:",
+            "botEnteredGame": "entered the game",
+        },
+        "readyMarkerNotes": {
+            "serverSpawned": "sv_init.c",
+            "clientGameLoaded": "cl_cgame.c",
+            "botEnteredGame": "g_client.c",
+        },
+        "manifests": {
+            "content": "provenance/arena-web-ffa-content-manifest.json",
+            "engine": "manifests/browser-client.json",
+        },
+        "configFiles": [
+            {
+                "source": "default.cfg",
+                "served": "default.cfg",
+                "fsPath": "/arena/default.cfg",
+            }
+        ],
+        "artifacts": [
+            {
+                "manifest": "engine",
+                "path": "ioquake3.js",
+                "served": "engine/ioquake3.js",
+                "role": "module-script",
+            },
+            {
+                "manifest": "engine",
+                "path": "ioquake3.wasm",
+                "served": "engine/ioquake3.wasm",
+                "role": "module-wasm",
+            },
+            {
+                "manifest": "engine",
+                "path": "baseq3/vm/cgame.qvm",
+                "served": "engine/baseq3/vm/cgame.qvm",
+                "role": "filesystem",
+                "fsPath": "/arena/vm/cgame.qvm",
+            },
+            {
+                "manifest": "content",
+                "path": "baseq3/arena-web-ffa.pk3",
+                "served": "content/baseq3/arena-web-ffa.pk3",
+                "role": "filesystem",
+                "fsPath": "/arena/arena-web-ffa.pk3",
+            },
+        ],
+        "engineArguments": [],
+    }
+
+
+def _recipe() -> dict[str, Any]:
+    return {
+        "formatVersion": 1,
+        "packPath": "baseq3/arena-web-ffa.pk3",
+        "package": {"id": "arena-web-ffa-oa_pvomit", "name": "synthetic"},
+        "profile": {
+            "arena": {
+                "bots": "Skelebot Rai Sly",
+                "fraglimit": "15",
+                "longname": "Projectile Vomit",
+                "map": "oa_pvomit",
+                "type": "ffa",
+            },
+            "bots": [
+                {
+                    "aifile": "bots/skelebot_c.c",
+                    "model": "skelebot/default",
+                    "name": "Skelebot",
+                },
+                {"aifile": "bots/rai_c.c", "model": "skelebot/default", "name": "Rai"},
+                {"aifile": "bots/sly_c.c", "model": "skelebot/default", "name": "Sly"},
+            ],
+            "map": "oa_pvomit",
+            "playerModels": ["skelebot/default"],
+        },
+    }
+
+
+class SyntheticRepository:
+    """A throwaway tree with the exact files `arena_runtime` reads."""
+
+    def __init__(self, directory: Path) -> None:
+        self.root = directory
+        self.profile = _profile()
+        self.profile["engineArguments"] = expected_engine_arguments(self.profile)
+        self.recipe = _recipe()
+        self.engine_dir = directory / "engine-build"
+        self.content_dir = directory / "content-build"
+        self.target = directory / "build" / "arena-serve"
+        self.write()
+
+    def write(self) -> None:
+        (self.root / "arena").mkdir(parents=True, exist_ok=True)
+        (self.root / "manifests").mkdir(parents=True, exist_ok=True)
+        (self.root / "provenance").mkdir(parents=True, exist_ok=True)
+        (self.root / "content").mkdir(parents=True, exist_ok=True)
+        (self.root / "arena" / "index.html").write_text(
+            "<!doctype html>", encoding="utf-8"
+        )
+        (self.root / "arena" / "loader.js").write_text("// loader", encoding="utf-8")
+        (self.root / "arena" / "default.cfg").write_text("// cfg\n", encoding="utf-8")
+        (self.root / "arena" / "other.cfg").write_text("// other\n", encoding="utf-8")
+        (self.root / "arena" / "game-profile.json").write_text(
+            json.dumps(self.profile), encoding="utf-8"
+        )
+        (self.root / "manifests" / "browser-client.json").write_text(
+            json.dumps(_manifest(ENGINE_FILES)), encoding="utf-8"
+        )
+        (self.root / "provenance" / "arena-web-ffa-content-manifest.json").write_text(
+            json.dumps(_manifest(CONTENT_FILES)), encoding="utf-8"
+        )
+        (self.root / "content" / "pack-recipe.json").write_text(
+            json.dumps(self.recipe), encoding="utf-8"
+        )
+        for name, data in ENGINE_FILES.items():
+            path = self.engine_dir / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+        for name, data in CONTENT_FILES.items():
+            path = self.content_dir / name
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
+
+    def set_profile(self, profile: dict[str, Any]) -> None:
+        self.profile = profile
+        (self.root / "arena" / "game-profile.json").write_text(
+            json.dumps(profile), encoding="utf-8"
+        )
+
+    def mutate(self, change) -> None:
+        profile = copy.deepcopy(self.profile)
+        change(profile)
+        if "engineArguments" in profile and profile[
+            "engineArguments"
+        ] == expected_engine_arguments(self.profile):
+            try:
+                profile["engineArguments"] = expected_engine_arguments(profile)
+            except (KeyError, TypeError):
+                pass
+        self.set_profile(profile)
+
+    def stage(self) -> dict[str, Any]:
+        return stage(
+            self.root,
+            self.target,
+            engine_dir=self.engine_dir,
+            content_dir=self.content_dir,
+        )
+
+
+class SyntheticRepositoryTest(unittest.TestCase):
+    def setUp(self) -> None:
+        self._directory = tempfile.TemporaryDirectory()
+        self.addCleanup(self._directory.cleanup)
+        self.repository = SyntheticRepository(Path(self._directory.name))
+
+    def refuses(self, change) -> str:
+        self.repository.mutate(change)
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            load_profile(self.repository.root)
+        self.repository.set_profile(_profile() | {"engineArguments": []})
+        return str(caught.exception)
+
+
+class ProfileValidationTest(SyntheticRepositoryTest):
+    def test_the_synthetic_profile_is_accepted(self) -> None:
+        profile = load_profile(self.repository.root)
+        self.assertEqual(profile["map"], "oa_pvomit")
+        self.assertIn("_manifests", profile)
+
+    def test_an_unknown_key_is_refused(self) -> None:
+        self.assertIn(
+            "unexpected key set", self.refuses(lambda p: p.update({"extra": 1}))
+        )
+
+    def test_a_missing_key_is_refused(self) -> None:
+        self.assertIn("unexpected key set", self.refuses(lambda p: p.pop("basegame")))
+
+    def test_a_wrong_format_version_is_refused(self) -> None:
+        self.assertIn(
+            "formatVersion", self.refuses(lambda p: p.update({"formatVersion": 2}))
+        )
+
+    def test_a_map_name_with_a_path_separator_is_refused(self) -> None:
+        self.assertIn(
+            "map", self.refuses(lambda p: p.update({"map": "maps/oa_pvomit"}))
+        )
+
+    def test_a_profile_without_bots_is_refused(self) -> None:
+        self.assertIn(
+            "at least one bot", self.refuses(lambda p: p.update({"bots": []}))
+        )
+
+    def test_a_duplicate_bot_is_refused(self) -> None:
+        self.assertIn(
+            "twice",
+            self.refuses(
+                lambda p: p.update({"bots": [p["bots"][0], dict(p["bots"][0])]})
+            ),
+        )
+
+    def test_an_out_of_range_bot_skill_is_refused(self) -> None:
+        self.assertIn(
+            "1..5",
+            self.refuses(lambda p: p["bots"][0].update({"skill": 9})),
+        )
+
+    def test_a_boolean_bot_skill_is_refused(self) -> None:
+        self.assertIn(
+            "1..5", self.refuses(lambda p: p["bots"][0].update({"skill": True}))
+        )
+
+    def test_a_bot_the_content_pack_does_not_carry_is_refused(self) -> None:
+        self.assertIn(
+            "content pack packages",
+            self.refuses(lambda p: p["bots"].append({"name": "Sarge", "skill": 3})),
+        )
+
+    def test_a_runtime_derived_cvar_may_not_be_committed(self) -> None:
+        self.assertIn(
+            "derived from the live canvas",
+            self.refuses(lambda p: p["cvars"].update({"r_mode": "-2"})),
+        )
+
+    def test_a_cvar_value_with_whitespace_is_refused(self) -> None:
+        self.assertIn(
+            "without whitespace",
+            self.refuses(lambda p: p["cvars"].update({"sv_pure": "0 1"})),
+        )
+
+    def test_an_undocumented_cvar_is_refused(self) -> None:
+        self.assertIn(
+            "cvarNotes",
+            self.refuses(lambda p: p["cvars"].update({"r_gamma": "1"})),
+        )
+
+    def test_a_team_gametype_is_refused(self) -> None:
+        self.assertIn(
+            "GT_FFA",
+            self.refuses(lambda p: p["cvars"].update({"g_gametype": "3"})),
+        )
+
+    def test_enabling_networking_is_refused(self) -> None:
+        self.assertIn(
+            "offline",
+            self.refuses(lambda p: p["cvars"].update({"net_enabled": "1"})),
+        )
+
+    def test_a_player_model_that_disagrees_with_the_model_cvar_is_refused(self) -> None:
+        self.assertIn(
+            "profile.playerModel",
+            self.refuses(lambda p: p["cvars"].update({"model": "sarge/default"})),
+        )
+
+    def test_a_player_model_the_pack_does_not_carry_is_refused(self) -> None:
+        def change(profile: dict[str, Any]) -> None:
+            profile["playerModel"] = "sarge/default"
+            profile["cvars"]["model"] = "sarge/default"
+            profile["cvars"]["headmodel"] = "sarge/default"
+
+        self.assertIn("player presentation", self.refuses(change))
+
+    def test_a_frag_limit_that_disagrees_with_the_recipe_is_refused(self) -> None:
+        self.assertIn(
+            "frag limit",
+            self.refuses(lambda p: p["cvars"].update({"fraglimit": "30"})),
+        )
+
+    def test_a_marker_that_is_not_the_engine_string_is_refused(self) -> None:
+        self.assertIn(
+            "sv_init.c",
+            self.refuses(
+                lambda p: p["readyMarkers"].update({"serverSpawned": "Map: oa_pvomit"})
+            ),
+        )
+
+    def test_an_unknown_ready_marker_is_refused(self) -> None:
+        self.assertIn(
+            "readyMarkers",
+            self.refuses(lambda p: p["readyMarkers"].update({"other": "x"})),
+        )
+
+    def test_a_map_the_content_recipe_does_not_assemble_is_refused(self) -> None:
+        def change(profile: dict[str, Any]) -> None:
+            profile["map"] = "q3dm6ish"
+            profile["readyMarkers"]["serverSpawned"] = "Server: q3dm6ish"
+
+        self.assertIn("content recipe assembles", self.refuses(change))
+
+    def test_engine_arguments_that_are_not_the_derivation_are_refused(self) -> None:
+        message = self.refuses(
+            lambda p: p.update({"engineArguments": ["+map", "oa_pvomit"]})
+        )
+        self.assertIn("not the derivation", message)
+
+    def test_engine_arguments_place_the_map_before_every_bot(self) -> None:
+        arguments = expected_engine_arguments(self.repository.profile)
+        self.assertLess(arguments.index("+map"), arguments.index("+addbot"))
+
+    def test_engine_arguments_use_the_upstream_bot_delay_cadence(self) -> None:
+        arguments = expected_engine_arguments(self.repository.profile)
+        delays = [
+            arguments[index + 4]
+            for index, token in enumerate(arguments)
+            if token == "+addbot"
+        ]
+        self.assertEqual(delays, ["2000", "3500"])
+
+    def test_engine_arguments_are_sorted_by_cvar_name(self) -> None:
+        arguments = expected_engine_arguments(self.repository.profile)
+        names = [
+            arguments[index + 1]
+            for index, token in enumerate(arguments)
+            if token == "+set"
+        ]
+        self.assertEqual(names, sorted(names))
+
+
+class ArtifactAllowlistTest(SyntheticRepositoryTest):
+    def _artifact(self, **overrides: Any) -> dict[str, Any]:
+        artifact = {
+            "manifest": "engine",
+            "path": "ioquake3.html",
+            "served": "engine/ioquake3.html",
+            "role": "filesystem",
+            "fsPath": "/arena/ioquake3.html",
+        }
+        artifact.update(overrides)
+        return artifact
+
+    def test_the_upstream_shell_may_not_be_served(self) -> None:
+        self.assertIn(
+            "build evidence",
+            self.refuses(lambda p: p["artifacts"].append(self._artifact())),
+        )
+
+    def test_the_retail_data_configuration_may_not_be_served(self) -> None:
+        self.assertIn(
+            "build evidence",
+            self.refuses(
+                lambda p: p["artifacts"].append(
+                    self._artifact(
+                        path="ioquake3-config.json",
+                        served="engine/ioquake3-config.json",
+                        fsPath="/arena/ioquake3-config.json",
+                    )
+                )
+            ),
+        )
+
+    def test_missionpack_output_may_not_be_served(self) -> None:
+        self.assertIn(
+            "off-profile",
+            self.refuses(
+                lambda p: p["artifacts"].append(
+                    self._artifact(
+                        path="missionpack/vm/ui.qvm",
+                        served="engine/missionpack/vm/ui.qvm",
+                        fsPath="/arena/vm/mp-ui.qvm",
+                    )
+                )
+            ),
+        )
+
+    def test_an_artifact_the_manifest_does_not_declare_is_refused(self) -> None:
+        self.assertIn(
+            "does not declare it",
+            self.refuses(
+                lambda p: p["artifacts"].append(
+                    self._artifact(
+                        path="baseq3/vm/other.qvm",
+                        served="engine/baseq3/vm/other.qvm",
+                        fsPath="/arena/vm/other.qvm",
+                    )
+                )
+            ),
+        )
+
+    def test_a_served_path_outside_its_manifest_prefix_is_refused(self) -> None:
+        self.assertIn(
+            "served",
+            self.refuses(lambda p: p["artifacts"][0].update({"served": "ioquake3.js"})),
+        )
+
+    def test_two_module_scripts_are_refused(self) -> None:
+        self.assertIn(
+            "exactly one 'module-script'",
+            self.refuses(lambda p: p["artifacts"][1].update({"role": "module-script"})),
+        )
+
+    def test_a_missing_module_wasm_is_refused(self) -> None:
+        self.assertIn(
+            "exactly one 'module-wasm'",
+            self.refuses(lambda p: p["artifacts"].pop(1)),
+        )
+
+    def test_the_retail_game_directory_is_refused(self) -> None:
+        def change(profile):
+            profile["basegame"] = "baseq3"
+            profile["cvars"]["com_basegame"] = "baseq3"
+            for artifact in profile["artifacts"]:
+                if "fsPath" in artifact:
+                    artifact["fsPath"] = artifact["fsPath"].replace(
+                        "/arena/", "/baseq3/"
+                    )
+            profile["configFiles"][0]["fsPath"] = "/baseq3/default.cfg"
+
+        self.assertIn("FS_CheckPak0", self.refuses(change))
+
+    def test_a_profile_without_a_default_cfg_is_refused(self) -> None:
+        self.assertIn(
+            "FS_InitFilesystem",
+            self.refuses(
+                lambda p: p["configFiles"].__setitem__(
+                    0,
+                    {
+                        "source": "other.cfg",
+                        "served": "other.cfg",
+                        "fsPath": "/arena/other.cfg",
+                    },
+                )
+            ),
+        )
+
+    def test_a_config_file_that_is_not_in_the_repository_is_refused(self) -> None:
+        self.assertIn(
+            "does not exist",
+            self.refuses(
+                lambda p: p["configFiles"].append(
+                    {
+                        "source": "absent.cfg",
+                        "served": "absent.cfg",
+                        "fsPath": "/arena/absent.cfg",
+                    }
+                )
+            ),
+        )
+
+    def test_a_config_file_with_a_path_in_its_source_is_refused(self) -> None:
+        self.assertIn(
+            "plain file name",
+            self.refuses(
+                lambda p: p["configFiles"][0].update({"source": "../loader.js"})
+            ),
+        )
+
+    def test_a_config_file_written_outside_the_game_directory_is_refused(self) -> None:
+        self.assertIn(
+            "must be",
+            self.refuses(
+                lambda p: p["configFiles"][0].update({"fsPath": "/etc/default.cfg"})
+            ),
+        )
+
+    def test_an_empty_config_file_list_is_refused(self) -> None:
+        self.assertIn("is empty", self.refuses(lambda p: p.update({"configFiles": []})))
+
+    def test_a_filesystem_path_outside_the_game_directory_is_refused(self) -> None:
+        self.assertIn(
+            "must start with",
+            self.refuses(lambda p: p["artifacts"][2].update({"fsPath": "/etc/passwd"})),
+        )
+
+    def test_a_content_pack_outside_the_recipe_is_refused(self) -> None:
+        self.assertIn(
+            "recipe's pack",
+            self.refuses(
+                lambda p: p["artifacts"][3].update(
+                    {"path": "baseq3/other.pk3", "served": "content/baseq3/other.pk3"}
+                )
+            ),
+        )
+
+    def test_a_filesystem_artifact_without_a_destination_is_refused(self) -> None:
+        self.assertIn(
+            "unexpected key set",
+            self.refuses(lambda p: p["artifacts"][2].pop("fsPath")),
+        )
+
+
+class StagingTest(SyntheticRepositoryTest):
+    def test_staging_writes_exactly_the_declared_files(self) -> None:
+        report = self.repository.stage()
+        present = sorted(
+            path.relative_to(self.repository.target).as_posix()
+            for path in self.repository.target.rglob("*")
+            if path.is_file()
+        )
+        self.assertEqual(present, report["servedFiles"])
+        self.assertEqual(
+            present,
+            [
+                "content/baseq3/arena-web-ffa.pk3",
+                "default.cfg",
+                "engine/baseq3/vm/cgame.qvm",
+                "engine/ioquake3.js",
+                "engine/ioquake3.wasm",
+                "game-profile.json",
+                "index.html",
+                "loader.js",
+                "manifests/browser-client.json",
+                "provenance/arena-web-ffa-content-manifest.json",
+            ],
+        )
+
+    def test_staging_reports_the_verified_artifact_bytes(self) -> None:
+        report = self.repository.stage()
+        self.assertEqual(
+            report["totalArtifactBytes"],
+            sum(
+                len(ENGINE_FILES[name])
+                for name in ("ioquake3.js", "ioquake3.wasm", "baseq3/vm/cgame.qvm")
+            )
+            + len(CONTENT_FILES["baseq3/arena-web-ffa.pk3"]),
+        )
+
+    def test_staging_is_idempotent(self) -> None:
+        first = self.repository.stage()
+        second = self.repository.stage()
+        self.assertEqual(first, second)
+
+    def test_an_engine_artifact_that_is_not_the_committed_one_is_refused(self) -> None:
+        (self.repository.engine_dir / "ioquake3.wasm").write_bytes(b"\x00asm tampered")
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            self.repository.stage()
+        self.assertIn("is not the committed engine artifact", str(caught.exception))
+
+    def test_a_content_artifact_that_is_not_the_committed_one_is_refused(self) -> None:
+        (self.repository.content_dir / "baseq3/arena-web-ffa.pk3").write_bytes(b"other")
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            self.repository.stage()
+        self.assertIn("is not the committed content artifact", str(caught.exception))
+
+    def test_a_missing_build_output_is_refused(self) -> None:
+        (self.repository.engine_dir / "ioquake3.js").unlink()
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            self.repository.stage()
+        self.assertIn("build it first", str(caught.exception))
+
+    def test_a_missing_build_directory_is_refused(self) -> None:
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            stage(
+                self.repository.root,
+                self.repository.target,
+                engine_dir=self.repository.root / "absent",
+                content_dir=self.repository.content_dir,
+            )
+        self.assertIn("does not exist", str(caught.exception))
+
+    def test_an_extra_file_in_the_staged_tree_is_refused(self) -> None:
+        self.repository.stage()
+        (self.repository.target / "extra.txt").write_text("x", encoding="utf-8")
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            verify_staged(self.repository.root, self.repository.target)
+        self.assertIn("does not declare", str(caught.exception))
+
+    def test_a_missing_file_in_the_staged_tree_is_refused(self) -> None:
+        self.repository.stage()
+        (self.repository.target / "loader.js").unlink()
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            verify_staged(self.repository.root, self.repository.target)
+        self.assertIn("missing declared files", str(caught.exception))
+
+    def test_a_modified_staged_artifact_is_refused(self) -> None:
+        self.repository.stage()
+        (self.repository.target / "engine/ioquake3.wasm").write_bytes(b"\x00asm x")
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            verify_staged(self.repository.root, self.repository.target)
+        self.assertIn("committed manifest identity", str(caught.exception))
+
+    def test_a_modified_staged_loader_is_refused(self) -> None:
+        self.repository.stage()
+        (self.repository.target / "loader.js").write_text(
+            "// tampered", encoding="utf-8"
+        )
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            verify_staged(self.repository.root, self.repository.target)
+        self.assertIn("differs from", str(caught.exception))
+
+    def test_a_symlink_in_the_staged_tree_is_refused(self) -> None:
+        self.repository.stage()
+        (self.repository.target / "link.js").symlink_to(
+            self.repository.target / "loader.js"
+        )
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            verify_staged(self.repository.root, self.repository.target)
+        self.assertIn("not a regular file", str(caught.exception))
+
+
+class ManifestIndexTest(unittest.TestCase):
+    def test_a_non_sha256_manifest_is_refused(self) -> None:
+        manifest = _manifest(CONTENT_FILES) | {"digestAlgorithm": "sha1"}
+        with self.assertRaises(ArenaRuntimeError):
+            manifest_index(manifest, "manifest")
+
+    def test_a_malformed_digest_is_refused(self) -> None:
+        manifest = _manifest(CONTENT_FILES)
+        manifest["artifacts"][0]["sha256"] = "not-a-digest"
+        with self.assertRaises(ArenaRuntimeError):
+            manifest_index(manifest, "manifest")
+
+    def test_a_negative_size_is_refused(self) -> None:
+        manifest = _manifest(CONTENT_FILES)
+        manifest["artifacts"][0]["size"] = -1
+        with self.assertRaises(ArenaRuntimeError):
+            manifest_index(manifest, "manifest")
+
+    def test_a_duplicate_path_is_refused(self) -> None:
+        manifest = _manifest(CONTENT_FILES)
+        manifest["artifacts"].append(dict(manifest["artifacts"][0]))
+        with self.assertRaises(ArenaRuntimeError):
+            manifest_index(manifest, "manifest")
+
+    def test_an_empty_manifest_is_refused(self) -> None:
+        with self.assertRaises(ArenaRuntimeError):
+            manifest_index({"digestAlgorithm": "sha256", "artifacts": []}, "manifest")
+
+
+class CommittedProfileTest(unittest.TestCase):
+    """The real committed configuration, against the real committed manifests."""
+
+    def setUp(self) -> None:
+        self.profile = load_profile(ROOT)
+
+    def test_it_is_valid_and_agrees_with_the_content_recipe(self) -> None:
+        self.assertEqual(self.profile["map"], "oa_pvomit")
+        self.assertEqual(self.profile["package"], "arena-web-ffa-oa_pvomit")
+
+    def test_it_serves_the_engine_runtime_and_the_audited_pack_and_nothing_else(
+        self,
+    ) -> None:
+        self.assertEqual(
+            sorted(served_files(ROOT, self.profile)),
+            [
+                "content/baseq3/arena-web-ffa.pk3",
+                "default.cfg",
+                "engine/baseq3/vm/cgame.qvm",
+                "engine/baseq3/vm/qagame.qvm",
+                "engine/baseq3/vm/ui.qvm",
+                "engine/ioquake3.js",
+                "engine/ioquake3.wasm",
+                "game-profile.json",
+                "index.html",
+                "loader.js",
+                "manifests/browser-client.json",
+                "provenance/arena-web-ffa-content-manifest.json",
+            ],
+        )
+
+    def test_every_served_artifact_carries_a_committed_identity(self) -> None:
+        files = served_files(ROOT, self.profile)
+        artifacts = {
+            name: entry for name, entry in files.items() if entry["kind"] == "artifact"
+        }
+        self.assertEqual(len(artifacts), 6)
+        for entry in artifacts.values():
+            self.assertRegex(entry["sha256"], r"\A[0-9a-f]{64}\Z")
+            self.assertGreater(entry["size"], 0)
+
+    def test_the_committed_pack_identity_is_the_one_wp3_accepted(self) -> None:
+        files = served_files(ROOT, self.profile)
+        self.assertEqual(
+            files["content/baseq3/arena-web-ffa.pk3"]["sha256"],
+            "55a1d51fa99b131c76e5813ee5449fa671c3a584ee251607528868e5a0a05ad7",
+        )
+
+    def test_the_loader_page_and_script_are_the_only_product_code_served(self) -> None:
+        files = served_files(ROOT, self.profile)
+        loader = sorted(
+            name for name, entry in files.items() if entry["kind"] == "loader"
+        )
+        self.assertEqual(loader, ["index.html", "loader.js"])
+
+    def test_the_loader_does_not_reuse_the_upstream_emscripten_shell(self) -> None:
+        page = (ROOT / "arena/index.html").read_text(encoding="utf-8")
+        upstream = (ROOT / "ioq3/code/web/client.html.in").read_text(encoding="utf-8")
+        for marker in (
+            "EMSCRIPTEN_PRELOAD_FILE",
+            "setup-ioq3-filesystem",
+            "configFilename",
+        ):
+            self.assertIn(marker, upstream)
+            self.assertNotIn(marker, page)
+
+    def test_the_canvas_uses_the_element_id_sdl_addresses(self) -> None:
+        # SDL2's Emscripten video driver hard-codes the selector "#canvas".
+        self.assertIn(
+            'id="canvas"', (ROOT / "arena/index.html").read_text(encoding="utf-8")
+        )
+
+
+class EngineLogClassificationTest(unittest.TestCase):
+    def test_a_missing_image_is_a_missing_asset(self) -> None:
+        found = classify_engine_log(
+            ["WARNING: R_FindImageFile could not find 'textures/x' in shader 'y'"]
+        )
+        self.assertEqual(len(found["missing-asset"]), 1)
+
+    def test_a_missing_sound_is_a_missing_asset(self) -> None:
+        found = classify_engine_log(
+            ["WARNING: could not find sound/x.wav - using default"]
+        )
+        self.assertEqual(len(found["missing-asset"]), 1)
+
+    def test_a_bad_qvm_header_is_a_qvm_rejection(self) -> None:
+        found = classify_engine_log(["Warning: vm/cgame.qvm has bad header"])
+        self.assertEqual(len(found["qvm-rejection"]), 1)
+
+    def test_an_unopenable_qvm_is_a_qvm_rejection(self) -> None:
+        found = classify_engine_log(["Warning: Couldn't open VM file vm/ui.qvm"])
+        self.assertEqual(len(found["qvm-rejection"]), 1)
+
+    def test_a_gl_error_is_a_renderer_fatal(self) -> None:
+        found = classify_engine_log(
+            ["GL_CheckErrors: GL_INVALID_ENUM in tr_main.c at line 1"]
+        )
+        self.assertEqual(len(found["renderer-fatal"]), 1)
+
+    def test_a_com_error_is_an_engine_error(self) -> None:
+        found = classify_engine_log(["ERROR: Couldn't load maps/oa_pvomit.bsp"])
+        self.assertEqual(len(found["engine-error"]), 1)
+
+    def test_ordinary_output_is_not_a_defect(self) -> None:
+        found = classify_engine_log(
+            [
+                "Server: oa_pvomit",
+                "CL_InitCGame: 1.20 seconds",
+                "Skelebot entered the game",
+                "Architecture doesn't have a bytecode compiler, using interpreter",
+            ]
+        )
+        self.assertEqual(sum(len(lines) for lines in found.values()), 0)
+
+    def test_the_accepted_upstream_note_is_recorded_and_not_a_defect(self) -> None:
+        found = classify_engine_log(
+            ["^3WARNING: Failed to open sound music/sonic5.wav!"]
+        )
+        self.assertEqual(len(found["accepted-note"]), 1)
+        self.assertIn("dangling upstream reference", found["accepted-note"][0])
+        self.assertEqual(len(found["missing-asset"]), 0)
+
+    def test_every_engine_registered_image_gap_is_accepted_with_a_reason(self) -> None:
+        found = classify_engine_log(
+            [
+                "^3WARNING: R_FindImageFile could not find "
+                "'gfx/fx/flares/blur.tga' in shader 'flareShader'",
+                "^3WARNING: R_FindImageFile could not find "
+                "'textures/flares/flarey.tga' in shader 'sun'",
+                "^3WARNING: R_FindImageFile could not find "
+                "'textures/sfx/logo256.tga' in shader 'console'",
+            ]
+        )
+        self.assertEqual(len(found["accepted-note"]), 3)
+        self.assertEqual(len(found["missing-asset"]), 0)
+
+    def test_the_missing_taunt_of_the_packaged_model_is_accepted(self) -> None:
+        found = classify_engine_log(
+            [
+                "^3WARNING: Failed to load sound sound/player/skelebot/taunt.wav!",
+                "^3WARNING: Using default sound for sound/player/skelebot/taunt.wav",
+                "^3WARNING: Failed to load sound sound/player/sarge/taunt.wav!",
+            ]
+        )
+        self.assertEqual(len(found["accepted-note"]), 3)
+        self.assertEqual(len(found["missing-asset"]), 0)
+
+    def test_another_missing_image_is_still_a_defect(self) -> None:
+        found = classify_engine_log(
+            [
+                "^3WARNING: R_FindImageFile could not find "
+                "'textures/mc-oa-dm02/wall.tga' in shader 'somewall'"
+            ]
+        )
+        self.assertEqual(len(found["missing-asset"]), 1)
+        self.assertEqual(len(found["accepted-note"]), 0)
+
+    def test_another_missing_sound_is_still_a_defect(self) -> None:
+        found = classify_engine_log(
+            ["^3WARNING: Failed to load sound sound/weapons/rocket/rocklf1a.wav!"]
+        )
+        self.assertEqual(len(found["missing-asset"]), 1)
+
+    def test_every_defect_class_names_its_engine_source(self) -> None:
+        for name, source, pattern in ENGINE_DEFECT_PATTERNS:
+            self.assertTrue(name and source and pattern.pattern)
+
+    def test_every_acceptance_carries_a_reason(self) -> None:
+        self.assertTrue(ACCEPTED_ENGINE_NOTES)
+        for pattern, reason in ACCEPTED_ENGINE_NOTES:
+            self.assertTrue(pattern.pattern)
+            self.assertGreater(len(reason), 20)
+
+
+class PinnedBrowserTest(unittest.TestCase):
+    def test_the_acceptance_browser_version_comes_from_the_baseline_lock(self) -> None:
+        self.assertEqual(pinned_browser_version(ROOT), "152.0.7977.64")
+
+    def test_a_baseline_without_the_browser_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "locks").mkdir()
+            (root / "locks/baseline.json").write_text(
+                json.dumps({"tools": []}), encoding="utf-8"
+            )
+            with self.assertRaises(AcceptanceError):
+                pinned_browser_version(root)
+
+
+# --------------------------------------------------------------------------
+# Screenshot decoding.
+# --------------------------------------------------------------------------
+
+
+def _png(
+    width: int, height: int, rows: list[list[tuple[int, int, int]]], filter_type: int
+) -> bytes:
+    raw = bytearray()
+    previous = bytearray(width * 3)
+    for row in rows:
+        line = bytearray()
+        for pixel in row:
+            line += bytes(pixel)
+        encoded = bytearray([filter_type])
+        for index, value in enumerate(line):
+            left = line[index - 3] if index >= 3 else 0
+            up = previous[index]
+            up_left = previous[index - 3] if index >= 3 else 0
+            if filter_type == 0:
+                encoded.append(value)
+            elif filter_type == 1:
+                encoded.append((value - left) & 0xFF)
+            elif filter_type == 2:
+                encoded.append((value - up) & 0xFF)
+            elif filter_type == 3:
+                encoded.append((value - ((left + up) >> 1)) & 0xFF)
+            else:
+                estimate = left + up - up_left
+                distances = (
+                    abs(estimate - left),
+                    abs(estimate - up),
+                    abs(estimate - up_left),
+                )
+                if distances[0] <= distances[1] and distances[0] <= distances[2]:
+                    predictor = left
+                elif distances[1] <= distances[2]:
+                    predictor = up
+                else:
+                    predictor = up_left
+                encoded.append((value - predictor) & 0xFF)
+        raw += encoded
+        previous = line
+
+    def chunk(kind: bytes, body: bytes) -> bytes:
+        return (
+            struct.pack(">I", len(body))
+            + kind
+            + body
+            + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF)
+        )
+
+    header = struct.pack(">IIBBBBB", width, height, 8, 2, 0, 0, 0)
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", header)
+        + chunk(b"IDAT", zlib.compress(bytes(raw)))
+        + chunk(b"IEND", b"")
+    )
+
+
+class ScreenshotStatisticsTest(unittest.TestCase):
+    def test_a_flat_black_image_has_one_colour(self) -> None:
+        rows = [[(0, 0, 0)] * 8 for _ in range(8)]
+        statistics = png_pixel_statistics(_png(8, 8, rows, 0))
+        self.assertEqual(statistics["distinctColours"], 1)
+        self.assertEqual(statistics["meanLuminance"], 0.0)
+        self.assertEqual(statistics["sampledPixels"], 64)
+
+    def test_every_png_filter_decodes_to_the_same_pixels(self) -> None:
+        rows = [
+            [
+                ((column * 7 + row * 13) % 256, (column * 3) % 256, (row * 5) % 256)
+                for column in range(16)
+            ]
+            for row in range(16)
+        ]
+        reference = png_pixel_statistics(_png(16, 16, rows, 0))
+        for filter_type in (1, 2, 3, 4):
+            with self.subTest(filter=filter_type):
+                statistics = png_pixel_statistics(_png(16, 16, rows, filter_type))
+                self.assertEqual(
+                    statistics["distinctColours"], reference["distinctColours"]
+                )
+                self.assertEqual(
+                    statistics["meanLuminance"], reference["meanLuminance"]
+                )
+
+    def test_sampling_every_fourth_column_reduces_the_sample_count(self) -> None:
+        rows = [[(column * 16 % 256, 0, 0) for column in range(16)] for _ in range(4)]
+        statistics = png_pixel_statistics(_png(16, 4, rows, 0), sample_stride=4)
+        self.assertEqual(statistics["sampledPixels"], 16)
+
+    def test_a_non_png_payload_is_refused(self) -> None:
+        with self.assertRaises(AcceptanceError):
+            png_pixel_statistics(b"not a png at all")
+
+    def test_a_palette_png_is_refused(self) -> None:
+        header = struct.pack(">IIBBBBB", 1, 1, 8, 3, 0, 0, 0)
+
+        def chunk(kind: bytes, body: bytes) -> bytes:
+            return (
+                struct.pack(">I", len(body))
+                + kind
+                + body
+                + struct.pack(">I", zlib.crc32(kind + body) & 0xFFFFFFFF)
+            )
+
+        data = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", header) + chunk(b"IEND", b"")
+        with self.assertRaises(AcceptanceError):
+            png_pixel_statistics(data)
+
+
+# --------------------------------------------------------------------------
+# The DevTools transport.
+# --------------------------------------------------------------------------
+
+
+class FakeWebSocketServer:
+    """The server half of RFC 6455, just enough to drive the client under test."""
+
+    def __init__(self, *, wrong_accept: bool = False) -> None:
+        self.wrong_accept = wrong_accept
+        self.received: list[str] = []
+        self.responder = None
+        self._listener = socket.socket()
+        self._listener.bind(("127.0.0.1", 0))
+        self._listener.listen(1)
+        self.port = self._listener.getsockname()[1]
+        self._thread = threading.Thread(target=self._serve, daemon=True)
+        self._thread.start()
+
+    @property
+    def url(self) -> str:
+        return f"ws://127.0.0.1:{self.port}/devtools/page/test"
+
+    def _serve(self) -> None:
+        try:
+            connection, _address = self._listener.accept()
+        except OSError:  # pragma: no cover - closed before a client arrived
+            return
+        with connection:
+            buffer = b""
+            while b"\r\n\r\n" not in buffer:
+                chunk = connection.recv(4096)
+                if not chunk:
+                    return
+                buffer += chunk
+            key = ""
+            for line in buffer.decode("latin-1").split("\r\n"):
+                name, _, value = line.partition(":")
+                if name.strip().lower() == "sec-websocket-key":
+                    key = value.strip()
+            accept = base64.b64encode(
+                hashlib.sha1((key + WEBSOCKET_GUID).encode("ascii")).digest()
+            ).decode("ascii")
+            if self.wrong_accept:
+                accept = "AAAAAAAAAAAAAAAAAAAAAAAAAAA="
+            connection.sendall(
+                (
+                    "HTTP/1.1 101 Switching Protocols\r\n"
+                    "Upgrade: websocket\r\n"
+                    "Connection: Upgrade\r\n"
+                    f"Sec-WebSocket-Accept: {accept}\r\n\r\n"
+                ).encode("ascii")
+            )
+            self._pump(connection, buffer)
+
+    def _pump(self, connection: socket.socket, buffer: bytes) -> None:
+        pending = bytearray(buffer.split(b"\r\n\r\n", 1)[1])
+
+        def read(count: int) -> bytes:
+            nonlocal pending
+            while len(pending) < count:
+                chunk = connection.recv(65536)
+                if not chunk:
+                    raise ConnectionError
+                pending += chunk
+            head = bytes(pending[:count])
+            del pending[:count]
+            return head
+
+        try:
+            while True:
+                first, second = read(2)
+                opcode = first & 0x0F
+                length = second & 0x7F
+                if length == 126:
+                    (length,) = struct.unpack(">H", read(2))
+                elif length == 127:
+                    (length,) = struct.unpack(">Q", read(8))
+                mask = read(4) if second & 0x80 else b""
+                payload = read(length)
+                if mask:
+                    payload = bytes(
+                        byte ^ mask[index % 4] for index, byte in enumerate(payload)
+                    )
+                if opcode == 0x8:
+                    return
+                if opcode != 0x1:
+                    continue
+                text = payload.decode("utf-8")
+                self.received.append(text)
+                if self.responder is not None:
+                    for reply in self.responder(text):
+                        self.send(connection, reply)
+        except (ConnectionError, OSError):
+            return
+
+    @staticmethod
+    def send(connection: socket.socket, payload: Any) -> None:
+        if isinstance(payload, tuple):
+            opcode, body = payload
+        else:
+            opcode, body = 0x1, payload.encode("utf-8")
+        header = bytearray([0x80 | opcode])
+        if len(body) < 126:
+            header.append(len(body))
+        elif len(body) < 65536:
+            header.append(126)
+            header += struct.pack(">H", len(body))
+        else:
+            header.append(127)
+            header += struct.pack(">Q", len(body))
+        connection.sendall(bytes(header) + body)
+
+    def close(self) -> None:
+        try:
+            self._listener.close()
+        except OSError:  # pragma: no cover - already closed
+            pass
+
+
+class WebSocketClientTest(unittest.TestCase):
+    def _server(self, **arguments: Any) -> FakeWebSocketServer:
+        server = FakeWebSocketServer(**arguments)
+        self.addCleanup(server.close)
+        return server
+
+    def test_a_wrong_accept_key_is_refused(self) -> None:
+        server = self._server(wrong_accept=True)
+        with self.assertRaises(BrowserSessionError) as caught:
+            WebSocketClient(server.url, timeout=5)
+        self.assertIn("accept key", str(caught.exception))
+
+    def test_a_refused_upgrade_leaves_no_open_socket(self) -> None:
+        server = self._server(wrong_accept=True)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error", ResourceWarning)
+            with self.assertRaises(BrowserSessionError):
+                WebSocketClient(server.url, timeout=5)
+            gc.collect()
+
+    def test_a_non_ws_scheme_is_refused(self) -> None:
+        with self.assertRaises(BrowserSessionError):
+            WebSocketClient("http://127.0.0.1:1/devtools", timeout=1)
+
+    def test_a_text_message_round_trips(self) -> None:
+        server = self._server()
+        server.responder = lambda text: [text.upper()]
+        client = WebSocketClient(server.url, timeout=5)
+        self.addCleanup(client.close)
+        client.send_text("hello")
+        self.assertEqual(client.receive_text(5), "HELLO")
+
+    def test_a_large_message_uses_the_64_bit_length(self) -> None:
+        server = self._server()
+        payload = "x" * 100000
+        server.responder = lambda text: [text]
+        client = WebSocketClient(server.url, timeout=10)
+        self.addCleanup(client.close)
+        client.send_text(payload)
+        self.assertEqual(client.receive_text(10), payload)
+        self.assertEqual(server.received[0], payload)
+
+    def test_a_fragmented_message_is_reassembled(self) -> None:
+        server = self._server()
+
+        def responder(_text: str) -> list[Any]:
+            return [(0x1, b"part-one "), (0x0, b"part-two")]
+
+        server.responder = responder
+        client = WebSocketClient(server.url, timeout=5)
+        self.addCleanup(client.close)
+        # The fake sends both fragments with FIN set, which the client treats as
+        # two messages; the interesting case is the continuation opcode being
+        # understood at all.
+        client.send_text("go")
+        self.assertEqual(client.receive_text(5), "part-one ")
+
+    def test_a_ping_is_answered_with_a_pong(self) -> None:
+        server = self._server()
+        server.responder = lambda _text: [(0x9, b"ping"), (0x1, b"after")]
+        client = WebSocketClient(server.url, timeout=5)
+        self.addCleanup(client.close)
+        client.send_text("go")
+        self.assertEqual(client.receive_text(5), "after")
+
+    def test_a_binary_frame_is_refused(self) -> None:
+        server = self._server()
+        server.responder = lambda _text: [(0x2, b"\x00\x01")]
+        client = WebSocketClient(server.url, timeout=5)
+        self.addCleanup(client.close)
+        client.send_text("go")
+        with self.assertRaises(BrowserSessionError):
+            client.receive_text(5)
+
+    def test_a_server_close_is_reported(self) -> None:
+        server = self._server()
+        server.responder = lambda _text: [(0x8, b"\x03\xe8")]
+        client = WebSocketClient(server.url, timeout=5)
+        self.addCleanup(client.close)
+        client.send_text("go")
+        with self.assertRaises(BrowserSessionError):
+            client.receive_text(5)
+
+    def test_no_message_at_all_times_out(self) -> None:
+        server = self._server()
+        server.responder = lambda _text: []
+        client = WebSocketClient(server.url, timeout=5)
+        self.addCleanup(client.close)
+        client.send_text("go")
+        with self.assertRaises(TimeoutError):
+            client.receive_text(0.5)
+
+
+class DevToolsSessionTest(unittest.TestCase):
+    def _session(self, responder) -> DevToolsSession:
+        server = FakeWebSocketServer()
+        self.addCleanup(server.close)
+        server.responder = responder
+        session = DevToolsSession(server.url, timeout=5)
+        self.addCleanup(session.close)
+        self.server = server
+        return session
+
+    def test_a_call_is_correlated_with_its_answer(self) -> None:
+        def responder(text: str) -> list[str]:
+            message = json.loads(text)
+            return [
+                json.dumps(
+                    {"id": message["id"], "result": {"value": message["method"]}}
+                )
+            ]
+
+        session = self._session(responder)
+        self.assertEqual(session.call("Page.enable")["value"], "Page.enable")
+
+    def test_events_arriving_before_the_answer_are_kept(self) -> None:
+        def responder(text: str) -> list[str]:
+            message = json.loads(text)
+            return [
+                json.dumps({"method": "Network.requestWillBeSent", "params": {"n": 1}}),
+                json.dumps({"method": "Network.requestWillBeSent", "params": {"n": 2}}),
+                json.dumps({"id": message["id"], "result": {}}),
+            ]
+
+        session = self._session(responder)
+        session.call("Network.enable")
+        events = session.drain_events()
+        self.assertEqual([event["params"]["n"] for event in events], [1, 2])
+        self.assertEqual(session.drain_events(), [])
+
+    def test_a_protocol_error_is_raised(self) -> None:
+        def responder(text: str) -> list[str]:
+            message = json.loads(text)
+            return [
+                json.dumps(
+                    {"id": message["id"], "error": {"message": "no such method"}}
+                )
+            ]
+
+        session = self._session(responder)
+        with self.assertRaises(BrowserSessionError) as caught:
+            session.call("Nope.nope")
+        self.assertIn("no such method", str(caught.exception))
+
+    def test_a_silent_endpoint_times_out(self) -> None:
+        session = self._session(lambda _text: [])
+        with self.assertRaises(TimeoutError):
+            session.call("Page.enable", timeout=0.5)
+
+    def test_pump_collects_events_without_a_call(self) -> None:
+        def responder(text: str) -> list[str]:
+            message = json.loads(text)
+            return [
+                json.dumps({"id": message["id"], "result": {}}),
+                json.dumps({"method": "Log.entryAdded", "params": {}}),
+            ]
+
+        session = self._session(responder)
+        session.call("Log.enable")
+        session.pump(0.5)
+        self.assertEqual(len(session.drain_events()), 1)
+
+
+class WaitUntilTest(unittest.TestCase):
+    def test_it_returns_the_first_truthy_value(self) -> None:
+        values = iter([None, None, "ready"])
+        self.assertEqual(
+            wait_until(lambda: next(values), timeout=5, interval=0.01, description="x"),
+            "ready",
+        )
+
+    def test_it_raises_when_the_condition_never_holds(self) -> None:
+        with self.assertRaises(TimeoutError) as caught:
+            wait_until(lambda: False, timeout=0.2, interval=0.01, description="the map")
+        self.assertIn("the map", str(caught.exception))
+
+
+class RunComparisonTest(unittest.TestCase):
+    def _run(self, index: int, **snapshot: Any) -> RunResult:
+        base = {
+            "identities": [{"served": "engine/ioquake3.js", "actualSha256": "a" * 64}],
+            "engineArguments": ["+map", "oa_pvomit"],
+            "markers": {"clientGameLoaded": 1.0},
+            "profile": {"package": "arena-web-ffa-oa_pvomit", "map": "oa_pvomit"},
+        }
+        base.update(snapshot)
+        return RunResult(index=index, directory=Path("."), snapshot=base)
+
+    def test_two_identical_runs_compare_equal(self) -> None:
+        checks = compare_runs(self._run(1), self._run(2))
+        self.assertTrue(all(check.passed for check in checks))
+
+    def test_a_different_artifact_identity_fails_the_comparison(self) -> None:
+        second = self._run(
+            2, identities=[{"served": "engine/ioquake3.js", "actualSha256": "b" * 64}]
+        )
+        checks = {check.name: check for check in compare_runs(self._run(1), second)}
+        self.assertFalse(checks["second-launch-same-artifact-identities"].passed)
+
+    def test_different_engine_arguments_fail_the_comparison(self) -> None:
+        second = self._run(2, engineArguments=["+map", "q3dm6ish"])
+        checks = {check.name: check for check in compare_runs(self._run(1), second)}
+        self.assertFalse(checks["second-launch-same-engine-arguments"].passed)
+
+    def test_a_second_launch_that_never_entered_the_map_fails(self) -> None:
+        second = self._run(2, markers={})
+        checks = {check.name: check for check in compare_runs(self._run(1), second)}
+        self.assertFalse(checks["second-launch-reached-the-same-profile"].passed)
+
+    def test_a_run_with_a_failing_check_is_not_passed(self) -> None:
+        result = self._run(1)
+        result.checks.append(Check("something", False, "detail"))
+        self.assertFalse(result.passed)
+
+
+if __name__ == "__main__":
+    unittest.main()
