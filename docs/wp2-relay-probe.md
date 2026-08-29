@@ -117,11 +117,10 @@ bytes. It is never sent while a case is outstanding, and a returned 0-byte
 datagram is consumed against the outstanding keep-alive count before it can
 complete a 0-byte case.
 
-One consequence is worth stating plainly: because the routing prefix is opaque,
-the probe **cannot** read the destination port out of it and cannot verify the
-port equality the contract requires. It therefore demands an explicit operator
-acknowledgement and refuses to run without it. That is an acknowledgement, not a
-verification, and the routed round should confirm the port by other means.
+Because the port equality is unverifiable from an opaque prefix, the probe turns
+it into an explicit operator acknowledgement and refuses to run without it. That
+is a gate, not a check, and the routed round should confirm the port by other
+means.
 
 ## What the deterministic tests prove
 
