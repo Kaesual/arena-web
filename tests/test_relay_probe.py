@@ -456,7 +456,6 @@ class ProbeConfigTests(unittest.TestCase):
             ("caseTimeoutMilliseconds", 0),
             ("keepAliveMilliseconds", -1),
             ("maxInFlightDatagrams", 0),
-            ("sessions", 0),
         ):
             with self.assertRaises(ProbeConfigError):
                 parse_probe_config(dict(BASE_CONFIG, **{field: bad}))

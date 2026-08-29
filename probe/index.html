@@ -1,0 +1,246 @@
+<!doctype html>
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>arena-web relay conformance probe</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --border: #8884;
+      }
+      body {
+        font-family: system-ui, sans-serif;
+        line-height: 1.5;
+        margin: 0 auto;
+        max-width: 62rem;
+        padding: 1.5rem 1rem 4rem;
+      }
+      h1 {
+        font-size: 1.4rem;
+      }
+      h2 {
+        font-size: 1.05rem;
+        margin-top: 2rem;
+      }
+      p,
+      li {
+        max-width: 46rem;
+      }
+      fieldset {
+        border: 1px solid var(--border);
+        border-radius: 0.4rem;
+        margin: 0 0 1rem;
+        padding: 0.75rem 1rem 1rem;
+      }
+      legend {
+        font-weight: 600;
+        padding: 0 0.35rem;
+      }
+      label {
+        display: block;
+        margin-top: 0.75rem;
+      }
+      label > span {
+        display: block;
+        font-size: 0.85rem;
+        opacity: 0.8;
+      }
+      input[type="text"],
+      input[type="password"],
+      input[type="number"],
+      textarea {
+        box-sizing: border-box;
+        font-family: ui-monospace, monospace;
+        font-size: 0.9rem;
+        margin-top: 0.15rem;
+        padding: 0.35rem 0.45rem;
+        width: 100%;
+      }
+      .inline {
+        align-items: center;
+        display: flex;
+        gap: 0.5rem;
+      }
+      .inline input {
+        margin: 0;
+        width: auto;
+      }
+      button {
+        font-size: 1rem;
+        margin-top: 1rem;
+        padding: 0.5rem 1.2rem;
+      }
+      #log,
+      #report,
+      #summary {
+        background: #8881;
+        border: 1px solid var(--border);
+        border-radius: 0.3rem;
+        font-family: ui-monospace, monospace;
+        font-size: 0.82rem;
+        max-height: 22rem;
+        overflow: auto;
+        padding: 0.6rem 0.8rem;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+      .note {
+        border-left: 3px solid var(--border);
+        padding-left: 0.8rem;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>arena-web relay conformance probe</h1>
+
+    <p>
+      This page measures the usable routed datagram path between this browser and
+      one game destination behind a compatible WebTransport-to-UDP relay, using
+      the framing fixed in
+      <code>docs/relay-datagram-contract.md</code> and the sizes fixed in
+      <code>locks/relay-measurement-vector.json</code>. It knows nothing about any
+      game.
+    </p>
+
+    <p class="note">
+      Every value below is runtime input. Nothing typed here is stored by the
+      page, written into the report, or committed to the repository. Use a
+      short-lived, single-use authorization: the field is cleared after each
+      session so a spent allowance is not reused by accident.
+    </p>
+
+    <h2>Runtime configuration</h2>
+
+    <fieldset>
+      <legend>Endpoint and authorization</legend>
+      <label>
+        Endpoint template
+        <span
+          >An <code>https</code> WebTransport URL containing exactly one
+          <code>{authorization}</code> placeholder. The browser platform offers no
+          request-header control, so the authorization travels in the URL; the
+          parameter name belongs to your environment.</span
+        >
+        <input
+          type="text"
+          id="endpointTemplate"
+          autocomplete="off"
+          spellcheck="false"
+          placeholder="https://…/…?token={authorization}"
+        />
+      </label>
+      <label>
+        Short-lived authorization
+        <span>Single-use. Substituted into the URL only at connect time.</span>
+        <input type="password" id="authorization" autocomplete="off" />
+      </label>
+      <label>
+        Certificate hashes
+        <span
+          >Optional. One SHA-256 certificate fingerprint per line, as 64
+          hexadecimal characters, for
+          <code>serverCertificateHashes</code>. Leave empty to use public Web
+          PKI.</span
+        >
+        <textarea
+          id="certificateHashes"
+          rows="2"
+          autocomplete="off"
+          spellcheck="false"
+        ></textarea>
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Destination</legend>
+      <label>
+        Routing prefix
+        <span
+          >The 40-byte relay header for the pinned virtual destination, as 80
+          hexadecimal characters. This contract treats its interior as opaque and
+          never parses it.</span
+        >
+        <input
+          type="text"
+          id="routingPrefix"
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </label>
+      <label>
+        Expected return prefix
+        <span
+          >Optional, 80 hexadecimal characters. When empty, the prefix of the
+          first accepted return frame is pinned for the session and any later
+          frame that differs is refused.</span
+        >
+        <input
+          type="text"
+          id="expectedReturnPrefix"
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </label>
+      <label class="inline">
+        <input type="checkbox" id="portAcknowledged" />
+        <span
+          >The destination UDP port encoded in that prefix matches the projected
+          endpoint exactly. The probe cannot read a port out of an opaque prefix,
+          so it requires this acknowledgement and refuses to run without it.</span
+        >
+      </label>
+    </fieldset>
+
+    <fieldset>
+      <legend>Session behaviour</legend>
+      <label>
+        Case timeout (ms)
+        <input type="number" id="caseTimeout" value="2000" min="1" />
+      </label>
+      <label>
+        Keep-alive interval (ms, 0 disables)
+        <span
+          >A keep-alive is the smallest legal frame: the routing prefix and one
+          0-byte inner datagram. It is never sent while a case is outstanding.</span
+        >
+        <input type="number" id="keepAlive" value="0" min="0" />
+      </label>
+      <label>
+        Maximum outstanding datagrams
+        <input type="number" id="maxInFlight" value="8" min="1" />
+      </label>
+      <label>
+        Path notes
+        <span
+          >Non-secret topology characteristics only, for example
+          &ldquo;residential fibre, IPv4, wired&rdquo;. This text is copied into
+          the report.</span
+        >
+        <input type="text" id="pathNotes" autocomplete="off" />
+      </label>
+    </fieldset>
+
+    <button id="run" type="button" disabled>Run one session</button>
+
+    <h2>Log</h2>
+    <div id="log" aria-live="polite"></div>
+
+    <h2>Summary</h2>
+    <p>
+      Per session and per path. The floor is the minimum across the sessions in
+      this report and carries no safety margin; it is not a universal transport
+      constant.
+    </p>
+    <pre id="summary"></pre>
+
+    <h2>Report</h2>
+    <p>
+      <a id="download" hidden>Download the measurement report</a>
+    </p>
+    <pre id="report"></pre>
+
+    <script type="module" src="./probe.js"></script>
+  </body>
+</html>

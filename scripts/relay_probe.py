@@ -420,7 +420,6 @@ _CONFIG_FIELDS = (
     "maxInFlightDatagrams",
     "pathNotes",
     "routingPrefixHex",
-    "sessions",
 )
 
 _REQUIRED_CONFIG_FIELDS = (
@@ -437,7 +436,6 @@ _CONFIG_DEFAULTS = {
     "keepAliveMilliseconds": 0,
     "maxInFlightDatagrams": 8,
     "pathNotes": "",
-    "sessions": 1,
 }
 
 
@@ -475,7 +473,6 @@ class ProbeConfig:
     case_timeout_ms: int = 2000
     keep_alive_ms: int = 0
     max_in_flight_datagrams: int = 8
-    sessions: int = 1
     path_notes: str = ""
 
     def endpoint_url(self) -> str:
@@ -552,7 +549,6 @@ def parse_probe_config(mapping) -> ProbeConfig:
         case_timeout_ms=_positive_int(mapping, "caseTimeoutMilliseconds", 1),
         keep_alive_ms=_positive_int(mapping, "keepAliveMilliseconds", 0),
         max_in_flight_datagrams=_positive_int(mapping, "maxInFlightDatagrams", 1),
-        sessions=_positive_int(mapping, "sessions", 1),
         path_notes=notes,
     )
 
