@@ -4,6 +4,9 @@ from __future__ import annotations
 
 import copy
 import json
+import os
+import shutil
+import subprocess
 import sys
 import tracemalloc
 import unittest
@@ -949,6 +952,85 @@ class ConformanceVectorTests(unittest.TestCase):
             )
             self.assertEqual(payload.hex(), case["payloadHex"], case["name"])
             self.assertEqual(len(payload), case["size"], case["name"])
+
+
+NODE = shutil.which("node")
+HARNESS = ROOT / "tests" / "js_conformance_harness.mjs"
+
+
+@unittest.skipUnless(NODE, "node is not available to run the browser sources")
+class BrowserImplementationTests(unittest.TestCase):
+    """The browser probe is a second implementation of the same contract.
+
+    It is not generated from `relay_probe.py` and does not read it. Running its
+    sources here is what turns "an independent implementation could satisfy the
+    same conformance tests" into something the suite actually checks.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.plan = MeasurementPlan.from_vector(COMMITTED_VECTOR)
+        cls.limits = (
+            frame_bytes_for_sizes((cls.plan.max_inner_datagram_bytes,)),
+            1200,
+        )
+        completed = subprocess.run(
+            [NODE, str(HARNESS), str(ROOT / "probe"), str(ROOT)],
+            capture_output=True,
+            check=False,
+            text=True,
+            env={**os.environ, "HARNESS_LIMITS": json.dumps(list(cls.limits))},
+        )
+        if completed.returncode != 0:
+            raise AssertionError(
+                f"the browser implementation failed: {completed.stderr.strip()}"
+            )
+        cls.observed = json.loads(completed.stdout)
+
+    def python_record(self, limit):
+        relay = LoopbackRelay(max_datagram_size_bytes=limit)
+        adapter = relay.attach()
+        driver = SessionDriver(
+            self.plan, adapter, bytes(SESSION_NONCE_BYTES), make_config()
+        )
+        run_session(driver, adapter)
+        return driver.session_record()
+
+    def test_browser_sources_pass_every_committed_conformance_vector(self) -> None:
+        expected = sum(
+            len(COMMITTED_CONFORMANCE[name])
+            for name in (
+                "decodeRejections",
+                "encodeCases",
+                "encodeRejections",
+                "payloadCases",
+                "tagCases",
+            )
+        )
+        self.assertEqual(self.observed["conformanceChecked"], expected)
+
+    def test_browser_builds_the_same_plan(self) -> None:
+        self.assertEqual(self.observed["planCases"], len(self.plan.cases))
+        self.assertEqual(self.observed["planDatagrams"], self.plan.datagram_count)
+        self.assertEqual(
+            self.observed["maxInnerDatagramBytes"], self.plan.max_inner_datagram_bytes
+        )
+
+    def test_browser_and_reference_sessions_agree_exactly(self) -> None:
+        for limit in self.limits:
+            observed = self.observed["records"][str(limit)]
+            self.assertEqual(
+                observed, self.python_record(limit), f"transport limit {limit}"
+            )
+
+    def test_a_browser_report_validates_against_the_reference_validator(self) -> None:
+        for limit in self.limits:
+            report = build_report(
+                [self.observed["records"][str(limit)]], "ab" * 32, "loopback harness"
+            )
+            validate_report(report, self.plan)
+            summary = summarize_report(report, self.plan)
+            self.assertEqual(len(summary["sessions"]), 1)
 
 
 if __name__ == "__main__":

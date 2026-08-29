@@ -29,7 +29,8 @@ or committed manifest was changed.
 | [`probe/conformance-vectors.json`](../probe/conformance-vectors.json) | 50 committed cases: 19 encoded frames, 15 rejections, 8 tags, 8 payloads |
 | `probe/relay-framing.js`, `probe/measurement.js`, `probe/adapters.js`, `probe/probe.js`, `probe/index.html` | the standalone browser probe |
 | [`scripts/serve-probe.sh`](../scripts/serve-probe.sh) | loopback static server for the probe |
-| [`tests/test_relay_probe.py`](../tests/test_relay_probe.py) | 88 deterministic tests, raising the suite from 162 to 250 |
+| [`tests/test_relay_probe.py`](../tests/test_relay_probe.py) | 92 deterministic tests, raising the suite from 162 to 254 |
+| [`tests/js_conformance_harness.mjs`](../tests/js_conformance_harness.mjs) | runs the browser sources under Node so the suite can compare the two implementations |
 
 The tests run in `scripts/check.sh` and in the containerized
 `scripts/check-container.sh` like every other test in this repository, with no
@@ -97,7 +98,7 @@ verification, and the routed round should confirm the port by other means.
 
 ## What the deterministic tests prove
 
-The 88 tests cover the acceptance evidence that does not need a network:
+The tests cover the acceptance evidence that does not need a network:
 
 - **Missing runtime configuration** — every required field, unknown fields, a
   non-`https` endpoint, a template without exactly one placeholder, an empty
@@ -154,15 +155,24 @@ without access to any relay source. Three things make that checkable here:
    and payload derivation, with the opaque routing prefix supplied as input in
    each case. A second implementation needs only this file and the
    specification.
-2. **A second implementation already exists and is checked against them.** The
+2. **A second implementation already exists and the suite checks it.** The
    browser probe's JavaScript is a separate implementation of the same contract.
-   It is not generated from the Python and does not read it at runtime; it runs
-   the committed vectors and a complete loopback plan through its own code
-   before the page will open a session, and refuses to connect if anything
-   disagrees.
-3. **The report format is proven to be shared.** A report produced by the
-   JavaScript driver validates against the Python plan validator unchanged,
-   including its per-case ordinals, frame arithmetic and outcomes.
+   It is not generated from the Python and does not read it at runtime. The
+   probe runs the committed vectors and a complete loopback plan through its own
+   code before the page will open a session, and refuses to connect if anything
+   disagrees — and `tests/test_relay_probe.py` does the same thing offline by
+   executing the browser sources under Node.
+3. **The two implementations are compared record by record, not by eye.** For
+   two transport limits, one above the whole plan and one that forces 34
+   refusals, the JavaScript driver's session record is asserted to be *equal* to
+   the Python driver's, including every ordinal, frame size, returned size,
+   outcome and round-trip time. The resulting report then validates against the
+   Python plan validator unchanged. These tests skip where Node is absent and
+   run in the pinned container image, which ships Node 24.
+
+Point 3 is the strongest statement available without a network: two
+independently written implementations of the published contract, driven by the
+published adapter, produce the same bytes and the same records.
 
 The in-memory adapter is published for the same reason. It is not a relay: it
 has no authorization, no address mapping and no routing table. It exists so that
@@ -227,7 +237,7 @@ and the report has no field in which any of them could be recorded.
 ## Repeating what exists
 
 ```bash
-scripts/check.sh                                  # 250 tests, no network
+scripts/check.sh                                  # 254 tests, no network
 CONTAINER_RUNTIME=podman scripts/check-container.sh
 python3 scripts/emit-relay-conformance-vectors.py --check
 scripts/serve-probe.sh                            # then open http://127.0.0.1:8173/probe/

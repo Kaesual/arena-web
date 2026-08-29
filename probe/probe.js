@@ -254,10 +254,17 @@ async function runOneSession() {
     await sleep(5);
     driver.pump(nowMs());
   }
+  if (!driver.finished) {
+    log(
+      `session ${sessionIndex}: time budget exceeded; ` +
+        "every unfinished case is recorded as timed out",
+    );
+  }
+  // Stop before closing: pumping a closed session would start cases that can
+  // never be answered.
   stopped = true;
   await adapter.close();
   await reading;
-  driver.pump(nowMs());
   const record = driver.sessionRecord();
   sessionRecords.push(record);
   log(`session ${sessionIndex}: ${describe(record)}`);
