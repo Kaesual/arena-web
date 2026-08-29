@@ -29,7 +29,7 @@ from content_pack import (
     validate_provenance,
     write_pk3,
 )
-from game_assets import parse_animation_cfg
+from game_assets import parse_animation_cfg, parse_key_value_blocks
 from metadata import (
     ARTIFACT_SCHEMA,
     MetadataError,
@@ -45,6 +45,96 @@ PRODUCER_NAME = "arena-web scripts/build-content-pack.sh"
 
 def _encode(value: Any) -> str:
     return json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
+
+
+def _check_profile(recipe: dict[str, Any]) -> None:
+    """Reject a profile whose parts disagree before anything is assembled."""
+    profile = recipe["profile"]
+    arena = profile["arena"]
+    if arena["map"] != profile["map"]:
+        raise ContentError(
+            f"profile.arena.map {arena['map']!r} is not profile.map {profile['map']!r}"
+        )
+    packaged_models = set(profile["playerModels"])
+    for bot in profile["bots"]:
+        if bot["model"] not in packaged_models:
+            raise ContentError(
+                f"bot {bot['name']!r} uses model {bot['model']!r}, which the profile "
+                f"does not package: {sorted(packaged_models)}"
+            )
+    declared = arena["bots"].split()
+    actual = [bot["name"] for bot in profile["bots"]]
+    if declared != actual:
+        raise ContentError(
+            f"profile.arena.bots {declared} does not list the profile's bots {actual}"
+        )
+
+
+def _reconcile_templates(
+    references: dict[str, Any], recipe: dict[str, Any]
+) -> dict[str, Any]:
+    """Check the recipe's template expansions against the pinned QVM sources.
+
+    This needs no archive, so it runs before any upstream byte is read: a
+    recipe that has drifted from the gamecode should fail in a second, not
+    after a gigabyte of verification.
+    """
+    declared = {entry["template"]: entry for entry in recipe["templateExpansions"]}
+    used: set[str] = set()
+    for module_references in references.values():
+        used |= set(module_references.templates)
+        used |= {name for _kind, name in module_references.registration_templates}
+    missing = sorted(used - set(declared))
+    if missing:
+        raise ContentError(
+            f"reference templates have no recipe expansion: {missing}; the profile "
+            "must state what each expands to or why it cannot"
+        )
+    unknown = sorted(set(declared) - used)
+    if unknown:
+        raise ContentError(
+            f"recipe declares expansions for templates the QVMs do not use: {unknown}"
+        )
+    for template, entry in sorted(declared.items()):
+        if entry["expansions"] and "kind" not in entry:
+            raise ContentError(
+                f"recipe template {template!r} expands without declaring which "
+                "kind of reference its expansions are"
+            )
+    return declared
+
+
+def _check_generated_metadata(
+    metadata: dict[str, str], recipe: dict[str, Any], members: dict[str, bytes]
+) -> None:
+    """Read the generated arena and bot files back and check what they name."""
+    arenas = parse_key_value_blocks(metadata["scripts/arenas.txt"])
+    if len(arenas) != 1 or arenas[0]["map"] != recipe["profile"]["map"]:
+        raise ContentError(
+            f"generated scripts/arenas.txt does not name exactly the profile map: {arenas}"
+        )
+    if f"maps/{arenas[0]['map']}.bsp" not in members:
+        raise ContentError(
+            f"generated scripts/arenas.txt names map {arenas[0]['map']!r}, "
+            "which is not a packaged member"
+        )
+    bots = parse_key_value_blocks(metadata["scripts/bots.txt"])
+    if len(bots) != len(recipe["profile"]["bots"]):
+        raise ContentError("generated scripts/bots.txt lost or gained a bot")
+    for bot in bots:
+        model = bot["model"].partition("/")[0]
+        if f"models/players/{model}/lower.md3" not in members:
+            raise ContentError(
+                f"generated scripts/bots.txt names model {bot['model']!r}, "
+                "which is not a packaged member"
+            )
+        if bot["aifile"].partition("/")[0] != "bots":
+            raise ContentError(f"bot {bot['name']!r} has an unexpected aifile path")
+        if f"botfiles/{bot['aifile']}" not in members:
+            raise ContentError(
+                f"generated scripts/bots.txt names {bot['aifile']!r}, "
+                "which is not a packaged member"
+            )
 
 
 def _generated_metadata(recipe: dict[str, Any]) -> dict[str, str]:
@@ -111,7 +201,8 @@ def _notice_text(
         "The complete corresponding source of every GPL member of this archive is",
         "the upstream material identified above, obtainable at the URLs listed",
         "with the recorded digests, together with the arena-web assembly scripts",
-        "and recipe at the commit named by the accompanying artifact manifest.",
+        "and recipe, which are the arena-web repository at the commit whose",
+        "content/pack-recipe.json has the SHA-256 shown for 'arena-web' above.",
         "",
         "Attribution",
         "-----------",
@@ -141,35 +232,31 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
     generated["preferredSourceRevision"] = recipe_digest
     recipe = dict(recipe, generatedSource=generated)
 
+    _check_profile(recipe)
+    references = baseq3_references(root / baseline["engine"]["submodulePath"])
+    declared_templates = _reconcile_templates(references, recipe)
+
     sources = SourceSet(recipe_sources(recipe), arguments.archive_dir)
     builder = ClosureBuilder(sources, recipe)
     profile = recipe["profile"]
 
-    # 1. Everything the pinned baseq3 QVMs can name directly.
-    references = baseq3_references(root / baseline["engine"]["submodulePath"])
-    declared_templates = {
-        entry["template"]: entry for entry in recipe["templateExpansions"]
-    }
-    seen_templates: set[str] = set()
+    # 1. Everything the pinned baseq3 QVMs can name, by two independent
+    #    readings of the same MISSIONPACK-filtered text: path-shaped string
+    #    literals, and the first argument of every content-registration trap.
+    #    Only the second reading sees names that are not paths at all, such as
+    #    `white`, `menuback` or `powerups/quad`, which a shader script defines.
     for module in sorted(references):
         module_references = references[module]
         for literal in module_references.literals:
             builder.add_engine_reference(literal, f"{module} literal")
-        for template in module_references.templates:
-            seen_templates.add(template)
-            entry = declared_templates.get(template)
-            if entry is None:
-                raise ContentError(
-                    f"{module}: reference template {template!r} has no recipe expansion; "
-                    "the profile must state what it expands to or why it cannot"
-                )
+        for kind, name in module_references.registrations:
+            builder.add(name, kind, f"{module} registration")
+        templates = set(module_references.templates)
+        templates |= {name for _kind, name in module_references.registration_templates}
+        for template in sorted(templates):
+            entry = declared_templates[template]
             for expansion in entry["expansions"]:
-                builder.add_engine_reference(expansion, f"{module} template {template}")
-    unknown_templates = sorted(set(declared_templates) - seen_templates)
-    if unknown_templates:
-        raise ContentError(
-            f"recipe declares expansions for templates the QVMs do not use: {unknown_templates}"
-        )
+                builder.add(expansion, entry["kind"], f"{module} template {template}")
 
     # 2. The one map.
     map_name = profile["map"]
@@ -235,6 +322,7 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
             "generated from the committed recipe by scripts/build-content-pack.py",
         )
 
+    _check_generated_metadata(metadata, recipe, members)
     forbidden = iter_forbidden(members)
     if forbidden:
         raise ContentError(f"assembled pack contains forbidden members: {forbidden}")

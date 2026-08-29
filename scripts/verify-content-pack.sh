@@ -59,7 +59,11 @@ from pathlib import Path
 repo_dir, assembly = Path(sys.argv[1]), Path(sys.argv[2])
 pairs = (
     ("content-provenance.json", "provenance/arena-web-ffa-content.json", None),
-    ("content-manifest.json", "provenance/arena-web-ffa-content-manifest.json", "producer"),
+    (
+        "content-manifest.json",
+        "provenance/arena-web-ffa-content-manifest.json",
+        "producer",
+    ),
 )
 status = 0
 for generated_name, committed_name, ignored in pairs:

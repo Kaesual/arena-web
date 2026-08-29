@@ -10,6 +10,10 @@
       "reference": "menu/medals/medal_victory"
     },
     {
+      "reason": "alternate main-menu background that ui_qmenu.c registers only for GLHW_RAGEPRO hardware; OpenArena ships no such variant and the pinned browser client never reports that renderer class",
+      "reference": "menubackRagePro"
+    },
+    {
       "reason": "single-player podium spawned by g_arenas.c only in single-player mode",
       "reference": "models/mapobjects/podium/podium4.md3"
     },
@@ -82,6 +86,10 @@
       "reference": "poopypants"
     },
     {
+      "reason": "Capture the Flag carrier effect shader registered unconditionally by cg_main.c; the FFA profile has no flags and OpenArena defines no shader of this name",
+      "reference": "powerups/blueflag"
+    },
+    {
       "reason": "placeholder material name left in models/weaphits/boom01.md3 by its author; the renderer answers it with the default shader",
       "reference": "rocketflare_001"
     },
@@ -122,7 +130,7 @@
   ],
   "generatedSource": {
     "id": "arena-web",
-    "licenseEvidenceUrl": "https://raw.githubusercontent.com/Kaesual/arena-web/main/LICENSE",
+    "licenseEvidenceUrl": "https://raw.githubusercontent.com/Kaesual/arena-web/1cc0a1a3d5e84ee2f3a3ff9305a962810e4283d2/LICENSE",
     "licenseExpression": "GPL-2.0-or-later",
     "preferredSourceRevision": "recipe",
     "preferredSourceUrl": "https://github.com/Kaesual/arena-web",
@@ -316,6 +324,36 @@
   "templateExpansions": [
     {
       "expansions": [
+        "explode11",
+        "explode12",
+        "explode13",
+        "explode14",
+        "explode15",
+        "explode16",
+        "explode17",
+        "explode18",
+        "explode19",
+        "explode110",
+        "explode111",
+        "explode112",
+        "explode113",
+        "explode114",
+        "explode115",
+        "explode116",
+        "explode117",
+        "explode118",
+        "explode119",
+        "explode120",
+        "explode121",
+        "explode122",
+        "explode123"
+      ],
+      "kind": "shader",
+      "reason": "cg_particles.c registers shaderAnimNames[0]='explode1' for shaderAnimCounts[0]=23 frames; the WOLF_PARTICLES name table is not compiled into baseq3",
+      "template": "%s%i"
+    },
+    {
+      "expansions": [
         "gfx/2d/crosshaira",
         "gfx/2d/crosshairb",
         "gfx/2d/crosshairc",
@@ -327,24 +365,28 @@
         "gfx/2d/crosshairi",
         "gfx/2d/crosshairj"
       ],
+      "kind": "shader",
       "template": "gfx/2d/crosshair%c"
     },
     {
       "expansions": [
         "levelshots/oa_pvomit"
       ],
+      "kind": "shader",
       "template": "levelshots/%s"
     },
     {
       "expansions": [
         "levelshots/oa_pvomit.tga"
       ],
+      "kind": "shader",
       "template": "levelshots/%s.tga"
     },
     {
       "expansions": [
         "maps/oa_pvomit.bsp"
       ],
+      "kind": "bsp",
       "template": "maps/%s.bsp"
     },
     {
@@ -499,6 +541,7 @@
         "sound/player/footsteps/boot3.wav",
         "sound/player/footsteps/boot4.wav"
       ],
+      "kind": "sound",
       "template": "sound/player/footsteps/boot%i.wav"
     },
     {
@@ -508,6 +551,7 @@
         "sound/player/footsteps/clank3.wav",
         "sound/player/footsteps/clank4.wav"
       ],
+      "kind": "sound",
       "template": "sound/player/footsteps/clank%i.wav"
     },
     {
@@ -517,6 +561,7 @@
         "sound/player/footsteps/energy3.wav",
         "sound/player/footsteps/energy4.wav"
       ],
+      "kind": "sound",
       "template": "sound/player/footsteps/energy%i.wav"
     },
     {
@@ -526,6 +571,7 @@
         "sound/player/footsteps/flesh3.wav",
         "sound/player/footsteps/flesh4.wav"
       ],
+      "kind": "sound",
       "template": "sound/player/footsteps/flesh%i.wav"
     },
     {
@@ -535,6 +581,7 @@
         "sound/player/footsteps/mech3.wav",
         "sound/player/footsteps/mech4.wav"
       ],
+      "kind": "sound",
       "template": "sound/player/footsteps/mech%i.wav"
     },
     {
@@ -544,6 +591,7 @@
         "sound/player/footsteps/splash3.wav",
         "sound/player/footsteps/splash4.wav"
       ],
+      "kind": "sound",
       "template": "sound/player/footsteps/splash%i.wav"
     },
     {
@@ -553,6 +601,7 @@
         "sound/player/footsteps/step3.wav",
         "sound/player/footsteps/step4.wav"
       ],
+      "kind": "sound",
       "template": "sound/player/footsteps/step%i.wav"
     }
   ]

@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import hashlib
 import io
+import posixpath
 import re
 import tarfile
 import zipfile
@@ -84,6 +85,23 @@ def _game_path(value: str) -> str:
     return value.replace("\\", "/").strip().lstrip("/").lower()
 
 
+def _archive_member_name(name: str, source: RecipeSource) -> str:
+    """Return an archive member's normalised name, refusing to leave its root.
+
+    `lstrip` would be a character-class strip here, so the name is normalised
+    properly and then required to stay under the recipe's declared archive
+    root: a member that escapes it is a malformed or hostile archive, not
+    something to silently skip.
+    """
+    normalised = posixpath.normpath(name)
+    root = source.archive_root
+    if normalised != root and not normalised.startswith(f"{root}/"):
+        raise ContentError(
+            f"{source.id}: archive member {name!r} escapes the archive root {root!r}"
+        )
+    return normalised
+
+
 @dataclass(frozen=True)
 class RecipeSource:
     """What reading one upstream archive needs.
@@ -120,37 +138,47 @@ class SourceSet:
         self._members: dict[str, SourceMember] = {}
         for source in sorted(sources, key=lambda item: item.precedence):
             archive = archive_dir / source.file_name
-            self._verify(source, archive)
-            self._load(source, archive)
+            if not archive.is_file():
+                raise ContentError(
+                    f"{source.id}: {archive} is missing; "
+                    "run scripts/fetch-content-sources.sh"
+                )
+            # Verify and read the *same* open file, so nothing can replace the
+            # archive between the digest check and the bytes that are packaged.
+            with archive.open("rb") as handle:
+                self._verify(source, archive.name, handle)
+                handle.seek(0)
+                self._load(source, handle)
 
     @staticmethod
-    def _verify(source: RecipeSource, archive: Path) -> None:
-        if not archive.is_file():
+    def _verify(source: RecipeSource, name: str, handle) -> None:
+        digest = hashlib.sha256()
+        size = 0
+        while chunk := handle.read(CHUNK_SIZE):
+            size += len(chunk)
+            digest.update(chunk)
+        if size != source.size:
             raise ContentError(
-                f"{source.id}: {archive} is missing; run scripts/fetch-content-sources.sh"
+                f"{source.id}: {name} is {size} bytes, recipe pins {source.size}"
             )
-        actual_size = archive.stat().st_size
-        if actual_size != source.size:
-            raise ContentError(
-                f"{source.id}: {archive.name} is {actual_size} bytes, recipe pins {source.size}"
-            )
-        actual = file_sha256(archive)
+        actual = digest.hexdigest()
         if actual != source.sha256:
             raise ContentError(
-                f"{source.id}: {archive.name} is sha256:{actual}, recipe pins sha256:{source.sha256}"
+                f"{source.id}: {name} is sha256:{actual}, "
+                f"recipe pins sha256:{source.sha256}"
             )
 
-    def _load(self, source: RecipeSource, archive: Path) -> None:
+    def _load(self, source: RecipeSource, handle) -> None:
         wanted_trees = tuple(f"{source.archive_root}/{tree}/" for tree in source.trees)
         wanted_documents = {
             f"{source.archive_root}/{document}": document
             for document in source.documents
         }
-        with tarfile.open(archive, "r:*") as handle:
-            for member in handle:
+        with tarfile.open(fileobj=handle, mode="r:*") as archive:
+            for member in archive:
                 if not member.isfile():
                     continue
-                name = member.name.lstrip("./")
+                name = _archive_member_name(member.name, source)
                 game_path: str | None = None
                 if name in wanted_documents:
                     game_path = wanted_documents[name]
@@ -161,7 +189,7 @@ class SourceSet:
                             break
                 if game_path is None:
                     continue
-                extracted = handle.extractfile(member)
+                extracted = archive.extractfile(member)
                 if extracted is None:
                     continue
                 key = _game_path(game_path)
@@ -252,14 +280,18 @@ class ClosureBuilder:
         self._generated = {
             _game_path(path) for path in recipe.get("generatedMembers", ())
         }
-        self._non_default_license = {
-            source_id: tuple(pattern.lower() for pattern in patterns)
-            for source_id, patterns in (
-                (record["id"], record.get("nonDefaultLicensePaths", ()))
-                for record in recipe.get("sources", ())
+        # The exclusion is global, not per-source: a path that one source
+        # declares as differently licensed must not slip in because a
+        # higher-precedence source happens to provide the same path.
+        self._non_default_license = tuple(
+            sorted(
+                {
+                    (record["id"], pattern.lower())
+                    for record in recipe.get("sources", ())
+                    for pattern in record.get("nonDefaultLicensePaths", ())
+                }
             )
-            if patterns
-        }
+        )
 
     # -- resolution ------------------------------------------------------
 
@@ -275,12 +307,12 @@ class ClosureBuilder:
         for pattern, reason in FORBIDDEN_MEMBER_PATTERNS:
             if pattern.search(key):
                 raise ContentError(f"{origin}: refuses to package {path} ({reason})")
-        for pattern in self._non_default_license.get(member.source_id, ()):
+        for declaring_source, pattern in self._non_default_license:
             if fnmatch(key, pattern):
                 raise ContentError(
-                    f"{origin}: {path} is covered by {member.source_id} pattern "
-                    f"{pattern!r}, whose licence differs from the source's declared "
-                    "expression; it must be selected out or declared separately"
+                    f"{origin}: {path} is covered by pattern {pattern!r}, which "
+                    f"{declaring_source} declares as differently licensed from its "
+                    "source expression; it must be selected out or declared separately"
                 )
         self.report.members.setdefault(key, member)
         return True
@@ -474,9 +506,7 @@ def write_pk3(members: dict[str, bytes], output: Path) -> None:
     """Write a PK3 with a fixed member order and no ambient metadata."""
     output.parent.mkdir(parents=True, exist_ok=True)
     buffer = io.BytesIO()
-    with zipfile.ZipFile(
-        buffer, "w", compression=zipfile.ZIP_DEFLATED, compresslevel=ZIP_COMPRESS_LEVEL
-    ) as archive:
+    with zipfile.ZipFile(buffer, "w", compression=zipfile.ZIP_DEFLATED) as archive:
         for path in sorted(members):
             info = zipfile.ZipInfo(filename=path, date_time=ZIP_TIMESTAMP)
             info.compress_type = zipfile.ZIP_DEFLATED
@@ -485,7 +515,10 @@ def write_pk3(members: dict[str, bytes], output: Path) -> None:
             info.internal_attr = 0
             info.create_version = 20
             info.extract_version = 20
-            archive.writestr(info, members[path])
+            # The compression level must be passed here: a level given to the
+            # ZipFile constructor is ignored for a caller-supplied ZipInfo, so
+            # the archive would silently fall back to zlib's default.
+            archive.writestr(info, members[path], compresslevel=ZIP_COMPRESS_LEVEL)
     output.write_bytes(buffer.getvalue())
 
 

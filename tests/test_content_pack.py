@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+import argparse
 import hashlib
+import importlib.util
 import io
 import json
 import sys
@@ -10,6 +12,7 @@ import tarfile
 import tempfile
 import unittest
 import zipfile
+import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -17,6 +20,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from content_pack import (  # noqa: E402
+    ZIP_COMPRESS_LEVEL,
     ZIP_TIMESTAMP,
     ClosureBuilder,
     ContentError,
@@ -301,8 +305,58 @@ class ClosureTests(unittest.TestCase):
                     ],
                 },
             )
-            with self.assertRaisesRegex(ContentError, "licence differs"):
+            with self.assertRaisesRegex(ContentError, "differently licensed"):
                 builder.add("models/players/merman/lower.md3", "model", "test")
+
+    def test_the_licence_exclusion_holds_across_sources(self) -> None:
+        # The declaring source loses the path to a higher-precedence one. The
+        # exclusion must still fire, or a differently licensed file would enter
+        # the pack through whichever source happened to win.
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw)
+            declaring = write_archive(
+                directory,
+                "low.tar.bz2",
+                "pack.orig",
+                {"pak0/models/players/merman/lower.md3": build_md3([[]])},
+            )
+            winning = write_archive(
+                directory,
+                "high.tar.bz2",
+                "pack.orig",
+                {"pak0/models/players/merman/lower.md3": build_md3([[]])},
+            )
+            records = [
+                source_record(
+                    declaring,
+                    id="declaring",
+                    precedence=10,
+                    nonDefaultLicensePaths=["models/players/merman/*"],
+                ),
+                source_record(winning, id="winning", precedence=20),
+            ]
+            sources = SourceSet(recipe_sources({"sources": records}), directory)
+            builder = ClosureBuilder(
+                sources,
+                {
+                    "acceptedUnresolved": [],
+                    "generatedMembers": [],
+                    "sources": records,
+                },
+            )
+            with self.assertRaisesRegex(ContentError, "differently licensed"):
+                builder.add("models/players/merman/lower.md3", "model", "test")
+
+    def test_an_archive_member_may_not_escape_its_root(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            directory = Path(raw)
+            archive = write_archive(
+                directory, "p.tar.bz2", "pack.orig", {"pak0/../../escape.txt": b"x"}
+            )
+            with self.assertRaisesRegex(ContentError, "escapes the archive root"):
+                SourceSet(
+                    recipe_sources({"sources": [source_record(archive)]}), directory
+                )
 
     def test_a_generated_member_satisfies_the_reference_without_upstream_bytes(
         self,
@@ -361,6 +415,22 @@ class PackWriterTests(unittest.TestCase):
                 self.assertEqual(info.external_attr >> 16, 0o100644)
                 self.assertEqual(info.extra, b"")
                 self.assertEqual(info.comment, b"")
+
+    def test_the_declared_compression_level_is_actually_in_force(self) -> None:
+        # A level handed to the ZipFile constructor is ignored for a
+        # caller-supplied ZipInfo, so this payload is chosen to compress to a
+        # different size at zlib's default level than at the declared one.
+        payload = b"the quick brown fox jumps over the lazy dog 0123456789 " * 300
+        expected = zlib.compressobj(ZIP_COMPRESS_LEVEL, zlib.DEFLATED, -15)
+        expected_size = len(expected.compress(payload) + expected.flush())
+        default = zlib.compressobj(-1, zlib.DEFLATED, -15)
+        default_size = len(default.compress(payload) + default.flush())
+        self.assertNotEqual(expected_size, default_size)
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw) / "pack.pk3"
+            write_pk3({"a.bin": payload}, output)
+            with zipfile.ZipFile(output) as archive:
+                self.assertEqual(archive.infolist()[0].compress_size, expected_size)
 
     def test_two_writes_are_byte_identical(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -517,6 +587,105 @@ class QvmReferenceTests(unittest.TestCase):
         self.assertNotIn("sound/player/james/death1.wav", literals)
 
 
+class BuildGateTests(unittest.TestCase):
+    """The gates in build-content-pack.py, exercised through its own module.
+
+    The file is a CLI with a hyphenated name, so it is loaded by path; without
+    this the gates that decide whether a recipe may produce a pack would have
+    no test at all.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "build_content_pack", ROOT / "scripts" / "build-content-pack.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        cls.module = module
+        cls.recipe = load_recipe(RECIPE_PATH)
+
+    def _build(self, recipe: dict, archive_dir: Path, output: Path) -> int:
+        arguments = argparse.Namespace(
+            archive_dir=archive_dir,
+            output_dir=output,
+            provenance_output=output / "p.json",
+            manifest_output=output / "m.json",
+            producer_commit="0" * 40,
+        )
+        with tempfile.TemporaryDirectory() as raw:
+            fake_root = Path(raw)
+            (fake_root / "content").mkdir()
+            (fake_root / "locks").mkdir()
+            (fake_root / "content" / "pack-recipe.json").write_text(
+                json.dumps(recipe, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+                encoding="utf-8",
+            )
+            (fake_root / "locks" / "baseline.json").write_bytes(
+                (ROOT / "locks" / "baseline.json").read_bytes()
+            )
+            (fake_root / "ioq3").symlink_to(ROOT / "ioq3")
+            return self.module.build(fake_root, arguments)
+
+    def test_an_unexpanded_template_stops_the_build(self) -> None:
+        recipe = json.loads(json.dumps(self.recipe))
+        recipe["templateExpansions"] = [
+            entry
+            for entry in recipe["templateExpansions"]
+            if entry["template"] != "maps/%s.bsp"
+        ]
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "have no recipe expansion"):
+                self._build(recipe, output, output)
+
+    def test_a_template_the_qvms_do_not_use_stops_the_build(self) -> None:
+        recipe = json.loads(json.dumps(self.recipe))
+        recipe["templateExpansions"].append(
+            {"expansions": [], "reason": "x" * 40, "template": "invented/%s.tga"}
+        )
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "templates the QVMs do not use"):
+                self._build(recipe, output, output)
+
+    def test_an_expansion_without_a_declared_kind_stops_the_build(self) -> None:
+        recipe = json.loads(json.dumps(self.recipe))
+        for entry in recipe["templateExpansions"]:
+            if entry["template"] == "maps/%s.bsp":
+                entry.pop("kind")
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "declaring which"):
+                self._build(recipe, output, output)
+
+    def test_a_generated_source_not_bound_to_the_recipe_stops_the_build(self) -> None:
+        for field in ("sourceIdentity", "preferredSourceRevision"):
+            recipe = json.loads(json.dumps(self.recipe))
+            recipe["generatedSource"][field] = "sha256:" + "3" * 64
+            with tempfile.TemporaryDirectory() as raw:
+                output = Path(raw)
+                with self.assertRaisesRegex(ContentError, "literal 'recipe'"):
+                    self._build(recipe, output, output)
+
+    def test_an_inconsistent_profile_stops_the_build(self) -> None:
+        cases = (
+            (["profile", "arena", "map"], "elsewhere", "is not profile.map"),
+            (["profile", "bots", 0, "model"], "nobody/default", "does not package"),
+            (["profile", "arena", "bots"], "Nobody", "does not list"),
+        )
+        for path, value, message in cases:
+            recipe = json.loads(json.dumps(self.recipe))
+            target = recipe
+            for key in path[:-1]:
+                target = target[key]
+            target[path[-1]] = value
+            with tempfile.TemporaryDirectory() as raw:
+                output = Path(raw)
+                with self.assertRaisesRegex(ContentError, message):
+                    self._build(recipe, output, output)
+
+
 class CommittedRecipeTests(unittest.TestCase):
     def setUp(self) -> None:
         self.recipe = load_recipe(RECIPE_PATH)
@@ -545,7 +714,38 @@ class CommittedRecipeTests(unittest.TestCase):
         used = set()
         for module in baseq3_references(ROOT / "ioq3").values():
             used |= set(module.templates)
+            used |= {name for _kind, name in module.registration_templates}
         self.assertEqual(declared, used)
+
+    def test_every_expanding_template_declares_the_kind_it_expands_to(self) -> None:
+        for entry in self.recipe["templateExpansions"]:
+            if entry["expansions"]:
+                self.assertIn("kind", entry, entry["template"])
+                self.assertIn(
+                    entry["kind"],
+                    {
+                        "bsp",
+                        "botfile",
+                        "file",
+                        "image",
+                        "model",
+                        "shader",
+                        "skin",
+                        "sound",
+                    },
+                )
+
+    def test_the_bare_registration_names_reach_the_packaged_members(self) -> None:
+        # The regression the review found: a prefix filter over string literals
+        # cannot see a shader the gamecode registers as `white` or `menuback`.
+        registered = set()
+        for module in baseq3_references(ROOT / "ioq3").values():
+            registered |= {name for _kind, name in module.registrations}
+        for name in ("white", "menuback", "powerups/quad", "viewBloodBlend"):
+            self.assertIn(name, registered)
+        provenance = _load_json(ROOT / "provenance" / "arena-web-ffa-content.json")
+        paths = {member["path"].lower() for member in provenance["members"]}
+        self.assertIn("scripts/newmenu.shader", paths)
 
     def test_generated_members_are_declared_as_such(self) -> None:
         self.assertIn(self.recipe["noticeFile"], self.recipe["generatedMembers"])

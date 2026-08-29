@@ -181,6 +181,7 @@ _SKY_SIDES = ("bk", "dn", "ft", "lf", "rt", "up")
 
 
 def _stage_images(body: str) -> list[str]:
+    """Return the images a shader body loads, per `renderergl1`'s ParseStage."""
     images: list[str] = []
     for line in body.splitlines():
         tokens = line.replace("\t", " ").strip().split()
@@ -242,11 +243,18 @@ def parse_shader_file(text: str) -> list[ShaderDefinition]:
 
 
 def shader_file_precedence(paths: list[str]) -> list[str]:
-    """Return shader files in the order `ScanAndLoadShaderFiles` gives them.
+    """Return the order in which shader definitions win, for *this* pack.
 
-    ioquake3 reverse-sorts the `scripts/*.shader` list and concatenates it, and
-    `FindShaderInShaderText` takes the first definition it meets. A definition
-    in a later-sorting file therefore wins.
+    `ScanAndLoadShaderFiles` does not sort. It concatenates the files in the
+    reverse of the order `FS_ListFiles` returns them, and
+    `FindShaderInShaderText` takes the first definition it meets, so a file
+    later in the listing wins. `FS_SortFileList` is only used by directory
+    listing and command completion, not here.
+
+    Reverse-alphabetical is therefore the right model only because
+    `content_pack.write_pk3` stores members sorted by path, which makes the
+    listing of this pack alphabetical. A pack built by some other writer would
+    need its own listing order, and this function would be wrong for it.
     """
     return sorted(paths, key=lambda path: path.lower(), reverse=True)
 

@@ -54,6 +54,20 @@ _ASSET_RE = re.compile(
 )
 _FORMAT_RE = re.compile(r"%[-0-9.]*[a-zA-Z]")
 _STRING_RE = re.compile(r'"((?:[^"\\\n]|\\.)*)"')
+
+# The engine registers plenty of content under names that are not paths at all
+# — `white`, `menuback`, `powerups/quad`, `viewBloodBlend` — because a shader
+# script defines them. A prefix filter over string literals cannot see those, so
+# the first argument of every registration trap is read directly and the trap
+# itself says which kind of reference it is.
+TRAP_KINDS = {
+    "trap_R_RegisterModel": "model",
+    "trap_R_RegisterShader": "shader",
+    "trap_R_RegisterShaderNoMip": "shader",
+    "trap_R_RegisterSkin": "skin",
+    "trap_S_RegisterSound": "sound",
+}
+_TRAP_CALL_RE = re.compile(r"\b(trap_[A-Za-z0-9_]+)\s*\(")
 _CMAKE_LIST_RE = re.compile(r"set\((\w+)\s(.*?)\)\s*$", re.DOTALL | re.MULTILINE)
 _INCLUDE_RE = re.compile(r'^\s*#\s*include\s+"([^"]+)"', re.MULTILINE)
 
@@ -67,6 +81,8 @@ class ModuleReferences:
     module: str
     literals: tuple[str, ...]
     templates: tuple[str, ...]
+    registrations: tuple[tuple[str, str], ...] = ()
+    registration_templates: tuple[tuple[str, str], ...] = ()
 
 
 def _cmake_lists(text: str) -> dict[str, list[str]]:
@@ -179,13 +195,19 @@ def _known(name: str, defined: frozenset[str]) -> bool | None:
     return None
 
 
-def select_compiled_lines(text: str, defined: frozenset[str]) -> list[str]:
+def select_compiled_lines(
+    text: str, defined: frozenset[str], *, origin: str = "<text>"
+) -> list[str]:
     """Drop the conditional blocks the QVM build cannot compile.
 
     A condition this evaluator cannot decide keeps *both* branches, so the
     result is a superset of the compiled text and the closure it feeds never
     silently loses a reference. Only conditions built from macros with a known
     state — the module macro and `MISSIONPACK` — remove anything.
+
+    An unbalanced conditional stack is the one way this reader can silently
+    lose the tail of a translation unit — a `#if` inside a block comment would
+    do it — so it is an error rather than a shrug.
     """
     kept: list[str] = []
     # Each stack entry is (emitting_now, decided_by_us, any_branch_taken).
@@ -229,7 +251,80 @@ def select_compiled_lines(text: str, defined: frozenset[str]) -> list[str]:
             if stack:
                 parent, _decided, _taken = stack.pop()
                 emitting = parent
+    if stack:
+        raise ReferenceError(
+            f"{origin}: {len(stack)} unterminated preprocessor conditional(s); "
+            "the reader would silently lose the rest of the file"
+        )
     return kept
+
+
+def _first_argument_literals(text: str, start: int) -> list[str]:
+    """Return the string literals of the call argument beginning at `start`.
+
+    `start` is the index just past the opening parenthesis. Scanning stops at
+    the comma that ends the first argument or at the closing parenthesis, so a
+    wrapper such as `va( "models/players/%s/head.md3", name )` yields its format
+    string while the trailing arguments are ignored. Adjacent literals are
+    concatenated the way the C preprocessor joins them.
+    """
+    literals: list[str] = []
+    current: list[str] = []
+    depth = 0
+    index = start
+    length = len(text)
+    while index < length:
+        character = text[index]
+        if character == '"':
+            index += 1
+            chunk: list[str] = []
+            while index < length and text[index] != '"':
+                if text[index] == "\\" and index + 1 < length:
+                    chunk.append(text[index + 1])
+                    index += 2
+                    continue
+                chunk.append(text[index])
+                index += 1
+            current.append("".join(chunk))
+            index += 1
+            continue
+        if character == "'":
+            index += 1
+            while index < length and text[index] != "'":
+                index += 2 if text[index] == "\\" else 1
+            index += 1
+            continue
+        if character == "(":
+            depth += 1
+        elif character == ")":
+            if depth == 0:
+                break
+            depth -= 1
+        elif character == "," and depth == 0:
+            break
+        elif not character.isspace() and current:
+            # Something other than whitespace follows a literal, so any further
+            # literal in this argument is not a concatenation of it.
+            literals.append("".join(current))
+            current = []
+        index += 1
+    if current:
+        literals.append("".join(current))
+    return literals
+
+
+def registration_references(text: str) -> list[tuple[str, str]]:
+    """Return `(kind, name)` for every content-registration trap call in `text`."""
+    found: list[tuple[str, str]] = []
+    for match in _TRAP_CALL_RE.finditer(text):
+        kind = TRAP_KINDS.get(match.group(1))
+        if kind is None:
+            continue
+        for literal in _first_argument_literals(text, match.end()):
+            name = literal.strip()
+            if name:
+                found.append((kind, name))
+    return found
 
 
 def _string_literals(lines: list[str]) -> set[str]:
@@ -247,9 +342,12 @@ def module_references(
     defined = frozenset(ALWAYS_DEFINED | {MODULE_MACROS[module]})
     literals: set[str] = set()
     templates: set[str] = set()
+    registrations: set[tuple[str, str]] = set()
+    registration_templates: set[tuple[str, str]] = set()
     for path in sources + _reachable_headers(sources, ioq3_root):
         text = path.read_text(encoding="utf-8", errors="replace")
-        for raw in _string_literals(select_compiled_lines(text, defined)):
+        compiled = select_compiled_lines(text, defined, origin=str(path))
+        for raw in _string_literals(compiled):
             for token in raw.split():
                 token = token.strip().replace("\\n", "")
                 if not _ASSET_RE.fullmatch(token):
@@ -258,7 +356,18 @@ def module_references(
                     templates.add(token)
                 else:
                     literals.add(token)
-    return ModuleReferences(module, tuple(sorted(literals)), tuple(sorted(templates)))
+        for kind, name in registration_references("\n".join(compiled)):
+            if _FORMAT_RE.search(name):
+                registration_templates.add((kind, name))
+            else:
+                registrations.add((kind, name))
+    return ModuleReferences(
+        module,
+        tuple(sorted(literals)),
+        tuple(sorted(templates)),
+        tuple(sorted(registrations)),
+        tuple(sorted(registration_templates)),
+    )
 
 
 def baseq3_references(ioq3_root: Path) -> dict[str, ModuleReferences]:
