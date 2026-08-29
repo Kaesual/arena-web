@@ -43,7 +43,7 @@ is a plan change; adding another platform is later scope.
 | WP2 | Relay conformance probe and routed-path measurement | WP0 | Deterministic part implemented — public contract, browser probe, in-memory adapter and 125 deterministic tests; routed acceptance pending operator-supplied runtime values |
 | WP3 | Audited deterministic minimal-content closure | WP0 | ✅ Complete — two clean assemblies in the pinned builder image produce a byte-identical 668-member `oa_pvomit` FFA pack from six digest-pinned Debian-cleaned OpenArena archives, every member `GPL-2.0-or-later` with resolved notices, and every reference the two static readings of the pinned `baseq3` QVM sources extract either resolves or is a recipe acceptance with a stated reason |
 | WP4 | One-map offline browser arena with bots | WP1, WP3 | Implemented, witnessed acceptance pending — the product loader, the digest-verified served set and the automated pre-acceptance are built and green in the pinned browser; a person at the WP0 desktop has not yet played it |
-| WP5 | Matching native server and packet census | WP0, WP3 | Approved |
+| WP5 | Matching native server and packet census | WP0, WP3 | Stopped before implementation on a verified WP0 gap: the baseline has no record type for a redistributed runtime image. Resolution approved 2026-08-30: a reviewed WP0 amendment (see the WP5 State block), then WP5 proceeds |
 | WP6 | Measured network-sizing decision | WP2, WP5 | Approved |
 | WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | Scope gate |
 | WP8 | Two-browser multiplayer acceptance | WP5, WP7 | Scope gate |
@@ -522,6 +522,89 @@ Browser-shell/code review plus witnessed real-browser acceptance. Headless
 rendering alone is insufficient.
 
 ## WP5 — Matching native server and packet census
+
+**State:** stopped before implementation; a WP0 amendment was approved on
+2026-08-30 and must land first. No WP5 code exists yet.
+
+### Why WP5 stopped, and the approved resolution
+
+The scope requires the server's runtime base to be "separately pinned … with
+its distribution and preferred-source obligations recorded". The WP0 baseline
+cannot express that record, verified against the real validator, not assumed:
+
+1. Every `tools[]` entry is validated with `product_input=False`, which demands
+   a registered tool-only LicenseRef **and** a non-distribution `distribution`
+   value (`scripts/metadata.py` `_validate_license`). A runtime base that ships
+   inside a server image has redistribution obligations, so every honest
+   attempt is rejected. The schema has no record type for a redistributed
+   image at all — a WP0 gap, not a WP5 inconvenience.
+2. The validator requires the tool id set to equal exactly
+   `{chrome-for-testing, emscripten-builder, native-builder-base}`.
+3. Any byte change to `locks/baseline.json` moves the canonical baseline
+   identity that `manifests/browser-client.json` and
+   `provenance/arena-web-ffa-content-manifest.json` bind, and that
+   `docs/immutable-baseline.md` documents.
+4. There is no side channel: `schemas/` is closed to exactly four files and
+   every metadata JSON must declare one of the three known schemas.
+
+**Approved resolution (option "WP0 amendment"):** one dedicated, fully
+reviewed amendment step before any WP5 implementation:
+
+- Add a redistributed-product-image record type to
+  `schemas/baseline-lock.schema.json` and its validation to
+  `scripts/metadata.py`: digest-pinned identity, license evidence, explicit
+  redistribution and preferred-source obligations, an allowed-license gate of
+  its own — without weakening any existing rule; the exact-set closures stay
+  closed and are extended deliberately.
+- Extend `tests/test_metadata.py` with the positive path and the negative
+  paths (wrong license class, missing obligations, unexpected collection
+  members).
+- Add the WP5 runtime-base entry to `locks/baseline.json` under the new type.
+- Reissue the two bound records by re-running the deterministic WP1 browser
+  build and WP3 assembly: every artifact digest must remain byte-identical
+  (the builds do not consume the new entry); only the recorded baseline
+  identity moves. Update the documented identity in
+  `docs/immutable-baseline.md` together with the amendment rationale.
+- Full independent review at WP0 level (reproducibility and licensing), like
+  every baseline decision.
+
+Rejected alternatives, for the record: a WP5-owned side validator (a second
+license gate beside WP0's single one — a weakening); a fully static server on
+`scratch` (does not answer the native test client's runtime needs and leaves
+the WP0 gap open); deferring the pin (violates the empty-writable-state
+acceptance).
+
+### Verified groundwork, recorded ahead of implementation
+
+Established against the pinned engine tree while the pin question was open;
+the WP5 evidence document inherits and re-cites these:
+
+- **Relay-address behaviour** (scope item): the query/challenge rate limiters
+  key on the base address only — `SVC_BucketForAddress`
+  (`code/server/sv_main.c:405-433`) never consults the UDP source port, so all
+  relayed players share one bucket of 10 challenges per 1000 ms
+  (`sv_client.c:71`; same shape for status/info/rcon, plus a global outbound
+  bucket). Bans compare base address and subnet, portless
+  (`SV_IsBanned` → `NET_CompareBaseAdrMask`, applied in `SV_DirectConnect`);
+  banning one relayed player bans all. Netchan separates clients behind one
+  address by the client-chosen 16-bit qport (`SV_PacketEvent`,
+  `sv_main.c:845-870`; rationale `code/qcommon/net_chan.c:40-46`), drawn from
+  `Com_RandomBytes` — isolation is therefore bounded (~1/65536 collision per
+  pair), not absolute. Additional hazard the plan text does not name:
+  `SV_DirectConnect` slot matching accepts base address AND (qport match OR
+  source-port match) (`sv_client.c:377-379`, `461-463`), so relay source-port
+  assignment policy matters.
+- **Netchan header asymmetry** confirms WP0's recorded numbers: 10 bytes
+  client-to-server (sequence + qport + challenge checksum), 8 bytes
+  server-to-client, fragments add 2 + 2; `MAX_PACKETLEN` 1400,
+  `FRAGMENT_SIZE` 1300 (`code/qcommon/net_chan.c`).
+- **Build facts:** the dedicated target compiles with `DEDICATED`/`BOTLIB`
+  and the null client stubs and links only `${CMAKE_DL_LIBS}` and `m`
+  (`cmake/platforms/unix.cmake:19-22`, `cmake/server.cmake:43`) — no SDL, no
+  GL; the native client links SDL2/zlib/ogg/vorbis/opus/openal and needs a
+  real GL path (Xvfb + software GL; `SDL_VIDEODRIVER=dummy` yields no GL
+  context). Server and client have very different runtime needs; the runtime
+  base the amendment pins may be minimal.
 
 ### Outcome
 
