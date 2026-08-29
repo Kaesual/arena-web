@@ -142,10 +142,13 @@ A frame carrying inner datagrams of sizes `n1..nk` occupies
 ```
 
 For a single inner datagram this is `n + 42` bytes, which is exactly the
-`singleDatagramOverheadBytes` value the measurement vector fixes. The probe
-therefore **verifies** the 42-byte single-datagram overhead against every frame
-it builds and every frame it accepts; it does not measure it as if it were an
-unknown transport property.
+`singleDatagramOverheadBytes` value the measurement vector fixes. That overhead
+is **known and checked**, not measured as if it were an unknown transport
+property. It is checked in three places: the encoder produces exactly that
+length, the decoder's grammar admits a single-datagram frame only at that length
+because it allows no trailing byte, and the report validator recomputes both the
+sent and the returned frame sizes from the inner sizes and rejects a record that
+disagrees.
 
 Because the server-to-browser direction carries exactly one inner datagram, a
 browser-to-server frame packing `k` datagrams is answered by `k` separate
