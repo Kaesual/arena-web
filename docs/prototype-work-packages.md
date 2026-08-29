@@ -2,7 +2,8 @@
 
 # Browser arena: prototype work packages
 
-**Status:** Independently reviewed and approved; WP0, WP1 and WP3 complete
+**Status:** Independently reviewed and approved; WP0, WP1 and WP3 complete;
+WP4 implemented with its witnessed acceptance pending
 
 This document turns the reviewed direction in
 [`initial-plan.md`](initial-plan.md) into coherent, testable increments. It
@@ -41,7 +42,7 @@ is a plan change; adding another platform is later scope.
 | WP1 | Reproducible unmodified ioq3 browser build | WP0 | ✅ Complete — two clean offline builds in the pinned Emscripten 6.0.8 image produce byte-identical artifacts and one validated manifest, with the observed component, QVM/lcc, license-closure and isolation findings recorded |
 | WP2 | Relay conformance probe and routed-path measurement | WP0 | Deterministic part implemented — public contract, browser probe, in-memory adapter and 125 deterministic tests; routed acceptance pending operator-supplied runtime values |
 | WP3 | Audited deterministic minimal-content closure | WP0 | ✅ Complete — two clean assemblies in the pinned builder image produce a byte-identical 668-member `oa_pvomit` FFA pack from six digest-pinned Debian-cleaned OpenArena archives, every member `GPL-2.0-or-later` with resolved notices, and every reference the two static readings of the pinned `baseq3` QVM sources extract either resolves or is a recipe acceptance with a stated reason |
-| WP4 | One-map offline browser arena with bots | WP1, WP3 | Approved |
+| WP4 | One-map offline browser arena with bots | WP1, WP3 | Implemented, witnessed acceptance pending — the product loader, the digest-verified served set and the automated pre-acceptance are built and green in the pinned browser; a person at the WP0 desktop has not yet played it |
 | WP5 | Matching native server and packet census | WP0, WP3 | Approved |
 | WP6 | Measured network-sizing decision | WP2, WP5 | Approved |
 | WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | Scope gate |
@@ -432,6 +433,38 @@ Full provenance/license review plus a focused deterministic-build and content-
 closure review.
 
 ## WP4 — Offline browser vertical slice
+
+**State:** implemented; witnessed real-browser acceptance **pending**. The
+evidence is [`wp4-vertical-slice.md`](wp4-vertical-slice.md); the product
+loader and content configuration are `arena/`, and the packaging discipline is
+`scripts/arena_runtime.py`.
+
+### Result
+
+The scope below was met without touching the engine, the content pack or its
+recipe. Decided facts:
+
+- **The audited free content supports the pinned `baseq3` QVMs at runtime.**
+  WP3's failure boundary is not reached: three bots load their characters,
+  navigate the map, fire, kill each other, score and chat. No gamecode was
+  switched and nothing was adopted from OpenArena's engine.
+- The game directory is `arena`, not `baseq3`. `FS_CheckPak0` leaves
+  `com_standalone` at 0 for ioquake3's own base game and the engine then
+  refuses to start without the retail paks; any other directory name selects
+  standalone operation.
+- The engine requires a `default.cfg` in that directory and stops fatally
+  without one. That is an engine requirement rather than a game-module
+  reference, so the pack cannot be expected to carry it; WP4 supplies an
+  original product-owned one.
+- Three images the renderer and the client register **themselves** —
+  `flareShader`, `sun` and `console` — are missing from the pack although the
+  audited upstream sources contain them. This is a gap in WP3's closure roots,
+  not in the free content, and it is cosmetic for this profile.
+- The client still requires no cross-origin isolation. The re-check is on the
+  shipped artifacts, and two complete runs passed under a serve with no COOP or
+  COEP header at all.
+- The four missing references the running game reports are on an explicit,
+  literal acceptance list with a reason each; anything else fails the run.
 
 ### Outcome
 

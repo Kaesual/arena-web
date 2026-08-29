@@ -35,6 +35,10 @@ release.
   upstream archives, the game profile and every accepted exception.
 - `provenance/` holds the member-level provenance of the assembled pack and the
   pack's own identity.
+- `arena/` is the product browser loader, its engine configuration and the
+  content configuration of the offline one-map slice;
+  `docs/wp4-vertical-slice.md` records how the engine is booted, what the
+  served set is allowed to contain and what the automated run observed.
 - `docs/relay-datagram-contract.md` is the public routed datagram contract: the
   protocol subset and byte-exact framing a browser needs to reach one game
   destination through a compatible relay.
@@ -116,6 +120,40 @@ Only the first command uses the network, and it accepts an archive only if its
 size and digest match the recipe. Everything is written to the gitignored
 `build/` directory; the PK3 is not committed, its member-level provenance and
 identity are. See `docs/wp3-content-closure.md`.
+
+## Running the offline arena slice
+
+The slice is one map, free-for-all, with three bots and no networking. It needs
+the browser build and the content pack from the two steps above.
+
+```bash
+scripts/serve-arena.sh          # then open http://127.0.0.1:8174/
+```
+
+The script does not serve this repository. It assembles a separate tree
+containing the loader, the committed content configuration, the two committed
+manifests and exactly the artifacts those manifests declare — each copied only
+after its SHA-256 and size match the committed identity — and then re-reads the
+tree and refuses to serve if a file is extra, missing or modified. The loader
+verifies the same identities again in the browser and executes the engine from
+the verified bytes. Press Start to enter the map; the click is also what gives
+the page audio activation.
+
+The client needs no cross-origin isolation, so the server sets no COOP or COEP
+header.
+
+The same slice can be driven automatically in the pinned acceptance browser.
+Obtain the exact Chrome for Testing archive `docs/immutable-baseline.md` pins,
+unpack it, and run:
+
+```bash
+ARENA_CHROME=/path/to/chrome-linux64/chrome scripts/run-arena-acceptance.sh
+```
+
+That stages, serves and launches twice, and writes logs, screenshots and a
+machine-readable summary to the gitignored `build/arena-acceptance/`. It is
+pre-acceptance evidence only: a person at the acceptance desktop still has to
+play the slice, and `docs/wp4-vertical-slice.md` carries that checklist.
 
 ## Running the relay conformance probe
 
