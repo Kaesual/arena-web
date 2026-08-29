@@ -605,6 +605,79 @@ class ArtifactManifestTests(unittest.TestCase):
         )
 
 
+class CommittedBrowserManifestTests(unittest.TestCase):
+    """The committed evidence of the accepted WP1 browser build."""
+
+    MANIFEST_PATH = "manifests/browser-client.json"
+
+    def setUp(self) -> None:
+        self.baseline = load_fixture("locks/baseline.json")
+        self.manifest = load_fixture(self.MANIFEST_PATH)
+
+    def test_repository_validator_covers_the_committed_manifest(self) -> None:
+        validated = validate_repository(ROOT, verify_git=False)
+        self.assertIn(ROOT / self.MANIFEST_PATH, validated)
+
+    def test_committed_manifest_declares_the_required_baseline_inputs(self) -> None:
+        self.assertEqual(
+            sorted(ARTIFACT_REQUIRED_BASELINE_INPUT_IDS),
+            self.manifest["baselineInputIds"],
+        )
+        validate_artifact_manifest(
+            self.manifest,
+            self.MANIFEST_PATH,
+            baseline=self.baseline,
+            required_baseline_input_ids=ARTIFACT_REQUIRED_BASELINE_INPUT_IDS,
+        )
+
+    def test_repository_validator_rejects_a_manifest_without_the_engine(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            shutil.copytree(ROOT / "schemas", root / "schemas")
+            shutil.copytree(ROOT / "locks", root / "locks")
+            (root / "docs").mkdir()
+            shutil.copy2(
+                ROOT / "docs" / "immutable-baseline.md",
+                root / "docs" / "immutable-baseline.md",
+            )
+            os.symlink(ROOT / "ioq3", root / "ioq3", target_is_directory=True)
+            (root / "manifests").mkdir()
+            candidate = copy.deepcopy(self.manifest)
+            candidate["baselineInputIds"] = ["emscripten-builder"]
+            candidate["inputs"] = [
+                item for item in candidate["inputs"] if item["id"] != "ioq3"
+            ]
+            (root / "manifests" / "browser-client.json").write_text(
+                json.dumps(candidate, indent=2, sort_keys=True, ensure_ascii=False)
+                + "\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(MetadataError, "required baseline inputs"):
+                validate_repository(root, verify_git=False)
+
+    def test_committed_manifest_carries_no_retail_game_data(self) -> None:
+        for artifact in self.manifest["artifacts"]:
+            self.assertNotIn(
+                Path(artifact["path"]).suffix.lower(),
+                artifact_manifest.RETAIL_GAME_DATA_SUFFIXES,
+            )
+
+    def test_committed_manifest_is_what_the_generator_produces(self) -> None:
+        extra_inputs = [
+            item
+            for item in self.manifest["inputs"]
+            if item["id"] not in ARTIFACT_REQUIRED_BASELINE_INPUT_IDS
+        ]
+        generated = artifact_manifest.build_manifest(
+            self.baseline,
+            self.manifest["artifacts"],
+            self.manifest["producer"]["commit"],
+            extra_inputs=extra_inputs,
+            producer_name=self.manifest["producer"]["name"],
+        )
+        self.assertEqual(self.manifest, generated)
+
+
 class BrowserBuildManifestTests(unittest.TestCase):
     """The code that generates the WP1 browser artifact manifest."""
 

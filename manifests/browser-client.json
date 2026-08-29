@@ -1,0 +1,83 @@
+{
+  "$schema": "https://kaesual.github.io/arena-web/schemas/artifact-manifest.schema.json",
+  "artifacts": [
+    {
+      "path": "baseq3/vm/cgame.qvm",
+      "sha256": "12d597a49bc351149d7459692a0311cc5e186cf4f376c703ddaa6cfa27a602e4",
+      "size": 343304
+    },
+    {
+      "path": "baseq3/vm/qagame.qvm",
+      "sha256": "449fbd197d34ec3f51006438fc2bf961cdabdf38101b6a17d33f107ad4186805",
+      "size": 488108
+    },
+    {
+      "path": "baseq3/vm/ui.qvm",
+      "sha256": "23ba9181726e108be05a0096a9f49f3c7643d4ff8888267a6948c4a4e8389c33",
+      "size": 307164
+    },
+    {
+      "path": "ioquake3-config.json",
+      "sha256": "d75941dc65e1c0006ac8ac5925af3291a4c1e7b6975a295e0f5cf86a7ee2aa66",
+      "size": 2201
+    },
+    {
+      "path": "ioquake3.html",
+      "sha256": "a43ca343372f7f8683d46d137f3ebbfbd8f5879d71a84fbbd6a3ff907082bcb2",
+      "size": 3995
+    },
+    {
+      "path": "ioquake3.js",
+      "sha256": "43c37ad7b82e0d6dbd7f6913542fbf3c2e9bac55656953de064ecdc6d13d53e9",
+      "size": 266707
+    },
+    {
+      "path": "ioquake3.wasm",
+      "sha256": "14d6e24174897e13ef4f35c9bee186da138d8d919cad6524e0d798d6c6b3ad8a",
+      "size": 2339266
+    },
+    {
+      "path": "missionpack/vm/cgame.qvm",
+      "sha256": "a9963c8a60dd3a4a4ec9e278ef6b00fa40b4ab663e980f90baa48bdccf469949",
+      "size": 519920
+    },
+    {
+      "path": "missionpack/vm/qagame.qvm",
+      "sha256": "cd615ce97dd65b2879158b540f0d331eb27fb52be9af7c8350dcc403955e3f68",
+      "size": 575916
+    },
+    {
+      "path": "missionpack/vm/ui.qvm",
+      "sha256": "80783e0cfe98e5ea0009863c02c56b3c022a7c74468b5218c4870ce178accec5",
+      "size": 306680
+    }
+  ],
+  "baselineIdentity": "sha256:d565905280ac8575ad2798d4e1cd5cabb18c694a4b6b192957c48a41c416f039",
+  "baselineInputIds": [
+    "emscripten-builder",
+    "ioq3"
+  ],
+  "digestAlgorithm": "sha256",
+  "formatVersion": 1,
+  "inputs": [
+    {
+      "id": "emscripten-builder",
+      "identity": "docker.io/emscripten/emsdk@sha256:8714ed3a9fb585e662c931259a996bac36a57a8dd34b81e8277436fd77364475",
+      "kind": "oci-image"
+    },
+    {
+      "id": "emscripten-port-sdl2",
+      "identity": "sha256:7a3c207b8509edc487d658df357ad764cd852d68fe248d307b25c0741d52fdf0",
+      "kind": "archive"
+    },
+    {
+      "id": "ioq3",
+      "identity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+      "kind": "git"
+    }
+  ],
+  "producer": {
+    "commit": "f40b3f6366653fc7bf61625ed19052000c7b4ce4",
+    "name": "arena-web scripts/build-browser.sh"
+  }
+}
