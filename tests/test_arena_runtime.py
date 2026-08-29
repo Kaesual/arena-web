@@ -27,11 +27,15 @@ from arena_acceptance import (  # noqa: E402
     ENGINE_DEFECT_PATTERNS,
     AcceptanceError,
     Check,
+    Expectations,
     RunResult,
+    _score,
+    bots_from_engine_log,
     classify_engine_log,
     compare_runs,
     pinned_browser_version,
     png_pixel_statistics,
+    strip_color_codes,
 )
 from arena_runtime import (  # noqa: E402
     ArenaRuntimeError,
@@ -64,10 +68,12 @@ ENGINE_FILES = {
     "ioquake3.html": b"<!-- upstream shell -->",
     "ioquake3-config.json": b"{}",
     "missionpack/vm/ui.qvm": b"missionpack-ui",
+    "baseq3/stray.pk3": b"PK\x03\x04 game data in an engine build",
 }
 CONTENT_FILES = {
     "baseq3/arena-web-ffa.pk3": b"PK\x03\x04 pretend pack",
     "baseq3/other.pk3": b"PK\x03\x04 another pack",
+    "baseq3/vm/stray.qvm": b"gamecode in a content pack",
 }
 
 
@@ -123,12 +129,12 @@ def _profile() -> dict[str, Any]:
         "readyMarkers": {
             "serverSpawned": "Server: oa_pvomit",
             "clientGameLoaded": "CL_InitCGame:",
-            "botEnteredGame": "entered the game",
+            "clientEnteredGame": "entered the game",
         },
         "readyMarkerNotes": {
             "serverSpawned": "sv_init.c",
             "clientGameLoaded": "cl_cgame.c",
-            "botEnteredGame": "g_client.c",
+            "clientEnteredGame": "g_client.c",
         },
         "manifests": {
             "content": "provenance/arena-web-ffa-content-manifest.json",
@@ -596,6 +602,69 @@ class ArtifactAllowlistTest(SyntheticRepositoryTest):
             ),
         )
 
+    def test_game_data_in_the_engine_manifest_is_refused(self) -> None:
+        self.assertIn(
+            "may not end in '.pk3'",
+            self.refuses(
+                lambda p: p["artifacts"].append(
+                    self._artifact(
+                        path="baseq3/stray.pk3",
+                        served="engine/baseq3/stray.pk3",
+                        fsPath="/arena/stray.pk3",
+                    )
+                )
+            ),
+        )
+
+    def test_gamecode_in_the_content_manifest_is_refused(self) -> None:
+        self.assertIn(
+            "may not end in '.qvm'",
+            self.refuses(
+                lambda p: p["artifacts"].append(
+                    self._artifact(
+                        manifest="content",
+                        path="baseq3/vm/stray.qvm",
+                        served="content/baseq3/vm/stray.qvm",
+                        fsPath="/arena/vm/stray.qvm",
+                    )
+                )
+            ),
+        )
+
+    def test_a_served_path_used_twice_is_refused(self) -> None:
+        def change(profile):
+            duplicate = dict(profile["artifacts"][2])
+            duplicate["fsPath"] = "/arena/vm/copy.qvm"
+            profile["artifacts"].append(duplicate)
+
+        self.assertIn("serves 'engine/baseq3/vm/cgame.qvm' twice", self.refuses(change))
+
+    def test_a_filesystem_destination_used_twice_is_refused(self) -> None:
+        def change(profile):
+            profile["artifacts"][3]["fsPath"] = profile["artifacts"][2]["fsPath"]
+
+        self.assertIn("writes '/arena/vm/cgame.qvm' twice", self.refuses(change))
+
+    def test_a_config_file_colliding_with_the_loader_is_refused(self) -> None:
+        self.assertIn(
+            "serves 'loader.js' twice",
+            self.refuses(
+                lambda p: p["configFiles"].append(
+                    {
+                        "source": "loader.js",
+                        "served": "loader.js",
+                        "fsPath": "/arena/loader.js",
+                    }
+                )
+            ),
+        )
+
+    def test_a_config_file_declared_twice_is_refused(self) -> None:
+        self.assertIn(
+            "serves 'default.cfg' twice",
+            self.refuses(lambda p: p["configFiles"].append(dict(p["configFiles"][0]))),
+        )
+
     def test_a_filesystem_artifact_without_a_destination_is_refused(self) -> None:
         self.assertIn(
             "unexpected key set",
@@ -701,6 +770,15 @@ class StagingTest(SyntheticRepositoryTest):
         with self.assertRaises(ArenaRuntimeError) as caught:
             verify_staged(self.repository.root, self.repository.target)
         self.assertIn("differs from", str(caught.exception))
+
+    def test_a_symlinked_directory_in_the_staged_tree_is_refused(self) -> None:
+        self.repository.stage()
+        (self.repository.target / "mirror").symlink_to(
+            self.repository.target / "engine", target_is_directory=True
+        )
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            verify_staged(self.repository.root, self.repository.target)
+        self.assertIn("symlinked directory", str(caught.exception))
 
     def test_a_symlink_in_the_staged_tree_is_refused(self) -> None:
         self.repository.stage()
@@ -1142,11 +1220,15 @@ class FakeWebSocketServer:
 
     @staticmethod
     def send(connection: socket.socket, payload: Any) -> None:
+        final = True
         if isinstance(payload, tuple):
-            opcode, body = payload
+            if len(payload) == 3:
+                opcode, body, final = payload
+            else:
+                opcode, body = payload
         else:
             opcode, body = 0x1, payload.encode("utf-8")
-        header = bytearray([0x80 | opcode])
+        header = bytearray([(0x80 if final else 0x00) | opcode])
         if len(body) < 126:
             header.append(len(body))
         elif len(body) < 65536:
@@ -1210,16 +1292,37 @@ class WebSocketClientTest(unittest.TestCase):
         server = self._server()
 
         def responder(_text: str) -> list[Any]:
-            return [(0x1, b"part-one "), (0x0, b"part-two")]
+            # A real fragmented message: the first frame clears FIN and the
+            # continuation frame sets it.
+            return [(0x1, b"part-one ", False), (0x0, b"part-two", True)]
 
         server.responder = responder
         client = WebSocketClient(server.url, timeout=5)
         self.addCleanup(client.close)
-        # The fake sends both fragments with FIN set, which the client treats as
-        # two messages; the interesting case is the continuation opcode being
-        # understood at all.
         client.send_text("go")
-        self.assertEqual(client.receive_text(5), "part-one ")
+        self.assertEqual(client.receive_text(5), "part-one part-two")
+
+    def test_a_ping_between_two_fragments_is_answered_and_skipped(self) -> None:
+        server = self._server()
+        server.responder = lambda _text: [
+            (0x1, b"left", False),
+            (0x9, b"ping", True),
+            (0x0, b"right", True),
+        ]
+        client = WebSocketClient(server.url, timeout=5)
+        self.addCleanup(client.close)
+        client.send_text("go")
+        self.assertEqual(client.receive_text(5), "leftright")
+
+    def test_a_continuation_without_a_start_is_refused(self) -> None:
+        server = self._server()
+        server.responder = lambda _text: [(0x0, b"orphan", True)]
+        client = WebSocketClient(server.url, timeout=5)
+        self.addCleanup(client.close)
+        client.send_text("go")
+        with self.assertRaises(BrowserSessionError) as caught:
+            client.receive_text(5)
+        self.assertIn("continuation frame without a start", str(caught.exception))
 
     def test_a_ping_is_answered_with_a_pong(self) -> None:
         server = self._server()
@@ -1377,6 +1480,184 @@ class RunComparisonTest(unittest.TestCase):
         result = self._run(1)
         result.checks.append(Check("something", False, "detail"))
         self.assertFalse(result.passed)
+
+
+class BotDetectionTest(unittest.TestCase):
+    BOTS = ("Skelebot", "Rai", "Sly")
+
+    def test_the_local_player_is_not_counted_as_a_bot(self) -> None:
+        lines = [
+            "[stderr] UnnamedPlayer^7 entered the game",
+            "[stderr] Skelebot^7 entered the game",
+        ]
+        self.assertEqual(bots_from_engine_log(lines, self.BOTS), {"Skelebot"})
+
+    def test_every_configured_bot_is_found_through_its_colour_codes(self) -> None:
+        lines = [f"[stderr] {name}^7 entered the game" for name in self.BOTS]
+        self.assertEqual(bots_from_engine_log(lines, self.BOTS), set(self.BOTS))
+
+    def test_a_chat_line_naming_a_bot_is_not_an_entry(self) -> None:
+        lines = ["[stderr] Sly^7: ^2Skelebot entered the game, and so did I"]
+        self.assertEqual(bots_from_engine_log(lines, self.BOTS), set())
+
+    def test_a_name_that_merely_contains_a_bot_name_is_not_an_entry(self) -> None:
+        lines = ["[stderr] SkelebotFan^7 entered the game"]
+        self.assertEqual(bots_from_engine_log(lines, self.BOTS), set())
+
+    def test_colour_codes_are_stripped_but_a_doubled_caret_is_kept(self) -> None:
+        self.assertEqual(strip_color_codes("^1red^7 plain"), "red plain")
+        self.assertEqual(strip_color_codes("^^"), "^^")
+
+
+class ScoreTest(unittest.TestCase):
+    """The three checks the review asked for, driven against synthetic runs."""
+
+    ORIGIN = "http://127.0.0.1:8174"
+    ARGUMENTS = ("+set", "sv_pure", "0", "+map", "oa_pvomit")
+
+    def _expectations(self) -> Expectations:
+        return Expectations(
+            files=frozenset({"index.html", "loader.js", "engine/ioquake3.js"}),
+            origin=self.ORIGIN,
+            config_digests={"default.cfg": "c" * 64},
+            artifact_digests={"engine/ioquake3.js": "a" * 64},
+            engine_arguments=self.ARGUMENTS,
+            bot_names=("Skelebot", "Rai"),
+        )
+
+    def _snapshot(self, **overrides: Any) -> dict[str, Any]:
+        snapshot = {
+            "status": "running",
+            "error": None,
+            "identities": [
+                {
+                    "served": "engine/ioquake3.js",
+                    "actualSha256": "a" * 64,
+                    "matches": True,
+                }
+            ],
+            "configFiles": [{"served": "default.cfg", "sha256": "c" * 64}],
+            "botEntries": [{"name": "Skelebot", "at": 1.0}, {"name": "Rai", "at": 2.0}],
+            "markers": {"serverSpawned": 1.0, "clientGameLoaded": 2.0},
+            "timings": {"runtimeInitializedMs": 1.0},
+            "events": [],
+            "render": {"cssWidth": 1280, "cssHeight": 577},
+            "engineArguments": [
+                *self.ARGUMENTS,
+                "+set",
+                "r_mode",
+                "-1",
+                "+set",
+                "r_customwidth",
+                "1280",
+                "+set",
+                "r_customheight",
+                "577",
+            ],
+            "browserErrors": [],
+            "unexpectedFileRequests": [],
+            "frames": {"samples": 500, "meanFps": 60.0},
+            "audioActivation": {"state": "running", "userActivation": True},
+        }
+        snapshot.update(overrides)
+        return snapshot
+
+    def _run(self, *, requests: list[str] | None = None, **overrides: Any) -> RunResult:
+        result = RunResult(index=1, directory=Path("."))
+        result.snapshot = self._snapshot(**overrides)
+        result.engine_log = [
+            "[stderr] UnnamedPlayer^7 entered the game",
+            "[stderr] Skelebot^7 entered the game",
+            "[stderr] Rai^7 entered the game",
+        ]
+        result.engine_defects = classify_engine_log(result.engine_log)
+        result.requests = requests if requests is not None else [f"{self.ORIGIN}/"]
+        result.access_log = [{"path": "/", "status": 200}]
+        result.screenshots = [{"file": "x.png", "distinctColours": 900}]
+        return result
+
+    def _checks(self, result: RunResult) -> dict[str, Check]:
+        _score(result, self._expectations())
+        return {check.name: check for check in result.checks}
+
+    def test_a_healthy_run_passes_every_new_check(self) -> None:
+        checks = self._checks(self._run())
+        for name in (
+            "bots-entered-game",
+            "engine-kept-running",
+            "engine-arguments-are-the-committed-profile",
+            "only-declared-local-artifacts",
+        ):
+            self.assertTrue(checks[name].passed, f"{name}: {checks[name].detail}")
+
+    def test_a_missing_bot_fails_the_bot_check(self) -> None:
+        checks = self._checks(self._run(botEntries=[{"name": "Skelebot", "at": 1.0}]))
+        self.assertFalse(checks["bots-entered-game"].passed)
+
+    def test_a_page_report_disagreeing_with_the_log_fails_the_bot_check(self) -> None:
+        run = self._run()
+        run.engine_log = ["[stderr] Skelebot^7 entered the game"]
+        self.assertFalse(self._checks(run)["bots-entered-game"].passed)
+
+    def test_a_fatal_engine_exit_fails_the_kept_running_check(self) -> None:
+        checks = self._checks(
+            self._run(status="exited", events=[{"kind": "engine-exit", "detail": 3}])
+        )
+        self.assertFalse(checks["engine-kept-running"].passed)
+
+    def test_a_loader_error_fails_the_kept_running_check(self) -> None:
+        checks = self._checks(
+            self._run(status="failed", error={"name": "LoaderError", "message": "x"})
+        )
+        self.assertFalse(checks["engine-kept-running"].passed)
+
+    def test_arguments_that_are_not_the_committed_profile_fail(self) -> None:
+        run = self._run()
+        run.snapshot["engineArguments"] = ["+map", "q3dm6ish"]
+        self.assertFalse(
+            self._checks(run)["engine-arguments-are-the-committed-profile"].passed
+        )
+
+    def test_a_render_size_the_arguments_disagree_with_fails(self) -> None:
+        run = self._run()
+        run.snapshot["render"] = {"cssWidth": 640, "cssHeight": 480}
+        self.assertFalse(
+            self._checks(run)["engine-arguments-are-the-committed-profile"].passed
+        )
+
+    def test_a_foreign_origin_with_a_staged_file_name_is_refused(self) -> None:
+        checks = self._checks(
+            self._run(requests=[f"{self.ORIGIN}/", "http://evil.example/loader.js"])
+        )
+        self.assertFalse(checks["only-declared-local-artifacts"].passed)
+
+    def test_a_staged_path_on_the_serve_origin_is_accepted(self) -> None:
+        checks = self._checks(
+            self._run(requests=[f"{self.ORIGIN}/", f"{self.ORIGIN}/engine/ioquake3.js"])
+        )
+        self.assertTrue(checks["only-declared-local-artifacts"].passed)
+
+    def test_an_undeclared_path_on_the_serve_origin_is_refused(self) -> None:
+        checks = self._checks(
+            self._run(requests=[f"{self.ORIGIN}/engine/ioquake3-config.json"])
+        )
+        self.assertFalse(checks["only-declared-local-artifacts"].passed)
+
+    def test_a_query_string_does_not_hide_an_undeclared_path(self) -> None:
+        checks = self._checks(self._run(requests=[f"{self.ORIGIN}/secrets.json?v=1"]))
+        self.assertFalse(checks["only-declared-local-artifacts"].passed)
+
+    def test_blob_and_data_urls_are_allowed(self) -> None:
+        checks = self._checks(
+            self._run(
+                requests=[
+                    f"{self.ORIGIN}/",
+                    f"blob:{self.ORIGIN}/8f7a-c3",
+                    "data:,",
+                ]
+            )
+        )
+        self.assertTrue(checks["only-declared-local-artifacts"].passed)
 
 
 if __name__ == "__main__":
