@@ -37,7 +37,14 @@ from game_assets import (
     parse_skin,
     shader_file_precedence,
 )
-from metadata import CONTENT_SCHEMA, MetadataError, _canonical_json_identity, _fail
+from metadata import (
+    CONTENT_SCHEMA,
+    MetadataError,
+    _canonical_json_identity,
+    _fail,
+    _load_json,
+    validate_content_provenance,
+)
 
 CHUNK_SIZE = 1024 * 1024
 
@@ -79,21 +86,22 @@ def _game_path(value: str) -> str:
 
 @dataclass(frozen=True)
 class RecipeSource:
+    """What reading one upstream archive needs.
+
+    The licence fields of a recipe source deliberately do not appear here:
+    `ClosureBuilder` and `build_provenance` read them from the recipe record
+    itself, and a second copy would be a second source of truth for a rule that
+    decides what may be packaged.
+    """
+
     id: str
     file_name: str
-    url: str
     sha256: str
     size: int
     archive_root: str
     trees: tuple[str, ...]
     documents: tuple[str, ...]
     precedence: int
-    license_expression: str
-    license_evidence_url: str
-    source_url: str
-    preferred_source_url: str
-    preferred_source_revision: str
-    non_default_license_paths: tuple[str, ...]
 
 
 @dataclass
@@ -110,7 +118,6 @@ class SourceSet:
 
     def __init__(self, sources: list[RecipeSource], archive_dir: Path) -> None:
         self._members: dict[str, SourceMember] = {}
-        self._sources = {source.id: source for source in sources}
         for source in sorted(sources, key=lambda item: item.precedence):
             archive = archive_dir / source.file_name
             self._verify(source, archive)
@@ -175,9 +182,6 @@ class SourceSet:
     def paths(self) -> list[str]:
         return sorted(self._members)
 
-    def source(self, source_id: str) -> RecipeSource:
-        return self._sources[source_id]
-
     def list_directory(self, prefix: str) -> list[str]:
         prefix = _game_path(prefix)
         if prefix and not prefix.endswith("/"):
@@ -188,7 +192,6 @@ class SourceSet:
 @dataclass
 class ClosureReport:
     members: dict[str, SourceMember] = field(default_factory=dict)
-    generated: dict[str, bytes] = field(default_factory=dict)
     unresolved: dict[str, str] = field(default_factory=dict)
     malformed: dict[str, str] = field(default_factory=dict)
     accepted_unresolved: list[str] = field(default_factory=list)
@@ -434,8 +437,6 @@ def _require(record: dict[str, Any], key: str, path: str) -> Any:
 
 def load_recipe(path: Path) -> dict[str, Any]:
     """Load and shallow-validate the committed content recipe."""
-    from metadata import _load_json
-
     recipe = _load_json(path)
     if not isinstance(recipe, dict):
         _fail(str(path), "must be an object")
@@ -455,21 +456,12 @@ def recipe_sources(recipe: dict[str, Any]) -> list[RecipeSource]:
             RecipeSource(
                 id=record["id"],
                 file_name=record["fileName"],
-                url=record["url"],
                 sha256=record["sha256"],
                 size=record["size"],
                 archive_root=record["archiveRoot"],
                 trees=tuple(record.get("trees", ())),
                 documents=tuple(record.get("documents", ())),
                 precedence=record["precedence"],
-                license_expression=record["licenseExpression"],
-                license_evidence_url=record["licenseEvidenceUrl"],
-                source_url=record["sourceUrl"],
-                preferred_source_url=record["preferredSourceUrl"],
-                preferred_source_revision=record["preferredSourceRevision"],
-                non_default_license_paths=tuple(
-                    record.get("nonDefaultLicensePaths", ())
-                ),
             )
         )
     precedences = [source.precedence for source in sources]
@@ -579,8 +571,6 @@ def build_provenance(
 
 
 def validate_provenance(provenance: dict[str, Any], baseline: dict[str, Any]) -> None:
-    from metadata import validate_content_provenance
-
     allowed = set(baseline["licensePolicy"]["productInputAllowedExpressions"])
     try:
         validate_content_provenance(
