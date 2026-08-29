@@ -33,7 +33,7 @@ provenance record, content recipe or WP0/WP1/WP2/WP3 script was changed.
 | [`scripts/browser_session.py`](../scripts/browser_session.py) | a dependency-free WebSocket/DevTools client and launcher for the pinned browser |
 | [`scripts/arena_acceptance.py`](../scripts/arena_acceptance.py) | the automated pre-acceptance run and its checks |
 | [`scripts/run-arena-acceptance.sh`](../scripts/run-arena-acceptance.sh) | the pre-acceptance entry point |
-| [`tests/test_arena_runtime.py`](../tests/test_arena_runtime.py) | 108 deterministic tests, raising the suite from 287 to 395 |
+| [`tests/test_arena_runtime.py`](../tests/test_arena_runtime.py) | 134 deterministic tests, raising the suite from 287 to 421 |
 
 The loader is original arena-web code. ioquake3's generated Emscripten demo
 shell was read for interface knowledge — which `Module` keys the emitted
@@ -76,7 +76,7 @@ Why each part, against the pinned tree:
 | `g_gametype 0` | `GT_FFA` (`code/game/bg_public.h`). |
 | `fraglimit 15`, `timelimit 0` | The arena profile of `content/pack-recipe.json`; `arena_runtime.py` asserts the equality, so the two cannot drift. |
 | `sv_maxclients 8` | Slots for the local player and the bots (`code/game/g_main.c`). |
-| `sv_pure 0` | The listen server serves its own single pack (`code/server/sv_init.c`). |
+| `sv_pure 0` | Load-bearing, not hygiene: `FS_FindVM` (`code/qcommon/files.c:1398`) only considers a loose `vm/*.qvm` in a directory search path while `fs_numServerPaks` is 0 (`:1419`). The three QVMs are written beside the pack rather than inside it, so a pure client would not find them at all. |
 | `net_enabled 0` | WP4 is strictly offline. |
 | `r_allowResize 1` | Adds `SDL_WINDOW_RESIZABLE`, without which a canvas resize never reaches the engine (`code/sdl/sdl_glimp.c`). |
 | `r_mode -1` plus `r_customwidth`/`r_customheight` | Runtime-derived from the live canvas box and therefore deliberately **absent** from the committed profile; a committed value would be an environment-specific one. The validator rejects all three as committed cvars. |
@@ -190,13 +190,19 @@ artifacts in `manifests/browser-client.json`:
   min = max = 4,096 pages, the 256 MiB `-sTOTAL_MEMORY` the Emscripten platform
   file asks for. None of its 423 imports names a thread or atomic primitive.
 
+This also corrects WP1, which reported "its single `wasmMemory` reference": the
+shipped `ioquake3.js` has three, and none of them creates or shares a memory.
+WP4's count is the one taken from the artifact the loader serves.
+
 **The served page therefore sets no COOP or COEP header, and the slice runs
-without cross-origin isolation.** `scripts/serve-arena.sh` is a plain static
-server with no header configuration at all, and two complete runs of the whole
-profile — engine boot, map load, bot play, audio, input — passed in the pinned
-browser under exactly that serve. That is the strongest form this check can
-take: not an inspection claim, but a client that demonstrably runs without the
-headers.
+without cross-origin isolation.** Two complete runs of the whole profile —
+engine boot, map load, bot play, audio, input — passed in the pinned browser
+under a static serve that sets no headers at all. Precisely: those runs were
+served by the acceptance driver's own in-process `StaticServe`, not by
+`scripts/serve-arena.sh`; both are header-free `http.server`-based static
+serves over the same staged tree, and neither sets COOP, COEP or anything else.
+That is the strongest form this check can take: not an inspection claim, but a
+client that demonstrably runs without the headers.
 
 The property still belongs to this link configuration and not to the project:
 enabling threads later would reinstate the requirement.
@@ -223,12 +229,21 @@ Measured in the pinned browser over loopback, from the page's own timeline
 
 | Milestone | Run 1 | Run 2 |
 | --- | --- | --- |
-| all 27.9 MB fetched **and** SHA-256-verified | 55.4 | 58.2 |
-| user gesture (the driver's trusted click) | 259.3 | 259.0 |
-| runtime initialized | 298.1 | 298.9 |
-| server spawned the map (`Server: oa_pvomit`) | 1008.3 | 1018.6 |
-| client game module up (`CL_InitCGame:`) | 1698.5 | 1692.8 |
-| first bot entered the game | 1704.2 | 1698.1 |
+| all 27.9 MB fetched **and** SHA-256-verified | 58.4 | 60.8 |
+| user gesture (the driver's trusted click) | 264.1 | 255.8 |
+| runtime initialized | 302.3 | 293.6 |
+| server spawned the map (`Server: oa_pvomit`) | 1005.2 | 1002.1 |
+| client game module up (`CL_InitCGame:`) | 1675.3 | 1656.0 |
+| the **local player** entered the game | 1680.9 | 1661.2 |
+| bot Skelebot entered the game | 3213.3 | 3205.0 |
+| bot Rai entered the game | 4713.5 | 4705.0 |
+| bot Sly entered the game | 6213.3 | 6204.8 |
+
+The last four rows are the correction the review of this work package forced.
+"Entered the game" is printed for every client, so the row that used to read
+"first bot" was the local player; the three bot rows are now matched by name
+and land 2.2, 3.7 and 5.2 seconds after the server spawned, which is exactly
+the `+addbot` cadence the command line asks for.
 
 Read this honestly: **this is a loopback measurement, not a delivery
 measurement.** 26.6 MiB arrives in under 60 ms from a local static server
@@ -250,14 +265,14 @@ Both accepted runs, 60 s of driven play each:
 
 | | Run 1 | Run 2 |
 | --- | --- | --- |
-| samples | 3,843 | 3,845 |
-| mean | 17.02 ms (58.8 fps) | 17.02 ms (58.8 fps) |
+| samples | 4,115 | 4,110 |
+| mean | 16.99 ms (58.9 fps) | 16.99 ms (58.9 fps) |
 | median | 16.7 ms | 16.7 ms |
-| 95th percentile | 16.8 ms | 16.7 ms |
-| longest frame | 750.0 ms | 749.9 ms |
-| frames over 50 ms | 3 | 3 |
+| 95th percentile | 16.8 ms | 16.8 ms |
+| longest frame | 733.3 ms | 750.0 ms |
+| frames over 50 ms | 2 | 3 |
 
-The three long frames are the synchronous map load and renderer
+The two or three long frames are the synchronous map load and renderer
 initialization, which happen inside one animation frame. `com_maxfps` defaults
 to 0 under Emscripten and `r_swapInterval` to 1
 (`code/qcommon/common.c`, `code/renderergl2/tr_init.c`), so the display's
@@ -284,14 +299,16 @@ engine's complete console output and three full-size screenshots.
 | `engine-configuration-is-the-repository-file` | the `default.cfg` the engine executed is the repository file | pass |
 | `engine-started` | the WebAssembly runtime initialized | pass |
 | `map-entered` | `Server: oa_pvomit` and `CL_InitCGame:` both appeared | pass |
-| `bots-entered-game` | at least one bot joined | pass |
+| `bots-entered-game` | every configured bot joined **by name**, and the page's live derivation and the driver's recomputation from the saved log agree | pass |
+| `engine-kept-running` | the page's final status is `running`, its error is null and no engine exit was recorded | pass |
+| `engine-arguments-are-the-committed-profile` | the arguments the engine received are the committed list plus exactly the render-size suffix derived from the reported canvas box | pass |
 | `engine-console-no-missing-asset` | no unaccepted missing image or sound | pass |
 | `engine-console-no-qvm-rejection` | no QVM header, magic or size rejection | pass |
 | `engine-console-no-renderer-fatal` | no `GL_CheckErrors` or GL init failure | pass |
 | `engine-console-no-engine-error` | no `Com_Error` | pass |
 | `browser-console-no-error` | no error-level browser console entry, including network failures | pass |
 | `no-uncaught-exception` | no `Runtime.exceptionThrown`, no page error, no unhandled rejection | pass |
-| `only-declared-local-artifacts` | every request the page made is a staged path, a `blob:` or a `data:` URL | pass |
+| `only-declared-local-artifacts` | every request the page made is a `blob:`/`data:` URL or begins with the serve's own origin **and** resolves, by URL parsing, to a staged path | pass |
 | `serve-answered-only-staged-files` | the server's own access log holds only staged paths, all 200 | pass |
 | `no-unexpected-engine-file-request` | the engine never asked `locateFile` for anything | pass |
 | `frames-advanced` | the animation frame loop kept running | pass |
@@ -303,9 +320,27 @@ engine's complete console output and three full-size screenshots.
 
 The rendering check is deliberately not a claim about what is on the screen. It
 decodes each PNG with a small standard-library reader and counts distinct
-colours: 7,237 to 11,149 across the six screenshots of the two runs, against
+colours: 5,137 to 10,668 across the six screenshots of the two runs, against
 the single colour a blank canvas would produce. A human still has to look at
 them.
+
+### Why the bot gate is name-anchored
+
+`g_client.c:1026` prints `"<netname>^7 entered the game"` for **every** client
+that begins, and the local player begins first. A check on that sentence alone
+would pass on a session with no bots at all — an earlier draft of this work
+package had exactly that hole, and its "first bot" timing row sat five
+milliseconds after `CL_InitCGame:`, which is impossible against a 2,000 ms
+`addbot` delay.
+
+The gate is therefore per bot and derived twice. The loader watches the print
+stream live, strips Quake III colour codes and records a timestamped entry only
+for an exact `"<bot name> entered the game"`; the driver recomputes the same set
+in Python from the saved console log; and the check requires every configured
+bot to be present **and** the two derivations to agree. The timings below show
+the effect: the bots now appear 2.2, 3.7 and 5.2 seconds after the server
+spawned, which is `BOT_BEGIN_DELAY_BASE` plus `BOT_BEGIN_DELAY_INCREMENT` per
+bot, exactly as the command line asks.
 
 Input is dispatched as trusted DevTools events — the start click, `w`/`a`/`s`/`d`,
 mouse movement and repeated fire — for 60 seconds per run. That establishes that
@@ -321,26 +356,32 @@ recorded as such.
 ### The game actually plays itself
 
 The strongest thing the automated round produces is the engine's own console
-during those 60 seconds. From run 2:
+during those 60 seconds. From run 1:
 
 ```text
 UnnamedPlayer^7 entered the game
 Skelebot^7 entered the game
 Rai^7 entered the game
 Sly^7 entered the game
-Skelebot^7 was in the wrong place.
-Rai^7 almost dodged Skelebot^7's rocket
-Sly^7 was in the wrong place.
-Skelebot^7: ^2The sword of time will pierce our skins, it does not hurt when it begins.
+Rai^7 was gunned down by Skelebot^7
+UnnamedPlayer^7 almost dodged Rai^7's rocket
+UnnamedPlayer^7 almost dodged Skelebot^7's rocket
+Sly^7: ^2It is just easier for unnamedplayer this way.
 Sly^7 ate Skelebot^7's rocket
-Sly^7 cratered.
+Sly^7 blew himself up.
 ```
 
 Three bots loaded their characters, navigated the map's `.aas`, fired weapons,
-killed each other, scored and used the chat the bot files carry. **The audited
-free content supports the pinned `baseq3` QVMs at runtime.** WP3's failure
-boundary — stop and return to plan review if it does not — is not reached, and
-no gamecode was switched and nothing was adopted from OpenArena's engine.
+killed each other, scored and used the chat the bot files carry — and the two
+`almost dodged` lines are the local player being killed by bot rocket splash,
+so damage flows to the human client too, even though nobody was steering it.
+**The audited free content supports the pinned `baseq3` QVMs at runtime.** WP3's
+failure boundary — stop and return to plan review if it does not — is not
+reached, no gamecode was switched and nothing was adopted from OpenArena's
+engine.
+
+That still is not the witnessed round: nothing here shows a *player* moving,
+aiming or scoring, only that the simulation runs and reaches the human client.
 
 ### The host-dependent part of the run
 
@@ -364,6 +405,36 @@ window on this desktop receives almost no animation frames — three frames in t
 minutes — so the map never loads. The witnessed acceptance is a person in front
 of a visible, focused window, which is a different situation; the automated
 round stays headless on purpose.
+
+## What is tested, and what deliberately is not
+
+`tests/test_arena_runtime.py` covers the packaging discipline, the profile's
+fail-closed rules, the engine-log classification, the browser transport and the
+run scoring — including negative cases for every check the review of this work
+package asked for. The committed profile itself is validated against the real
+committed manifests and the real content recipe.
+
+**`arena/loader.js` has no JavaScript unit test, on purpose.** Every one of its
+paths is DOM- or Emscripten-bound — canvas geometry, pointer lock, fullscreen,
+`crypto.subtle`, `WebAssembly.instantiate`, blob module import, Emscripten's
+`FS` and `preRun` — so a Node harness would need a stub for each, and a test
+against a stub would mostly assert that the stub behaves like the stub. WP2's
+`tests/js_conformance_harness.mjs` pattern works there because the probe's
+framing logic is pure; nothing in this loader is.
+
+What covers it instead is stronger than a stub test would be:
+
+- the pre-acceptance run exercises the whole loader end to end in the exact
+  acceptance browser, twice, and fails on any uncaught exception or console
+  error;
+- the load-bearing derivations exist twice, in different languages, and the run
+  requires them to agree — the engine arguments (loader against
+  `arena_runtime.expected_engine_arguments`), the artifact identities (loader
+  against the manifests read from this checkout) and the bots that joined
+  (loader against the driver's recomputation from the console log).
+
+A defect in one of those derivations shows up as a disagreement rather than as
+two implementations being wrong in the same way.
 
 ## Findings recorded rather than fixed
 
@@ -389,8 +460,9 @@ silently regress.
 
 ### 2. Three images the *engine and client* register are missing from the pack
 
-The renderer registers `flareShader` and `sun` itself
-(`code/renderergl2/tr_shader.c`, `R_InitShaders`) and the client registers
+The renderer registers `flareShader` and `sun` itself, in
+`CreateExternalShaders` (`code/renderergl2/tr_shader.c:3972`, called from
+`R_InitShaders` at `:4026`), and the client registers
 `console` (`code/client/cl_main.c`, `CL_InitRenderer`). Those shader scripts are
 in the pack; the images their stages name are not:
 
@@ -428,10 +500,27 @@ both as optional, logs a warning and continues; the taunt gesture is silent.
 Already recorded by WP3: `oa_pvomit`'s worldspawn names a music track no
 OpenArena release ships. It appears once per run as a sound warning.
 
-Every one of these is on the pre-acceptance run's explicit, literal acceptance
-list with the reason above, and each is reproduced with its reason in the run's
-`summary.json`. Anything else the engine reports missing fails the run — the
-list contains no wildcard, on purpose.
+### The acceptance list, in full
+
+Findings 2 to 4 are **six** missing references, and the driver's acceptance list
+has one entry each:
+
+| Reference | Finding |
+| --- | --- |
+| `gfx/fx/flares/blur.tga` | 2 |
+| `textures/flares/flarey.tga` (and `Shader sun has a stage with no image`) | 2 |
+| `textures/sfx/logo256.tga` | 2 |
+| `sound/player/skelebot/taunt.wav` | 3 |
+| `sound/player/sarge/taunt.wav` (and its `Using default sound for …` line) | 3 |
+| `music/sonic5.wav` | 4 |
+
+Finding 1 is **not** in that list and is not a missing reference: `default.cfg`
+is an engine requirement that a product file satisfies, so the engine never
+reports it missing at all.
+
+Each of the six is reproduced with its reason in the run's `summary.json`.
+Anything else the engine reports missing fails the run — the list contains no
+wildcard, on purpose.
 
 ## Reproducing the result
 
@@ -440,7 +529,7 @@ From a clean checkout, with the WP1 build and the WP3 pack already produced
 [`wp3-content-closure.md`](wp3-content-closure.md)):
 
 ```bash
-scripts/check.sh                                   # 395 tests, no network
+scripts/check.sh                                   # 421 tests, no network
 scripts/serve-arena.sh                             # then open http://127.0.0.1:8174/
 ```
 
@@ -498,8 +587,9 @@ Then, with the page open at `http://127.0.0.1:8174/`:
 - [ ] **Audio.** Weapon, impact, pain and announcer sounds are audible after the
       start gesture, with no separate unmute step.
 - [ ] **Consoles.** The browser DevTools console holds no error, and the in-game
-      console (`~`) holds no missing-asset, QVM or renderer error beyond the four
-      accepted references recorded above.
+      console (Shift+Escape; the console key is hard-coded, `cl_keys.c:1261`)
+      holds no missing-asset, QVM or renderer error beyond the six accepted
+      references recorded above.
 - [ ] **Second clean launch.** Reload with a fresh browser profile and reach the
       same map with the same six artifact digests.
 

@@ -461,10 +461,18 @@ recipe. Decided facts:
   audited upstream sources contain them. This is a gap in WP3's closure roots,
   not in the free content, and it is cosmetic for this profile.
 - The client still requires no cross-origin isolation. The re-check is on the
-  shipped artifacts, and two complete runs passed under a serve with no COOP or
-  COEP header at all.
-- The four missing references the running game reports are on an explicit,
+  shipped artifacts, and two complete runs passed under a header-free static
+  serve.
+- The six references the running game reports missing are on an explicit,
   literal acceptance list with a reason each; anything else fails the run.
+- Standalone operation has consequences WP5 inherits, and they are consequences
+  of the game directory rather than choices: the v4-only authorize-server
+  challenge is skipped for a standalone game (`code/server/sv_client.c:150`)
+  together with the CD-key paths it carries, and `banUser`/`banClient` are not
+  even registered (`code/server/sv_ccmds.c:1526`). A native server built from
+  the same content therefore has no id-asset authorization and no built-in ban
+  commands, which the WP5 census and any later hosting design have to account
+  for.
 
 ### Outcome
 
