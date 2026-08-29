@@ -30,6 +30,7 @@ import zlib
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlsplit
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
@@ -58,12 +59,19 @@ ENGINE_DEFECT_PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     (
         "missing-asset",
         "renderergl2/tr_shader.c R_FindImageFile; client/snd_codec.c S_CodecLoad;"
-        " client/snd_dma.c S_FindName; client/snd_openal.c S_AL_BufferUseDefault",
+        " client/snd_dma.c S_FindName; client/snd_openal.c S_AL_BufferUseDefault;"
+        " cgame/cg_players.c CG_RegisterClientModelname and CG_ParseAnimationFile;"
+        " renderergl2/tr_model.c R_RegisterMD3 (that one is _DEBUG-only in the"
+        " pinned tree and therefore silent in an accepted Release build)",
         re.compile(
             r"R_FindImageFile could not find"
             r"|could not find .* - using default"
             r"|Failed to (?:load|open) sound"
-            r"|Using default sound for",
+            r"|Using default sound for"
+            r"|Failed to load model file"
+            r"|Failed to load skin file:"
+            r"|Failed to load animation file"
+            r"|R_RegisterMD3: couldn't load",
         ),
     ),
     (
@@ -86,8 +94,19 @@ ENGINE_DEFECT_PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
     ),
     (
         "engine-error",
-        "qcommon/common.c Com_Error",
-        re.compile(r"^\s*ERROR: "),
+        "qcommon/common.c Com_Error for ERR_DROP, which prefixes 'ERROR: '."
+        " ERR_FATAL does not: Sys_Error prints the bare message through"
+        " Sys_ErrorDialog (sys/sys_unix.c:975), so the known fatal texts are"
+        " listed literally and the engine-kept-running check below is the real"
+        " catch-all",
+        re.compile(
+            r"^\s*ERROR: "
+            r"|recursive error after:"
+            r"|Couldn't load default\.cfg"
+            r"|Quake 3 data files are missing"
+            r"|Failed to load renderer"
+            r"|Couldn't load maps/",
+        ),
     ),
 )
 
@@ -156,6 +175,18 @@ MOVEMENT_KEYS = (
 
 class AcceptanceError(RuntimeError):
     """The automated pre-acceptance could not be carried out."""
+
+
+@dataclass(frozen=True)
+class Expectations:
+    """Everything a run is scored against, read from this checkout."""
+
+    files: frozenset[str]
+    origin: str
+    config_digests: dict[str, str]
+    artifact_digests: dict[str, str]
+    engine_arguments: tuple[str, ...]
+    bot_names: tuple[str, ...]
 
 
 def pinned_browser_version(repo_root: Path) -> str:
@@ -329,6 +360,32 @@ def png_pixel_statistics(data: bytes, *, sample_stride: int = 1) -> dict[str, An
 # --------------------------------------------------------------------------
 
 
+# Quake III colour codes are '^' followed by any character other than '^'
+# (ioq3 code/qcommon/q_shared.h, Q_IsColorString). The engine prints
+# "<netname>^7 entered the game", so a name comparison has to see through them.
+COLOR_CODE = re.compile(r"\^[^^]")
+
+
+def strip_color_codes(line: str) -> str:
+    return COLOR_CODE.sub("", line)
+
+
+def bots_from_engine_log(lines: list[str], bot_names: tuple[str, ...]) -> set[str]:
+    """Which of the configured bots the engine reported as having joined.
+
+    Deliberately name-anchored: ioq3 code/game/g_client.c:1026 prints the same
+    sentence for every client, the local player included, so only an exact
+    "<bot name> entered the game" is evidence that a bot joined.
+    """
+    wanted = {f"{name} entered the game": name for name in bot_names}
+    found: set[str] = set()
+    for line in lines:
+        plain = strip_color_codes(line).removeprefix("[stderr] ").strip()
+        if plain in wanted:
+            found.add(wanted[plain])
+    return found
+
+
 def classify_engine_log(lines: list[str]) -> dict[str, list[str]]:
     """Group the engine's own output into the defect classes WP4 gates on.
 
@@ -378,6 +435,7 @@ class RunResult:
     engine_defects: dict[str, list[str]] = field(default_factory=dict)
     browser_console: list[dict[str, Any]] = field(default_factory=list)
     exceptions: list[dict[str, Any]] = field(default_factory=list)
+    engine_log: list[str] = field(default_factory=list)
     requests: list[str] = field(default_factory=list)
     access_log: list[dict[str, Any]] = field(default_factory=list)
     screenshots: list[dict[str, Any]] = field(default_factory=list)
@@ -517,9 +575,7 @@ def run_once(
     chrome: Path,
     serve: StaticServe,
     output_root: Path,
-    expected_files: set[str],
-    expected_config_digests: dict[str, str],
-    expected_artifact_digests: dict[str, str],
+    expected: Expectations,
     window: tuple[int, int],
     play_seconds: float,
     boot_timeout: float,
@@ -590,15 +646,16 @@ def run_once(
             _capture(session, directory / "01-map-entered.png", *window)
         )
 
-        # Bots join on ioquake3's own 2000/3500/5000 ms addbot cadence. A miss
-        # is recorded by the bots-entered-game check rather than aborting the
-        # run, so the evidence still shows everything else.
+        # Bots join on ioquake3's own 2000/3500/5000 ms addbot cadence, and each
+        # one is waited for by name. A miss is recorded by the bots-entered-game
+        # check rather than aborting the run, so the evidence still shows
+        # everything else.
         try:
             wait_until(
-                lambda: poll("window.arenaWeb.report.markers.botEnteredGame")
-                is not None,
+                lambda: poll("window.arenaWeb.report.botEntries.length")
+                >= len(expected.bot_names),
                 timeout=60,
-                description="a bot entering the game",
+                description=f"all {len(expected.bot_names)} bots entering the game",
             )
         except TimeoutError:
             pass
@@ -661,6 +718,7 @@ def run_once(
                 (directory / "engine-console.log").write_text(
                     "\n".join(engine_log) + "\n", encoding="utf-8"
                 )
+                result.engine_log = engine_log
                 result.engine_defects = classify_engine_log(engine_log)
             except (
                 BrowserSessionError,
@@ -677,7 +735,7 @@ def run_once(
         browser.stop()
 
     result.access_log = serve.access_log[access_start:]
-    _score(result, expected_files, expected_config_digests, expected_artifact_digests)
+    _score(result, expected)
     (result.directory / "result.json").write_text(
         json.dumps(
             {
@@ -700,12 +758,7 @@ def run_once(
     return result
 
 
-def _score(
-    result: RunResult,
-    expected_files: set[str],
-    expected_config_digests: dict[str, str],
-    expected_artifact_digests: dict[str, str],
-) -> None:
+def _score(result: RunResult, expected: Expectations) -> None:
     snapshot = result.snapshot
     if not snapshot:
         result.checks.append(
@@ -723,8 +776,8 @@ def _score(
     result.checks.append(
         Check(
             "runtime-identities-match-committed-manifests",
-            reported == expected_artifact_digests and not mismatched,
-            f"{len(identities)} artifacts against {len(expected_artifact_digests)} "
+            reported == expected.artifact_digests and not mismatched,
+            f"{len(identities)} artifacts against {len(expected.artifact_digests)} "
             f"committed identities, mismatched: {mismatched}",
         )
     )
@@ -735,8 +788,8 @@ def _score(
     result.checks.append(
         Check(
             "engine-configuration-is-the-repository-file",
-            bool(configured) and configured == expected_config_digests,
-            f"{sorted(configured)} against {sorted(expected_config_digests)}",
+            bool(configured) and configured == expected.config_digests,
+            f"{sorted(configured)} against {sorted(expected.config_digests)}",
         )
     )
 
@@ -755,8 +808,63 @@ def _score(
             f"markers: {sorted(markers)}",
         )
     )
+    # F1: "entered the game" is printed for every client and the local player is
+    # always first (ioq3 code/game/g_client.c:1026), so the generic marker
+    # cannot be the bot gate. Every configured bot has to be named, and the two
+    # independent derivations — the loader's, taken live off the print stream,
+    # and this one, recomputed here from the saved log — have to agree.
+    reported_bots = {
+        entry["name"] for entry in snapshot.get("botEntries", []) if entry.get("name")
+    }
+    log_bots = bots_from_engine_log(result.engine_log, expected.bot_names)
+    missing_bots = sorted(set(expected.bot_names) - reported_bots)
     result.checks.append(
-        Check("bots-entered-game", markers.get("botEnteredGame") is not None)
+        Check(
+            "bots-entered-game",
+            bool(expected.bot_names) and not missing_bots and reported_bots == log_bots,
+            f"configured {sorted(expected.bot_names)}, page reported "
+            f"{sorted(reported_bots)}, engine log shows {sorted(log_bots)}",
+        )
+    )
+
+    # F3: ERR_FATAL never carries the 'ERROR: ' prefix the pattern above looks
+    # for, so a fatal stop is caught by the page's own final state instead.
+    exit_events = [
+        event
+        for event in snapshot.get("events", [])
+        if event.get("kind") == "engine-exit"
+    ]
+    result.checks.append(
+        Check(
+            "engine-kept-running",
+            snapshot.get("status") == "running"
+            and snapshot.get("error") is None
+            and not exit_events,
+            f"status {snapshot.get('status')!r}, error {snapshot.get('error')}, "
+            f"exit events {exit_events}",
+        )
+    )
+
+    # F5: the arguments the engine actually received are the committed ones,
+    # plus exactly the render-size suffix the loader derives from its canvas.
+    render = snapshot.get("render") or {}
+    expected_arguments = list(expected.engine_arguments) + [
+        "+set",
+        "r_mode",
+        "-1",
+        "+set",
+        "r_customwidth",
+        str(render.get("cssWidth")),
+        "+set",
+        "r_customheight",
+        str(render.get("cssHeight")),
+    ]
+    result.checks.append(
+        Check(
+            "engine-arguments-are-the-committed-profile",
+            snapshot.get("engineArguments") == expected_arguments,
+            " ".join(snapshot.get("engineArguments") or []),
+        )
     )
 
     for name, _source, _pattern in ENGINE_DEFECT_PATTERNS:
@@ -789,12 +897,18 @@ def _score(
         )
     )
 
+    # F4: a foreign origin whose path happens to match a staged name must not
+    # pass, and the bare origin root has to be recognised as the loader page
+    # rather than skipped.
     unexpected_urls = []
     for url in set(result.requests):
         if url.startswith(BROWSER_ALLOWED_SCHEMES):
             continue
-        path = url.split("://", 1)[-1].split("/", 1)[-1].split("?", 1)[0]
-        if path == "" or path in expected_files:
+        if not url.startswith(f"{expected.origin}/"):
+            unexpected_urls.append(url)
+            continue
+        path = urlsplit(url).path.lstrip("/")
+        if path in ("", "index.html") or path in expected.files:
             continue
         unexpected_urls.append(url)
     result.checks.append(
@@ -810,7 +924,7 @@ def _score(
     }
     non_ok = [entry for entry in result.access_log if entry["status"] != 200]
     undeclared = sorted(
-        path for path in served_paths if path and path not in expected_files
+        path for path in served_paths if path and path not in expected.files
     )
     result.checks.append(
         Check(
@@ -916,7 +1030,7 @@ def run_acceptance(
         stage(REPO_ROOT, serve_dir, engine_dir=engine_dir, content_dir=content_dir)
     profile = load_profile(REPO_ROOT)
     files = served_files(REPO_ROOT, profile)
-    expected_files = set(files)
+    expected_files = frozenset(files)
     expected_config_digests = {
         served: file_sha256(entry["source"])
         for served, entry in files.items()
@@ -944,6 +1058,14 @@ def run_acceptance(
 
     results: list[RunResult] = []
     with StaticServe(serve_dir) as serve:
+        expectations = Expectations(
+            files=expected_files,
+            origin=serve.origin,
+            config_digests=expected_config_digests,
+            artifact_digests=expected_artifact_digests,
+            engine_arguments=tuple(profile["engineArguments"]),
+            bot_names=tuple(bot["name"] for bot in profile["bots"]),
+        )
         for index in range(1, runs + 1):
             results.append(
                 run_once(
@@ -951,9 +1073,7 @@ def run_acceptance(
                     chrome=chrome,
                     serve=serve,
                     output_root=output_root,
-                    expected_files=expected_files,
-                    expected_config_digests=expected_config_digests,
-                    expected_artifact_digests=expected_artifact_digests,
+                    expected=expectations,
                     window=window,
                     play_seconds=play_seconds,
                     boot_timeout=boot_timeout,
@@ -977,6 +1097,7 @@ def run_acceptance(
                 "timings": result.snapshot.get("timings", {}),
                 "frames": result.snapshot.get("frames", {}),
                 "markers": result.snapshot.get("markers", {}),
+                "botEntries": result.snapshot.get("botEntries", []),
                 "totalArtifactBytes": result.snapshot.get("totalArtifactBytes"),
                 "render": result.snapshot.get("render"),
                 "screenshots": result.screenshots,
