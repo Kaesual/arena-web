@@ -410,9 +410,9 @@ contains no code and is loaded as data.
 
 | Member group | Members | Source | Licence | Obligations |
 | --- | --- | --- | --- | --- |
-| Core art, sound, item/weapon models, menu art, shaders, and the `COPYING`, `CREDITS`, `CREDITS-0.8.5` and `README` notices | 470 | `openarena-data` | GPL-2.0-or-later | attribution notice, corresponding source |
+| Core art, sound, item/weapon models, menu art, shaders, and the `CREDITS`, `CREDITS-0.8.5` and `README` notices | 470 | `openarena-data` | GPL-2.0-or-later | attribution notice, corresponding source |
 | Bot files, `.aas`, feedback and team sounds | 78 | `openarena-misc` | GPL-2.0-or-later | same |
-| 0.8.8 patch replacements and the `CREDITS-0.8.8` notice | 68 | `openarena-088-data` | GPL-2.0-or-later | same |
+| 0.8.8 patch replacements and the `COPYING` and `CREDITS-0.8.8` notices | 68 | `openarena-088-data` | GPL-2.0-or-later | same |
 | World textures and sky | 24 | `openarena-textures` | GPL-2.0-or-later | same |
 | Player model and voices | 23 | `openarena-players` | GPL-2.0-or-later | same |
 | Map and level shot | 2 | `openarena-maps` | GPL-2.0-or-later | same |
