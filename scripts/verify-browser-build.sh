@@ -6,21 +6,30 @@
 
 set -euo pipefail
 
-repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 verify_dir="${repo_dir}/build/verify"
 jobs="$(nproc)"
 
-if [[ $# -gt 0 ]]; then
+while [[ $# -gt 0 ]]; do
   case "$1" in
     --jobs)
       jobs="${2:?--jobs needs a number}"
+      if [[ ! "${jobs}" =~ ^[1-9][0-9]*$ ]]; then
+        printf -- '--jobs must be a positive integer, got %s\n' "${jobs}" >&2
+        exit 2
+      fi
+      shift 2
+      ;;
+    -h | --help)
+      printf 'usage: %s [--jobs N]\n' "$0"
+      exit 0
       ;;
     *)
       printf 'usage: %s [--jobs N]\n' "$0" >&2
       exit 2
       ;;
   esac
-fi
+done
 
 rm -rf "${verify_dir}"
 mkdir -p "${verify_dir}"

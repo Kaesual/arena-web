@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -719,6 +720,68 @@ class BrowserBuildManifestTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             with self.assertRaisesRegex(MetadataError, "no build output"):
                 artifact_manifest.collect_artifacts(Path(directory))
+
+    def test_collect_artifacts_rejects_a_symlinked_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "baseq3").mkdir()
+            (root / "baseq3" / "ui.qvm").write_bytes(b"qvm")
+            (root / "vm").symlink_to(root / "baseq3", target_is_directory=True)
+            with self.assertRaisesRegex(MetadataError, "symlinked directory"):
+                artifact_manifest.collect_artifacts(root)
+
+    def test_collect_artifacts_rejects_a_missing_build_directory(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            missing = Path(directory) / "Release"
+            with self.assertRaisesRegex(MetadataError, "not a build output directory"):
+                artifact_manifest.collect_artifacts(missing)
+
+    def test_baseline_inputs_requires_the_locked_builder(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["tools"] = [
+            tool for tool in candidate["tools"] if tool["id"] != "emscripten-builder"
+        ]
+        with self.assertRaisesRegex(MetadataError, "emscripten-builder"):
+            artifact_manifest.baseline_inputs(candidate)
+
+    def test_build_script_derives_source_date_epoch_from_the_pin(self) -> None:
+        if os.environ.get("ARENA_WITHOUT_GIT_METADATA") == "1":
+            self.skipTest(
+                "public source is mounted without linked-worktree Git metadata"
+            )
+        script = (ROOT / "scripts" / "build-browser.sh").read_text(encoding="utf-8")
+        match = re.search(
+            r"(?m)^expected_source_date_epoch=([0-9]+)$",
+            script,
+        )
+        self.assertIsNotNone(match, "build-browser.sh must pin SOURCE_DATE_EPOCH")
+        result = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(ROOT / self.baseline["engine"]["submodulePath"]),
+                "show",
+                "-s",
+                "--format=%ct",
+                self.baseline["engine"]["commit"],
+            ],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(match.group(1), result.stdout.strip())
+
+    def test_port_archive_pin_matches_the_committed_manifest(self) -> None:
+        script = (ROOT / "scripts" / "fetch-emscripten-ports.sh").read_text(
+            encoding="utf-8"
+        )
+        match = re.search(r'(?m)^port_sha256="([0-9a-f]{64})"$', script)
+        self.assertIsNotNone(match, "the port pin must record a SHA-256")
+        manifest = load_fixture("manifests/browser-client.json")
+        port_input = next(
+            item for item in manifest["inputs"] if item["id"] == "emscripten-port-sdl2"
+        )
+        self.assertEqual(f"sha256:{match.group(1)}", port_input["identity"])
 
     def test_build_script_uses_the_locked_builder(self) -> None:
         builder = next(

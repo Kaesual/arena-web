@@ -513,6 +513,12 @@ def validate_baseline(value: Any, path: str = "baseline") -> dict[str, Any]:
     license_components = _array(
         engine["licenseComponents"], f"{path}.engine.licenseComponents"
     )
+    # These contracts describe the pinned *source tree*. Two of the roles below
+    # are WP0 provisional claims that WP1 corrected by observing an accepted
+    # build: `openal-headers` and `sdl-headers` are not inputs to the browser
+    # artifact at all, because the Emscripten SDK supplies both. The corrected
+    # mapping is the component table in docs/wp1-build-evidence.md; a component
+    # absent from the final link is reported there, not erased from here.
     expected_component_contracts = {
         "curl-headers": (
             "emscripten-disabled-source",

@@ -43,11 +43,24 @@ cat /work/toolchain.txt
 emcmake cmake -S /src -B /work -DCMAKE_BUILD_TYPE=Release
 cmake --build /work --parallel "${ARENA_BUILD_JOBS}"
 
-# The restrictively licensed QVM build tools are host executables produced in
-# the CMake binary tree. Prove they never reach the distributable directory.
-if find /work/Release \
-  \( -name 'q3lcc*' -o -name 'q3rcc*' -o -name 'q3cpp*' -o -name 'lburg*' \) \
-  -print | grep -q .; then
-  printf 'refusing to accept build: QVM build tools reached the distributable tree\n' >&2
+# The QVM build tools are host executables produced in the CMake binary tree.
+# Prove that none of them reaches the distributable directory.
+#
+# `q3lcc`, `q3rcc`, `q3cpp` and `lburg` are the legal boundary: they are built
+# from `code/tools/lcc`, whose 1998 terms restrict commercial use, so they are
+# registered as a build tool only and may never enter a product artifact.
+# `q3asm` is ioquake3's own GPL code and carries no such restriction; it is
+# rejected here as build-output hygiene, so that the guard covers every tool
+# the QVM phase produces rather than only the restricted ones.
+#
+# The result is captured in a variable rather than piped: under `pipefail` a
+# `find | grep -q` pipeline can report the writer's SIGPIPE status and let a
+# real match pass as a non-match.
+stray_tool="$(find /work/Release \
+  \( -name 'q3lcc*' -o -name 'q3rcc*' -o -name 'q3cpp*' -o -name 'lburg*' \
+  -o -name 'q3asm*' \) -print -quit)"
+if [[ -n "${stray_tool}" ]]; then
+  printf 'refusing to accept build: QVM build tool %s reached the distributable tree\n' \
+    "${stray_tool}" >&2
   exit 1
 fi

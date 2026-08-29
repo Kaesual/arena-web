@@ -21,7 +21,7 @@ commit, and no `web` branch was created.
 | --- | --- |
 | Engine and bundled `baseq3` gamecode | ioq3 `588393618dbc82e7207c21c6ddecca229944a03a` |
 | WebAssembly builder | `docker.io/emscripten/emsdk@sha256:8714ed3a9fb585e662c931259a996bac36a57a8dd34b81e8277436fd77364475` (Emscripten 6.0.8, `linux/amd64`) |
-| SDL2 source snapshot for `-sUSE_SDL=2` | `https://github.com/libsdl-org/SDL/archive/release-2.32.10.zip` |
+| SDL2 source snapshot for `-sUSE_SDL=2` | upstream tag `release-2.32.10`, obtained as `https://github.com/libsdl-org/SDL/archive/release-2.32.10.zip` |
 | Baseline the manifest binds to | `sha256:d565905280ac8575ad2798d4e1cd5cabb18c694a4b6b192957c48a41c416f039` |
 
 The first two identities are read out of
@@ -32,20 +32,54 @@ a container starts, and again when the manifest is validated.
 
 The SDL2 snapshot is not an arena-web choice. ioquake3's Emscripten target
 compiles and links with `-sUSE_SDL=2`, and the pinned SDK implements that flag
-as a port whose source it downloads on first use. Its identity is the identity
-the pinned SDK itself pins:
+as a port whose source it downloads on first use:
 
 ```text
+tag:    release-2.32.10          (libsdl-org/SDL)
 url:    https://github.com/libsdl-org/SDL/archive/release-2.32.10.zip
 sha512: 001738b610b42a8f8badfd6af3402f0a1a8601034adef0b8c702dd2b1951dc1b71b733a6779d97499b6f7314d226ec0c8dcffeb753f35a5c51e995ca20bdd459
 sha256: 7a3c207b8509edc487d658df357ad764cd852d68fe248d307b25c0741d52fdf0
 ```
 
-`scripts/fetch-emscripten-ports.sh --fetch` reads `VERSION` and `HASH` out of
-the pinned image's own `tools/ports/sdl2.py` and refuses to continue if they
-disagree with the values above, so this pin cannot drift away from the
-toolchain that consumes it. The SDK then verifies the download against that
-SHA-512 itself.
+Which of these values belong to whom matters. `2.32.10` and the SHA-512 are the
+SDK's: `scripts/fetch-emscripten-ports.sh --fetch` reads `VERSION` and `HASH`
+out of the pinned image's own `tools/ports/sdl2.py`, refuses to continue if
+either disagrees with this repository's record, and the SDK then verifies its
+download against that same SHA-512. The URL is composed from the SDK's
+`VERSION` exactly as the SDK composes it, so comparing it adds no independent
+evidence. The remaining values — the SHA-256, the archive file name and the
+`SDL-release-2.32.10` top-level directory — are arena-web's own records of what
+that download and unpacking produce, and they are enforced by this repository
+rather than by the SDK.
+
+The archive is a GitHub-generated source endpoint, not a content-addressed
+object, and GitHub has changed archive generation before. The recoverable
+preferred source is therefore the upstream tag `release-2.32.10` in
+`https://github.com/libsdl-org/SDL`, recorded alongside the two archive
+digests. The exact upstream commit id could not be determined offline from the
+material at hand: the archive carries no revision metadata — its
+`.gitattributes` has no `export-subst` entry and `include/SDL_revision.h` is
+the unexpanded placeholder that defines `SDL_REVISION` to the empty string —
+and resolving the tag to a commit would need an unpinned network lookup. A
+later WP that publishes a client should resolve and record that commit id once,
+under review.
+
+### The tree the build actually reads
+
+The digest-verified object is the archive; what the compiler reads is the
+unpacked tree. The SDK does **not** re-verify a port it has already unpacked:
+its `up_to_date()` check returns true on the presence of a `.emscripten_url`
+marker whose content matches the port URL, and from that point the archive is
+never read or re-hashed again.
+
+`scripts/build-browser.sh` therefore calls
+`scripts/fetch-emscripten-ports.sh --stage` before every build, which
+re-verifies both archive digests, deletes the unpacked tree and re-creates it
+from the archive with the same `shutil.unpack_archive` call and the same marker
+file the SDK itself writes. The bytes the compiler sees are derived from bytes
+this repository checked in the same script run, so a post-fetch modification of
+the port tree cannot survive into a build, and the SDL2 identity the manifest
+records is the identity of the source the build consumed.
 
 ## Reproducing the result
 
@@ -58,9 +92,10 @@ CONTAINER_RUNTIME=podman scripts/fetch-emscripten-ports.sh --fetch   # once, onl
 CONTAINER_RUNTIME=podman scripts/verify-browser-build.sh             # two clean builds
 ```
 
-`CONTAINER_RUNTIME` defaults to `docker`. `scripts/build-browser.sh` performs a
-single build; `scripts/verify-browser-build.sh` performs the two clean builds
-WP1 accepts and compares them. Build output lands under the gitignored
+`CONTAINER_RUNTIME` defaults to `docker`. Only the first command uses the
+network. `scripts/build-browser.sh` performs a single build;
+`scripts/verify-browser-build.sh` performs the two clean builds WP1 accepts and
+compares them. Build output lands under the gitignored
 `build/` directory and never inside either Git source tree.
 
 The build image reference can be printed without running anything:
@@ -75,18 +110,26 @@ scripts/build-browser.sh --print-image
    URL, branch, gitlink and a clean `ioq3` checkout.
 2. Refuses to continue unless the arena-web worktree is clean, because the
    manifest records the commit that produced it.
-3. Deletes the build root and exports the pinned commit with
-   `git archive` into `build/<name>/source`. The export carries no Git
+3. Re-creates the Emscripten port tree from the digest-verified archive
+   (`--stage`), then deletes the build root and exports the pinned commit
+   with `git archive` into `build/<name>/source`. The export carries no Git
    metadata, which pins the compiled content to the lock and keeps ioquake3's
    optional `git describe` product version out of the artifacts.
 4. Runs `scripts/build-browser-in-container.sh` inside the pinned image with
    `--network none`, `--pull never`, `--platform linux/amd64`, `--cap-drop
    all`, `--security-opt no-new-privileges` and a non-root user whose ID
-   matches the invoking user. The source export is mounted read-only at
-   `/src` and the pre-fetched port sources read-only at `/ports`. The only
-   writable mount is `/work`, the CMake binary directory, so the build
-   cannot modify its own inputs and cannot reach the build log or the
-   manifest the host writes beside it.
+   matches the invoking user. The source export is mounted read-only at `/src`
+   and the staged port sources read-only at `/ports`. The only writable mount
+   is `/work`, the CMake binary directory, so the build cannot modify its own
+   inputs and cannot reach the build log or the manifest the host writes
+   beside it.
+
+   One flag is a deliberate relaxation: `--security-opt label=disable`, which
+   `scripts/check-container.sh` already uses. On an SELinux host the
+   bind-mounted checkout would otherwise be unreadable inside the container
+   without relabelling the repository itself. That is a worse trade than
+   dropping one confinement layer around an offline, capability-less container
+   whose only writable mount is a gitignored build directory.
 5. Inside the container, refuses any builder that does not report the
    baseline's Emscripten version, then runs the official upstream target
    unchanged:
@@ -258,8 +301,13 @@ does so entirely on the build host side.
 - No lcc source or executable reaches a distributable artifact. The
   distributable `Release` directory contains exactly the ten files listed
   above; the tools live in the sibling `tools` directory, and
-  `scripts/build-browser-in-container.sh` fails the build if a tool binary
-  ever appears under `Release`.
+  `scripts/build-browser-in-container.sh` fails the build if `q3lcc`, `q3rcc`,
+  `q3cpp`, `lburg` or `q3asm` ever appears under `Release`. The first four are
+  the legal boundary — they are built from `code/tools/lcc` and carry its
+  restrictive 1998 terms. `q3asm` is ioquake3's own GPL code and carries no
+  such restriction; it is in the guard as build-output hygiene, so that the
+  check covers every tool the QVM phase produces rather than only the
+  restricted ones.
 
 The intended distribution therefore does not exceed WP0's boundary for lcc.
 `LicenseRef-LCC-1998` remains a build-tool-only registration whose source stays

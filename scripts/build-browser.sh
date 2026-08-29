@@ -10,7 +10,7 @@
 set -euo pipefail
 export PYTHONDONTWRITEBYTECODE=1
 
-repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 runtime="${CONTAINER_RUNTIME:-docker}"
 output_dir="${repo_dir}/build/browser"
 ports_dir="${repo_dir}/build/emscripten-ports"
@@ -48,6 +48,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --jobs)
       jobs="${2:?--jobs needs a number}"
+      if [[ ! "${jobs}" =~ ^[1-9][0-9]*$ ]]; then
+        printf -- '--jobs must be a positive integer, got %s\n' "${jobs}" >&2
+        exit 2
+      fi
       shift 2
       ;;
     --print-image)
@@ -93,19 +97,17 @@ if [[ -n "$(git -C "${repo_dir}" status --porcelain=v1)" ]]; then
 fi
 producer_commit="$(git -C "${repo_dir}" rev-parse HEAD)"
 
-source_date_epoch="$(git -C "${engine_dir}" show -s --format=%ct HEAD)"
+source_date_epoch="$(git -C "${engine_dir}" show -s --format=%ct "${engine_commit}")"
 if [[ "${source_date_epoch}" != "${expected_source_date_epoch}" ]]; then
   printf 'refusing to build: pinned engine commit timestamp is %s, expected %s\n' \
     "${source_date_epoch}" "${expected_source_date_epoch}" >&2
   exit 1
 fi
 
-if [[ ! -d "${ports_dir}/sdl2" ]]; then
-  printf 'refusing to build: %s is missing\n' "${ports_dir}/sdl2" >&2
-  printf 'run scripts/fetch-emscripten-ports.sh once; accepted builds are offline\n' >&2
-  exit 1
-fi
-"${repo_dir}/scripts/fetch-emscripten-ports.sh" --check >/dev/null
+# Re-create the port tree from the digest-verified archive. The SDK never
+# re-verifies a port it has already unpacked, so the tree the compiler reads is
+# derived from checked bytes on every build rather than trusted once.
+"${repo_dir}/scripts/fetch-emscripten-ports.sh" --stage >/dev/null
 
 # A clean build starts from a deleted tree, and the build never writes into
 # either Git source tree.
