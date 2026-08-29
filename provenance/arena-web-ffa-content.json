@@ -72,7 +72,7 @@
       ],
       "path": "NOTICE-arena-web.txt",
       "role": "notice",
-      "sha256": "c98166092c413f87e21ad2491cbf36bf0d6f01a3ae1f355cd8583f2c2c8240f6",
+      "sha256": "0c71669903cf4cd043e11e23ff4b0122922ebac69aa44eb806b91d5bc0dbc082",
       "size": 4966,
       "sourceId": "arena-web",
       "sourcePath": "content/pack-recipe.json",
@@ -14667,9 +14667,9 @@
       "id": "arena-web",
       "licenseEvidenceUrl": "https://raw.githubusercontent.com/Kaesual/arena-web/1cc0a1a3d5e84ee2f3a3ff9305a962810e4283d2/LICENSE",
       "licenseExpression": "GPL-2.0-or-later",
-      "preferredSourceRevision": "sha256:0ec3db2ce872444f5274b130fb707ba46faf10f88641836bdd5ad3e043f0f86c",
+      "preferredSourceRevision": "sha256:cc137f238bfcb993062b8833c0b63c5b8a5cdb32dd586d5737a9bdfbe8df2fbf",
       "preferredSourceUrl": "https://github.com/Kaesual/arena-web",
-      "sourceIdentity": "sha256:0ec3db2ce872444f5274b130fb707ba46faf10f88641836bdd5ad3e043f0f86c",
+      "sourceIdentity": "sha256:cc137f238bfcb993062b8833c0b63c5b8a5cdb32dd586d5737a9bdfbe8df2fbf",
       "sourceUrl": "https://github.com/Kaesual/arena-web"
     },
     {

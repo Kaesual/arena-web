@@ -24,7 +24,7 @@ script or committed WP1 manifest was changed.
 | Item | Selection |
 | --- | --- |
 | Package | `arena-web-ffa-oa_pvomit` |
-| Archive | `baseq3/arena-web-ffa.pk3`, `sha256:00bdfea142756e934049743d04e12e09eac0fde4b48ffc2fb00012520e75d9be`, 24,181,170 bytes |
+| Archive | `baseq3/arena-web-ffa.pk3`, `sha256:55a1d51fa99b131c76e5813ee5449fa671c3a584ee251607528868e5a0a05ad7`, 24,181,175 bytes |
 | Members | 668 (660 assets, 6 notices, 2 generated metadata), 53.17 MB uncompressed |
 | Map | `oa_pvomit`, "Projectile Vomit", 16 deathmatch spawns, with its `.aas` bot navigation |
 | Player presentation | `skelebot/default`: `lower`/`upper`/`head` MD3s, skins, `animation.cfg`, icon and its complete `sound/player/skelebot` voice set |
@@ -345,7 +345,7 @@ zlib-runtime-version: 1.3
 
 Two clean assemblies were run by `CONTAINER_RUNTIME=podman
 scripts/verify-content-pack.sh` from arena-web commit
-`621da595a85e171ba5beb8d82be5acac59addb3f`:
+`c773fdd3783811ce6c78940e9e182de1ff16e930`:
 
 ```text
 === comparing the two assemblies ===
