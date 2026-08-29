@@ -21,6 +21,12 @@ CONTENT_SCHEMA = (
     "https://kaesual.github.io/arena-web/schemas/content-provenance.schema.json"
 )
 
+# A committed artifact manifest describes a generated engine build, so it must
+# name both the engine source and the toolchain that produced it. Declaring
+# only one of them would let a rebuilt artifact keep an identity that no longer
+# says which compiler emitted it.
+ARTIFACT_REQUIRED_BASELINE_INPUT_IDS = ("emscripten-builder", "ioq3")
+
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 SHA256_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -1210,6 +1216,7 @@ def validate_artifact_manifest(
     *,
     baseline: dict[str, Any] | None = None,
     expected_schema: str = ARTIFACT_SCHEMA,
+    required_baseline_input_ids: Iterable[str] = (),
 ) -> None:
     manifest = _object(value, path)
     _exact_keys(
@@ -1238,6 +1245,14 @@ def validate_artifact_manifest(
     )
     if not baseline_input_ids:
         _fail(f"{path}.baselineInputIds", "must not be empty")
+    missing_required = sorted(
+        set(required_baseline_input_ids) - set(baseline_input_ids)
+    )
+    if missing_required:
+        _fail(
+            f"{path}.baselineInputIds",
+            f"must declare the required baseline inputs {missing_required}",
+        )
     producer = _object(manifest["producer"], f"{path}.producer")
     _exact_keys(producer, ("commit", "name"), f"{path}.producer")
     _commit(producer["commit"], f"{path}.producer.commit")
@@ -1726,10 +1741,14 @@ def validate_repository(root: Path, *, verify_git: bool = True) -> list[Path]:
     measurement_path = root / "locks" / "relay-measurement-vector.json"
     if not measurement_path.is_file():
         _fail(str(measurement_path), "is a required WP0 lock")
-    metadata_roots = (root / "locks", root / "manifests", root / "provenance")
+    manifests_root = root / "manifests"
+    metadata_roots = (root / "locks", manifests_root, root / "provenance")
     for metadata_root in metadata_roots:
         if not metadata_root.exists():
             continue
+        required_artifact_inputs: tuple[str, ...] = ()
+        if metadata_root == manifests_root:
+            required_artifact_inputs = ARTIFACT_REQUIRED_BASELINE_INPUT_IDS
         for path in sorted(metadata_root.rglob("*.json")):
             if path == baseline_path:
                 continue
@@ -1747,7 +1766,12 @@ def validate_repository(root: Path, *, verify_git: bool = True) -> list[Path]:
                 _validate_schema_instance(
                     record, schema_document, schema_document, str(path)
                 )
-                validate_artifact_manifest(record, str(path), baseline=baseline)
+                validate_artifact_manifest(
+                    record,
+                    str(path),
+                    baseline=baseline,
+                    required_baseline_input_ids=required_artifact_inputs,
+                )
             elif schema == CONTENT_SCHEMA:
                 schema_document = schemas["content-provenance.schema.json"]
                 _validate_schema_instance(

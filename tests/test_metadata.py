@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 import shutil
@@ -16,7 +17,9 @@ from unittest import mock
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
+import artifact_manifest  # noqa: E402
 from metadata import (  # noqa: E402
+    ARTIFACT_REQUIRED_BASELINE_INPUT_IDS,
     ARTIFACT_SCHEMA,
     CONTENT_SCHEMA,
     MetadataError,
@@ -549,6 +552,134 @@ class ArtifactManifestTests(unittest.TestCase):
         )
         with self.assertRaisesRegex(MetadataError, "does not declare baseline inputs"):
             validate_artifact_manifest(candidate, "manifest", baseline=self.baseline)
+
+    def test_missing_required_baseline_input_is_rejected(self) -> None:
+        for required in ARTIFACT_REQUIRED_BASELINE_INPUT_IDS:
+            with self.subTest(required=required):
+                candidate = copy.deepcopy(self.manifest)
+                candidate["baselineInputIds"] = [
+                    item for item in candidate["baselineInputIds"] if item != required
+                ]
+                candidate["inputs"] = [
+                    item for item in candidate["inputs"] if item["id"] != required
+                ]
+                with self.assertRaisesRegex(MetadataError, "required baseline inputs"):
+                    validate_artifact_manifest(
+                        candidate,
+                        "manifest",
+                        baseline=self.baseline,
+                        required_baseline_input_ids=(
+                            ARTIFACT_REQUIRED_BASELINE_INPUT_IDS
+                        ),
+                    )
+
+    def test_renamed_baseline_input_is_rejected(self) -> None:
+        candidate = copy.deepcopy(self.manifest)
+        candidate["baselineInputIds"] = ["emscripten-builder-6.0.8", "ioq3"]
+        candidate["inputs"][0]["id"] = "emscripten-builder-6.0.8"
+        with self.assertRaisesRegex(MetadataError, "unknown baseline input"):
+            validate_artifact_manifest(candidate, "manifest", baseline=self.baseline)
+        with self.assertRaisesRegex(MetadataError, "required baseline inputs"):
+            validate_artifact_manifest(
+                candidate,
+                "manifest",
+                baseline=self.baseline,
+                required_baseline_input_ids=ARTIFACT_REQUIRED_BASELINE_INPUT_IDS,
+            )
+
+    def test_extra_pinned_build_input_is_allowed(self) -> None:
+        candidate = copy.deepcopy(self.manifest)
+        candidate["inputs"].insert(
+            1,
+            {
+                "id": "emscripten-port-sdl2",
+                "identity": "sha256:" + "b" * 64,
+                "kind": "archive",
+            },
+        )
+        validate_artifact_manifest(
+            candidate,
+            "manifest",
+            baseline=self.baseline,
+            required_baseline_input_ids=ARTIFACT_REQUIRED_BASELINE_INPUT_IDS,
+        )
+
+
+class BrowserBuildManifestTests(unittest.TestCase):
+    """The code that generates the WP1 browser artifact manifest."""
+
+    def setUp(self) -> None:
+        self.baseline = load_fixture("locks/baseline.json")
+
+    def test_collect_artifacts_is_sorted_and_digested(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "baseq3" / "vm").mkdir(parents=True)
+            (root / "ioquake3.wasm").write_bytes(b"wasm")
+            (root / "baseq3" / "vm" / "ui.qvm").write_bytes(b"qvm")
+            artifacts = artifact_manifest.collect_artifacts(root)
+        self.assertEqual(
+            ["baseq3/vm/ui.qvm", "ioquake3.wasm"],
+            [artifact["path"] for artifact in artifacts],
+        )
+        self.assertEqual(hashlib.sha256(b"wasm").hexdigest(), artifacts[1]["sha256"])
+        self.assertEqual(4, artifacts[1]["size"])
+
+    def test_collect_artifacts_rejects_retail_game_data(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "baseq3").mkdir()
+            (root / "ioquake3.wasm").write_bytes(b"wasm")
+            (root / "baseq3" / "pak0.pk3").write_bytes(b"retail")
+            with self.assertRaisesRegex(MetadataError, "retail game data"):
+                artifact_manifest.collect_artifacts(root)
+
+    def test_collect_artifacts_rejects_a_symlinked_artifact(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / "ioquake3.wasm").write_bytes(b"wasm")
+            (root / "alias.wasm").symlink_to(root / "ioquake3.wasm")
+            with self.assertRaisesRegex(MetadataError, "not a regular file"):
+                artifact_manifest.collect_artifacts(root)
+
+    def test_collect_artifacts_rejects_an_empty_build(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaisesRegex(MetadataError, "no build output"):
+                artifact_manifest.collect_artifacts(Path(directory))
+
+    def test_build_script_uses_the_locked_builder(self) -> None:
+        builder = next(
+            tool
+            for tool in self.baseline["tools"]
+            if tool["id"] == "emscripten-builder"
+        )
+        result = subprocess.run(
+            ["bash", str(ROOT / "scripts" / "build-browser.sh"), "--print-image"],
+            check=True,
+            capture_output=True,
+            text=True,
+        )
+        self.assertEqual(result.stdout.strip(), builder["immutableRef"])
+
+    def test_baseline_inputs_helper_reports_locked_identities(self) -> None:
+        expected = {
+            "baseline-identity": _canonical_json_identity(self.baseline),
+            "engine-commit": self.baseline["engine"]["commit"],
+            "engine-submodule-path": self.baseline["engine"]["submodulePath"],
+        }
+        for field, value in expected.items():
+            with self.subTest(field=field):
+                result = subprocess.run(
+                    [
+                        sys.executable,
+                        str(ROOT / "scripts" / "baseline-inputs.py"),
+                        field,
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                )
+                self.assertEqual(result.stdout.strip(), value)
 
 
 class ContentProvenanceTests(unittest.TestCase):
