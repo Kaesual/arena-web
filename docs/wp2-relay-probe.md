@@ -53,6 +53,28 @@ third-party dependency and no network.
   server-to-browser frames, so the return direction pays the overhead `k` times.
 - The destination UDP port must equal the projected endpoint's port exactly.
 
+## How the plan exercises both directions
+
+The measurement vector lists sizes for both directions and the contract requires
+single-datagram cases in both, but the traffic goes through a destination that
+echoes UDP payloads unchanged. A browser cannot therefore ask for a
+server-to-browser size independently: the return size is whatever it sent. One
+round trip at `n` bytes consequently exercises the browser-to-server direction at
+`n` and the server-to-browser direction at `n` at the same time, and the plan's
+single cases are the union of the two direction lists — all 42 sizes of the
+committed vector, which happen to be identical in both.
+
+A packed case is where the two directions separate. Its `k` inner datagrams
+leave in one frame and come back as `k` frames, so it measures a large
+browser-to-server frame against several small server-to-browser ones. That
+asymmetry is the reason the vector has packed cases in one direction only, and
+the plan refuses a packed case declared for the other.
+
+The plan also refuses a packed case containing a datagram below the tag length,
+because every datagram of a packed case is outstanding at once and an untagged
+one could not be attributed to its return frame. The committed vector satisfies
+that rule; the check exists so a future vector cannot quietly break correlation.
+
 ## Decisions taken inside the contract
 
 The work-package text and the WP0 measurement vector determine the framing
