@@ -77,7 +77,7 @@
     }
   ],
   "producer": {
-    "commit": "abf82e30d06e7dc9cae9fe07dcef8bb4fb998622",
+    "commit": "7c50b6e3d35af601bfb21e67f9da976b44fc5bf3",
     "name": "arena-web scripts/build-browser.sh"
   }
 }

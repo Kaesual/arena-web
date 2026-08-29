@@ -174,10 +174,10 @@ containing `1.36`.
 ## Accepted builds
 
 Two complete clean builds were run by `scripts/verify-browser-build.sh` from
-arena-web commit `abf82e30d06e7dc9cae9fe07dcef8bb4fb998622`. They produced
+arena-web commit `7c50b6e3d35af601bfb21e67f9da976b44fc5bf3`. They produced
 identical artifact manifests and byte-identical artifacts.
 
-Artifact manifest: `sha256:3ec5a035f06058a0701dbab7c6295a205c4f61d54244bda996c87db2b081de49`
+Artifact manifest: `sha256:c6665366ec489a8ba470caffa2faf91c52183a9d920628746bff36780dafab56`
 
 ```text
 12d597a49bc351149d7459692a0311cc5e186cf4f376c703ddaa6cfa27a602e4  baseq3/vm/cgame.qvm
@@ -192,12 +192,14 @@ cd615ce97dd65b2879158b540f0d331eb27fb52be9af7c8350dcc403955e3f68  missionpack/vm
 80783e0cfe98e5ea0009863c02c56b3c022a7c74468b5218c4870ce178accec5  missionpack/vm/ui.qvm
 ```
 
-Four further builds run during development produced the same ten digests: one
+Six further builds run during development produced the same ten digests: one
 with container network access before the offline port pre-fetch existed, one
-offline, and an earlier accepted pair whose CMake binary directory sat one
-level deeper inside the container. The result therefore depends on neither
-network availability during the build nor the container path of the build
-directory.
+offline, and two earlier accepted pairs — one whose CMake binary directory sat
+a level deeper inside the container, one taken before the port tree was
+re-staged from the verified archive on every build. The result therefore
+depends on neither network availability during the build nor the container path
+of the build directory, and re-staging the port tree changes nothing that is
+compiled.
 
 `producer.commit` names the commit whose orchestration produced the manifest,
 so a rebuild from a later commit records its own. `scripts/verify-browser-build.sh`
