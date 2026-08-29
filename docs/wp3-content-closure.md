@@ -24,8 +24,8 @@ script or committed WP1 manifest was changed.
 | Item | Selection |
 | --- | --- |
 | Package | `arena-web-ffa-oa_pvomit` |
-| Archive | `baseq3/arena-web-ffa.pk3`, `sha256:0f0b4b65cb0beb22655b6140c4b22007a841656dce10f105c325cd3d3f67bea4`, 23,933,020 bytes |
-| Members | 585 (577 assets, 6 notices, 2 generated metadata), 49.81 MB uncompressed |
+| Archive | `baseq3/arena-web-ffa.pk3`, `sha256:00bdfea142756e934049743d04e12e09eac0fde4b48ffc2fb00012520e75d9be`, 24,181,170 bytes |
+| Members | 668 (660 assets, 6 notices, 2 generated metadata), 53.17 MB uncompressed |
 | Map | `oa_pvomit`, "Projectile Vomit", 16 deathmatch spawns, with its `.aas` bot navigation |
 | Player presentation | `skelebot/default`: `lower`/`upper`/`head` MD3s, skins, `animation.cfg`, icon and its complete `sound/player/skelebot` voice set |
 | Bots | Skelebot, Rai and Sly, all using the one packaged presentation |
@@ -152,14 +152,19 @@ criteria did.
 
 | Candidate | Closure | Why not selected |
 | --- | --- | --- |
-| **`oa_pvomit`** | **585 members, 49.99 MB** | **selected** |
-| `q3dm6ish` | 533 members, 46.93 MB | Smallest closure, but a conversion of a third-party Quake 1 map by another author, so its authorship chain runs through material OpenArena's own release terms cover only indirectly. Provenance ranks above closure size. |
-| `dm4ish` | 532 members, 47.80 MB | Same second authorship chain as `q3dm6ish`, and a larger closure. |
-| `fan` | 538 members, 47.46 MB | Comparable size, but its textures are scattered over nine shared texture directories rather than one map-specific set, and it has 8 spawn points to `oa_pvomit`'s 16. |
-| `islanddm` | 540 members, 57.50 MB | Terrain-blend texture set makes it the largest of the small maps, and 6 spawn points. |
-| `oa_dm7` | 549 members, 49.60 MB | 4 deathmatch spawns: a duel map, not an FFA-with-bots map. Also a Quake 1 conversion. |
-| `oa_dm1` | 567 members, 51.43 MB | Larger closure across `gothic_*` and `base_*` texture sets. |
-| `oa_shouse` | 132 map shaders | By far the largest per-map shader set of the small maps. |
+| **`oa_pvomit`** | **652 members, 53.09 MB** | **selected** |
+| `q3dm6ish` | 651 members, 50.03 MB | Smallest closure, but a conversion of a third-party Quake 1 map by another author, so its authorship chain runs through material OpenArena's own release terms cover only indirectly. Provenance ranks above closure size. |
+| `dm4ish` | 650 members, 50.90 MB | Same second authorship chain as `q3dm6ish`, and a larger closure. |
+| `fan` | 656 members, 50.56 MB | Comparable size, but its textures are scattered over nine shared texture directories rather than one map-specific set, and it has 8 spawn points to `oa_pvomit`'s 16. |
+| `islanddm` | 658 members, 60.60 MB | Terrain-blend texture set makes it the largest of the small maps, and 6 spawn points. |
+| `oa_dm7` | 667 members, 52.70 MB | 4 deathmatch spawns: a duel map, not an FFA-with-bots map. Also a Quake 1 conversion. |
+| `oa_dm1` | 685 members, 54.53 MB | Larger closure across `gothic_*` and `base_*` texture sets. |
+| `oa_shouse` | 683 members, 55.34 MB | By far the largest per-map shader set of the small maps. |
+
+These closures are measured with the accepted extractor and the accepted
+resolution rules, one bot character each and the generated members excluded, so
+they are comparable to each other but sit slightly below the 668 members of the
+assembled pack.
 
 `oa_pvomit` is level design by Henke "Stjartmunnen" Björk, converted for
 OpenArena by dmn_clown, credited in `source/assets/maps/credits`, with author
@@ -179,13 +184,13 @@ Only models that ship a `source/assets/models/<name>/` preferred source form
 
 | Candidate | Closure | Dangling references inside the model |
 | --- | --- | --- |
-| **`skelebot`** | **48.57 MB** | **none** |
-| `gargoyle` | 49.99 MB | none, but a larger closure |
-| `penguin` | 47.10 MB | `/home/niko/Desktop/penguinblend/lambert2SG` |
-| `liz` | 47.54 MB | three absolute `/home/ross/Desktop/...` material paths |
-| `major` | 48.27 MB | `models/players/majorlegs`, `models/players/majortorso` |
-| `beret` | 48.27 MB | `models/players/beret/spec_skin1.tga` and a stray material name |
-| `kyonshi` | 51.01 MB | `models/players/kyonshiMaterial.001` |
+| **`skelebot`** | **53.09 MB** | **none** |
+| `penguin` | 51.61 MB | `/home/niko/Desktop/penguinblend/lambert2SG` |
+| `liz` | 52.06 MB | three absolute `/home/ross/Desktop/...` material paths |
+| `major` | 52.79 MB | `models/players/majorlegs`, `models/players/majortorso` |
+| `beret` | 52.79 MB | `models/players/beret/spec_skin1.tga` and a stray material name |
+| `gargoyle` | 54.51 MB | none, but a larger closure |
+| `kyonshi` | 55.52 MB | `models/players/kyonshiMaterial.001` |
 
 `skelebot` is the only candidate whose MD3 surfaces and skins resolve
 completely, and it has the fewest unresolved references of the whole set. Its
@@ -198,15 +203,36 @@ all; they are reported separately from missing assets rather than hidden.
 
 The pack is a closure, not a list. Roots:
 
-1. **Everything the pinned `baseq3` QVMs can name.**
+1. **What the pinned `baseq3` QVM sources name, by two readings.**
    `scripts/qvm_references.py` reads `cmake/basegame.cmake` and takes the exact
    translation units it compiles into `cgame`, `qagame` and `ui` — note that
    `baseq3`'s menu is `code/q3_ui`, not the missionpack `code/ui` — follows
    their local `#include`s, and drops the `MISSIONPACK` branches, which those
    QVMs are not built with. A preprocessor condition the evaluator cannot
-   decide keeps **both** branches, so the extracted set is a superset of the
-   compiled text and the closure never silently loses a reference. That yields
-   379 plain literals and 40 format templates.
+   decide keeps **both** branches, and an unterminated conditional is an error,
+   so the extracted set is a superset of the compiled text rather than a
+   silently truncated one.
+
+   Two readings run over that text. The first collects **path-shaped string
+   literals** under a known asset directory: 379 literals and 40 format
+   templates. The second collects the **first argument of every
+   content-registration trap** — `trap_R_RegisterShader`,
+   `trap_R_RegisterShaderNoMip`, `trap_R_RegisterModel`, `trap_R_RegisterSkin`,
+   `trap_S_RegisterSound` — regardless of shape, because a shader script may
+   define a name that is not a path at all: 207 names and 6 templates. The trap
+   says which kind of reference it is.
+
+   The second reading exists because the first is not sufficient, which an
+   independent review found: `white`, `menuback`, `powerups/quad`,
+   `viewBloodBlend`, `smokePuff`, `lagometer`, the `medal_*` family and 34
+   other registered names have no directory prefix and were being discarded
+   before they reached the closure.
+
+   **What this does not cover.** Only these five traps are read, and only their
+   first argument. A reference the gamecode composes at runtime from data the
+   sources do not contain — a cvar, a server-set model name, a downloaded
+   configuration — is outside any static reading, and so is any content a
+   *map* asks for that its BSP does not name.
 2. **The declared expansion of every template.** A template such as
    `sound/player/footsteps/step%i.wav` cannot be resolved statically, so
    `content/pack-recipe.json` states either its expansion (footsteps 1–4 from
@@ -233,10 +259,19 @@ Resolution uses the engine's own rules, read out of the pinned checkout:
 - a drawn reference is looked up as a shader **with its extension stripped**
   and only falls back to an image of the *original* name (`R_FindShader`);
 - shader definitions are indexed across every `scripts/*.shader` in the source
-  set with reverse-alphabetical file precedence (`ScanAndLoadShaderFiles`), and
-  only the 24 shader files that actually win a needed definition are packaged;
+  set with reverse-alphabetical file precedence, and
+  only the 26 shader files that actually win a needed definition are packaged;
 - MD3 surface shaders, `.skin` surface assignments and BSP shader lump entries
   are followed transitively.
+
+The shader precedence deserves a footnote, because the obvious reading of
+`ScanAndLoadShaderFiles` is wrong. ioquake3 does **not** sort that list:
+`FS_ListFiles` returns the PK3's own order, the engine concatenates the files
+in the reverse of it, and `FindShaderInShaderText` takes the first definition
+it meets. Reverse-alphabetical is the correct model here only because
+`write_pk3` stores members sorted by path, which makes this pack's listing
+alphabetical. A pack produced by a different writer would need a different
+model, and `shader_file_precedence` says so.
 
 Two files are product-owned rather than upstream, because the upstream ones
 describe a whole OpenArena release this pack cannot honour: `scripts/arenas.txt`
@@ -246,10 +281,16 @@ satisfies the QVM reference without the upstream file being packaged at all.
 
 ## Static closure result
 
-`scripts/build-content-pack.py` reports **no unresolved required reference**.
-26 references are declared in the recipe as accepted with a stated reason, and
-the check fails if any of them ever becomes resolvable, so the list cannot
-silently outlive its justification. They fall into four groups:
+`scripts/build-content-pack.py` reports **no unresolved reference among those
+the two readings above extract**, once 28 recipe-declared acceptances are
+subtracted. That is the exact claim: every reference the check can see either
+resolves to a packaged member or is named in the recipe with a reason. It is
+not a claim that the pack satisfies every reference the running game could ever
+make, which no static reading can establish.
+
+The check fails if a declared acceptance ever becomes resolvable, so the list
+cannot silently outlive its justification. The acceptances fall into four
+groups:
 
 - **Team Arena / missionpack data** the `baseq3` QVMs still name outside a
   `MISSIONPACK` guard: the six `models/players/characters/james/*` skins and
@@ -257,12 +298,15 @@ silently outlive its justification. They fall into four groups:
   `characters/` tree, and the FFA profile never selects one.
 - **Single-player and Capture the Flag cues** outside this profile:
   `models/mapobjects/podium/podium4.md3`, `menu/medals/medal_victory`,
-  `sound/player/announce/youwin.wav`, `sound/teamplay/flagret_{blu,red}.wav`.
+  `sound/player/announce/youwin.wav`, `sound/teamplay/flagret_{blu,red}.wav`,
+  and `powerups/blueflag`, the flag-carrier effect `cg_main.c` registers
+  unconditionally.
 - **Assets OpenArena replaced differently**: the optional halo sub-models
   (`armor/shard_sphere`, `holdable/medkit_sphere`, `instant/invis_ring`),
   `sound/misc/windfly.wav` (OpenArena uses `sound/items/flight.wav`),
-  `music/win`/`music/loss`, and `menu/art/pblogo` (PunkBuster branding, which
-  this project does not want an equivalent of).
+  `music/win`/`music/loss`, `menu/art/pblogo` (PunkBuster branding, which this
+  project does not want an equivalent of), and `menubackRagePro`, the alternate
+  menu background `ui_qmenu.c` registers only for `GLHW_RAGEPRO` hardware.
 - **Dangling upstream references**: `music/sonic5.wav`, named by
   `oa_pvomit`'s worldspawn but shipped by no OpenArena release, and three
   placeholder material names left in `models/weaphits/bullet.md3`,
@@ -283,34 +327,51 @@ acceptance, and the plan's failure boundary still applies there.
 
 ## Determinism
 
-Two clean assemblies were run by `scripts/verify-content-pack.sh` from
-arena-web commit `a20fff4c82ff151c925fa5249e7fc83cb7502d62`:
+The assembly runs **inside the WP0 builder image**, for the same reason the
+browser build does: a PK3's bytes depend on the CPython `zipfile` writer and
+the zlib the interpreter links, so "byte-identical" is a property of a fixed
+toolchain and not of the format. Pinning it is the difference between a
+reproducibility claim and a claim about whichever host happened to run the
+script — and the observed difference is real: the same recipe assembled on the
+host interpreter and in the image produced different digests.
+
+Each assembly writes `toolchain.txt` beside the pack:
+
+```text
+python: 3.12.3 (cpython)
+zlib-module-version: 1.3
+zlib-runtime-version: 1.3
+```
+
+Two clean assemblies were run by `CONTAINER_RUNTIME=podman
+scripts/verify-content-pack.sh` from arena-web commit
+`621da595a85e171ba5beb8d82be5acac59addb3f`:
 
 ```text
 === comparing the two assemblies ===
 two clean assemblies are byte-identical
-provenance/arena-web-ffa-content.json agrees with the rebuilt record
-provenance/arena-web-ffa-content-manifest.json agrees with the rebuilt record
 ```
 
 The comparison is a recursive `diff` over the whole assembly directory: the
-PK3, the provenance record, the manifest and the closure report all matched
-byte for byte, and the rebuilt records were then compared against the committed
-ones (a differing `producer` commit is reported, not treated as a mismatch, as
-in WP1).
+PK3, the provenance record, the manifest, the toolchain record and the closure
+report all matched byte for byte, and the rebuilt records were then compared
+against the committed ones (a differing `producer` commit is reported, not
+treated as a mismatch, as in WP1).
 
 | Control | Value | Why |
 | --- | --- | --- |
+| Interpreter and zlib | the pinned builder image | The archive's compressed bytes come from these, so they are inputs, not environment. |
 | Member order | sorted by path | The ZIP central directory cannot depend on traversal order. |
 | Member timestamp | `1980-01-01 00:00:00` | The earliest a ZIP can express, so no ambient clock value reaches the archive. |
 | Member mode and system | `0100644`, Unix | A reader sees the same mode regardless of the building host's umask. |
-| Compression | deflate, level 9, fixed | zlib's deflate is deterministic for a fixed level. |
-| Input bytes | read from the digest-verified `.tar.bz2` in the same run | There is no unpacked intermediate tree that a later step could modify. |
+| Compression | deflate, level 9, passed per member | A level given to the `ZipFile` constructor is ignored for a caller-supplied `ZipInfo`, so it must be passed to `writestr` or zlib's default silently applies. A regression test pins this. |
+| Input bytes | read from the digest-verified `.tar.bz2`, from the same open file the digest was taken over | There is no unpacked intermediate tree, and nothing can replace the archive between the check and the read. |
 | Build tree | deleted before every assembly | No earlier member can survive into an accepted pack. |
-| Worktree | must be clean | The manifest records the commit that produced it. |
+| Network | `--network none` | The offline property is enforced by the runtime rather than asserted. |
+| Worktree | must be clean, untracked files included | The manifest records the commit that produced it. |
 
-Nothing in the assembly reads the clock, the environment, the current directory
-or the network; the output directory path is not an input to any member.
+Nothing in the assembly reads the clock, the environment or the current
+directory; the output directory path is not an input to any member.
 
 ## Reproducing the result
 
@@ -319,18 +380,28 @@ From a clean checkout:
 ```bash
 git submodule update --init --recursive
 scripts/check.sh
-scripts/fetch-content-sources.sh          # once, online; ~900 MB
-scripts/verify-content-pack.sh            # two clean assemblies
+CONTAINER_RUNTIME=podman scripts/fetch-content-sources.sh   # once, online
+CONTAINER_RUNTIME=podman scripts/verify-content-pack.sh     # two clean assemblies
 ```
 
-Only the fetch step uses the network, and it accepts an archive only if its
-size and SHA-256 match `content/pack-recipe.json` exactly.
-`scripts/build-content-pack.sh` performs a single assembly. Everything is
-written to the gitignored `build/` directory.
+`CONTAINER_RUNTIME` defaults to `docker`. The builder image must already be
+present locally; `scripts/build-content-pack.sh --print-image` prints its exact
+reference without running anything. Only the fetch step uses the network, and
+it accepts an archive only if its size and SHA-256 match
+`content/pack-recipe.json` exactly. `scripts/build-content-pack.sh` performs a
+single assembly. Everything is written to the gitignored `build/` directory.
+
+Resource note: the fetch downloads about 913 MB of `.tar.bz2`, and the assembly
+holds every selected member of every source archive in memory while it resolves
+the closure — the archives are read once, sequentially, because bzip2 has no
+usable random access. Expect roughly 2 GB of RAM for the assembly container and
+about 1 GB of disk for the archives. A machine that cannot afford that would
+need a spill-to-disk staging step, which would reintroduce the unpacked
+intermediate tree this design deliberately avoids.
 
 ## Licence report
 
-Every one of the 585 packaged members is **`GPL-2.0-or-later`**, an expression
+Every one of the 668 packaged members is **`GPL-2.0-or-later`**, an expression
 on WP0's product-input allowlist. The combination is therefore internally
 consistent and distributable under GPL-2.0-or-later, and it is compatible with
 the GPL-2.0-or-later browser client WP1 assembled, though the two remain
@@ -339,13 +410,18 @@ contains no code and is loaded as data.
 
 | Member group | Members | Source | Licence | Obligations |
 | --- | --- | --- | --- | --- |
-| Core art, sound, item/weapon models, menu art, shaders | 417 | `openarena-data` | GPL-2.0-or-later | attribution notice, corresponding source |
+| Core art, sound, item/weapon models, menu art, shaders, and the `COPYING`, `CREDITS`, `CREDITS-0.8.5` and `README` notices | 470 | `openarena-data` | GPL-2.0-or-later | attribution notice, corresponding source |
 | Bot files, `.aas`, feedback and team sounds | 78 | `openarena-misc` | GPL-2.0-or-later | same |
-| 0.8.8 patch replacements | 39 | `openarena-088-data` | GPL-2.0-or-later | same |
+| 0.8.8 patch replacements and the `CREDITS-0.8.8` notice | 68 | `openarena-088-data` | GPL-2.0-or-later | same |
+| World textures and sky | 24 | `openarena-textures` | GPL-2.0-or-later | same |
 | Player model and voices | 23 | `openarena-players` | GPL-2.0-or-later | same |
-| World textures and sky | 23 | `openarena-textures` | GPL-2.0-or-later | same |
 | Map and level shot | 2 | `openarena-maps` | GPL-2.0-or-later | same |
-| `scripts/arenas.txt`, `scripts/bots.txt` | 2 | arena-web recipe | GPL-2.0-or-later | same |
+| `scripts/arenas.txt`, `scripts/bots.txt`, `NOTICE-arena-web.txt` | 3 | arena-web recipe | GPL-2.0-or-later | same |
+
+The seven rows sum to the 668 packaged members. Five of the six notice members
+travel with the OpenArena source that carries them; the sixth,
+`NOTICE-arena-web.txt`, is generated, which is why the `arena-web` row is three
+members and not two.
 
 Every member records `license-notice` and `copyleft-source`, and every
 non-notice member binds those obligations to all six packaged notice members.
@@ -399,13 +475,34 @@ declaring it as an input would be false. Both records therefore live under
 without the engine-build input requirement. This is a placement decision, not a
 change: no schema, validator or WP0/WP1 artifact was modified.
 
+## Findings recorded rather than fixed
+
+- **The shader stage reader models `renderergl1` only.** `renderergl2`'s
+  `ParseStage` additionally honours `diffuseMap`, `normalMap`, `bumpMap` and
+  `specularMap`. No shader in this pack uses any of them, so nothing is missing
+  today, but a later content source that did would have those stage images
+  invisible to the closure. The reader names its renderer so the gap is
+  visible.
+- **The generated members' licence evidence is pinned to a published commit.**
+  `content/pack-recipe.json` points `arena-web`'s `licenseEvidenceUrl` at
+  `LICENSE` at commit `1cc0a1a`, the newest published arena-web commit, whose
+  `LICENSE` is byte-identical to the current one. It is deliberately not the
+  moving `main` branch. It should be re-pinned to this work package's own
+  commit once that is published.
+- **Only five registration traps are read.** The list is
+  `trap_R_RegisterShader`, `trap_R_RegisterShaderNoMip`,
+  `trap_R_RegisterModel`, `trap_R_RegisterSkin` and `trap_S_RegisterSound`, and
+  only their first argument. A future gamecode change that registers content
+  through a sixth trap would need this list extended; nothing detects that
+  automatically.
+
 ## What this does not prove
 
 - Nothing has been run. The pack has not been loaded by the engine, in a
   browser or anywhere else. Runtime compatibility with the pinned `baseq3`
   QVMs is WP4's acceptance, and WP4's failure boundary — stop and return to
   plan review rather than switching gamecode — is unchanged.
-- 23.9 MB compressed is a large first page load. WP3 owns the audited closure,
+- 24.2 MB compressed is a large first page load. WP3 owns the audited closure,
   not delivery; measuring and reducing load time belongs to the work package
   that ships a loader.
 - The pack is not byte-compatible with a public OpenArena pure server, and is

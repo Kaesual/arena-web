@@ -72,8 +72,8 @@
       ],
       "path": "NOTICE-arena-web.txt",
       "role": "notice",
-      "sha256": "b903d9801d632fdaa2aba60b1c73f823c01ff242ac7a1531e5bebc5225e2aa92",
-      "size": 4863,
+      "sha256": "c98166092c413f87e21ad2491cbf36bf0d6f01a3ae1f355cd8583f2c2c8240f6",
+      "size": 4966,
       "sourceId": "arena-web",
       "sourcePath": "content/pack-recipe.json",
       "transformation": "generated from the committed recipe by scripts/build-content-pack.py"
@@ -899,6 +899,28 @@
         "copyleft-source",
         "license-notice"
       ],
+      "path": "gfx/2d/bloodspew.tga",
+      "role": "asset",
+      "sha256": "1cbc4732c6aac5b231dc3b16ea8e1d4f4f6cd03722339d85db3b1eae2a35a912",
+      "size": 262683,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/gfx/2d/bloodspew.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
       "path": "gfx/2d/colorbar.jpg",
       "role": "asset",
       "sha256": "e62ae36406a082ca995d405111d00043c1c443178e1d148a346fa3b62e9d5ba6",
@@ -1147,6 +1169,28 @@
       "size": 16923,
       "sourceId": "openarena-data",
       "sourcePath": "openarena-data-0.8.5split.orig/pak0/gfx/2d/defer.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "gfx/2d/lag.tga",
+      "role": "asset",
+      "sha256": "030ac5aec12c68a569a1969e0c5c19d66cff110d39e791c12729835b96ed1534",
+      "size": 49196,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/gfx/2d/lag.tga",
       "transformation": "copied unmodified from the verified upstream archive"
     },
     {
@@ -1449,6 +1493,72 @@
         "copyleft-source",
         "license-notice"
       ],
+      "path": "gfx/damage/blood_screen.tga",
+      "role": "asset",
+      "sha256": "71dd19a17d934e27239a9d9195adba5c04976c5c13332c001f0eafbebd565f18",
+      "size": 66075,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/gfx/damage/blood_screen.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "gfx/damage/blood_spurt.tga",
+      "role": "asset",
+      "sha256": "3c2cfae3e70cbd0a2e1ef411a4873c641772ac9e0989fb5daa312687092226ad",
+      "size": 21883,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/gfx/damage/blood_spurt.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "gfx/damage/blood_stain.tga",
+      "role": "asset",
+      "sha256": "0f359cec5c7bf154303915b305016089128e7258b147a4354c77c139ac9402cb",
+      "size": 66075,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/gfx/damage/blood_stain.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
       "path": "gfx/damage/bulletmult.tga",
       "role": "asset",
       "sha256": "d0413de42edce5b547fdbeb205dc1a913ae9555ee700bb8cb083f93a71fb3619",
@@ -1521,6 +1631,50 @@
       "size": 66075,
       "sourceId": "openarena-data",
       "sourcePath": "openarena-data-0.8.5split.orig/pak0/gfx/damage/plasma_mrk.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "gfx/damage/shadow.tga",
+      "role": "asset",
+      "sha256": "5236211dbccffd75e30385afad6636d6de520d2b0148720ac047bd4e491f938c",
+      "size": 66075,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/gfx/damage/shadow.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "gfx/fx/detail/d_ice.tga",
+      "role": "asset",
+      "sha256": "b687423f6b179d497c2bed8584504c78c89ac9c4ed531f34a4ce579f1457caa4",
+      "size": 196652,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/gfx/fx/detail/d_ice.tga",
       "transformation": "copied unmodified from the verified upstream archive"
     },
     {
@@ -1669,6 +1823,28 @@
         "copyleft-source",
         "license-notice"
       ],
+      "path": "gfx/fx/spec/skin.tga",
+      "role": "asset",
+      "sha256": "1594199a09d181d954e55540068e383beb75c397aedb818b4cda0646a399ad3b",
+      "size": 12234,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/gfx/fx/spec/skin.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
       "path": "gfx/fx/spec/specenv.tga",
       "role": "asset",
       "sha256": "1594199a09d181d954e55540068e383beb75c397aedb818b4cda0646a399ad3b",
@@ -1697,6 +1873,72 @@
       "size": 12827,
       "sourceId": "openarena-088-data",
       "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/gfx/fx/spec/spots.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "gfx/misc/hastesmoke.tga",
+      "role": "asset",
+      "sha256": "9f76a5479d771fcd155ef3ecd63aed91ec1fe282bc8bafc6cbfd79c4476d7016",
+      "size": 16923,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/gfx/misc/hastesmoke.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "gfx/misc/smokepuff3.tga",
+      "role": "asset",
+      "sha256": "974365b6a3a9e7badba1e577ecd3cad4c52bf9f1db950bb1b3bcac0cd8ef843a",
+      "size": 16923,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/gfx/misc/smokepuff3.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "gfx/misc/smokepuffragepro.tga",
+      "role": "asset",
+      "sha256": "00dc385b672f47832bb5bc30db79fa86810df010b789ae45e9daae697dbce5f6",
+      "size": 16923,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/gfx/misc/smokepuffragepro.tga",
       "transformation": "copied unmodified from the verified upstream archive"
     },
     {
@@ -4529,6 +4771,72 @@
         "copyleft-source",
         "license-notice"
       ],
+      "path": "menu/medals/medal_assist.tga",
+      "role": "asset",
+      "sha256": "57a07649f79479f9b431c546397b904eef83e0da20cfc472a3342e5a59783ffc",
+      "size": 31168,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/menu/medals/medal_assist.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "menu/medals/medal_capture.tga",
+      "role": "asset",
+      "sha256": "8574d6258ce1e6dc3902acdfeecb89e285f20be867bedc540e4394f38a522a44",
+      "size": 14858,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/menu/medals/medal_capture.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "menu/medals/medal_defend.tga",
+      "role": "asset",
+      "sha256": "7c1b442c81cded8477690c74dd1f6eff0e4a6f3a80c4aa147364e0103173283d",
+      "size": 8580,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/menu/medals/medal_defend.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
       "path": "menu/medals/medal_excellent.tga",
       "role": "asset",
       "sha256": "4f714254c03fa44d17c8c606b41425170be8857612852ab1bdd2a86d8142f070",
@@ -6685,6 +6993,182 @@
         "copyleft-source",
         "license-notice"
       ],
+      "path": "models/weaphits/bullet_0000.tga",
+      "role": "asset",
+      "sha256": "d8488870463a0b48ede99b7ef2f3717f8db49d04ce15efe59a1d9994a0bcaa63",
+      "size": 65554,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/bullet_0000.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weaphits/bullet_0001.tga",
+      "role": "asset",
+      "sha256": "f89482e7bdf08a19ede64d89a52bc108c99525fa38856c972dbbdea8dbff263f",
+      "size": 65554,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/bullet_0001.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weaphits/bullet_0002.tga",
+      "role": "asset",
+      "sha256": "27c9e6addbc85110a45d840e064689d8c8953bd825d642e507ae01fc61c04938",
+      "size": 65554,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/bullet_0002.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weaphits/bullet_0003.tga",
+      "role": "asset",
+      "sha256": "190db3147644a835aad83e50698c150197e3e5450e03b148f03ff718844be659",
+      "size": 65554,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/bullet_0003.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weaphits/bullet_0004.tga",
+      "role": "asset",
+      "sha256": "c2a1f60a9529839b51ad1ec774b3b7a170f7182a15bce52f193b416bc0e56b0e",
+      "size": 65554,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/bullet_0004.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weaphits/bullet_0005.tga",
+      "role": "asset",
+      "sha256": "3531af04d729a6c79ef40733f120730fec2f6789ccb77fc55ce83c7040dabe12",
+      "size": 65554,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/bullet_0005.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weaphits/bullet_0006.tga",
+      "role": "asset",
+      "sha256": "86e871da702c998910076668b06bf1e42de263a971de5e42712023446984c360",
+      "size": 65554,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/bullet_0006.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weaphits/bullet_0007.tga",
+      "role": "asset",
+      "sha256": "511f31ee3726aee1f0890ee30ea88fa2bbfa8d218f811de1a110bcceb4d2a7b8",
+      "size": 65554,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/bullet_0007.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
       "path": "models/weaphits/crackle.md3",
       "role": "asset",
       "sha256": "282ff6b363f90d98de1e2c1abb7ef63ae8347782011aae461d8576c05e709edb",
@@ -6707,12 +7191,254 @@
         "copyleft-source",
         "license-notice"
       ],
+      "path": "models/weaphits/plasring.tga",
+      "role": "asset",
+      "sha256": "8edb48508c369b9fd9f25c334cec52a5a89d2797d545cb9d345b73947c01076a",
+      "size": 197147,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/plasring.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
       "path": "models/weaphits/ring02.md3",
       "role": "asset",
       "sha256": "3d39dc29fd5a17982c5d9c9ba3a856be4f02c98f4675cc604a79348d19758e92",
       "size": 1540,
       "sourceId": "openarena-data",
       "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/ring02.md3",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weaphits/rlboom/rlboom_1.jpg",
+      "role": "asset",
+      "sha256": "20b7c23adb2e1e60dbd369be6258fca55eba885339cf7fc1c98b7fd71b18ac96",
+      "size": 1703,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/rlboom/rlboom_1.jpg",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weaphits/rlboom/rlboom_2.jpg",
+      "role": "asset",
+      "sha256": "d73d9e4041ff5f96d6d5ff90a313bbed905ff05c506aecbc216e711e54267358",
+      "size": 1996,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/rlboom/rlboom_2.jpg",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weaphits/rlboom/rlboom_3.jpg",
+      "role": "asset",
+      "sha256": "34f58c53503dabcbf1ef8532f094460ea9fc3e268e10050df16f6148789d3632",
+      "size": 3127,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/rlboom/rlboom_3.jpg",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weaphits/rlboom/rlboom_4.jpg",
+      "role": "asset",
+      "sha256": "82e8b4dcfa72d7d1a04cbd730fcb2a26324e7afcbe9ddbcc3cce2c7aa473c544",
+      "size": 3547,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/rlboom/rlboom_4.jpg",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weaphits/rlboom/rlboom_5.jpg",
+      "role": "asset",
+      "sha256": "f484d860c5da989df0ebaefc2c506a9c1768e0997e96e71240fb367f519b0863",
+      "size": 2655,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/rlboom/rlboom_5.jpg",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weaphits/rlboom/rlboom_6.jpg",
+      "role": "asset",
+      "sha256": "52ec837d95502056eba5432fd0dcf3382e186e461734cf0e583ade3bdedab601",
+      "size": 1449,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/rlboom/rlboom_6.jpg",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weaphits/rlboom/rlboom_7.jpg",
+      "role": "asset",
+      "sha256": "b2183ce8a50ad8aa09479787c5be0cbdfc3c32e43981767014be77f9e9aca6df",
+      "size": 1230,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/rlboom/rlboom_7.jpg",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weaphits/rlboom/rlboom_8.jpg",
+      "role": "asset",
+      "sha256": "313834f695f6fa71d9bb799af6d6f59358cf012d18cb3814567737a838d86537",
+      "size": 600,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/rlboom/rlboom_8.jpg",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weaphits/smokering2.tga",
+      "role": "asset",
+      "sha256": "abff16e6c78dad663c76f33deb66389f6f6b2a21b88c89fd2df718a6ead8e90b",
+      "size": 262683,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/smokering2.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weaphits/spark.tga",
+      "role": "asset",
+      "sha256": "480ad95664a854acfcf379ab29043cd471f05f96d08a45532256d83b27e8cb2b",
+      "size": 151485,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weaphits/spark.tga",
       "transformation": "copied unmodified from the verified upstream archive"
     },
     {
@@ -7175,6 +7901,50 @@
       "size": 842356,
       "sourceId": "openarena-data",
       "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weapons2/plasma/skin.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weapons2/railgun/f_railgun3.jpg",
+      "role": "asset",
+      "sha256": "35654f77413bfb5cdd44749b24171fdc78c866ec3867c009154122e1e6d74cda",
+      "size": 5459,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weapons2/railgun/f_railgun3.jpg",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weapons2/railgun/railcore.tga",
+      "role": "asset",
+      "sha256": "1dc6e137f9cb7bff8fe4b1ab2ea643ed45065454aa94953d8b85a31092ea9140",
+      "size": 12827,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weapons2/railgun/railcore.tga",
       "transformation": "copied unmodified from the verified upstream archive"
     },
     {
@@ -7741,6 +8511,28 @@
         "copyleft-source",
         "license-notice"
       ],
+      "path": "scripts/oagfx.shader",
+      "role": "asset",
+      "sha256": "52e1bd509427a82f8f92d603da37e56daa6be1d1201d8d826ebc8274d800be92",
+      "size": 244,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/scripts/oagfx.shader",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
       "path": "scripts/oanew.shader",
       "role": "asset",
       "sha256": "1040dcc755fc13e0028160c43c919533a67f2f56380921448389654be84078e0",
@@ -8011,6 +8803,28 @@
       "size": 687,
       "sourceId": "openarena-088-data",
       "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/scripts/weapon_shotgun.shader",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "scripts/weaponhits.shader",
+      "role": "asset",
+      "sha256": "448aee36d819327a7b9cf290072cfe8b044e522e1424c7c06ac62e0c3f29d209",
+      "size": 9004,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/scripts/weaponhits.shader",
       "transformation": "copied unmodified from the verified upstream archive"
     },
     {
@@ -11833,12 +12647,210 @@
         "copyleft-source",
         "license-notice"
       ],
+      "path": "sprites/bubble.tga",
+      "role": "asset",
+      "sha256": "74259c5fd0fc3c887b8f04935cc8143a2673d51ae404cd7c7859b3da05afd279",
+      "size": 16923,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/sprites/bubble.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
       "path": "sprites/foe2.tga",
       "role": "asset",
       "sha256": "c01ab33aab62163673133a8f358b08a5263687acffbe09f4ab19d68fbeea2f9d",
       "size": 16923,
       "sourceId": "openarena-data",
       "sourcePath": "openarena-data-0.8.5split.orig/pak0/sprites/foe2.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "sprites/multwake1.tga",
+      "role": "asset",
+      "sha256": "e3a367e6bc12a28bdfd8cfeb90d1b50388e29dba06a6c303601e964c499e8c32",
+      "size": 49691,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/sprites/multwake1.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "sprites/multwake2.tga",
+      "role": "asset",
+      "sha256": "e1dc267fe24780972d531e3966bc13fea6c3778e65e2c2b19b7b5c4176b28ed4",
+      "size": 49691,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/sprites/multwake2.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "sprites/multwake3.tga",
+      "role": "asset",
+      "sha256": "a843a792c958052af2e309d07fc36597e0697bd558f75364f2861a0f8a3c97e8",
+      "size": 49691,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/sprites/multwake3.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "sprites/multwake4.tga",
+      "role": "asset",
+      "sha256": "ef2a8bfa7bf6f242878d93e718c1c95c1fc3fc5c9a56308a9a5865c5ab1d240a",
+      "size": 49691,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/sprites/multwake4.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "sprites/multwake5.tga",
+      "role": "asset",
+      "sha256": "c80caff9e9eebac214f279348d4b123a335b80835036e76ea386f00e5d57d9ab",
+      "size": 49691,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/sprites/multwake5.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "sprites/multwake6.tga",
+      "role": "asset",
+      "sha256": "728731100d2b3996bdbe5640d1785c7b492424d97922a1cf16f844c6fff10fcd",
+      "size": 49691,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/sprites/multwake6.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "sprites/multwake7.tga",
+      "role": "asset",
+      "sha256": "0a0248350e372e3578639e09f36caf9563c2901133dfcac1634f2432b27f5be1",
+      "size": 49691,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/sprites/multwake7.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "sprites/multwake8.tga",
+      "role": "asset",
+      "sha256": "7cb36eed8622abfaee40c9c9d8e63de4848bce0a1e85e7039aca2d9cb3c104fc",
+      "size": 49691,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/sprites/multwake8.tga",
       "transformation": "copied unmodified from the verified upstream archive"
     },
     {
@@ -12625,6 +13637,94 @@
         "copyleft-source",
         "license-notice"
       ],
+      "path": "textures/oa/bfgfiar.jpg",
+      "role": "asset",
+      "sha256": "8383e2faa8395fff9deff43b5bdaa427b2bafa8fc3b2e4ff2f5f3c4369201894",
+      "size": 6828,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/textures/oa/bfgfiar.jpg",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/oa/fiar.jpg",
+      "role": "asset",
+      "sha256": "42532333abe50af28d3cc3fcff3bfe9dacd9efacad1ca5127586b18c4661ada6",
+      "size": 10049,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/textures/oa/fiar.jpg",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/oa/fiar2.jpg",
+      "role": "asset",
+      "sha256": "dac2d46bbaac3e7c3c4cca45afdcdf723da02512700e88e362b46f5a5cbf3219",
+      "size": 6210,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/textures/oa/fiar2.jpg",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/oa/grenfiar.jpg",
+      "role": "asset",
+      "sha256": "7cbcd1c62489bec40e1e7a294f3da994c5a2540a9d2cc9854ef1bc44b9eaad05",
+      "size": 5569,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/textures/oa/grenfiar.jpg",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
       "path": "textures/oafx/burnme.tga",
       "role": "asset",
       "sha256": "2cd89b568bf656c81cba2373157267f285a6d3d08efc22e77f914fd8006d9fdb",
@@ -12691,6 +13791,138 @@
         "copyleft-source",
         "license-notice"
       ],
+      "path": "textures/oafx/lbeam3.tga",
+      "role": "asset",
+      "sha256": "e10008478aba1a3a78642c3364f583c23da3c964a1fc42313b7637794429cf10",
+      "size": 131611,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/textures/oafx/lbeam3.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/oafx/lbeam4.tga",
+      "role": "asset",
+      "sha256": "ec01abd3fdb8e549986700b09cb36c5b760cb45d624d67372c0ffb1ed08fc6bc",
+      "size": 131611,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/textures/oafx/lbeam4.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/oafx/lbeam5.tga",
+      "role": "asset",
+      "sha256": "1fdc07a1b771cf11311e646c1993301cd32b684ef021e8a361b390b65d977c67",
+      "size": 131611,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/textures/oafx/lbeam5.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/oafx/lbeam6.tga",
+      "role": "asset",
+      "sha256": "9bac1019b20e7b67242cf37abd2629624b991452c5ad2fa1ad41c46fc5d7f0fa",
+      "size": 131611,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/textures/oafx/lbeam6.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/oafx/lbeam7.tga",
+      "role": "asset",
+      "sha256": "2f0706d39c4a2b686f4ad99c0a2ae40d768d704010d21138ae370d44638eb3d2",
+      "size": 131611,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/textures/oafx/lbeam7.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/oafx/lbeam8.tga",
+      "role": "asset",
+      "sha256": "00bf5bfb9a8c7974ea32c027c5e8a83859c5b845fdf5b90ffb93d4696c7811c1",
+      "size": 131611,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/textures/oafx/lbeam8.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
       "path": "textures/oafx/orangechrm.jpg",
       "role": "asset",
       "sha256": "7c92565ccb0c08206699930e36c1c8a7556520145acbbaebabd64984224828b4",
@@ -12735,6 +13967,28 @@
         "copyleft-source",
         "license-notice"
       ],
+      "path": "textures/oafx/quadmultshell.jpg",
+      "role": "asset",
+      "sha256": "cc5f7ba65fa18006306eeca06818e2aabeda7a5d68f2ba19b7b3a32a620eb86c",
+      "size": 14186,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/oafx/quadmultshell.jpg",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
       "path": "textures/oafx/quadshell.tga",
       "role": "asset",
       "sha256": "6e7e8e4814c4bb76b804f2ecc55a14944b1b3062bc8e1b9eb1bcde56549149e6",
@@ -12757,12 +14011,584 @@
         "copyleft-source",
         "license-notice"
       ],
+      "path": "textures/oafx/regenshell.jpg",
+      "role": "asset",
+      "sha256": "e5c07f37236292aefaa4ad3aea46487b8648d193c2151be2fb3c60de149bf432",
+      "size": 12607,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/oafx/regenshell.jpg",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
       "path": "textures/oafx/rocketflare.jpg",
       "role": "asset",
       "sha256": "c9e065693c4ba2e8c2dcc327d04a56d687fa03e777cac6fa6fed4e38ae22d90c",
       "size": 2082,
       "sourceId": "openarena-data",
       "sourcePath": "openarena-data-0.8.5split.orig/pak0/textures/oafx/rocketflare.jpg",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/oafx/suitshell.jpg",
+      "role": "asset",
+      "sha256": "f6c0e2dffba7fd333707b0d9083500d5e56edb95c0e9bdb86c616273de0c3da8",
+      "size": 3389,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/oafx/suitshell.jpg",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0000.tga",
+      "role": "asset",
+      "sha256": "b8a6ce4dba160161f220f918c5f7b26187130c893c056014a843d3c45029432a",
+      "size": 530,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0000.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0001.tga",
+      "role": "asset",
+      "sha256": "12bb04147f2795caf32a4273ee1c3b651cca971359cacb3541a3411aa7af8f78",
+      "size": 635,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0001.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0002.tga",
+      "role": "asset",
+      "sha256": "6abf73a4b1983f28d3eb925f8a927ab41a38b728ff796c5291fc9581180eabfa",
+      "size": 775,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0002.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0003.tga",
+      "role": "asset",
+      "sha256": "ffba4b5d286a21ea4b558c2761cfc65fb0df5e06d9620463a548d18bcae7409d",
+      "size": 2377,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0003.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0004.tga",
+      "role": "asset",
+      "sha256": "0429c9deae46d2be8699cd489bfbe23f414522cadb9b734fa04b7c0c74e217e6",
+      "size": 2803,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0004.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0005.tga",
+      "role": "asset",
+      "sha256": "c5b269094e40539d8ec431229275161e4d89490530bf04751450d8899d34f1be",
+      "size": 3663,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0005.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0006.tga",
+      "role": "asset",
+      "sha256": "b168fad92d31049363bf0ce44e0cd4ac08564e906425cd8e4e026e807278a2a5",
+      "size": 5037,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0006.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0007.tga",
+      "role": "asset",
+      "sha256": "658e8786b122ac696734f9321b4f5c00116c0f38fc730e5bfec50eaf05d90928",
+      "size": 10737,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0007.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0008.tga",
+      "role": "asset",
+      "sha256": "8195321f03d3f4aad9239b5315ee28078bae2843f55291262f175bad4429ad6d",
+      "size": 10560,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0008.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0009.tga",
+      "role": "asset",
+      "sha256": "9e8360171cf31e7fdc6832023ed667fccf2a010b8dbd719eca54998c1a80ed83",
+      "size": 12009,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0009.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0010.tga",
+      "role": "asset",
+      "sha256": "1a9c0902d7d146c4b38d344b953fc10eb1334d37ce3c3cf1da758e297b6ee95f",
+      "size": 13087,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0010.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0011.tga",
+      "role": "asset",
+      "sha256": "af3a66f42e4383857341d1947ad3fc83375a6f43a68660383debfbfeb6d1b2a5",
+      "size": 13927,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0011.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0012.tga",
+      "role": "asset",
+      "sha256": "08c593729b8809e5ecf1a255021c970e1117ca18a3173e731a6c8def96ded6d9",
+      "size": 14587,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0012.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0013.tga",
+      "role": "asset",
+      "sha256": "f7a6547a68c8fe8b96d529375cb1464470378d67d31886d52e3c78ae7ead85ee",
+      "size": 15004,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0013.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0014.tga",
+      "role": "asset",
+      "sha256": "f9ee6eb7f4e6edf08c44c928a6ffe27a92da7edee842992a688f1a1d9ff094a9",
+      "size": 15311,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0014.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0015.tga",
+      "role": "asset",
+      "sha256": "723892e0fc601fec383457bb341b095798479197849a5b124c3530dd1dbca1e5",
+      "size": 14896,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0015.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0016.tga",
+      "role": "asset",
+      "sha256": "ba0c58cdb2fb98a916977cc433234379936175f956c342d5930ae9e4ee469c88",
+      "size": 14267,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0016.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0017.tga",
+      "role": "asset",
+      "sha256": "aa0f5dfcd55a81c0ae8e8f89e603f52b646152e5ce0fb09270b498c11026b7e3",
+      "size": 13642,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0017.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0018.tga",
+      "role": "asset",
+      "sha256": "398c72d64e1dddd7a93c13fe278c82b94bc33806fa0a59f612c217a64d0badfe",
+      "size": 12342,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0018.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0019.tga",
+      "role": "asset",
+      "sha256": "8577ee099c1e84c50219c7e5f7d421ba6fa5955842494b99c1f9e18a3f888b24",
+      "size": 10669,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0019.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0020.tga",
+      "role": "asset",
+      "sha256": "a67cef71b7ee529986c40ede3d14416c0dc5c09dc33a830b19fc3a79b1e9eca6",
+      "size": 8343,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0020.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0021.tga",
+      "role": "asset",
+      "sha256": "de25d205de6cf884c0491a0a5f1c87d419c9a368855658f94bd22a26cd4d96f4",
+      "size": 6526,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0021.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/130boom/dpexplosion4_0022.tga",
+      "role": "asset",
+      "sha256": "66d161dc45b82ad0a237120d0d0fa1d26819f13c3874fbc074ea5aceb1babc8c",
+      "size": 4664,
+      "sourceId": "openarena-088-data",
+      "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/textures/sfx/130boom/dpexplosion4_0022.tga",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "textures/sfx/detail.jpg",
+      "role": "asset",
+      "sha256": "b29c8083d590b41a13d264cd55f88c7e59c6d53d63609d12b203f36e839be563",
+      "size": 25294,
+      "sourceId": "openarena-textures",
+      "sourcePath": "openarena-textures-0.8.5split.orig/pak4-textures/textures/sfx/detail.jpg",
       "transformation": "copied unmodified from the verified upstream archive"
     },
     {
@@ -12839,11 +14665,11 @@
   "sources": [
     {
       "id": "arena-web",
-      "licenseEvidenceUrl": "https://raw.githubusercontent.com/Kaesual/arena-web/main/LICENSE",
+      "licenseEvidenceUrl": "https://raw.githubusercontent.com/Kaesual/arena-web/1cc0a1a3d5e84ee2f3a3ff9305a962810e4283d2/LICENSE",
       "licenseExpression": "GPL-2.0-or-later",
-      "preferredSourceRevision": "sha256:5ef6beb896704d0dc2f2ec27de687ca3976770d88c9df05adffbb8a573b286b3",
+      "preferredSourceRevision": "sha256:0ec3db2ce872444f5274b130fb707ba46faf10f88641836bdd5ad3e043f0f86c",
       "preferredSourceUrl": "https://github.com/Kaesual/arena-web",
-      "sourceIdentity": "sha256:5ef6beb896704d0dc2f2ec27de687ca3976770d88c9df05adffbb8a573b286b3",
+      "sourceIdentity": "sha256:0ec3db2ce872444f5274b130fb707ba46faf10f88641836bdd5ad3e043f0f86c",
       "sourceUrl": "https://github.com/Kaesual/arena-web"
     },
     {

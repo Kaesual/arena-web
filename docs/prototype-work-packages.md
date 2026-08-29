@@ -40,7 +40,7 @@ is a plan change; adding another platform is later scope.
 | WP0 | Immutable toolchain and acceptance baseline | — | ✅ Complete — exact public pins, closed license/tree inventory, schemas, relay vector and fail-closed validation |
 | WP1 | Reproducible unmodified ioq3 browser build | WP0 | ✅ Complete — two clean offline builds in the pinned Emscripten 6.0.8 image produce byte-identical artifacts and one validated manifest, with the observed component, QVM/lcc, license-closure and isolation findings recorded |
 | WP2 | Relay conformance probe and routed-path measurement | WP0 | Approved |
-| WP3 | Audited deterministic minimal-content closure | WP0 | ✅ Complete — two clean assemblies produce a byte-identical 585-member `oa_pvomit` FFA pack from six digest-pinned Debian-cleaned OpenArena archives, every member `GPL-2.0-or-later` with resolved notices, and the static closure against the pinned `baseq3` QVM sources leaves no unresolved required reference |
+| WP3 | Audited deterministic minimal-content closure | WP0 | ✅ Complete — two clean assemblies in the pinned builder image produce a byte-identical 668-member `oa_pvomit` FFA pack from six digest-pinned Debian-cleaned OpenArena archives, every member `GPL-2.0-or-later` with resolved notices, and every reference the two static readings of the pinned `baseq3` QVM sources extract either resolves or is a recipe acceptance with a stated reason |
 | WP4 | One-map offline browser arena with bots | WP1, WP3 | Approved |
 | WP5 | Matching native server and packet census | WP0, WP3 | Approved |
 | WP6 | Measured network-sizing decision | WP2, WP5 | Approved |
@@ -351,10 +351,19 @@ Decided facts:
   `baseq3` translation units reference, with `MISSIONPACK` branches removed and
   undecidable preprocessor conditions kept, expanded through the engine's own
   image, sound, shader, MD3, skin, BSP and botfile resolution rules.
+- Reading path-shaped string literals is **not** sufficient on its own: the
+  gamecode registers plenty of content under names a shader script defines,
+  such as `white`, `menuback` or `powerups/quad`. The first argument of every
+  content-registration trap is read as well, and the trap supplies the kind.
+  The check's claim is bounded accordingly: every reference those two readings
+  extract resolves or is an accepted exception, which is not the same as every
+  reference the running game can make.
 - Two clean assemblies produce a byte-identical PK3, provenance record and
   manifest. Determinism needs a sorted member order, a fixed ZIP timestamp and
-  mode, a fixed compression level and reads straight out of the digest-verified
-  archives — no unpacked intermediate tree exists.
+  mode, a compression level passed per member, and reads straight out of the
+  digest-verified archives — no unpacked intermediate tree exists. It also
+  needs a pinned interpreter and zlib, so the accepted assembly runs in the WP0
+  builder image with `--network none`.
 - The content-pack artifact manifest lives under `provenance/` rather than
   `manifests/`, because the artifact-manifest validator requires
   `emscripten-builder` as a declared baseline input for anything under

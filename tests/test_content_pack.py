@@ -418,19 +418,33 @@ class PackWriterTests(unittest.TestCase):
 
     def test_the_declared_compression_level_is_actually_in_force(self) -> None:
         # A level handed to the ZipFile constructor is ignored for a
-        # caller-supplied ZipInfo, so this payload is chosen to compress to a
-        # different size at zlib's default level than at the declared one.
-        payload = b"the quick brown fox jumps over the lazy dog 0123456789 " * 300
-        expected = zlib.compressobj(ZIP_COMPRESS_LEVEL, zlib.DEFLATED, -15)
-        expected_size = len(expected.compress(payload) + expected.flush())
-        default = zlib.compressobj(-1, zlib.DEFLATED, -15)
-        default_size = len(default.compress(payload) + default.flush())
-        self.assertNotEqual(expected_size, default_size)
+        # caller-supplied ZipInfo, so without passing it to writestr the pack is
+        # silently written at zlib's default. The payload is arithmetic rather
+        # than random so it is identical on every interpreter.
+        payload = b"".join(
+            bytes([index % 7, index % 11, index % 13, index % 3])
+            for index in range(6000)
+        )
+
+        def deflate(level: int) -> bytes:
+            stream = zlib.compressobj(level, zlib.DEFLATED, -15)
+            return stream.compress(payload) + stream.flush()
+
+        declared = deflate(ZIP_COMPRESS_LEVEL)
+        default = deflate(-1)
         with tempfile.TemporaryDirectory() as raw:
             output = Path(raw) / "pack.pk3"
             write_pk3({"a.bin": payload}, output)
             with zipfile.ZipFile(output) as archive:
-                self.assertEqual(archive.infolist()[0].compress_size, expected_size)
+                info = archive.infolist()[0]
+                with archive.open(info) as member:
+                    self.assertEqual(member.read(), payload)
+                stored_size = info.compress_size
+        self.assertEqual(stored_size, len(declared))
+        if len(default) != len(declared):
+            # The regression the review found: on a toolchain where the levels
+            # actually differ, the archive must not be the default one.
+            self.assertNotEqual(stored_size, len(default))
 
     def test_two_writes_are_byte_identical(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
