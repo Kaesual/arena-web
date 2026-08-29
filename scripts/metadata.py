@@ -27,6 +27,66 @@ CONTENT_SCHEMA = (
 # says which compiler emitted it.
 ARTIFACT_REQUIRED_BASELINE_INPUT_IDS = ("emscripten-builder", "ioq3")
 
+# The lock distinguishes three license classes, and each has its own gate.
+# `_validate_license` owns two of them: a build or test tool never leaves the
+# workstation, so it may carry an aggregate reference that no product could use,
+# while a product input is compiled or packaged into an arena-web artifact.
+#
+# The third class, a redistributed product image, is deliberately not one of
+# these values. arena-web ships its third-party binaries unchanged inside a
+# server image, so its gate is more than an expression and a distribution
+# value: it also binds license evidence to the exact image bytes and demands
+# the obligations that redistribution creates. That whole gate lives in
+# `_validate_redistributed_image_license`, and `_validate_license` refuses the
+# class outright so no caller can reach a partial pass through it.
+PRODUCT_INPUT_LICENSE = "product-input"
+TOOL_ONLY_LICENSE = "tool-only"
+
+# The record kind that carries the third class in committed metadata.
+REDISTRIBUTED_IMAGE_KIND = "redistributed-product-image"
+
+TOOL_ONLY_DISTRIBUTIONS = {
+    "build-only-not-redistributed",
+    "build-tool-source-submodule-only",
+    "test-only-not-redistributed",
+}
+REDISTRIBUTED_IMAGE_DISTRIBUTION = "product-image-redistributed"
+
+# Shipping a distribution's binaries obliges arena-web to carry their notices
+# and to leave the per-package copyright files the image already contains in
+# place. `share-alike` is admitted because a base may carry share-alike content;
+# it is never a substitute for the two obligations every such image has.
+REDISTRIBUTED_IMAGE_OBLIGATIONS = {
+    "license-notice",
+    "preserve-copyright-files",
+    "share-alike",
+}
+REDISTRIBUTED_IMAGE_REQUIRED_OBLIGATIONS = {
+    "license-notice",
+    "preserve-copyright-files",
+}
+
+# The copyleft packages in such an image oblige arena-web to make their complete
+# corresponding source obtainable. Naming a public archive is the primary
+# channel, but an archive somebody else operates is not by itself a discharge
+# for a distributor, so `written-offer-on-request` records the obligation
+# arena-web keeps in its own name.
+CORRESPONDING_SOURCE_FORM = "distribution-source-archive"
+CORRESPONDING_SOURCE_OBLIGATIONS = {
+    "complete-corresponding-source",
+    "public-archive-availability",
+    "written-offer-on-request",
+}
+CORRESPONDING_SOURCE_REQUIRED_OBLIGATIONS = {
+    "complete-corresponding-source",
+    "public-archive-availability",
+}
+
+# Exactly one redistributed runtime base is reviewed: the one the WP5 dedicated
+# server image is built from. The set is closed for the same reason the tool set
+# is: a second runtime base is a licensing decision, not a build detail.
+REQUIRED_REDISTRIBUTED_IMAGES = {"server-runtime-base": "server-runtime-base"}
+
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 SHA256_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -354,15 +414,13 @@ def _validate_preferred_source(value: Any, path: str) -> None:
         _fail(f"{path}.status", "must be 'available' or 'unavailable'")
 
 
-def _validate_license(
-    value: Any,
-    path: str,
-    product_allowed: set[str],
-    product_refs: set[str],
-    tool_refs: set[str],
-    *,
-    product_input: bool,
-) -> None:
+def _validate_license_evidence(value: Any, path: str) -> dict[str, Any]:
+    """Check the evidence shape every license record shares, whatever its class.
+
+    Returns the record so a class gate can apply its own rules to it. This says
+    nothing about whether the expression is admissible anywhere; that is the
+    caller's gate, and there is no path through this function that grants one.
+    """
     record = _object(value, path)
     evidence_identity = _string(
         record.get("evidenceIdentity"), f"{path}.evidenceIdentity"
@@ -383,8 +441,8 @@ def _validate_license(
     if evidence_identity.startswith("sha256:"):
         expected_keys.add("evidenceRetrievedAt")
     _exact_keys(record, expected_keys, path)
-    distribution = _string(record["distribution"], f"{path}.distribution")
-    expression = _string(record["expression"], f"{path}.expression")
+    _string(record["distribution"], f"{path}.distribution")
+    _string(record["expression"], f"{path}.expression")
     _https_url(record["evidenceUrl"], f"{path}.evidenceUrl")
     if evidence_identity.startswith("sha256:"):
         retrieved_at = _string(
@@ -400,7 +458,22 @@ def _validate_license(
             _fail(f"{path}.evidenceRetrievedAt", "must not be in the future")
     if "evidencePath" in record:
         _relative_path(record["evidencePath"], f"{path}.evidencePath")
-    if product_input:
+    return record
+
+
+def _validate_license(
+    value: Any,
+    path: str,
+    product_allowed: set[str],
+    product_refs: set[str],
+    tool_refs: set[str],
+    *,
+    license_class: str,
+) -> None:
+    record = _validate_license_evidence(value, path)
+    distribution = record["distribution"]
+    expression = record["expression"]
+    if license_class == PRODUCT_INPUT_LICENSE:
         if expression not in product_allowed and expression not in product_refs:
             _fail(f"{path}.expression", "is not an allowed product-input license")
         unregistered_refs = set(LICENSE_REF_TOKEN_RE.findall(expression)) - product_refs
@@ -411,15 +484,202 @@ def _validate_license(
             )
         if distribution != "product-source-and-binaries":
             _fail(f"{path}.distribution", "must permit product distribution")
-    else:
+    elif license_class == TOOL_ONLY_LICENSE:
         if expression not in tool_refs:
             _fail(f"{path}.expression", "is not a registered tool-only LicenseRef")
-        if distribution not in {
-            "build-only-not-redistributed",
-            "build-tool-source-submodule-only",
-            "test-only-not-redistributed",
-        }:
+        if distribution not in TOOL_ONLY_DISTRIBUTIONS:
             _fail(f"{path}.distribution", "must keep the tool out of distribution")
+    else:
+        # Deliberately including the redistributed-image class: its gate is
+        # larger than this function and lives in one piece elsewhere, so
+        # reaching it from here could only ever be a partial pass.
+        _fail(path, f"is validated with an unknown license class {license_class!r}")
+
+
+def _validate_redistributed_image_license(
+    image: dict[str, Any],
+    path: str,
+    platform_digest: str,
+    image_refs: set[str],
+) -> None:
+    """Apply the whole licensing gate of one redistributed product image.
+
+    This is the third license class in one piece: the expression registry it
+    must come from, the redistribution boundary it must declare, the binding of
+    its license evidence to the exact image bytes, and the two obligation sets
+    that redistributing somebody else's binaries creates. Keeping it whole is
+    the point — a caller cannot take the expression check without the
+    obligations, and `_validate_license` refuses the class outright.
+    """
+    license_path = f"{path}.license"
+    record = _validate_license_evidence(image["license"], license_path)
+    if record["expression"] not in image_refs:
+        _fail(
+            f"{license_path}.expression",
+            "is not a registered redistributed-image LicenseRef",
+        )
+    if record["distribution"] != REDISTRIBUTED_IMAGE_DISTRIBUTION:
+        _fail(
+            f"{license_path}.distribution",
+            "must record the redistributed product-image boundary",
+        )
+    # An aggregate expression says nothing on its own. The image carries the
+    # per-package license evidence, so the record has to name where, and that
+    # evidence has to be the bytes this record pins rather than a lookalike.
+    if "evidencePath" not in record:
+        _fail(license_path, "must name the license evidence the image itself carries")
+    if record["evidenceIdentity"] != platform_digest:
+        _fail(
+            f"{license_path}.evidenceIdentity",
+            "must bind the license evidence to the exact redistributed image",
+        )
+    obligations = _sorted_unique_strings(
+        image["redistributionObligations"], f"{path}.redistributionObligations"
+    )
+    unknown_obligations = sorted(set(obligations) - REDISTRIBUTED_IMAGE_OBLIGATIONS)
+    if unknown_obligations:
+        _fail(
+            f"{path}.redistributionObligations",
+            f"contains unknown obligations {unknown_obligations}",
+        )
+    if not REDISTRIBUTED_IMAGE_REQUIRED_OBLIGATIONS.issubset(obligations):
+        _fail(
+            f"{path}.redistributionObligations",
+            f"must include {sorted(REDISTRIBUTED_IMAGE_REQUIRED_OBLIGATIONS)} "
+            "for a redistributed image",
+        )
+    # A build tool may explain an unavailable preferred source; an image whose
+    # binaries arena-web hands on may not.
+    _validate_preferred_source(image["preferredSource"], f"{path}.preferredSource")
+    if image["preferredSource"]["status"] != "available":
+        _fail(
+            f"{path}.preferredSource.status",
+            "must name an obtainable preferred source for a redistributed image",
+        )
+    source_path = f"{path}.correspondingSource"
+    corresponding = _object(image["correspondingSource"], source_path)
+    _exact_keys(corresponding, ("form", "obligations", "url"), source_path)
+    if corresponding["form"] != CORRESPONDING_SOURCE_FORM:
+        _fail(f"{source_path}.form", f"must be {CORRESPONDING_SOURCE_FORM!r}")
+    _https_url(corresponding["url"], f"{source_path}.url")
+    source_obligations = _sorted_unique_strings(
+        corresponding["obligations"], f"{source_path}.obligations"
+    )
+    unknown_source_obligations = sorted(
+        set(source_obligations) - CORRESPONDING_SOURCE_OBLIGATIONS
+    )
+    if unknown_source_obligations:
+        _fail(
+            f"{source_path}.obligations",
+            f"contains unknown obligations {unknown_source_obligations}",
+        )
+    if not CORRESPONDING_SOURCE_REQUIRED_OBLIGATIONS.issubset(source_obligations):
+        _fail(
+            f"{source_path}.obligations",
+            f"must include {sorted(CORRESPONDING_SOURCE_REQUIRED_OBLIGATIONS)} "
+            "for a redistributed image",
+        )
+
+
+def _validate_redistributed_product_images(
+    value: Any,
+    path: str,
+    image_refs: set[str],
+    tools: list[dict[str, Any]],
+) -> None:
+    """Validate the images arena-web ships rather than only builds with.
+
+    A build tool leaves nothing behind once the build ends; a base image that
+    becomes part of a distributed server image does. These records therefore
+    carry the same digest-pinned identity contract as an `oci-image` tool, plus
+    three things a tool record has no place for: license evidence bound to the
+    exact image bytes, what redistributing those bytes obliges, and the channel
+    the complete corresponding source is obtainable from.
+
+    This function owns the identity contract; the licensing gate is
+    `_validate_redistributed_image_license`.
+    """
+    images = _array(value, path)
+    if not images:
+        _fail(path, "must not be empty")
+    # An image the lock pins as a build-only tool has been reviewed on the
+    # promise that it never reaches a distribution. Shipping the same bytes
+    # under a second record would break that promise silently, so the two
+    # populations are required to be disjoint by digest and by reference.
+    tool_identity_owner: dict[str, str] = {}
+    for tool in tools:
+        if tool.get("kind") != "oci-image":
+            continue
+        for field in ("immutableRef", "indexDigest", "platformDigest"):
+            tool_identity_owner[tool[field]] = tool["id"]
+    image_ids: list[str] = []
+    for index, raw_image in enumerate(images):
+        image_path = f"{path}[{index}]"
+        record = _object(raw_image, image_path)
+        _exact_keys(
+            record,
+            (
+                "correspondingSource",
+                "humanTag",
+                "id",
+                "image",
+                "immutableRef",
+                "indexDigest",
+                "kind",
+                "license",
+                "platform",
+                "platformDigest",
+                "preferredSource",
+                "redistributionObligations",
+                "role",
+                "version",
+            ),
+            image_path,
+        )
+        image_ids.append(_string(record["id"], f"{image_path}.id"))
+        if record["kind"] != REDISTRIBUTED_IMAGE_KIND:
+            _fail(f"{image_path}.kind", f"must be {REDISTRIBUTED_IMAGE_KIND!r}")
+        index_digest = _sha256_digest(
+            record["indexDigest"], f"{image_path}.indexDigest"
+        )
+        platform_digest = _sha256_digest(
+            record["platformDigest"], f"{image_path}.platformDigest"
+        )
+        if index_digest == platform_digest:
+            _fail(
+                f"{image_path}.platformDigest",
+                "must differ from the multi-platform index digest",
+            )
+        image_name = _string(record["image"], f"{image_path}.image")
+        if "@" in image_name or ":" in image_name.rsplit("/", 1)[-1]:
+            _fail(f"{image_path}.image", "must be a repository name, not a reference")
+        if record["immutableRef"] != f"{image_name}@{platform_digest}":
+            _fail(f"{image_path}.immutableRef", "must be image@platformDigest")
+        if record["platform"] != "linux/amd64":
+            _fail(f"{image_path}.platform", "must be linux/amd64 for WP0")
+        human_tag = _string(record["humanTag"], f"{image_path}.humanTag")
+        version = _string(record["version"], f"{image_path}.version")
+        if human_tag != version:
+            _fail(f"{image_path}.humanTag", "must equal the descriptive version")
+        _string(record["role"], f"{image_path}.role")
+        for field in ("immutableRef", "indexDigest", "platformDigest"):
+            owning_tool = tool_identity_owner.get(record[field])
+            if owning_tool is not None:
+                _fail(
+                    f"{image_path}.{field}",
+                    f"redistributes the image tool {owning_tool!r} pins as build-only",
+                )
+        _validate_redistributed_image_license(
+            record, image_path, platform_digest, image_refs
+        )
+    _unique(image_ids, f"{path}[].id")
+    if image_ids != sorted(image_ids):
+        _fail(path, "must be sorted by id")
+    if set(image_ids) != set(REQUIRED_REDISTRIBUTED_IMAGES):
+        _fail(path, f"must contain exactly {sorted(REQUIRED_REDISTRIBUTED_IMAGES)}")
+    for index, record in enumerate(images):
+        if record["role"] != REQUIRED_REDISTRIBUTED_IMAGES[record["id"]]:
+            _fail(f"{path}[{index}].role", "does not match the reviewed image role")
 
 
 def validate_baseline(value: Any, path: str = "baseline") -> dict[str, Any]:
@@ -432,6 +692,7 @@ def validate_baseline(value: Any, path: str = "baseline") -> dict[str, Any]:
             "engine",
             "formatVersion",
             "licensePolicy",
+            "redistributedProductImages",
             "relayTrust",
             "tools",
             "upstreamEvidence",
@@ -447,6 +708,7 @@ def validate_baseline(value: Any, path: str = "baseline") -> dict[str, Any]:
         (
             "productInputAllowedExpressions",
             "productInputLicenseRefs",
+            "redistributedImageLicenseRefs",
             "toolOnlyLicenseRefs",
         ),
         f"{path}.licensePolicy",
@@ -469,8 +731,15 @@ def validate_baseline(value: Any, path: str = "baseline") -> dict[str, Any]:
             f"{path}.licensePolicy.toolOnlyLicenseRefs",
         )
     )
+    image_refs = set(
+        _sorted_unique_strings(
+            policy["redistributedImageLicenseRefs"],
+            f"{path}.licensePolicy.redistributedImageLicenseRefs",
+        )
+    )
     for field, values in (
         ("productInputLicenseRefs", product_refs),
+        ("redistributedImageLicenseRefs", image_refs),
         ("toolOnlyLicenseRefs", tool_refs),
     ):
         if any(not LICENSE_REF_RE.fullmatch(item) for item in values):
@@ -478,10 +747,29 @@ def validate_baseline(value: Any, path: str = "baseline") -> dict[str, Any]:
                 f"{path}.licensePolicy.{field}",
                 "contains an invalid LicenseRef",
             )
-    if product_refs & tool_refs:
-        _fail(
-            f"{path}.licensePolicy", "must keep product and tool LicenseRefs disjoint"
-        )
+    # Each gate admits its own references only. A reference registered for two
+    # classes would let a redistributed aggregate pass as a build tool, or a
+    # tool aggregate pass as something arena-web hands on.
+    for left_field, left, right_field, right in (
+        ("productInputLicenseRefs", product_refs, "toolOnlyLicenseRefs", tool_refs),
+        (
+            "productInputLicenseRefs",
+            product_refs,
+            "redistributedImageLicenseRefs",
+            image_refs,
+        ),
+        (
+            "redistributedImageLicenseRefs",
+            image_refs,
+            "toolOnlyLicenseRefs",
+            tool_refs,
+        ),
+    ):
+        if left & right:
+            _fail(
+                f"{path}.licensePolicy",
+                f"must keep {left_field} and {right_field} disjoint",
+            )
 
     engine = _object(baseline["engine"], f"{path}.engine")
     _exact_keys(
@@ -613,7 +901,11 @@ def validate_baseline(value: Any, path: str = "baseline") -> dict[str, Any]:
             product_allowed,
             product_refs,
             tool_refs,
-            product_input=component_id not in non_product_components,
+            license_class=(
+                TOOL_ONLY_LICENSE
+                if component_id in non_product_components
+                else PRODUCT_INPUT_LICENSE
+            ),
         )
         evidence_identity = component["license"]["evidenceIdentity"]
         if (
@@ -808,7 +1100,7 @@ def validate_baseline(value: Any, path: str = "baseline") -> dict[str, Any]:
             product_allowed,
             product_refs,
             tool_refs,
-            product_input=False,
+            license_class=TOOL_ONLY_LICENSE,
         )
         _validate_preferred_source(
             tool["preferredSource"], f"{tool_path}.preferredSource"
@@ -825,6 +1117,13 @@ def validate_baseline(value: Any, path: str = "baseline") -> dict[str, Any]:
     for tool_id, (kind, role) in required_tools.items():
         if tool_by_id[tool_id]["kind"] != kind or tool_by_id[tool_id]["role"] != role:
             _fail(f"{path}.tools[{tool_id}]", "has the wrong kind or role")
+
+    _validate_redistributed_product_images(
+        baseline["redistributedProductImages"],
+        f"{path}.redistributedProductImages",
+        image_refs,
+        tools,
+    )
 
     platform = _object(baseline["acceptancePlatform"], f"{path}.acceptancePlatform")
     _exact_keys(
@@ -860,7 +1159,7 @@ def validate_baseline(value: Any, path: str = "baseline") -> dict[str, Any]:
         product_allowed,
         product_refs,
         tool_refs,
-        product_input=False,
+        license_class=TOOL_ONLY_LICENSE,
     )
     _validate_preferred_source(
         platform["preferredSource"], f"{path}.acceptancePlatform.preferredSource"

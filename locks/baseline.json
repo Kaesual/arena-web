@@ -393,6 +393,9 @@
       "LicenseRef-Public-Domain-Colin-Plumb-MD5",
       "LicenseRef-Public-Domain-ioquake3-Autoupdater"
     ],
+    "redistributedImageLicenseRefs": [
+      "LicenseRef-Debian-Image-Aggregate"
+    ],
     "toolOnlyLicenseRefs": [
       "LicenseRef-Chrome-For-Testing-Terms",
       "LicenseRef-Emscripten-SDK-Aggregate",
@@ -401,6 +404,46 @@
       "LicenseRef-Ubuntu-Image-Aggregate"
     ]
   },
+  "redistributedProductImages": [
+    {
+      "correspondingSource": {
+        "form": "distribution-source-archive",
+        "obligations": [
+          "complete-corresponding-source",
+          "public-archive-availability",
+          "written-offer-on-request"
+        ],
+        "url": "https://snapshot.debian.org/archive/debian/20260824T000000Z/"
+      },
+      "humanTag": "13-slim",
+      "id": "server-runtime-base",
+      "image": "docker.io/library/debian",
+      "immutableRef": "docker.io/library/debian@sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f",
+      "indexDigest": "sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132",
+      "kind": "redistributed-product-image",
+      "license": {
+        "distribution": "product-image-redistributed",
+        "evidenceIdentity": "sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f",
+        "evidencePath": "usr/share/doc",
+        "evidenceRetrievedAt": "2026-08-29",
+        "evidenceUrl": "https://github.com/docker-library/repo-info/blob/cae117d8c88cf4f36d2e284cb10fc1a8851f18bc/repos/debian/remote/13-slim.md",
+        "expression": "LicenseRef-Debian-Image-Aggregate"
+      },
+      "platform": "linux/amd64",
+      "platformDigest": "sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f",
+      "preferredSource": {
+        "revision": "bae6d64d90b4068b09ff9d8b564c2773ef5d8d83",
+        "status": "available",
+        "url": "https://github.com/debuerreotype/docker-debian-artifacts.git"
+      },
+      "redistributionObligations": [
+        "license-notice",
+        "preserve-copyright-files"
+      ],
+      "role": "server-runtime-base",
+      "version": "13-slim"
+    }
+  ],
   "relayTrust": {
     "certificateHashProvisioning": "runtime-only",
     "hashAlgorithm": "sha-256",

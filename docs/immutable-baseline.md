@@ -2,7 +2,8 @@
 
 # Immutable prototype baseline
 
-**Status:** WP0 complete — independently reviewed; all findings addressed
+**Status:** WP0 complete — independently reviewed; all findings addressed.
+Amended on 2026-08-30 to add the redistributed server runtime base.
 
 This document is the human-readable companion to
 [`locks/baseline.json`](../locks/baseline.json). The lock is authoritative for
@@ -16,6 +17,7 @@ reviewer obtains and verifies it.
 | Engine and bundled `baseq3` gamecode | ioq3 `588393618dbc82e7207c21c6ddecca229944a03a` | Git commit and submodule pin | source |
 | WebAssembly builder | Emscripten `6.0.8` | `sha256:8714ed3a9fb585e662c931259a996bac36a57a8dd34b81e8277436fd77364475` | `linux/amd64` |
 | Native builder base | Ubuntu `24.04` | `sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316` | `linux/amd64` |
+| Server runtime base | Debian `13-slim` (trixie, `13.6`) | `sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f` | `linux/amd64` |
 | Acceptance browser | Chrome for Testing `152.0.7977.64` (`r1669021`) | `sha256:8b592f066af71f054aab2cc80fc26f73c775c6d44ebb99d16ade924b24756c2e` | `linux64` |
 | Acceptance desktop | Fedora Linux Workstation 44, GNOME | Fedora Workstation 44 release media recorded in the lock | `x86_64` |
 
@@ -35,6 +37,8 @@ docker buildx imagetools inspect \
   docker.io/emscripten/emsdk@sha256:f174124ff798a3ead1abef247d9a849c270b642d552fea500a42565ff210f765
 docker buildx imagetools inspect \
   docker.io/library/ubuntu@sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517
+docker buildx imagetools inspect \
+  docker.io/library/debian@sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132
 ```
 
 ## Emscripten upgrade decision
@@ -122,10 +126,136 @@ The manifest identifies its preferred-source revision as
 `461fbe29535e51d03451ae146a90f730671d950d`.
 
 This image is a build-only input and is never inherited by a distributed
-client or server image. WP5 must select and pin a separate runtime base, record
-its redistribution and preferred-source obligations, and pin every additional
-package or builder layer that it introduces. This builder pin alone is not
-permission to use an unversioned package repository during an accepted build.
+client or server image. The separate runtime base it demands is the amendment
+below. That still leaves WP5 to pin every additional package or builder layer
+it introduces: this builder pin alone is not permission to use an unversioned
+package repository during an accepted build.
+
+## Server runtime base, and why WP0 had to be amended for it
+
+**Amendment of 2026-08-30.** WP5 stopped before implementation because its
+scope requires the dedicated server's runtime base to be pinned "with its
+distribution and preferred-source obligations recorded", and this baseline
+could not express that record. Every `tools[]` entry is validated as a
+non-distributed build or test tool: it must carry a registered tool-only
+`LicenseRef` *and* a distribution value that keeps it out of any artifact. A
+base image that ships inside a server image is the opposite of that, so every
+honest attempt to record one was rejected — not by policy, but because the
+lock had no record type for an image arena-web hands on. That is a WP0 gap,
+and the amendment closes it rather than letting WP5 invent a second license
+gate beside this one.
+
+`redistributedProductImages` is that record type, and it is a third license
+class, not a relaxation of the two that existed. A product input is compiled or
+packaged into an arena-web artifact and must use an allowed product expression.
+A tool never leaves the workstation and must use a registered tool-only
+reference. A redistributed product image is neither: arena-web ships its
+third-party binaries unchanged, so the record must additionally bind its
+license evidence to the exact image bytes, name what redistributing them
+obliges, and name the channel their complete corresponding source is obtainable
+from. The three `LicenseRef` registries are required to be disjoint, so a
+reference admitted for one class can never satisfy another, and the two
+populations may not overlap by identity either: a record here that reused the
+digest or reference of an image `tools[]` pins as build-only is rejected, since
+that image was reviewed on the promise that it never reaches a distribution.
+
+The reference this class registers is `LicenseRef-Debian-Image-Aggregate`. It
+denotes exactly one thing: the aggregate of the per-package Debian copyright
+files the pinned image carries. It is not a claim that the image is under one
+license, and it is not usable as a product-input or tool-only reference.
+
+The selected base is Debian `13-slim` (trixie, `13.6`). The dedicated server
+target compiles with `DEDICATED`/`BOTLIB` and the null client stubs and links
+only `${CMAKE_DL_LIBS}` and `m` — no SDL, no GL — so the runtime needs little
+more than glibc, and a slim Debian is the smallest honest base that still
+carries its own license evidence. It is deliberately not the Ubuntu 24.04
+builder: that image is build-only and must not be inherited by anything
+distributed. Its glibc `2.41-12+deb13u3` is newer than the builder's `2.39`, so
+a binary built on the builder runs on it; the reverse would not hold and is not
+what the pin claims.
+
+The selected official-image index is
+`sha256:d7e12182ce18b85b93007c1dedf31f2d29e01ccf3182cc4017c709b6259bc132`; its
+`linux/amd64` manifest, and the actual runtime reference, is
+`sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f`. The
+index entry for that member identifies its preferred-source revision as
+`bae6d64d90b4068b09ff9d8b564c2773ef5d8d83` in
+`https://github.com/debuerreotype/docker-debian-artifacts.git`, which is the
+preferred form of the image *build*. The preferred form of the *binaries* is a
+different thing and is recorded separately, in `correspondingSource`: the image
+is built from the Debian snapshot `20260824T000000Z`, whose sources are
+published at
+`https://snapshot.debian.org/archive/debian/20260824T000000Z/`. That timestamp
+is not inferred — the image states it in
+`/etc/apt/sources.list.d/debian.sources` and in its own build record
+(`debian.sh --arch 'amd64' out/ 'trixie' '@1787529600'`, debuerreotype 0.17).
+That same file names a second archive at the same timestamp,
+`debian-security`. The record's one URL is the primary archive, and naming it
+is deliberately not a claim that every one of the 78 packages resolves there —
+which is a further reason the written offer below is recorded beside it rather
+than instead of it.
+
+The license evidence is the evidence the image itself carries, and the
+validator requires exactly that: the record's `license.evidenceIdentity` must
+equal its `platformDigest`, and it must name an `evidencePath`. Here that path
+is `usr/share/doc`, where each of the 78 packages carries its Debian copyright
+file; the license texts those files refer to are in the same image under
+`/usr/share/common-licenses`. For this class `evidenceUrl` is therefore a
+locator rather than the binding evidence, and it is required to be a pinned
+one: it names the commit-fixed `docker-library/repo-info` record at
+`cae117d8c88cf4f36d2e284cb10fc1a8851f18bc`, which documents `debian:13-slim`
+as exactly this index and `linux/amd64` digest — the same convention the Ubuntu
+builder record uses. A reviewer verifies the whole claim without trusting this
+document:
+
+```bash
+podman pull docker.io/library/debian@sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f
+podman run --rm --network none \
+  docker.io/library/debian@sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f \
+  bash -c 'cat /etc/os-release
+           echo "packages:  $(dpkg-query -W | wc -l)"
+           echo "copyright: $(ls /usr/share/doc/*/copyright | wc -l)"
+           ls /usr/share/common-licenses
+           grep snapshot /etc/apt/sources.list.d/debian.sources'
+```
+
+The expected output is Debian 13 (trixie), `13.6`, 78 packages, 78 surviving
+`copyright` files — the slim variant strips documentation but keeps those — the
+`/usr/share/common-licenses` texts they refer to, and the snapshot
+`20260824T000000Z` the corresponding-source record names.
+
+Two obligation sets are recorded rather than assumed. Redistributing the
+binaries obliges `license-notice` and `preserve-copyright-files`: the server
+image WP5 builds may not strip `/usr/share/doc/*/copyright` out of the base it
+inherits. The copyleft packages among them oblige
+`complete-corresponding-source` and `public-archive-availability`, and the
+record adds `written-offer-on-request` on purpose. `snapshot.debian.org` is
+Debian's public archive, not one arena-web operates, and for the GPL-2.0-only
+packages in the base a distributor's §3 options are to accompany the source,
+make its own written offer, or pass along an offer it received — pointing at
+somebody else's archive is none of the three. The archive is therefore recorded
+as the primary channel and the written offer as arena-web's own backstop; the
+concrete discharge decision belongs to the WP5 server-image record, when an
+image is actually distributed. Both vocabularies are closed and both required
+sets are enforced, so an under-declared record fails rather than passing
+quietly.
+
+Those obligations are declared, not derived, and the difference matters. In
+content provenance the required obligations follow from the license expression,
+because the expressions there are real SPDX identifiers. Nothing can be derived
+from an opaque aggregate reference, so for this class the closed vocabulary and
+the required sets are a machine-enforced floor only: they stop a record from
+claiming less than the minimum, and the honesty of what it does claim rests on
+the review that admits the reference in the first place.
+
+What this amendment does not do: it pins one runtime base and nothing else. It
+does not build, contain or bless a server image, it adds no package on top of
+the base, and it is not permission to install one from an unversioned
+repository. Only the recorded baseline identity moved — the WP1 browser build
+and the WP3 content assembly were re-run against the amended lock and produced
+byte-identical artifacts, because neither consumes this entry. A reissue like
+that keeps the original `producer.commit` in each record: the producing commit
+and its build did not change, only the identity of the baseline they bind to.
 
 ## Browser and desktop acquisition
 
@@ -192,7 +322,8 @@ indented. Unknown top-level or record fields fail validation. The supported
 formats are:
 
 - [`baseline-lock.schema.json`](../schemas/baseline-lock.schema.json): exact
-  code, builder, browser, OS, license-policy and trust inputs;
+  code, builder, browser, OS, redistributed-runtime-image, license-policy and
+  trust inputs;
 - [`relay-measurement-vector.schema.json`](../schemas/relay-measurement-vector.schema.json):
   game-neutral WP2 sizes and framing constants;
 - [`artifact-manifest.schema.json`](../schemas/artifact-manifest.schema.json):
@@ -226,10 +357,15 @@ custom reference in that expression must also be registered in
 `productInputLicenseRefs`. The allowlist is a gate, not a claim that any two
 listed inputs are automatically compatible; WP3 must review the actual
 combination and distribution obligations. Non-product build and test tools may
-use only registered tool references and their exact distribution boundary.
-SHA-256 evidence must carry a real, non-future retrieval date. An unknown
-license, missing digest or unexplained unavailable preferred source fails
-closed.
+use only registered tool references and their exact distribution boundary. A
+redistributed product image may use only a reference registered in
+`redistributedImageLicenseRefs`, must declare the redistribution boundary
+rather than either of the other two, must bind its license evidence to its own
+platform digest and name the path carrying it, must name an obtainable
+preferred source, and must declare its redistribution and corresponding-source
+obligations from closed vocabularies. SHA-256 evidence must carry a real,
+non-future retrieval date. An unknown license, missing digest or unexplained
+unavailable preferred source fails closed.
 
 ## Relay trust and measurement vector
 
@@ -277,7 +413,7 @@ inspectable with:
 
 ```bash
 sha256sum locks/baseline.json
-# sha256:d565905280ac8575ad2798d4e1cd5cabb18c694a4b6b192957c48a41c416f039
+# sha256:036573866ac5d3da70fbe0b736d8196ebfa94f8b5002bca7fd31fd91943fc1eb
 ```
 
 The container check first verifies the lock against the host checkout's ioq3

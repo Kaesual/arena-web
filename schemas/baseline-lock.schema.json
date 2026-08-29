@@ -65,6 +65,37 @@
       ],
       "type": "object"
     },
+    "correspondingSource": {
+      "additionalProperties": false,
+      "properties": {
+        "form": {
+          "const": "distribution-source-archive"
+        },
+        "obligations": {
+          "items": {
+            "enum": [
+              "complete-corresponding-source",
+              "public-archive-availability",
+              "written-offer-on-request"
+            ]
+          },
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "url": {
+          "format": "uri",
+          "pattern": "^https://",
+          "type": "string"
+        }
+      },
+      "required": [
+        "form",
+        "obligations",
+        "url"
+      ],
+      "type": "object"
+    },
     "license": {
       "additionalProperties": false,
       "properties": {
@@ -264,6 +295,85 @@
           "type": "object"
         }
       ]
+    },
+    "redistributedProductImage": {
+      "additionalProperties": false,
+      "properties": {
+        "correspondingSource": {
+          "$ref": "#/$defs/correspondingSource"
+        },
+        "humanTag": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "image": {
+          "pattern": "^[^@\\s:]+(?:/[^@\\s:]+)+$",
+          "type": "string"
+        },
+        "immutableRef": {
+          "pattern": "^[^@\\s]+@sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "indexDigest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "kind": {
+          "const": "redistributed-product-image"
+        },
+        "license": {
+          "$ref": "#/$defs/license"
+        },
+        "platform": {
+          "const": "linux/amd64"
+        },
+        "platformDigest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "preferredSource": {
+          "$ref": "#/$defs/preferredSource"
+        },
+        "redistributionObligations": {
+          "items": {
+            "enum": [
+              "license-notice",
+              "preserve-copyright-files",
+              "share-alike"
+            ]
+          },
+          "minItems": 2,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "role": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "correspondingSource",
+        "humanTag",
+        "id",
+        "image",
+        "immutableRef",
+        "indexDigest",
+        "kind",
+        "license",
+        "platform",
+        "platformDigest",
+        "preferredSource",
+        "redistributionObligations",
+        "role",
+        "version"
+      ],
+      "type": "object"
     },
     "sha256": {
       "pattern": "^[0-9a-f]{64}$",
@@ -475,6 +585,15 @@
           "type": "array",
           "uniqueItems": true
         },
+        "redistributedImageLicenseRefs": {
+          "items": {
+            "pattern": "^LicenseRef-[A-Za-z0-9.-]+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
         "toolOnlyLicenseRefs": {
           "items": {
             "pattern": "^LicenseRef-[A-Za-z0-9.-]+$",
@@ -488,9 +607,17 @@
       "required": [
         "productInputAllowedExpressions",
         "productInputLicenseRefs",
+        "redistributedImageLicenseRefs",
         "toolOnlyLicenseRefs"
       ],
       "type": "object"
+    },
+    "redistributedProductImages": {
+      "items": {
+        "$ref": "#/$defs/redistributedProductImage"
+      },
+      "minItems": 1,
+      "type": "array"
     },
     "relayTrust": {
       "additionalProperties": false,
@@ -598,6 +725,7 @@
     "engine",
     "formatVersion",
     "licensePolicy",
+    "redistributedProductImages",
     "relayTrust",
     "tools",
     "upstreamEvidence"

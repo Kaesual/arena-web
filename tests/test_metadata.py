@@ -23,10 +23,13 @@ from metadata import (  # noqa: E402
     ARTIFACT_REQUIRED_BASELINE_INPUT_IDS,
     ARTIFACT_SCHEMA,
     CONTENT_SCHEMA,
+    REDISTRIBUTED_IMAGE_KIND,
+    REQUIRED_REDISTRIBUTED_IMAGES,
     MetadataError,
     _canonical_json_identity,
     _check_supported_schema,
     _load_json,
+    _validate_license,
     _validate_schema_instance,
     validate_artifact_manifest,
     validate_baseline,
@@ -402,6 +405,418 @@ class BaselineTests(unittest.TestCase):
             text=True,
         )
         self.assertEqual(result.stdout.strip(), builder["immutableRef"])
+
+
+class RedistributedProductImageTests(unittest.TestCase):
+    """The runtime base arena-web ships rather than only builds with."""
+
+    def setUp(self) -> None:
+        self.baseline = load_fixture("locks/baseline.json")
+
+    def only_image(self, candidate: dict) -> dict:
+        return candidate["redistributedProductImages"][0]
+
+    def test_committed_image_is_valid(self) -> None:
+        validate_baseline(self.baseline)
+
+    def test_published_schema_executes_for_the_committed_image(self) -> None:
+        schema = _load_json(ROOT / "schemas" / "baseline-lock.schema.json")
+        _validate_schema_instance(self.baseline, schema, schema, "baseline")
+
+    def test_schema_rejects_a_moving_image_reference(self) -> None:
+        schema = _load_json(ROOT / "schemas" / "baseline-lock.schema.json")
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["immutableRef"] = "docker.io/library/debian:13-slim"
+        with self.assertRaisesRegex(MetadataError, "schema pattern"):
+            _validate_schema_instance(candidate, schema, schema, "baseline")
+
+    def test_schema_rejects_an_unknown_redistribution_obligation(self) -> None:
+        schema = _load_json(ROOT / "schemas" / "baseline-lock.schema.json")
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["redistributionObligations"] = [
+            "license-notice",
+            "no-obligation-at-all",
+        ]
+        with self.assertRaisesRegex(MetadataError, "must be one of"):
+            _validate_schema_instance(candidate, schema, schema, "baseline")
+
+    def test_redistributed_collection_is_required(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        del candidate["redistributedProductImages"]
+        with self.assertRaisesRegex(
+            MetadataError, "missing.*redistributedProductImages"
+        ):
+            validate_baseline(candidate)
+
+    def test_empty_redistributed_collection_is_rejected(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["redistributedProductImages"] = []
+        with self.assertRaisesRegex(MetadataError, "must not be empty"):
+            validate_baseline(candidate)
+
+    def test_unknown_image_field_is_rejected(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["digest"] = "sha256:" + "0" * 64
+        with self.assertRaisesRegex(MetadataError, "unknown.*digest"):
+            validate_baseline(candidate)
+
+    def test_missing_corresponding_source_is_rejected(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        del self.only_image(candidate)["correspondingSource"]
+        with self.assertRaisesRegex(MetadataError, "missing.*correspondingSource"):
+            validate_baseline(candidate)
+
+    def test_image_kind_is_identity_bearing(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["kind"] = "oci-image"
+        with self.assertRaisesRegex(MetadataError, "redistributed-product-image"):
+            validate_baseline(candidate)
+
+    def test_image_index_and_platform_digest_must_differ(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        image = self.only_image(candidate)
+        image["indexDigest"] = image["platformDigest"]
+        with self.assertRaisesRegex(MetadataError, "must differ"):
+            validate_baseline(candidate)
+
+    def test_tagged_image_repository_is_rejected(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        image = self.only_image(candidate)
+        image["image"] += ":13-slim"
+        image["immutableRef"] = f"{image['image']}@{image['platformDigest']}"
+        with self.assertRaisesRegex(MetadataError, "repository name"):
+            validate_baseline(candidate)
+
+    def test_moving_image_reference_is_rejected(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["immutableRef"] = (
+            "docker.io/library/debian@sha256:" + "0" * 64
+        )
+        with self.assertRaisesRegex(MetadataError, "must be image@platformDigest"):
+            validate_baseline(candidate)
+
+    def test_image_platform_is_fixed(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["platform"] = "linux/arm64"
+        with self.assertRaisesRegex(MetadataError, "linux/amd64"):
+            validate_baseline(candidate)
+
+    def test_image_human_tag_must_match_version(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["humanTag"] = "latest"
+        with self.assertRaisesRegex(MetadataError, "descriptive version"):
+            validate_baseline(candidate)
+
+    def test_tool_only_license_class_is_rejected_for_an_image(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        image = self.only_image(candidate)
+        image["license"]["expression"] = "LicenseRef-Ubuntu-Image-Aggregate"
+        with self.assertRaisesRegex(
+            MetadataError, "registered redistributed-image LicenseRef"
+        ):
+            validate_baseline(candidate)
+
+    def test_product_input_license_class_is_rejected_for_an_image(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["license"]["expression"] = "GPL-2.0-or-later"
+        with self.assertRaisesRegex(
+            MetadataError, "registered redistributed-image LicenseRef"
+        ):
+            validate_baseline(candidate)
+
+    def test_image_must_declare_the_redistribution_boundary(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["license"][
+            "distribution"
+        ] = "build-only-not-redistributed"
+        with self.assertRaisesRegex(
+            MetadataError, "redistributed product-image boundary"
+        ):
+            validate_baseline(candidate)
+
+    def test_image_license_evidence_must_name_an_in_image_path(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        del self.only_image(candidate)["license"]["evidencePath"]
+        with self.assertRaisesRegex(MetadataError, "the image itself carries"):
+            validate_baseline(candidate)
+
+    def test_image_license_evidence_must_be_the_image(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        image = self.only_image(candidate)
+        image["license"]["evidenceIdentity"] = image["indexDigest"]
+        with self.assertRaisesRegex(MetadataError, "exact redistributed image"):
+            validate_baseline(candidate)
+
+    def test_unknown_license_class_fails_closed(self) -> None:
+        image = self.only_image(self.baseline)
+        with self.assertRaisesRegex(MetadataError, "unknown license class"):
+            _validate_license(
+                image["license"],
+                "image.license",
+                set(),
+                set(),
+                set(),
+                license_class="anything-goes",
+            )
+
+    def test_generic_license_gate_refuses_the_redistributed_class(self) -> None:
+        """The class's gate is one unit; this entry point cannot half-grant it."""
+        image = self.only_image(self.baseline)
+        with self.assertRaisesRegex(MetadataError, "unknown license class"):
+            _validate_license(
+                image["license"],
+                "image.license",
+                set(),
+                set(),
+                {image["license"]["expression"]},
+                license_class=REDISTRIBUTED_IMAGE_KIND,
+            )
+
+    def test_malformed_index_digest_is_rejected(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["indexDigest"] = "sha256:not-a-digest"
+        with self.assertRaisesRegex(MetadataError, "must be sha256:"):
+            validate_baseline(candidate)
+
+    def test_malformed_platform_digest_is_rejected(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["platformDigest"] = "sha256:" + "0" * 63
+        with self.assertRaisesRegex(MetadataError, "must be sha256:"):
+            validate_baseline(candidate)
+
+    def test_build_only_tool_image_may_not_be_redistributed(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        builder = next(
+            tool for tool in candidate["tools"] if tool["id"] == "native-builder-base"
+        )
+        image = self.only_image(candidate)
+        for field in ("image", "immutableRef", "indexDigest", "platformDigest"):
+            image[field] = builder[field]
+        with self.assertRaisesRegex(
+            MetadataError, "'native-builder-base' pins as build-only"
+        ):
+            validate_baseline(candidate)
+
+    def test_build_only_tool_index_may_not_be_redistributed(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        builder = next(
+            tool for tool in candidate["tools"] if tool["id"] == "emscripten-builder"
+        )
+        self.only_image(candidate)["indexDigest"] = builder["indexDigest"]
+        with self.assertRaisesRegex(
+            MetadataError, "'emscripten-builder' pins as build-only"
+        ):
+            validate_baseline(candidate)
+
+    def test_unknown_corresponding_source_field_is_rejected(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["correspondingSource"]["note"] = "see the archive"
+        with self.assertRaisesRegex(MetadataError, "unknown.*note"):
+            validate_baseline(candidate)
+
+    def test_unknown_redistribution_obligation_is_rejected(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["redistributionObligations"] = [
+            "license-notice",
+            "preserve-copyright-files",
+            "trust-the-vendor",
+        ]
+        with self.assertRaisesRegex(MetadataError, "unknown obligations"):
+            validate_baseline(candidate)
+
+    def test_missing_redistribution_obligation_is_rejected(self) -> None:
+        for obligation in ("license-notice", "preserve-copyright-files"):
+            with self.subTest(obligation=obligation):
+                candidate = copy.deepcopy(self.baseline)
+                image = self.only_image(candidate)
+                image["redistributionObligations"] = [
+                    item
+                    for item in image["redistributionObligations"]
+                    if item != obligation
+                ]
+                with self.assertRaisesRegex(MetadataError, "must include"):
+                    validate_baseline(candidate)
+
+    def test_unavailable_preferred_source_is_rejected_for_an_image(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["preferredSource"] = {
+            "reason": "The vendor does not publish the image build definition.",
+            "status": "unavailable",
+        }
+        with self.assertRaisesRegex(MetadataError, "obtainable preferred source"):
+            validate_baseline(candidate)
+
+    def test_corresponding_source_form_is_fixed(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["correspondingSource"][
+            "form"
+        ] = "vendor-support-contract"
+        with self.assertRaisesRegex(MetadataError, "distribution-source-archive"):
+            validate_baseline(candidate)
+
+    def test_corresponding_source_url_must_be_https(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["correspondingSource"][
+            "url"
+        ] = "http://snapshot.debian.org/archive/debian/20260824T000000Z/"
+        with self.assertRaisesRegex(MetadataError, "absolute HTTPS URL"):
+            validate_baseline(candidate)
+
+    def test_unknown_corresponding_source_obligation_is_rejected(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["correspondingSource"]["obligations"] = [
+            "ask-nicely",
+            "complete-corresponding-source",
+            "public-archive-availability",
+        ]
+        with self.assertRaisesRegex(MetadataError, "unknown obligations"):
+            validate_baseline(candidate)
+
+    def test_missing_corresponding_source_obligation_is_rejected(self) -> None:
+        for obligation in (
+            "complete-corresponding-source",
+            "public-archive-availability",
+        ):
+            with self.subTest(obligation=obligation):
+                candidate = copy.deepcopy(self.baseline)
+                corresponding = self.only_image(candidate)["correspondingSource"]
+                corresponding["obligations"] = [
+                    item for item in corresponding["obligations"] if item != obligation
+                ]
+                with self.assertRaisesRegex(MetadataError, "must include"):
+                    validate_baseline(candidate)
+
+    def test_duplicate_image_id_is_rejected(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["redistributedProductImages"].append(
+            copy.deepcopy(self.only_image(candidate))
+        )
+        with self.assertRaisesRegex(MetadataError, "must not contain duplicates"):
+            validate_baseline(candidate)
+
+    def test_unsorted_images_are_rejected(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        second = copy.deepcopy(self.only_image(candidate))
+        second["id"] = "another-runtime-base"
+        candidate["redistributedProductImages"].append(second)
+        with self.assertRaisesRegex(MetadataError, "must be sorted by id"):
+            validate_baseline(candidate)
+
+    def test_required_image_set_is_closed(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["id"] = "ambient-runtime-base"
+        with self.assertRaisesRegex(MetadataError, "must contain exactly"):
+            validate_baseline(candidate)
+
+    def test_image_role_is_closed(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        self.only_image(candidate)["role"] = "native-builder-base"
+        with self.assertRaisesRegex(MetadataError, "reviewed image role"):
+            validate_baseline(candidate)
+
+    def test_committed_image_matches_the_reviewed_contract(self) -> None:
+        images = self.baseline["redistributedProductImages"]
+        self.assertEqual(
+            sorted(REQUIRED_REDISTRIBUTED_IMAGES),
+            [image["id"] for image in images],
+        )
+        image = images[0]
+        self.assertEqual(REDISTRIBUTED_IMAGE_KIND, image["kind"])
+        self.assertEqual(
+            f"{image['image']}@{image['platformDigest']}", image["immutableRef"]
+        )
+        self.assertEqual(image["platformDigest"], image["license"]["evidenceIdentity"])
+        self.assertNotEqual(
+            self.baseline["tools"][1]["immutableRef"], image["immutableRef"]
+        )
+        self.assertEqual(
+            ["license-notice", "preserve-copyright-files"],
+            image["redistributionObligations"],
+        )
+        # The archive is Debian's, not arena-web's, so the record also carries
+        # the offer arena-web owes in its own name for the copyleft packages.
+        self.assertEqual(
+            [
+                "complete-corresponding-source",
+                "public-archive-availability",
+                "written-offer-on-request",
+            ],
+            image["correspondingSource"]["obligations"],
+        )
+        # evidenceUrl is a locator for this class, so it has to be a pinned one.
+        self.assertRegex(
+            image["license"]["evidenceUrl"],
+            r"^https://github\.com/docker-library/repo-info/blob/[0-9a-f]{40}/",
+        )
+
+
+class LicensePolicyTests(unittest.TestCase):
+    """The three license registries are separate gates, not one pool."""
+
+    def setUp(self) -> None:
+        self.baseline = load_fixture("locks/baseline.json")
+
+    def test_redistributed_image_registry_is_required(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        del candidate["licensePolicy"]["redistributedImageLicenseRefs"]
+        with self.assertRaisesRegex(
+            MetadataError, "missing.*redistributedImageLicenseRefs"
+        ):
+            validate_baseline(candidate)
+
+    def test_redistributed_image_registry_rejects_a_plain_expression(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["licensePolicy"]["redistributedImageLicenseRefs"] = ["GPL-2.0-only"]
+        with self.assertRaisesRegex(MetadataError, "invalid LicenseRef"):
+            validate_baseline(candidate)
+
+    def test_product_and_tool_registries_must_stay_disjoint(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["licensePolicy"]["productInputLicenseRefs"] = sorted(
+            candidate["licensePolicy"]["productInputLicenseRefs"]
+            + ["LicenseRef-LCC-1998"]
+        )
+        with self.assertRaisesRegex(
+            MetadataError,
+            "must keep productInputLicenseRefs and toolOnlyLicenseRefs disjoint",
+        ):
+            validate_baseline(candidate)
+
+    def test_image_and_tool_registries_must_stay_disjoint(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["licensePolicy"]["toolOnlyLicenseRefs"] = sorted(
+            candidate["licensePolicy"]["toolOnlyLicenseRefs"]
+            + ["LicenseRef-Debian-Image-Aggregate"]
+        )
+        with self.assertRaisesRegex(MetadataError, "disjoint"):
+            validate_baseline(candidate)
+
+    def test_image_and_product_registries_must_stay_disjoint(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["licensePolicy"]["productInputLicenseRefs"] = sorted(
+            candidate["licensePolicy"]["productInputLicenseRefs"]
+            + ["LicenseRef-Debian-Image-Aggregate"]
+        )
+        with self.assertRaisesRegex(MetadataError, "disjoint"):
+            validate_baseline(candidate)
+
+    def test_tool_gate_still_rejects_a_redistributed_image_reference(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        builder = next(
+            tool for tool in candidate["tools"] if tool["id"] == "emscripten-builder"
+        )
+        builder["license"]["expression"] = "LicenseRef-Debian-Image-Aggregate"
+        with self.assertRaisesRegex(MetadataError, "registered tool-only LicenseRef"):
+            validate_baseline(candidate)
+
+    def test_tool_gate_still_rejects_a_redistribution_boundary(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        builder = next(
+            tool for tool in candidate["tools"] if tool["id"] == "emscripten-builder"
+        )
+        builder["license"]["distribution"] = "product-image-redistributed"
+        with self.assertRaisesRegex(MetadataError, "keep the tool out"):
+            validate_baseline(candidate)
 
 
 class MeasurementTests(unittest.TestCase):

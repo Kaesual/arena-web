@@ -22,7 +22,13 @@ commit, and no `web` branch was created.
 | Engine and bundled `baseq3` gamecode | ioq3 `588393618dbc82e7207c21c6ddecca229944a03a` |
 | WebAssembly builder | `docker.io/emscripten/emsdk@sha256:8714ed3a9fb585e662c931259a996bac36a57a8dd34b81e8277436fd77364475` (Emscripten 6.0.8, `linux/amd64`) |
 | SDL2 source snapshot for `-sUSE_SDL=2` | upstream tag `release-2.32.10`, obtained as `https://github.com/libsdl-org/SDL/archive/release-2.32.10.zip` |
-| Baseline the manifest binds to | `sha256:d565905280ac8575ad2798d4e1cd5cabb18c694a4b6b192957c48a41c416f039` |
+| Baseline the manifest binds to | `sha256:036573866ac5d3da70fbe0b736d8196ebfa94f8b5002bca7fd31fd91943fc1eb` |
+
+That baseline identity moved on 2026-08-30, when the WP0 amendment added the
+redistributed server runtime base. The build does not read that entry, so the
+manifest was reissued against the new whole-file identity and every artifact
+digest below stayed byte-identical; nothing in this document's evidence
+changed.
 
 The first two identities are read out of
 [`locks/baseline.json`](../locks/baseline.json) at build time by
@@ -178,7 +184,14 @@ Two complete clean builds were run by `scripts/verify-browser-build.sh` from
 arena-web commit `7c50b6e3d35af601bfb21e67f9da976b44fc5bf3`. They produced
 identical artifact manifests and byte-identical artifacts.
 
-Artifact manifest: `sha256:c6665366ec489a8ba470caffa2faf91c52183a9d920628746bff36780dafab56`
+Artifact manifest as those builds wrote it:
+`sha256:c6665366ec489a8ba470caffa2faf91c52183a9d920628746bff36780dafab56`.
+The 2026-08-30 reissue changed one field of it, `baselineIdentity`, so the
+committed manifest is now
+`sha256:fbfdac8b0eb8b982b7f01d5ece11eaefa1ffaf9583d7095f872f814ffdb2b12b`.
+Two further clean builds run against the amended lock, whose whole-file
+identity is the `sha256:03657386…` above, produced the same ten digests below;
+their manifest differs from the committed one in `producer.commit` alone.
 
 ```text
 12d597a49bc351149d7459692a0311cc5e186cf4f376c703ddaa6cfa27a602e4  baseq3/vm/cgame.qvm
