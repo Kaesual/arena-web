@@ -27,9 +27,9 @@ or committed manifest was changed.
 | [`scripts/relay_loopback.py`](../scripts/relay_loopback.py) | the in-memory relay and echo destination, with deliberate contract violations for the rejection paths |
 | [`scripts/relay_vectors.py`](../scripts/relay_vectors.py) + [`emit-relay-conformance-vectors.py`](../scripts/emit-relay-conformance-vectors.py) | the portable conformance vectors and their emitter |
 | [`probe/conformance-vectors.json`](../probe/conformance-vectors.json) | 50 committed cases: 19 encoded frames, 15 rejections, 8 tags, 8 payloads |
-| `probe/relay-framing.js`, `probe/measurement.js`, `probe/adapters.js`, `probe/probe.js`, `probe/index.html` | the standalone browser probe |
+| `probe/relay-framing.js`, `probe/measurement.js`, `probe/adapters.js`, `probe/probe.js`, `probe/index.html` | the standalone browser probe, including its own report validator so the page never renders or offers an unvalidated report |
 | [`scripts/serve-probe.sh`](../scripts/serve-probe.sh) | loopback static server for the probe |
-| [`tests/test_relay_probe.py`](../tests/test_relay_probe.py) | 94 deterministic tests, raising the suite from 162 to 256 |
+| [`tests/test_relay_probe.py`](../tests/test_relay_probe.py) | 109 deterministic tests, raising the suite from 162 to 271 |
 | [`tests/js_conformance_harness.mjs`](../tests/js_conformance_harness.mjs) | runs the browser sources under Node so the suite can compare the two implementations |
 
 The tests run in `scripts/check.sh` and in the containerized
@@ -110,12 +110,23 @@ profile uses the URL through a single operator-supplied `{authorization}`
 placeholder, which keeps the parameter name environment-specific and keeps the
 token a separate field that is never stored, logged or reported.
 
-**A keep-alive is the smallest legal frame.** The vector already requires a
-0-byte inner datagram to be a valid measured case, so an idle keep-alive needs
-no new message type: it is the routing prefix plus one 0-byte inner datagram, 42
-bytes. It is never sent while a case is outstanding, and a returned 0-byte
-datagram is consumed against the outstanding keep-alive count before it can
-complete a 0-byte case.
+**A keep-alive is specified but not implemented, and its frame shape is the
+smallest legal frame.** The vector already requires a 0-byte inner datagram to
+be a valid measured case, so an idle keep-alive needs no new message type: it is
+the routing prefix plus one 0-byte inner datagram, 42 bytes, never sent while a
+case is outstanding, with returned 0-byte datagrams consumed against the
+outstanding keep-alive count first. The contract says all of that.
+
+The probe **sends none**, and the deterministic round carries no keep-alive
+code, configuration field or report counter. A measurement plan is never idle:
+a case is always either outstanding or ready to start, so a keep-alive could
+never fire during a run. An earlier version shipped the mechanism anyway; it was
+unreachable, its counter appeared in every report proving nothing, and an
+unanswered keep-alive would have blocked the sequential untagged cases
+indefinitely because nothing timed it out. A mechanism that cannot fire is worse
+than an absent one, so it was removed rather than left as decoration. Keeping a
+session alive matters when a session is *held* open — which this probe does not
+do, and which the routed round introduces.
 
 Because the port equality is unverifiable from an opaque prefix, the probe turns
 it into an explicit operator acknowledgement and refuses to run without it. That
@@ -139,10 +150,20 @@ The tests cover the acceptance evidence that does not need a network:
   oversize-declaring and foreign-prefix return frames, and none of them
   completes a case.
 - **Mismatched nonces** — two concurrent sessions on a deliberately
-  cross-delivering relay each complete only their own cases, count the other's
-  traffic as foreign, and record no unattributed or malformed frame. A corrupted
-  echo is reported as a payload mismatch; a corrupted *tag* is reported as
-  unattributable rather than being allowed to complete anything.
+  cross-delivering relay each complete only their own **nonce-tagged** cases and
+  count the other's traffic as foreign. The qualifier is the whole point. A
+  payload below the tag length carries no session nonce, so two sessions running
+  such a case at the same time cannot tell their echoes apart; the committed
+  vector's 0- and 1-byte cases are exactly that, which is why it runs them
+  sequentially and why WP0 already records that they are not concurrent-session
+  isolation evidence. The test uses a plan containing those untagged sizes and
+  asserts isolation only for the tagged cases. Within one session an untagged
+  echo is attributed by sequencing alone, and a returned length that does not
+  match the single outstanding datagram is treated as unattributable — a late
+  echo from a case that already timed out must not be charged as a defect
+  against the case now waiting. A corrupted echo is reported as a payload
+  mismatch; a corrupted *tag* is reported as unattributable rather than being
+  allowed to complete anything.
 - **Out-of-range measurement records** — the report validator rejects unknown
   and missing fields, a wrong kind, version or framing block, a non-SHA-256
   vector digest, a sent frame size that disagrees with its inner sizes, a
@@ -152,8 +173,19 @@ The tests cover the acceptance evidence that does not need a network:
   echoed case that returned other sizes, more returned frames than datagrams
   sent, reused ordinals, non-ascending case or session indices, a size above the
   plan ceiling, a case whose kind disagrees with its datagram count, a refusal
-  that would have fitted the reported transport maximum, and any case that does
-  not match the plan it claims.
+  that would have fitted the reported transport maximum, an echoed case *larger*
+  than that maximum, a failed send or a never-run case that nonetheless returned
+  frames, a case wider than the outstanding-datagram bound the session reports,
+  and any case that does not match the plan it claims. The browser carries the
+  same validator and refuses to render a summary or offer a download for a
+  report that fails it; the Python validator stays authoritative and the tests
+  compare against it.
+- **Cases that never ran** — a case the run never reached is recorded as never
+  run, not as a timeout, and the summary treats it as a gap that stops the
+  contiguous accepted range rather than as either an acceptance or a refusal.
+  The browser sizes its time budget from the plan so that a path answering
+  nothing at all still reaches every case, because an unrun case is a hole in
+  the very range WP6 reads.
 - **Boundary behaviour in both directions** — a 0-byte inner datagram is a legal
   measured case, not an error; a frame exactly at the transport maximum is sent
   and one byte larger is recorded as refused without being attempted; the
@@ -166,7 +198,12 @@ The tests cover the acceptance evidence that does not need a network:
 Two properties the driver enforces are tested through the relay rather than by
 inspection: payloads below the tag length run with nothing else outstanding in
 either direction, and the number of simultaneously outstanding datagrams never
-exceeds the configured bound.
+exceeds the configured bound — in every state, including an empty window. That
+bound used to be skipped whenever nothing was outstanding, which let a packed
+case wider than the limit go out whole. A packed case is atomic, so the bound is
+now unconditional and a plan containing a case wider than it is refused when the
+plan is built; the committed vector's widest packed case is four datagrams
+against a default bound of eight, and a test asserts that relationship.
 
 What these tests do **not** prove is anything about a network. Every outcome
 above was produced by an in-memory adapter.
@@ -183,19 +220,25 @@ without access to any relay source. Three things make that checkable here:
    each case. A second implementation needs only this file and the
    specification.
 2. **A second implementation already exists and the suite checks it.** The
-   browser probe's JavaScript is a separate implementation of the same contract.
-   It is not generated from the Python and does not read it at runtime. The
-   probe runs the committed vectors and a complete loopback plan through its own
-   code before the page will open a session, and refuses to connect if anything
-   disagrees — and `tests/test_relay_probe.py` does the same thing offline by
-   executing the browser sources under Node.
+   browser probe's JavaScript is a separate implementation of the same contract
+   — frame grammar, tag, plan, session driver and report validator. It is not
+   generated from the Python and does not read it at runtime. The probe runs the
+   committed vectors and a complete loopback plan through its own code before
+   the page will open a session, and refuses to connect if anything disagrees,
+   and `tests/test_relay_probe.py` does the same thing offline by executing the
+   browser sources under Node.
 3. **The two implementations are compared record by record, not by eye.** For
    two transport limits, one above the whole plan and one that forces 34
    refusals, the JavaScript driver's session record is asserted to be *equal* to
    the Python driver's, including every ordinal, frame size, returned size,
    outcome and round-trip time. The resulting report then validates against the
-   Python plan validator unchanged. These tests skip where Node is absent and
-   run in the pinned container image, which ships Node 24.
+   Python plan validator unchanged. The comparison also covers the two places
+   the languages differ rather than agree by construction: the late untagged
+   echo, where both must refuse to attribute the frame, and endpoint
+   substitution, where JavaScript's `String.replace` would expand `$&`, `` $` ``,
+   `$'`, `$$` and `$1` in the authorization instead of inserting it. These tests
+   skip where Node is absent and run in the pinned container image, which ships
+   Node 24.
 
 Point 3 is the strongest statement available without a network: two
 independently written implementations of the published contract, driven by the
@@ -249,6 +292,15 @@ probe rather than by writing new code. The floor is deliberately per session and
 carries no safety margin; choosing a margin is WP6's decision, not this
 document's.
 
+Two concurrent sessions need two browser contexts, and each context numbers its
+own sessions from zero, so their reports cannot simply be concatenated —
+identical session indices would collide. `merge_reports` in
+[`scripts/relay_probe.py`](../scripts/relay_probe.py) renumbers them in the
+order given, refuses inputs that name different measurement vectors, leaves its
+inputs untouched, and validates the result; that path is committed and tested.
+The routed round therefore produces the concurrent-session evidence as one valid
+report without new code.
+
 ### What the operator must supply
 
 Per the plan's own list, and refined by what the probe turned out to need:
@@ -283,11 +335,23 @@ and the report has no field in which any of them could be recorded.
   the rejection is recorded as a timeout. The size pre-check covers the failure
   mode this probe is measuring; whether the browser ever rejects a write that
   fits `maxDatagramSize` is a question for the routed round.
+- **The floor is not per direction, and cannot be made so by this method.**
+  Every single case is one round trip through a destination that echoes payloads
+  unchanged, so an accepted size means the browser-to-server frame *and* the
+  matching server-to-browser frame both survived, and a refusal does not say
+  which of the two refused it. `conservativeInnerFloorBytes` is therefore a
+  single round-trip-derived number with no per-direction attribution. WP6 asks
+  for per-direction budgets and this methodology cannot supply them: separating
+  the directions needs a destination that can be asked to reply at a size other
+  than the one it received, which the contract's echo destination is not. WP6
+  inherits this gap knowingly, and the packed cases are the only asymmetry the
+  present plan produces — a large browser-to-server frame answered by several
+  small server-to-browser ones.
 
 ## Repeating what exists
 
 ```bash
-scripts/check.sh                                  # 256 tests, no network
+scripts/check.sh                                  # 271 tests, no network
 CONTAINER_RUNTIME=podman scripts/check-container.sh
 python3 scripts/emit-relay-conformance-vectors.py --check
 scripts/serve-probe.sh                            # then open http://127.0.0.1:8173/probe/

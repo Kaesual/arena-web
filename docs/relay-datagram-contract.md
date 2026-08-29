@@ -41,7 +41,8 @@ Not fixed here, and therefore supplied at runtime:
   and this repository does not derive it by observing a running relay.
 - the **name and location of the authorization parameter** inside the endpoint
   URL;
-- whether an idle session requires a keep-alive at all, and at what interval;
+- whether an idle session requires a keep-alive at all, and at what interval.
+  The frame shape is specified below; sending one is not implemented here;
 - the endpoint, its trust input, the authorization value, the virtual client
   address, the virtual destination address and its UDP port.
 
@@ -85,7 +86,11 @@ prefix, and this subset requires only two things of that prefix:
 
 1. It addresses exactly one destination, whose UDP port equals the projected
    endpoint's port **exactly**. A frame whose destination port differs from the
-   projection is not a frame for this destination and is not routed.
+   projection is not a frame for this destination and is not routed. This is a
+   **precondition the operator asserts**, not something a client checks: the
+   port lives inside bytes this subset does not parse. A conforming client
+   requires an explicit acknowledgement that the prefix it was given satisfies
+   this, and refuses to run without one.
 2. It is constant for the direction and session. A client therefore pins the
    prefix of the first accepted server-to-browser frame and rejects any later
    frame whose prefix differs. Where the operator can state the return prefix in
@@ -97,9 +102,6 @@ mechanism. The pin detects drift; it cannot authenticate anything, because a
 client that has never seen the correct prefix adopts whichever arrives first.
 What attributes a datagram to a session is the payload tag, not the prefix.
 
-Note also that a client cannot verify property 1 at all: the port lives inside
-bytes this subset does not parse. A client that needs the guarantee has to be
-told it.
 
 ## Frame format
 
@@ -173,14 +175,23 @@ datagram of length 0, for a total of 42 bytes. Rule 6 already makes such a frame
 valid, so a keep-alive is indistinguishable from a 0-byte measurement datagram
 on the wire.
 
-Whether a keep-alive is needed, and at what interval, is runtime configuration.
-A client that sends keep-alives must
+Whether a keep-alive is needed, and at what interval, belongs to the integration
+environment. A client that sends keep-alives must
 
 - send none while any measurement case is in flight, and
 - count outstanding keep-alives and consume a returned 0-byte inner datagram
   against that count before attributing it to a 0-byte measurement case,
 
 so that keep-alive echoes can never be mistaken for measurement results.
+
+**The probe in this repository sends no keep-alives.** A measurement plan is
+never idle — a case is always either outstanding or ready to start — so a
+keep-alive could not fire during a run, and a mechanism that cannot fire is
+worse than none: its counters would appear in every report while proving
+nothing. Keeping a session alive matters when a session is *held* open, which
+this probe does not do. The rules above stay part of the specification, and
+implementing them belongs to the round that holds a routed session open. See
+[`wp2-relay-probe.md`](wp2-relay-probe.md).
 
 ## Payload identification
 
@@ -199,8 +210,8 @@ byte 12..15  datagram ordinal, u32 big-endian, assigned in send order
 
 Every planned inner datagram receives an ordinal, including the ones too small
 to carry it and the ones a transport limit prevents from being sent, so ordinals
-are a stable property of the measurement plan rather than of what happened.
-Keep-alive frames are not part of the plan and carry no ordinal.
+are a stable property of the measurement plan rather than of what happened. A
+keep-alive is not part of the plan and carries no ordinal.
 
 The remaining payload bytes are deterministic filler: byte `i` of the payload
 equals `i mod 256`. For a payload shorter than 16 bytes the same rule covers the
@@ -217,16 +228,23 @@ another session is counted as foreign traffic and never completes a case.
 A conforming receiver:
 
 - validates before it allocates. The declared inner length is compared against
-  the bytes actually present and against the inner-datagram ceiling **before**
+  the inner-datagram ceiling and against the bytes actually present **before**
   any buffer is sized or any payload is copied, so a frame declaring 65,535
-  bytes in a 44-byte datagram costs nothing;
+  bytes in a 44-byte datagram costs two comparisons;
 - treats every rule violation above as a rejection of the whole frame, not a
   partial parse. There is no resynchronisation inside a frame;
 - never lets a rejected, foreign or unattributable frame complete a measurement
-  case, and counts each of those categories separately;
-- bounds what it holds: the number of simultaneously outstanding datagrams is a
-  configured limit, and a case that is not answered before its configured
-  timeout is completed as a timeout rather than retained.
+  case, and counts each of those categories separately. An untagged payload is
+  attributable only by sequencing, so a returned untagged datagram whose length
+  differs from the one outstanding datagram is unattributable — a late echo from
+  a case that already timed out must not be charged to the case now waiting;
+- bounds what it holds. The number of simultaneously outstanding datagrams never
+  exceeds the configured limit, in every state including an empty window. A
+  packed case is atomic, so a plan containing a case wider than that limit is
+  refused when the plan is built rather than by breaking the bound at run time.
+  A case that is not answered before its configured timeout is completed as a
+  timeout rather than retained, and a case the run never reached is recorded as
+  never run rather than as a timeout.
 
 ## Sending obligations
 
@@ -250,8 +268,15 @@ and the tag and payload derivations. The vectors are generated from
 [`scripts/emit-relay-conformance-vectors.py`](../scripts/emit-relay-conformance-vectors.py)
 and a test fails if the committed file and the module disagree. The browser
 probe runs the same file through its own JavaScript implementation before it is
-allowed to open a session, so the two implementations cannot drift apart
-silently.
+allowed to open a session.
+
+What that catches is exactly what the vectors cover: the frame grammar in both
+directions, the rejection rules, the tag interior and the payload derivation.
+It does not cover the session driver, the report shape or the report validator.
+Those are compared separately, by executing the browser sources next to the
+reference implementation and asserting the two produce equal session records and
+mutually acceptable reports; see
+[`wp2-relay-probe.md`](wp2-relay-probe.md).
 
 Every routing prefix in the vectors is a synthetic byte pattern. No real prefix,
 address, port, endpoint or authorization appears in them, and none may be added.

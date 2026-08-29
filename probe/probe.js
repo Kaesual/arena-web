@@ -20,6 +20,7 @@ import {
 } from "./relay-framing.js";
 import {
   OUTCOME_ECHOED,
+  MeasurementReportError,
   SessionDriver,
   buildPlan,
   buildReport,
@@ -184,7 +185,6 @@ function readConfig() {
     destinationPortMatchesProjection: elements.portAcknowledged.checked,
     endpointTemplate: elements.endpointTemplate.value.trim(),
     expectedReturnPrefixHex: elements.expectedReturnPrefix.value.trim(),
-    keepAliveMilliseconds: Number(elements.keepAlive.value),
     maxInFlightDatagrams: Number(elements.maxInFlight.value),
     pathNotes: elements.pathNotes.value,
     routingPrefixHex: elements.routingPrefix.value.trim(),
@@ -202,6 +202,8 @@ function describe(record) {
     .join(", ");
 }
 
+// Nothing is shown or offered for download before it validates. A report that
+// fails its own contract is a defect to surface, not a file to hand out.
 function refreshReport() {
   if (sessionRecords.length === 0) {
     return;
@@ -211,13 +213,22 @@ function refreshReport() {
     measurementVectorSha256,
     elements.pathNotes.value,
   );
+  let summary;
+  try {
+    summary = summarizeReport(report, plan);
+  } catch (error) {
+    if (!(error instanceof MeasurementReportError)) {
+      throw error;
+    }
+    elements.summary.textContent = "";
+    elements.report.textContent = "";
+    elements.download.hidden = true;
+    log(`the report did not validate and is not offered: ${error.message}`);
+    return;
+  }
   const text = `${JSON.stringify(report, null, 2)}\n`;
   elements.report.textContent = text;
-  elements.summary.textContent = `${JSON.stringify(
-    summarizeReport(report),
-    null,
-    2,
-  )}\n`;
+  elements.summary.textContent = `${JSON.stringify(summary, null, 2)}\n`;
   const blob = new Blob([text], { type: "application/json" });
   if (elements.download.href) {
     URL.revokeObjectURL(elements.download.href);
@@ -238,9 +249,11 @@ async function runOneSession() {
   const started = performance.now();
   const nowMs = () => performance.now() - started;
   let stopped = false;
-  const untagged = plan.cases.filter((item) => !item.tagged).length;
-  const budget =
-    config.caseTimeoutMilliseconds * (untagged + 4) + 5000;
+  // At least one case reaches an outcome per timeout round, so this covers the
+  // committed plan even on a path that answers nothing at all. Sizing it any
+  // tighter would leave cases unrun, and an unrun case is a hole in the very
+  // range WP6 reads.
+  const budget = config.caseTimeoutMilliseconds * (plan.cases.length + 1) + 5000;
   const reading = adapter
     .readFrames(
       (frame) => driver.receive(frame, nowMs()),
@@ -272,8 +285,7 @@ async function runOneSession() {
     `session ${sessionIndex}: foreign ${record.foreignFrames}, ` +
       `malformed ${record.malformedFrames}, ` +
       `prefix mismatch ${record.prefixMismatchFrames}, ` +
-      `unattributed ${record.unmatchedFrames}, ` +
-      `keep-alives ${record.keepAliveFramesSent}`,
+      `unattributed ${record.unmatchedFrames}`,
   );
   if (adapter.writeFailures > 0) {
     log(`session ${sessionIndex}: ${adapter.writeFailures} datagram writes failed`);
@@ -307,7 +319,6 @@ async function start() {
     "download",
     "endpointTemplate",
     "expectedReturnPrefix",
-    "keepAlive",
     "log",
     "maxInFlight",
     "pathNotes",

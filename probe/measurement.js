@@ -43,6 +43,21 @@ export const OUTCOME_PAYLOAD_MISMATCH = "payloadMismatch";
 export const OUTCOME_TIMED_OUT = "timedOut";
 export const OUTCOME_SEND_FAILED = "sendFailed";
 export const OUTCOME_NOT_SENT = "notSentFrameExceedsTransportLimit";
+// A case the run never reached. Not evidence about the path in either
+// direction, so the summary excludes it from the accepted range.
+export const OUTCOME_NOT_RUN = "notRun";
+export const OUTCOMES = [
+  OUTCOME_ECHOED,
+  OUTCOME_NOT_RUN,
+  OUTCOME_NOT_SENT,
+  OUTCOME_PAYLOAD_MISMATCH,
+  OUTCOME_SEND_FAILED,
+  OUTCOME_TIMED_OUT,
+];
+
+// A packed case is atomic, so its width is outstanding at once. The plan is
+// built against the same bound the driver enforces.
+export const DEFAULT_MAX_IN_FLIGHT_DATAGRAMS = 8;
 
 export const AUTHORIZATION_PLACEHOLDER = "{authorization}";
 
@@ -54,7 +69,13 @@ function isInteger(value) {
   return Number.isInteger(value);
 }
 
-export function buildPlan(vector) {
+export function buildPlan(
+  vector,
+  maxInFlightDatagrams = DEFAULT_MAX_IN_FLIGHT_DATAGRAMS,
+) {
+  if (!isInteger(maxInFlightDatagrams) || maxInFlightDatagrams < 1) {
+    throw new MeasurementPlanError("maxInFlightDatagrams must be at least 1");
+  }
   if (vector === null || typeof vector !== "object" || Array.isArray(vector)) {
     throw new MeasurementPlanError("measurement vector is not an object");
   }
@@ -154,6 +175,12 @@ export function buildPlan(vector) {
     if (!Array.isArray(entry.sizes) || entry.sizes.length < 2) {
       throw new MeasurementPlanError("a packed case needs at least two sizes");
     }
+    if (entry.sizes.length > maxInFlightDatagrams) {
+      throw new MeasurementPlanError(
+        `a packed case of ${entry.sizes.length} datagrams cannot respect the ` +
+          `${maxInFlightDatagrams} outstanding-datagram bound`,
+      );
+    }
     const datagrams = [];
     for (const size of entry.sizes) {
       if (!isInteger(size)) {
@@ -197,7 +224,6 @@ const CONFIG_FIELDS = [
   "destinationPortMatchesProjection",
   "endpointTemplate",
   "expectedReturnPrefixHex",
-  "keepAliveMilliseconds",
   "maxInFlightDatagrams",
   "pathNotes",
   "routingPrefixHex",
@@ -214,8 +240,7 @@ const CONFIG_DEFAULTS = {
   caseTimeoutMilliseconds: 2000,
   certificateHashes: [],
   expectedReturnPrefixHex: "",
-  keepAliveMilliseconds: 0,
-  maxInFlightDatagrams: 8,
+  maxInFlightDatagrams: DEFAULT_MAX_IN_FLIGHT_DATAGRAMS,
   pathNotes: "",
 };
 
@@ -326,11 +351,13 @@ export function parseConfig(mapping) {
     expectedReturnPrefix,
     certificateHashes: hashes.slice(),
     caseTimeoutMilliseconds: boundedInteger(mapping, "caseTimeoutMilliseconds", 1),
-    keepAliveMilliseconds: boundedInteger(mapping, "keepAliveMilliseconds", 0),
     maxInFlightDatagrams: boundedInteger(mapping, "maxInFlightDatagrams", 1),
     pathNotes,
+    // String.replace() interprets $-patterns in the replacement, so an
+    // authorization containing $&, $`, $', $$ or $1 would be rewritten and the
+    // wrong bytes would go on the wire. Split and join instead.
     endpointUrl() {
-      return template.replace(AUTHORIZATION_PLACEHOLDER, authorization);
+      return template.split(AUTHORIZATION_PLACEHOLDER).join(authorization);
     },
   };
 }
@@ -341,6 +368,14 @@ export class SessionDriver {
       throw new RelayProbeError(
         `session nonce is ${sessionNonce.length} bytes, not ${SESSION_NONCE_BYTES}`,
       );
+    }
+    for (const item of plan.cases) {
+      if (item.datagrams.length > config.maxInFlightDatagrams) {
+        throw new RelayProbeError(
+          `case ${item.index} carries ${item.datagrams.length} datagrams, more ` +
+            `than the configured bound of ${config.maxInFlightDatagrams}`,
+        );
+      }
     }
     this.plan = plan;
     this.adapter = adapter;
@@ -361,13 +396,10 @@ export class SessionDriver {
     this.inflight = new Map();
     this.returnPrefix =
       config.expectedReturnPrefix.length > 0 ? config.expectedReturnPrefix : null;
-    this.outstandingKeepAlives = 0;
-    this.lastSendMs = -1;
     this.foreignFrames = 0;
     this.malformedFrames = 0;
     this.prefixMismatchFrames = 0;
     this.unmatchedFrames = 0;
-    this.keepAliveFramesSent = 0;
   }
 
   get finished() {
@@ -386,7 +418,6 @@ export class SessionDriver {
   pump(now) {
     this.expire(now);
     this.startReady(now);
-    this.sendKeepAliveIfDue(now);
   }
 
   expire(now) {
@@ -423,14 +454,15 @@ export class SessionDriver {
         return;
       }
       if (!item.tagged) {
-        if (this.inflight.size > 0 || this.outstandingKeepAlives > 0) {
+        if (this.inflight.size > 0) {
           return;
         }
       } else if (
-        this.inflight.size > 0 &&
         this.inflight.size + item.datagrams.length >
-          this.config.maxInFlightDatagrams
+        this.config.maxInFlightDatagrams
       ) {
+        // Unconditional: the plan guarantees no case is wider than the bound,
+        // so this can never refuse a case forever.
         return;
       }
       this.pending.shift();
@@ -461,7 +493,6 @@ export class SessionDriver {
       return;
     }
     state.sentAt = now;
-    this.lastSendMs = now;
     item.datagrams.forEach((datagram, position) => {
       state.outstanding.add(datagram.ordinal);
       this.inflight.set(datagram.ordinal, {
@@ -469,37 +500,6 @@ export class SessionDriver {
         payload: payloads[position],
       });
     });
-  }
-
-  // Never while a case is outstanding: a keep-alive echo is a 0-byte inner
-  // datagram and would otherwise be indistinguishable from a 0-byte case.
-  sendKeepAliveIfDue(now) {
-    if (this.config.keepAliveMilliseconds <= 0 || this.inflight.size > 0) {
-      return;
-    }
-    if (
-      this.lastSendMs >= 0 &&
-      now - this.lastSendMs < this.config.keepAliveMilliseconds
-    ) {
-      return;
-    }
-    const frame = encodeFrame(
-      this.config.routingPrefix,
-      [new Uint8Array(0)],
-      BROWSER_TO_SERVER,
-      this.plan.maxInnerDatagramBytes,
-    );
-    try {
-      this.adapter.send(frame);
-    } catch (error) {
-      if (!(error instanceof AdapterSendError)) {
-        throw error;
-      }
-      return;
-    }
-    this.lastSendMs = now;
-    this.outstandingKeepAlives += 1;
-    this.keepAliveFramesSent += 1;
   }
 
   receive(frame, now) {
@@ -541,17 +541,22 @@ export class SessionDriver {
     this.complete(entry.caseIndex, tag.ordinal, payload, entry.payload, now);
   }
 
+  // Only sequencing identifies an untagged echo, and exactly one untagged
+  // datagram is ever outstanding. It is still only a candidate: a late echo
+  // from a case that already timed out arrives while the next one is
+  // outstanding, and its length is what separates the two. A length that does
+  // not match is unattributable rather than a mismatch, because attributing it
+  // would report a defect against the wrong case.
   receiveUntagged(payload, now) {
-    if (payload.length === 0 && this.outstandingKeepAlives > 0) {
-      this.outstandingKeepAlives -= 1;
-      return;
-    }
     if (this.inflight.size !== 1) {
       this.unmatchedFrames += 1;
       return;
     }
     const [ordinal, entry] = this.inflight.entries().next().value;
-    if (entry.payload.length >= MINIMUM_TAGGED_INNER_BYTES) {
+    if (
+      entry.payload.length >= MINIMUM_TAGGED_INNER_BYTES ||
+      payload.length !== entry.payload.length
+    ) {
       this.unmatchedFrames += 1;
       return;
     }
@@ -586,7 +591,11 @@ export class SessionDriver {
         caseIndex: item.index,
         kind: item.kind,
         ordinals: item.ordinals.slice(),
-        outcome: state.outcome || OUTCOME_TIMED_OUT,
+        // A case with no outcome either waited for an answer that never came,
+        // or was never reached at all. Those are different facts.
+        outcome:
+          state.outcome ||
+          (state.sentAt >= 0 ? OUTCOME_TIMED_OUT : OUTCOME_NOT_RUN),
         receivedFrames: state.received.map((size) => ({
           frameBytes: size + SINGLE_DATAGRAM_OVERHEAD_BYTES,
           innerBytes: size,
@@ -601,8 +610,6 @@ export class SessionDriver {
       caseTimeoutMilliseconds: this.config.caseTimeoutMilliseconds,
       cases,
       foreignFrames: this.foreignFrames,
-      keepAliveFramesSent: this.keepAliveFramesSent,
-      keepAliveMilliseconds: this.config.keepAliveMilliseconds,
       malformedFrames: this.malformedFrames,
       maxDatagramSizeBytes: this.adapter.maxDatagramSizeBytes,
       maxInFlightDatagrams: this.config.maxInFlightDatagrams,
@@ -630,16 +637,310 @@ export function buildReport(sessions, measurementVectorSha256, pathNotes = "") {
   };
 }
 
+export class MeasurementReportError extends Error {}
+
+const REPORT_FIELDS = [
+  "formatVersion",
+  "framing",
+  "kind",
+  "measurementVectorSha256",
+  "pathNotes",
+  "sessions",
+];
+const SESSION_FIELDS = [
+  "caseTimeoutMilliseconds",
+  "cases",
+  "foreignFrames",
+  "malformedFrames",
+  "maxDatagramSizeBytes",
+  "maxInFlightDatagrams",
+  "prefixMismatchFrames",
+  "sessionIndex",
+  "unmatchedFrames",
+];
+const CASE_FIELDS = [
+  "caseIndex",
+  "kind",
+  "ordinals",
+  "outcome",
+  "receivedFrames",
+  "roundTripMilliseconds",
+  "sentFrameBytes",
+  "sentInnerBytes",
+];
+const SESSION_COUNTERS = [
+  "foreignFrames",
+  "malformedFrames",
+  "prefixMismatchFrames",
+  "unmatchedFrames",
+];
+
+function requireFields(record, fields, label) {
+  if (!record || typeof record !== "object" || Array.isArray(record)) {
+    throw new MeasurementReportError(`${label} is not an object`);
+  }
+  for (const name of fields) {
+    if (!(name in record)) {
+      throw new MeasurementReportError(`${label} is missing ${name}`);
+    }
+  }
+  for (const name of Object.keys(record)) {
+    if (!fields.includes(name)) {
+      throw new MeasurementReportError(`${label} has unknown field ${name}`);
+    }
+  }
+}
+
+function requireInt(record, name, label, minimum) {
+  const value = record[name];
+  if (!isInteger(value)) {
+    throw new MeasurementReportError(`${label}.${name} is not an integer`);
+  }
+  if (value < minimum) {
+    throw new MeasurementReportError(`${label}.${name} is below ${minimum}`);
+  }
+  return value;
+}
+
+// The Python validator in scripts/relay_probe.py stays authoritative and the
+// tests compare against it. This exists so the page cannot present a summary or
+// offer a download for a report it has not checked.
+export function validateReport(report, plan = null) {
+  requireFields(report, REPORT_FIELDS, "report");
+  if (report.formatVersion !== REPORT_FORMAT_VERSION) {
+    throw new MeasurementReportError("report formatVersion is unsupported");
+  }
+  if (report.kind !== REPORT_KIND) {
+    throw new MeasurementReportError("report kind is unsupported");
+  }
+  const framing = report.framing;
+  requireFields(
+    framing,
+    ["datagramLengthPrefixBytes", "relayHeaderBytes", "singleDatagramOverheadBytes"],
+    "report.framing",
+  );
+  if (
+    framing.datagramLengthPrefixBytes !== LENGTH_PREFIX_BYTES ||
+    framing.relayHeaderBytes !== RELAY_HEADER_BYTES ||
+    framing.singleDatagramOverheadBytes !== SINGLE_DATAGRAM_OVERHEAD_BYTES
+  ) {
+    throw new MeasurementReportError("report framing does not match the contract");
+  }
+  const digest = report.measurementVectorSha256;
+  if (typeof digest !== "string" || !/^[0-9a-f]{64}$/.test(digest)) {
+    throw new MeasurementReportError(
+      "measurementVectorSha256 is not a SHA-256 digest",
+    );
+  }
+  if (typeof report.pathNotes !== "string") {
+    throw new MeasurementReportError("pathNotes is not a string");
+  }
+  if (!Array.isArray(report.sessions) || report.sessions.length === 0) {
+    throw new MeasurementReportError("report has no sessions");
+  }
+  let previous = -1;
+  for (const session of report.sessions) {
+    const index = validateSession(session, plan);
+    if (index <= previous) {
+      throw new MeasurementReportError("session indices are not ascending");
+    }
+    previous = index;
+  }
+  return report;
+}
+
+function validateSession(session, plan) {
+  requireFields(session, SESSION_FIELDS, "session");
+  const index = requireInt(session, "sessionIndex", "session", 0);
+  const ceiling = Math.min(
+    plan === null ? MAX_LENGTH_PREFIX_VALUE : plan.maxInnerDatagramBytes,
+    MAX_LENGTH_PREFIX_VALUE,
+  );
+  const maxDatagram = requireInt(session, "maxDatagramSizeBytes", "session", 1);
+  requireInt(session, "caseTimeoutMilliseconds", "session", 1);
+  const bound = requireInt(session, "maxInFlightDatagrams", "session", 1);
+  for (const name of SESSION_COUNTERS) {
+    requireInt(session, name, "session", 0);
+  }
+  if (!Array.isArray(session.cases) || session.cases.length === 0) {
+    throw new MeasurementReportError("session has no cases");
+  }
+  if (plan !== null && session.cases.length !== plan.cases.length) {
+    throw new MeasurementReportError(
+      `session has ${session.cases.length} cases, but the plan has ${plan.cases.length}`,
+    );
+  }
+  let previousCase = -1;
+  const seenOrdinals = new Set();
+  session.cases.forEach((item, position) => {
+    const planned = plan === null ? null : plan.cases[position];
+    const caseIndex = validateCase(
+      item,
+      ceiling,
+      maxDatagram,
+      bound,
+      planned,
+      seenOrdinals,
+    );
+    if (caseIndex <= previousCase) {
+      throw new MeasurementReportError("case indices are not ascending");
+    }
+    previousCase = caseIndex;
+  });
+  return index;
+}
+
+function validateCase(item, ceiling, maxDatagram, bound, planned, seenOrdinals) {
+  requireFields(item, CASE_FIELDS, "case");
+  const caseIndex = requireInt(item, "caseIndex", "case", 0);
+  if (item.kind !== CASE_SINGLE && item.kind !== CASE_PACKED) {
+    throw new MeasurementReportError(`case kind ${item.kind} is unknown`);
+  }
+  if (!OUTCOMES.includes(item.outcome)) {
+    throw new MeasurementReportError(`case outcome ${item.outcome} is unknown`);
+  }
+
+  const sizes = item.sentInnerBytes;
+  if (!Array.isArray(sizes) || sizes.length === 0) {
+    throw new MeasurementReportError("case sent no inner datagram");
+  }
+  for (const size of sizes) {
+    if (!isInteger(size) || size < 0 || size > ceiling) {
+      throw new MeasurementReportError(`sent inner size ${size} is out of range`);
+    }
+  }
+  if (item.kind === CASE_SINGLE && sizes.length !== 1) {
+    throw new MeasurementReportError("a single case carries exactly one datagram");
+  }
+  if (item.kind === CASE_PACKED && sizes.length < 2) {
+    throw new MeasurementReportError("a packed case carries at least two datagrams");
+  }
+  if (sizes.length > bound) {
+    throw new MeasurementReportError(
+      `a case of ${sizes.length} datagrams exceeds the session's ${bound} outstanding-datagram bound`,
+    );
+  }
+
+  const ordinals = item.ordinals;
+  if (!Array.isArray(ordinals) || ordinals.length !== sizes.length) {
+    throw new MeasurementReportError("ordinals do not match the sent datagrams");
+  }
+  for (const ordinal of ordinals) {
+    if (!isInteger(ordinal) || ordinal < 0) {
+      throw new MeasurementReportError("ordinals hold a non-ordinal value");
+    }
+    if (seenOrdinals.has(ordinal)) {
+      throw new MeasurementReportError(`ordinal ${ordinal} is reused in one session`);
+    }
+    seenOrdinals.add(ordinal);
+  }
+
+  const expectedFrame = frameBytesForSizes(sizes);
+  if (item.sentFrameBytes !== expectedFrame) {
+    throw new MeasurementReportError(
+      `sentFrameBytes does not equal the ${expectedFrame} bytes its inner sizes require`,
+    );
+  }
+
+  const received = item.receivedFrames;
+  if (!Array.isArray(received)) {
+    throw new MeasurementReportError("receivedFrames is not a list");
+  }
+  if (received.length > sizes.length) {
+    throw new MeasurementReportError("more frames returned than datagrams sent");
+  }
+  const remaining = new Map();
+  for (const size of sizes) {
+    remaining.set(size, (remaining.get(size) || 0) + 1);
+  }
+  for (const entry of received) {
+    requireFields(entry, ["frameBytes", "innerBytes"], "received frame");
+    const inner = requireInt(entry, "innerBytes", "received frame", 0);
+    if (inner > ceiling) {
+      throw new MeasurementReportError(`received inner size ${inner} is out of range`);
+    }
+    if (entry.frameBytes !== inner + SINGLE_DATAGRAM_OVERHEAD_BYTES) {
+      throw new MeasurementReportError(
+        "a returned frame does not carry the 42-byte single-datagram overhead",
+      );
+    }
+    if (!remaining.get(inner)) {
+      throw new MeasurementReportError(
+        `a returned frame reports ${inner} bytes, which this case did not send`,
+      );
+    }
+    remaining.set(inner, remaining.get(inner) - 1);
+  }
+
+  const roundTrip = item.roundTripMilliseconds;
+  if (item.outcome === OUTCOME_ECHOED) {
+    if (received.length !== sizes.length) {
+      throw new MeasurementReportError("an echoed case is missing a return frame");
+    }
+    if (typeof roundTrip !== "number" || !Number.isFinite(roundTrip) || roundTrip < 0) {
+      throw new MeasurementReportError("round-trip time is out of range");
+    }
+    if (item.sentFrameBytes > maxDatagram) {
+      throw new MeasurementReportError(
+        "a case that echoed is larger than the reported datagram maximum",
+      );
+    }
+  } else if (roundTrip !== null) {
+    throw new MeasurementReportError("only an echoed case carries a round-trip time");
+  }
+
+  if (item.outcome === OUTCOME_NOT_SENT) {
+    if (received.length > 0) {
+      throw new MeasurementReportError("an unsent case returned frames");
+    }
+    if (item.sentFrameBytes <= maxDatagram) {
+      throw new MeasurementReportError(
+        "a case refused for size fits the reported datagram maximum",
+      );
+    }
+  }
+  if (item.outcome === OUTCOME_SEND_FAILED && received.length > 0) {
+    throw new MeasurementReportError("a case whose send failed returned frames");
+  }
+  if (item.outcome === OUTCOME_NOT_RUN && received.length > 0) {
+    throw new MeasurementReportError("a case that never ran returned frames");
+  }
+
+  if (planned !== null) {
+    const sameSizes =
+      planned.sizes.length === sizes.length &&
+      planned.sizes.every((size, at) => size === sizes[at]);
+    const sameOrdinals =
+      planned.ordinals.length === ordinals.length &&
+      planned.ordinals.every((ordinal, at) => ordinal === ordinals[at]);
+    if (
+      caseIndex !== planned.index ||
+      !sameSizes ||
+      !sameOrdinals ||
+      item.kind !== planned.kind
+    ) {
+      throw new MeasurementReportError(`case ${caseIndex} does not match the plan`);
+    }
+  }
+  return caseIndex;
+}
+
 // Per session and per path on purpose. `contiguousInnerBytes` is the largest
-// single-datagram size for which every smaller planned size also echoed, so an
+// single-datagram size below which every smaller planned size also echoed, so an
 // intermittently accepted large size cannot raise it, and the floor carries no
-// safety margin. None of this is a universal transport constant.
-export function summarizeReport(report) {
+// safety margin. A case that never ran is a gap, not an acceptance: it stops the
+// contiguous range like a failure does, but is counted separately because it is
+// an absence of evidence rather than evidence of refusal. None of this is a
+// universal transport constant, and none of it is per direction: one round trip
+// through an echoing destination cannot say which direction refused a size.
+export function summarizeReport(report, plan = null) {
+  validateReport(report, plan);
   const summaries = [];
   const floors = [];
   for (const session of report.sessions) {
     const echoed = new Set();
     const failed = new Set();
+    const notRun = new Set();
     let largestFrame = null;
     for (const item of session.cases) {
       if (item.kind !== CASE_SINGLE) {
@@ -652,16 +953,18 @@ export function summarizeReport(report) {
           largestFrame === null
             ? item.sentFrameBytes
             : Math.max(largestFrame, item.sentFrameBytes);
+      } else if (item.outcome === OUTCOME_NOT_RUN) {
+        notRun.add(size);
       } else {
         failed.add(size);
       }
     }
     let contiguous = null;
-    const ordered = Array.from(new Set([...echoed, ...failed])).sort(
+    const ordered = Array.from(new Set([...echoed, ...failed, ...notRun])).sort(
       (left, right) => left - right,
     );
     for (const size of ordered) {
-      if (failed.has(size)) {
+      if (!echoed.has(size)) {
         break;
       }
       contiguous = size;
@@ -680,6 +983,7 @@ export function summarizeReport(report) {
         failed.size &&
         Math.max(...echoedValues) > Math.min(...failedValues)
       ),
+      notRunSingleCases: notRun.size,
       sessionIndex: session.sessionIndex,
       smallestFailedInnerBytes: failed.size ? Math.min(...failedValues) : null,
     });

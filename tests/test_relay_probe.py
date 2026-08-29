@@ -36,10 +36,13 @@ from relay_probe import (  # noqa: E402
     MAX_LENGTH_PREFIX_VALUE,
     MINIMUM_TAGGED_INNER_BYTES,
     NONCE_BYTES,
+    DEFAULT_MAX_IN_FLIGHT_DATAGRAMS,
     OUTCOME_ECHOED,
+    OUTCOME_NOT_RUN,
     OUTCOME_NOT_SENT,
     OUTCOME_PAYLOAD_MISMATCH,
     OUTCOME_SEND_FAILED,
+    OUTCOMES,
     OUTCOME_TIMED_OUT,
     RELAY_HEADER_BYTES,
     SERVER_TO_BROWSER,
@@ -58,6 +61,7 @@ from relay_probe import (  # noqa: E402
     decode_frame,
     encode_frame,
     frame_bytes_for_sizes,
+    merge_reports,
     parse_probe_config,
     read_tag,
     summarize_report,
@@ -74,6 +78,19 @@ COMMITTED_CONFORMANCE = json.loads(
 
 NONCE = bytes(range(SESSION_NONCE_BYTES))
 OTHER_NONCE = bytes(range(100, 100 + SESSION_NONCE_BYTES))
+
+# Synthetic values, not credentials. Each one is a replacement pattern that
+# JavaScript's String.replace() would expand rather than insert literally.
+DOLLAR_AUTHORIZATIONS = (
+    "plain-value",
+    "$&",
+    "$`",
+    "$'",
+    "$$",
+    "$1",
+    "before$&after",
+    "$$$&$1",
+)
 
 BASE_CONFIG = {
     "authorization": "one-time-value",
@@ -358,6 +375,20 @@ class MeasurementPlanTests(unittest.TestCase):
         with self.assertRaises(MeasurementPlanError):
             MeasurementPlan.from_vector(vector)
 
+    def test_plan_rejects_a_packed_case_wider_than_the_outstanding_bound(self) -> None:
+        # A packed case is atomic, so a case wider than the bound could only be
+        # started by breaking it. The vector is refused instead.
+        vector = make_vector([16, 17, 18], packed=((16, 17, 18),))
+        MeasurementPlan.from_vector(vector, max_in_flight_datagrams=3)
+        with self.assertRaises(MeasurementPlanError):
+            MeasurementPlan.from_vector(vector, max_in_flight_datagrams=2)
+        with self.assertRaises(MeasurementPlanError):
+            MeasurementPlan.from_vector(vector, max_in_flight_datagrams=0)
+
+    def test_the_committed_vector_fits_the_default_bound(self) -> None:
+        widest = max(len(entry["sizes"]) for entry in COMMITTED_VECTOR["packedCases"])
+        self.assertLessEqual(widest, DEFAULT_MAX_IN_FLIGHT_DATAGRAMS)
+
     def test_plan_rejects_a_packed_case_above_the_measured_ceiling(self) -> None:
         with self.assertRaises(MeasurementPlanError):
             MeasurementPlan.from_vector(make_vector([16, 17, 18], packed=((16, 4096),)))
@@ -428,6 +459,16 @@ class ProbeConfigTests(unittest.TestCase):
             "https://relay.invalid/probe?a=one-time-value",
         )
 
+    def test_substitution_is_literal_for_a_dollar_pattern_authorization(self) -> None:
+        # Only the literal value may reach the wire. A naive JavaScript
+        # String.replace() would expand these into the surrounding match.
+        for value in DOLLAR_AUTHORIZATIONS:
+            config = make_config(authorization=value)
+            self.assertEqual(
+                config.endpoint_url(),
+                f"https://relay.invalid/probe?a={value}",
+            )
+
     def test_destination_port_agreement_must_be_acknowledged(self) -> None:
         for value in (False, "true", 1, None):
             with self.assertRaises(ProbeConfigError):
@@ -457,7 +498,6 @@ class ProbeConfigTests(unittest.TestCase):
     def test_numeric_bounds_are_enforced(self) -> None:
         for field, bad in (
             ("caseTimeoutMilliseconds", 0),
-            ("keepAliveMilliseconds", -1),
             ("maxInFlightDatagrams", 0),
         ):
             with self.assertRaises(ProbeConfigError):
@@ -626,11 +666,23 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(driver.prefix_mismatch_frames, 1)
 
     def test_two_sessions_receive_only_their_own_tagged_traffic(self) -> None:
+        """Isolation holds for nonce-tagged cases, which is the whole claim.
+
+        The plan deliberately includes the committed vector's untagged 0- and
+        1-byte sizes, because they are the interesting part: an untagged payload
+        carries no session nonce, so two sessions running one concurrently
+        cannot tell their echoes apart. That is why the vector runs those cases
+        sequentially and why they are not isolation evidence. This test asserts
+        isolation for the tagged cases and only that every case still reaches an
+        outcome for the untagged ones.
+        """
         relay = LoopbackRelay(max_datagram_size_bytes=20000, crosstalk=True)
         pairs = []
+        plans = []
         for index, nonce in enumerate((NONCE, OTHER_NONCE)):
             adapter = relay.attach()
-            plan = MeasurementPlan.from_vector(make_vector([16, 17, 18]))
+            plan = MeasurementPlan.from_vector(make_vector([0, 1, 16, 17, 18]))
+            plans.append(plan)
             pairs.append(
                 (
                     SessionDriver(
@@ -640,48 +692,80 @@ class SessionTests(unittest.TestCase):
                 )
             )
         run_sessions(pairs)
-        for driver, _ in pairs:
+        for (driver, _), plan in zip(pairs, plans):
             record = driver.session_record()
-            self.assertEqual(set(outcomes(record)), {OUTCOME_ECHOED})
+            tagged = {case.index for case in plan.cases if case.tagged}
+            for case in record["cases"]:
+                if case["caseIndex"] in tagged:
+                    self.assertEqual(case["outcome"], OUTCOME_ECHOED)
+                else:
+                    self.assertIn(case["outcome"], OUTCOMES)
             self.assertGreater(record["foreignFrames"], 0)
-            self.assertEqual(record["unmatchedFrames"], 0)
             self.assertEqual(record["malformedFrames"], 0)
 
-    def test_keep_alive_is_sent_only_when_nothing_is_outstanding(self) -> None:
-        plan = MeasurementPlan.from_vector(make_vector([16, 17, 18]))
-        relay = LoopbackRelay(max_datagram_size_bytes=20000)
+    def test_a_late_untagged_echo_is_not_attributed_to_the_next_case(self) -> None:
+        # Case 0 sends 0 bytes and times out; its echo arrives while the 1-byte
+        # case is outstanding. Length is the only thing separating them, so the
+        # late frame must be unattributable rather than a defect reported
+        # against a case that did nothing wrong.
+        plan = MeasurementPlan.from_vector(make_vector([0, 1, 16, 17, 18]))
+        relay = LoopbackRelay(max_datagram_size_bytes=20000, echo=False)
         adapter = relay.attach()
-        driver = SessionDriver(
-            plan, adapter, NONCE, make_config(keepAliveMilliseconds=10)
+        driver = SessionDriver(plan, adapter, NONCE, make_config())
+        driver.pump(0)
+        adapter.drain()
+        driver.pump(2000)
+        self.assertEqual(relay.received_datagrams, 2)
+        adapter.drain()
+        late = encode_frame(SYNTHETIC_RETURN_PREFIX, (b"",), SERVER_TO_BROWSER)
+        driver.receive(late, 2001)
+        self.assertEqual(driver.unmatched_frames, 1)
+        record_before = {
+            case["caseIndex"]: case["outcome"]
+            for case in driver.session_record()["cases"]
+        }
+        self.assertEqual(record_before[0], OUTCOME_TIMED_OUT)
+        self.assertNotEqual(record_before[1], OUTCOME_PAYLOAD_MISMATCH)
+        # The correctly sized echo still completes its own case.
+        driver.receive(
+            encode_frame(SYNTHETIC_RETURN_PREFIX, (b"\x00",), SERVER_TO_BROWSER),
+            2002,
         )
-        now = run_session(driver, adapter)
-        self.assertEqual(driver.keep_alive_frames_sent, 0)
-        driver.pump(now + 10)
-        self.assertEqual(driver.keep_alive_frames_sent, 1)
-        for frame in adapter.drain():
-            driver.receive(frame, now + 11)
-        self.assertEqual(driver.unmatched_frames, 0)
-        self.assertEqual(set(outcomes(driver.session_record())), {OUTCOME_ECHOED})
+        self.assertEqual(driver.session_record()["cases"][1]["outcome"], OUTCOME_ECHOED)
+        self.assertEqual(driver.unmatched_frames, 1)
 
-    def test_a_keep_alive_echo_never_completes_a_zero_byte_case(self) -> None:
-        plan = MeasurementPlan.from_vector(make_vector([0, 16, 17, 18]))
-        relay = LoopbackRelay(max_datagram_size_bytes=20000)
+    def test_a_case_wider_than_the_bound_cannot_be_driven(self) -> None:
+        plan = MeasurementPlan.from_vector(
+            make_vector([16, 17, 18], packed=((16, 17, 18),)),
+            max_in_flight_datagrams=3,
+        )
+        adapter = LoopbackRelay().attach()
+        with self.assertRaises(RelayProbeError):
+            SessionDriver(plan, adapter, NONCE, make_config(maxInFlightDatagrams=2))
+
+    def test_a_case_never_reached_is_not_reported_as_a_timeout(self) -> None:
+        # A case that was never sent is an absence of evidence. Recording it as
+        # a timeout would fold it into the accepted range WP6 reads.
+        plan = MeasurementPlan.from_vector(make_vector([16, 17, 18]))
+        relay = LoopbackRelay(max_datagram_size_bytes=20000, echo=False)
         adapter = relay.attach()
         driver = SessionDriver(
-            plan, adapter, NONCE, make_config(keepAliveMilliseconds=1000)
+            plan, adapter, NONCE, make_config(maxInFlightDatagrams=2)
         )
-        # One keep-alive is outstanding before the plan starts, so the 0-byte
-        # case must wait for its echo rather than adopt it.
-        driver.send_keep_alive_if_due(0)
-        self.assertEqual(driver.keep_alive_frames_sent, 1)
-        driver.pump(1)
-        self.assertEqual(relay.received_datagrams - driver.keep_alive_frames_sent, 0)
-        for frame in adapter.drain():
-            driver.receive(frame, 2)
-        self.assertEqual(driver.unmatched_frames, 0)
-        run_session(driver, adapter)
-        self.assertEqual(set(outcomes(driver.session_record())), {OUTCOME_ECHOED})
-        self.assertEqual(driver.unmatched_frames, 0)
+        driver.pump(0)
+        outcomes_by_index = {
+            case["caseIndex"]: case["outcome"]
+            for case in driver.session_record()["cases"]
+        }
+        # Two cases went out and are waiting; the rest were never reached.
+        self.assertEqual(
+            [outcomes_by_index[index] for index in (0, 1)],
+            [OUTCOME_TIMED_OUT, OUTCOME_TIMED_OUT],
+        )
+        self.assertEqual(
+            [outcomes_by_index[index] for index in (2, 3)],
+            [OUTCOME_NOT_RUN, OUTCOME_NOT_RUN],
+        )
 
     def test_session_nonce_length_is_enforced(self) -> None:
         plan = MeasurementPlan.from_vector(make_vector([16, 17, 18]))
@@ -854,6 +938,35 @@ class ReportValidationTests(unittest.TestCase):
         case["roundTripMilliseconds"] = None
         self.assert_rejected(report)
 
+    def test_an_echoed_case_cannot_exceed_the_reported_datagram_maximum(self) -> None:
+        report = self.valid()
+        session = report["sessions"][0]
+        session["maxDatagramSizeBytes"] = 43
+        self.assert_rejected(report)
+
+    def test_a_failed_send_cannot_have_returned_frames(self) -> None:
+        report = self.valid()
+        case = next(
+            item for item in report["sessions"][0]["cases"] if item["receivedFrames"]
+        )
+        case["outcome"] = OUTCOME_SEND_FAILED
+        case["roundTripMilliseconds"] = None
+        self.assert_rejected(report)
+
+    def test_a_case_that_never_ran_cannot_have_returned_frames(self) -> None:
+        report = self.valid()
+        case = next(
+            item for item in report["sessions"][0]["cases"] if item["receivedFrames"]
+        )
+        case["outcome"] = OUTCOME_NOT_RUN
+        case["roundTripMilliseconds"] = None
+        self.assert_rejected(report)
+
+    def test_a_case_wider_than_the_reported_bound_is_rejected(self) -> None:
+        report = self.valid()
+        report["sessions"][0]["maxInFlightDatagrams"] = 1
+        self.assert_rejected(report)
+
     def test_unknown_outcomes_and_negative_counters_are_rejected(self) -> None:
         report = self.valid()
         report["sessions"][0]["cases"][0]["outcome"] = "maybe"
@@ -877,6 +990,41 @@ class ReportValidationTests(unittest.TestCase):
         other = MeasurementPlan.from_vector(make_vector([16, 17, 18]))
         with self.assertRaises(MeasurementReportError):
             validate_report(self.valid(), other)
+
+
+class MergeTests(unittest.TestCase):
+    """Two concurrent sessions come from two browser contexts, each numbering
+    its own sessions from zero, so merging has to renumber them."""
+
+    def setUp(self) -> None:
+        self.plan = MeasurementPlan.from_vector(make_vector([16, 17, 18]))
+        self.reports = []
+        for nonce in (NONCE, OTHER_NONCE):
+            driver, _ = run_plan(self.plan, nonce=nonce)
+            self.reports.append(build_report([driver.session_record()], "ab" * 32))
+
+    def test_two_single_session_reports_merge_into_one_valid_report(self) -> None:
+        merged = merge_reports(self.reports)
+        self.assertEqual(
+            [session["sessionIndex"] for session in merged["sessions"]], [0, 1]
+        )
+        validate_report(merged, self.plan)
+        self.assertEqual(len(summarize_report(merged, self.plan)["sessions"]), 2)
+
+    def test_merging_leaves_the_inputs_untouched(self) -> None:
+        merge_reports(self.reports)
+        for report in self.reports:
+            self.assertEqual(report["sessions"][0]["sessionIndex"], 0)
+
+    def test_reports_naming_different_vectors_do_not_merge(self) -> None:
+        other = copy.deepcopy(self.reports[1])
+        other["measurementVectorSha256"] = "cd" * 32
+        with self.assertRaises(MeasurementReportError):
+            merge_reports([self.reports[0], other])
+
+    def test_merging_nothing_is_refused(self) -> None:
+        with self.assertRaises(MeasurementReportError):
+            merge_reports([])
 
 
 class SummaryTests(unittest.TestCase):
@@ -903,6 +1051,26 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(session["contiguousInnerBytes"], 16)
         self.assertEqual(session["largestEchoedInnerBytes"], 64)
         self.assertFalse(session["monotonic"])
+
+    def test_a_case_that_never_ran_is_a_gap_not_an_acceptance(self) -> None:
+        plan = MeasurementPlan.from_vector(make_vector([16, 17, 18, 64]))
+        report = self.build(plan, LoopbackRelay(max_datagram_size_bytes=20000))
+        case = next(
+            item
+            for item in report["sessions"][0]["cases"]
+            if item["sentInnerBytes"] == [17]
+        )
+        case["outcome"] = OUTCOME_NOT_RUN
+        case["receivedFrames"] = []
+        case["roundTripMilliseconds"] = None
+        summary = summarize_report(report, plan)
+        session = summary["sessions"][0]
+        self.assertEqual(session["notRunSingleCases"], 1)
+        # 17 is unknown, so the contiguous range stops at 16 even though 18 and
+        # 64 echoed, and the unknown size is not counted as a failure.
+        self.assertEqual(session["contiguousInnerBytes"], 16)
+        self.assertEqual(session["failedSingleCases"], 0)
+        self.assertEqual(summary["conservativeInnerFloorBytes"], 16)
 
     def test_the_floor_is_the_minimum_across_the_listed_sessions(self) -> None:
         plan = MeasurementPlan.from_vector(make_vector([16, 17, 18, 64, 65]))
@@ -1009,7 +1177,12 @@ class BrowserImplementationTests(unittest.TestCase):
             capture_output=True,
             check=False,
             text=True,
-            env={**os.environ, "HARNESS_LIMITS": json.dumps(list(cls.limits))},
+            env={
+                **os.environ,
+                "HARNESS_AUTHORIZATIONS": json.dumps(list(DOLLAR_AUTHORIZATIONS)),
+                "HARNESS_LIMITS": json.dumps(list(cls.limits)),
+                "HARNESS_MAX_IN_FLIGHT": str(DEFAULT_MAX_IN_FLIGHT_DATAGRAMS),
+            },
         )
         if completed.returncode != 0:
             raise AssertionError(
@@ -1052,6 +1225,44 @@ class BrowserImplementationTests(unittest.TestCase):
             self.assertEqual(
                 observed, self.python_record(limit), f"transport limit {limit}"
             )
+
+    def test_browser_substitutes_a_dollar_pattern_authorization_literally(
+        self,
+    ) -> None:
+        for value in DOLLAR_AUTHORIZATIONS:
+            expected = parse_probe_config(
+                {
+                    "authorization": value,
+                    "destinationPortMatchesProjection": True,
+                    "endpointTemplate": "https://harness.invalid/p?a={authorization}&b=x",
+                    "routingPrefixHex": SYNTHETIC_PREFIX.hex(),
+                }
+            ).endpoint_url()
+            self.assertEqual(self.observed["endpointUrls"][value], expected, value)
+            self.assertIn(value, expected)
+
+    def test_browser_refuses_a_late_untagged_echo_like_the_reference(self) -> None:
+        relay = LoopbackRelay(max_datagram_size_bytes=20000)
+        adapter = relay.attach()
+        driver = SessionDriver(
+            self.plan, adapter, bytes(SESSION_NONCE_BYTES), make_config()
+        )
+        driver.pump(0)
+        adapter.drain()
+        driver.pump(2000)
+        adapter.drain()
+        driver.receive(
+            encode_frame(SYNTHETIC_RETURN_PREFIX, (b"",), SERVER_TO_BROWSER), 2001
+        )
+        expected = {
+            "unmatchedFrames": driver.unmatched_frames,
+            "outcomes": [
+                case["outcome"] for case in driver.session_record()["cases"][:2]
+            ],
+        }
+        self.assertEqual(self.observed["lateUntaggedEcho"], expected)
+        self.assertEqual(expected["unmatchedFrames"], 1)
+        self.assertNotIn(OUTCOME_PAYLOAD_MISMATCH, expected["outcomes"])
 
     def test_a_browser_report_validates_against_the_reference_validator(self) -> None:
         for limit in self.limits:

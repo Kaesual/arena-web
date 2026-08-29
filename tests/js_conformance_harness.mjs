@@ -39,6 +39,9 @@ for (const item of vectors.encodeCases) {
     throw new Error(`encode case ${item.name} has the wrong length`);
   }
   const decoded = framing.decodeFrame(frame, item.direction);
+  if (decoded.datagrams.length !== payloads.length) {
+    throw new Error(`decode of ${item.name} lost or invented a datagram`);
+  }
   decoded.datagrams.forEach((datagram, index) => {
     if (framing.bytesToHex(datagram) !== item.payloadHexes[index]) {
       throw new Error(`decode of ${item.name} changed a payload`);
@@ -101,7 +104,8 @@ for (const item of vectors.payloadCases) {
   conformanceChecked += 1;
 }
 
-const plan = measurement.buildPlan(vector);
+const maxInFlight = Number(process.env.HARNESS_MAX_IN_FLIGHT);
+const plan = measurement.buildPlan(vector, maxInFlight);
 const prefix = new Uint8Array(40).map((_value, index) => index);
 const returnPrefix = new Uint8Array(40).map(
   (_value, index) => (index + 0x80) & 0xff,
@@ -126,9 +130,53 @@ for (const limit of JSON.parse(process.env.HARNESS_LIMITS)) {
   records[String(limit)] = driver.sessionRecord();
 }
 
+// A late untagged echo: case 0 (0 bytes) times out, then its echo arrives while
+// case 1 (1 byte) is outstanding. Only the length separates them, so the frame
+// must be unattributable rather than a defect charged to case 1.
+const lateAdapter = new adapters.LoopbackAdapter(20000, returnPrefix);
+const lateDriver = new measurement.SessionDriver(
+  plan,
+  lateAdapter,
+  new Uint8Array(12),
+  config,
+);
+lateDriver.pump(0);
+lateAdapter.drain();
+lateDriver.pump(2000);
+lateAdapter.drain();
+lateDriver.receive(
+  framing.encodeFrame(
+    returnPrefix,
+    [new Uint8Array(0)],
+    framing.SERVER_TO_BROWSER,
+  ),
+  2001,
+);
+const lateUntaggedEcho = {
+  unmatchedFrames: lateDriver.unmatchedFrames,
+  outcomes: lateDriver.sessionRecord().cases.slice(0, 2).map((c) => c.outcome),
+};
+
+// The authorization is substituted into the endpoint template. JavaScript's
+// String.replace() would interpret $-patterns in it, so these deliberately
+// $-heavy synthetic values are compared against the Python implementation.
+const endpointUrls = {};
+for (const value of JSON.parse(process.env.HARNESS_AUTHORIZATIONS)) {
+  endpointUrls[value] = measurement
+    .parseConfig({
+      authorization: value,
+      destinationPortMatchesProjection: true,
+      endpointTemplate: "https://harness.invalid/p?a={authorization}&b=x",
+      routingPrefixHex: framing.bytesToHex(prefix),
+    })
+    .endpointUrl();
+}
+
 process.stdout.write(
   JSON.stringify({
     conformanceChecked,
+    endpointUrls,
+    lateUntaggedEcho,
     planCases: plan.cases.length,
     planDatagrams: plan.cases.reduce(
       (total, item) => total + item.datagrams.length,

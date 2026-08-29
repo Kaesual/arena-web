@@ -18,6 +18,7 @@ sizes and never inspects them beyond its own 16-byte tag.
 
 from __future__ import annotations
 
+import copy
 import math
 import struct
 from collections import Counter, deque
@@ -40,6 +41,11 @@ ORDINAL_BYTES = 4
 # A u16 length prefix cannot describe more than this, whatever a vector asks for.
 MAX_LENGTH_PREFIX_VALUE = 65535
 
+# A packed case is atomic: all of its datagrams leave in one frame, so its width
+# is outstanding at once. The plan is therefore built against the same bound the
+# driver enforces, and rejects a packed case that could never respect it.
+DEFAULT_MAX_IN_FLIGHT_DATAGRAMS = 8
+
 BROWSER_TO_SERVER = "browserToServer"
 SERVER_TO_BROWSER = "serverToBrowser"
 DIRECTIONS = (BROWSER_TO_SERVER, SERVER_TO_BROWSER)
@@ -55,8 +61,13 @@ OUTCOME_PAYLOAD_MISMATCH = "payloadMismatch"
 OUTCOME_TIMED_OUT = "timedOut"
 OUTCOME_SEND_FAILED = "sendFailed"
 OUTCOME_NOT_SENT = "notSentFrameExceedsTransportLimit"
+# A case the run never reached, because the caller stopped driving before its
+# turn. It is not evidence about the path in either direction, so the summary
+# excludes it rather than folding it into the accepted range.
+OUTCOME_NOT_RUN = "notRun"
 OUTCOMES = (
     OUTCOME_ECHOED,
+    OUTCOME_NOT_RUN,
     OUTCOME_NOT_SENT,
     OUTCOME_PAYLOAD_MISMATCH,
     OUTCOME_SEND_FAILED,
@@ -149,9 +160,9 @@ def decode_frame(
 ) -> DecodedFrame:
     """Return the prefix and inner datagrams of one frame, or reject the frame.
 
-    Every length is compared against the bytes actually present and against the
-    ceiling *before* any payload is copied, so a frame that declares 65,535 bytes
-    in a 44-byte datagram costs one comparison rather than a 64 KiB allocation.
+    Every length is compared against the ceiling and against the bytes actually
+    present *before* any payload is copied, so a frame that declares 65,535 bytes
+    in a 44-byte datagram costs two comparisons rather than a 64 KiB allocation.
     A violation rejects the whole frame; there is no partial parse and no
     resynchronisation inside a frame.
     """
@@ -276,7 +287,11 @@ class MeasurementPlan:
         return sum(len(case.datagrams) for case in self.cases)
 
     @classmethod
-    def from_vector(cls, vector) -> "MeasurementPlan":
+    def from_vector(
+        cls,
+        vector,
+        max_in_flight_datagrams: int = DEFAULT_MAX_IN_FLIGHT_DATAGRAMS,
+    ) -> "MeasurementPlan":
         """Build the plan the committed measurement vector describes.
 
         A single round trip through an echoing destination exercises both
@@ -284,7 +299,16 @@ class MeasurementPlan:
         of the two direction lists. Packed cases are taken as written, and the
         vector's required boundaries must each be present with both adjacent
         sizes or the plan fails rather than silently measuring less.
+
+        `max_in_flight_datagrams` is the same bound the driver enforces. A packed
+        case is atomic, so one wider than the bound could never be started
+        without exceeding it; the plan refuses such a vector here rather than
+        letting the driver quietly break its own limit.
         """
+        if not isinstance(max_in_flight_datagrams, int) or (
+            isinstance(max_in_flight_datagrams, bool) or max_in_flight_datagrams < 1
+        ):
+            raise MeasurementPlanError("max_in_flight_datagrams must be at least 1")
         if not isinstance(vector, dict):
             raise MeasurementPlanError("measurement vector is not an object")
         framing = vector.get("framing")
@@ -376,6 +400,11 @@ class MeasurementPlan:
             sizes = entry.get("sizes")
             if not isinstance(sizes, list) or len(sizes) < 2:
                 raise MeasurementPlanError("a packed case needs at least two sizes")
+            if len(sizes) > max_in_flight_datagrams:
+                raise MeasurementPlanError(
+                    f"a packed case of {len(sizes)} datagrams cannot respect the "
+                    f"{max_in_flight_datagrams} outstanding-datagram bound"
+                )
             datagrams = []
             for size in sizes:
                 if not isinstance(size, int) or isinstance(size, bool):
@@ -416,7 +445,6 @@ _CONFIG_FIELDS = (
     "destinationPortMatchesProjection",
     "endpointTemplate",
     "expectedReturnPrefixHex",
-    "keepAliveMilliseconds",
     "maxInFlightDatagrams",
     "pathNotes",
     "routingPrefixHex",
@@ -433,8 +461,7 @@ _CONFIG_DEFAULTS = {
     "caseTimeoutMilliseconds": 2000,
     "certificateHashes": (),
     "expectedReturnPrefixHex": "",
-    "keepAliveMilliseconds": 0,
-    "maxInFlightDatagrams": 8,
+    "maxInFlightDatagrams": DEFAULT_MAX_IN_FLIGHT_DATAGRAMS,
     "pathNotes": "",
 }
 
@@ -471,8 +498,7 @@ class ProbeConfig:
     expected_return_prefix: bytes = b""
     certificate_hashes: tuple[str, ...] = ()
     case_timeout_ms: int = 2000
-    keep_alive_ms: int = 0
-    max_in_flight_datagrams: int = 8
+    max_in_flight_datagrams: int = DEFAULT_MAX_IN_FLIGHT_DATAGRAMS
     path_notes: str = ""
 
     def endpoint_url(self) -> str:
@@ -547,7 +573,6 @@ def parse_probe_config(mapping) -> ProbeConfig:
         expected_return_prefix=expected_prefix,
         certificate_hashes=tuple(hashes),
         case_timeout_ms=_positive_int(mapping, "caseTimeoutMilliseconds", 1),
-        keep_alive_ms=_positive_int(mapping, "keepAliveMilliseconds", 0),
         max_in_flight_datagrams=_positive_int(mapping, "maxInFlightDatagrams", 1),
         path_notes=notes,
     )
@@ -588,6 +613,13 @@ class SessionDriver:
                 f"session nonce is {len(session_nonce)} bytes, "
                 f"not {SESSION_NONCE_BYTES}"
             )
+        for case in plan.cases:
+            if len(case.datagrams) > config.max_in_flight_datagrams:
+                raise RelayProbeError(
+                    f"case {case.index} carries {len(case.datagrams)} datagrams, "
+                    f"more than the configured bound of "
+                    f"{config.max_in_flight_datagrams}"
+                )
         self.plan = plan
         self.adapter = adapter
         self.session_nonce = bytes(session_nonce)
@@ -597,13 +629,10 @@ class SessionDriver:
         self._states = {case.index: _CaseState() for case in plan.cases}
         self._inflight: dict[int, tuple[int, bytes]] = {}
         self._return_prefix = config.expected_return_prefix or b""
-        self._outstanding_keep_alives = 0
-        self._last_send_ms = -1.0
         self.foreign_frames = 0
         self.malformed_frames = 0
         self.prefix_mismatch_frames = 0
         self.unmatched_frames = 0
-        self.keep_alive_frames_sent = 0
 
     # -- state ---------------------------------------------------------------
 
@@ -617,10 +646,9 @@ class SessionDriver:
     # -- sending -------------------------------------------------------------
 
     def pump(self, now: float) -> None:
-        """Complete expired cases, start what fits, and keep the session alive."""
+        """Complete expired cases and start whatever now fits."""
         self._expire(now)
         self._start_ready(now)
-        self.send_keep_alive_if_due(now)
 
     def _expire(self, now: float) -> None:
         for case in self.plan.cases:
@@ -648,12 +676,14 @@ class SessionDriver:
             if self._untagged_outstanding():
                 return
             if not case.tagged:
-                if self._inflight or self._outstanding_keep_alives:
+                if self._inflight:
                     return
-            elif self._inflight and (
+            elif (
                 len(self._inflight) + len(case.datagrams)
                 > self.config.max_in_flight_datagrams
             ):
+                # Unconditional: the plan guarantees no case is wider than the
+                # bound, so this can never refuse a case forever.
                 return
             self._pending.popleft()
             self._send_case(case, now)
@@ -676,37 +706,9 @@ class SessionDriver:
             state.outcome = OUTCOME_SEND_FAILED
             return
         state.sent_at = now
-        self._last_send_ms = now
         for datagram, payload in zip(case.datagrams, payloads):
             state.outstanding.add(datagram.ordinal)
             self._inflight[datagram.ordinal] = (case.index, payload)
-
-    def send_keep_alive_if_due(self, now: float) -> None:
-        """Send the smallest legal frame if the session has been idle.
-
-        Never while a case is outstanding: a keep-alive echo is a 0-byte inner
-        datagram and would otherwise be indistinguishable from a 0-byte case.
-        """
-        if self.config.keep_alive_ms <= 0 or self._inflight:
-            return
-        if (
-            self._last_send_ms >= 0
-            and now - self._last_send_ms < self.config.keep_alive_ms
-        ):
-            return
-        frame = encode_frame(
-            self.config.routing_prefix,
-            (b"",),
-            BROWSER_TO_SERVER,
-            self.plan.max_inner_datagram_bytes,
-        )
-        try:
-            self.adapter.send(frame)
-        except AdapterSendError:
-            return
-        self._last_send_ms = now
-        self._outstanding_keep_alives += 1
-        self.keep_alive_frames_sent += 1
 
     # -- receiving -----------------------------------------------------------
 
@@ -740,14 +742,20 @@ class SessionDriver:
         self._complete(entry[0], ordinal, payload, entry[1], now)
 
     def _receive_untagged(self, payload: bytes, now: float) -> None:
-        if not payload and self._outstanding_keep_alives:
-            self._outstanding_keep_alives -= 1
-            return
+        """Attribute an untagged echo, which only sequencing can identify.
+
+        Exactly one untagged datagram is ever outstanding, so there is at most
+        one candidate. It is still only a candidate: a late echo from a case that
+        already timed out arrives while the next one is outstanding, and its
+        length is what distinguishes the two. A length that does not match the
+        outstanding payload is therefore unattributable rather than a mismatch,
+        because attributing it would report a defect against the wrong case.
+        """
         if len(self._inflight) != 1:
             self.unmatched_frames += 1
             return
         ordinal, (case_index, expected) = next(iter(self._inflight.items()))
-        if len(expected) >= MINIMUM_TAGGED_INNER_BYTES:
+        if len(expected) >= MINIMUM_TAGGED_INNER_BYTES or len(payload) != len(expected):
             self.unmatched_frames += 1
             return
         self._complete(case_index, ordinal, payload, expected, now)
@@ -787,7 +795,11 @@ class SessionDriver:
                     "caseIndex": case.index,
                     "kind": case.kind,
                     "ordinals": list(case.ordinals),
-                    "outcome": state.outcome or OUTCOME_TIMED_OUT,
+                    # A case with no outcome either waited for an answer that
+                    # never came, or was never reached at all. Those are
+                    # different facts and the summary treats them differently.
+                    "outcome": state.outcome
+                    or (OUTCOME_TIMED_OUT if state.sent_at >= 0 else OUTCOME_NOT_RUN),
                     "receivedFrames": [
                         {
                             "frameBytes": size + SINGLE_DATAGRAM_OVERHEAD_BYTES,
@@ -808,8 +820,6 @@ class SessionDriver:
             "caseTimeoutMilliseconds": self.config.case_timeout_ms,
             "cases": cases,
             "foreignFrames": self.foreign_frames,
-            "keepAliveFramesSent": self.keep_alive_frames_sent,
-            "keepAliveMilliseconds": self.config.keep_alive_ms,
             "malformedFrames": self.malformed_frames,
             "maxDatagramSizeBytes": self.adapter.max_datagram_size_bytes,
             "maxInFlightDatagrams": self.config.max_in_flight_datagrams,
@@ -837,6 +847,36 @@ def build_report(
     }
 
 
+def merge_reports(reports, path_notes: str = None) -> dict:
+    """Combine reports from separate browser contexts into one valid report.
+
+    The concurrent-session evidence needs two sessions running at once, which
+    means two browser contexts, and each context numbers its own sessions from
+    zero. Concatenating them would collide, so the sessions are renumbered in
+    the order given. Every input must name the same measurement vector, because
+    a report that mixed two vectors would describe two different plans.
+    """
+    reports = [copy.deepcopy(report) for report in reports]
+    if not reports:
+        raise MeasurementReportError("no reports to merge")
+    digest = reports[0]["measurementVectorSha256"]
+    sessions = []
+    for report in reports:
+        if report.get("measurementVectorSha256") != digest:
+            raise MeasurementReportError("reports name different measurement vectors")
+        if report.get("kind") != REPORT_KIND:
+            raise MeasurementReportError("a report has an unsupported kind")
+        for session in report.get("sessions", []):
+            session["sessionIndex"] = len(sessions)
+            sessions.append(session)
+    merged = build_report(
+        sessions,
+        digest,
+        reports[0].get("pathNotes", "") if path_notes is None else path_notes,
+    )
+    return validate_report(merged)
+
+
 # --------------------------------------------------------------------------
 # Report validation
 # --------------------------------------------------------------------------
@@ -853,8 +893,6 @@ _SESSION_FIELDS = (
     "caseTimeoutMilliseconds",
     "cases",
     "foreignFrames",
-    "keepAliveFramesSent",
-    "keepAliveMilliseconds",
     "malformedFrames",
     "maxDatagramSizeBytes",
     "maxInFlightDatagrams",
@@ -874,7 +912,6 @@ _CASE_FIELDS = (
 )
 _SESSION_COUNTERS = (
     "foreignFrames",
-    "keepAliveFramesSent",
     "malformedFrames",
     "prefixMismatchFrames",
     "unmatchedFrames",
@@ -946,8 +983,7 @@ def _validate_session(session, plan) -> int:
     )
     max_datagram = _require_int(session, "maxDatagramSizeBytes", "session", 1)
     _require_int(session, "caseTimeoutMilliseconds", "session", 1)
-    _require_int(session, "keepAliveMilliseconds", "session", 0)
-    _require_int(session, "maxInFlightDatagrams", "session", 1)
+    bound = _require_int(session, "maxInFlightDatagrams", "session", 1)
     for name in _SESSION_COUNTERS:
         _require_int(session, name, "session", 0)
     cases = session["cases"]
@@ -961,14 +997,16 @@ def _validate_session(session, plan) -> int:
     seen_ordinals: set = set()
     for position, case in enumerate(cases):
         planned = plan.cases[position] if plan is not None else None
-        case_index = _validate_case(case, ceiling, max_datagram, planned, seen_ordinals)
+        case_index = _validate_case(
+            case, ceiling, max_datagram, bound, planned, seen_ordinals
+        )
         if case_index <= previous_case:
             raise MeasurementReportError("case indices are not ascending")
         previous_case = case_index
     return index
 
 
-def _validate_case(case, ceiling, max_datagram, planned, seen_ordinals) -> int:
+def _validate_case(case, ceiling, max_datagram, bound, planned, seen_ordinals) -> int:
     _require_fields(case, _CASE_FIELDS, "case")
     case_index = _require_int(case, "caseIndex", "case", 0)
     if case["kind"] not in (CASE_SINGLE, CASE_PACKED):
@@ -990,6 +1028,13 @@ def _validate_case(case, ceiling, max_datagram, planned, seen_ordinals) -> int:
         raise MeasurementReportError("a single case carries exactly one datagram")
     if case["kind"] == CASE_PACKED and len(sizes) < 2:
         raise MeasurementReportError("a packed case carries at least two datagrams")
+    if len(sizes) > bound:
+        # A case is atomic, so a case wider than the session's own bound means
+        # the run exceeded the limit it reports.
+        raise MeasurementReportError(
+            f"a case of {len(sizes)} datagrams exceeds the session's "
+            f"{bound} outstanding-datagram bound"
+        )
 
     ordinals = case["ordinals"]
     if not isinstance(ordinals, list) or len(ordinals) != len(sizes):
@@ -1047,6 +1092,11 @@ def _validate_case(case, ceiling, max_datagram, planned, seen_ordinals) -> int:
     elif round_trip is not None:
         raise MeasurementReportError("only an echoed case carries a round-trip time")
 
+    if case["outcome"] == OUTCOME_ECHOED and case["sentFrameBytes"] > max_datagram:
+        raise MeasurementReportError(
+            "a case that echoed is larger than the reported datagram maximum"
+        )
+
     if case["outcome"] == OUTCOME_NOT_SENT:
         if received:
             raise MeasurementReportError("an unsent case returned frames")
@@ -1054,6 +1104,12 @@ def _validate_case(case, ceiling, max_datagram, planned, seen_ordinals) -> int:
             raise MeasurementReportError(
                 "a case refused for size fits the reported datagram maximum"
             )
+
+    if case["outcome"] == OUTCOME_SEND_FAILED and received:
+        raise MeasurementReportError("a case whose send failed returned frames")
+
+    if case["outcome"] == OUTCOME_NOT_RUN and received:
+        raise MeasurementReportError("a case that never ran returned frames")
 
     if planned is not None:
         if (
@@ -1075,12 +1131,21 @@ def summarize_report(report, plan: MeasurementPlan = None) -> dict:
     """Reduce a validated report to per-session ranges.
 
     The result is deliberately per session and per path. `contiguousInnerBytes`
-    is the largest single-datagram inner size for which that session echoed
-    every smaller planned single size as well, so a path that accepts a large
-    size only intermittently cannot raise it. The report-level floor is the
-    minimum of those values across the listed sessions and carries no safety
-    margin; it describes the sessions in this report and is not a universal
-    transport constant.
+    is the largest single-datagram inner size below which every smaller planned
+    single size also echoed, so a path that accepts a large size only
+    intermittently cannot raise it. A case that never ran is a gap, not an
+    acceptance: it stops the contiguous range like a failure does, but it is
+    counted separately because it is an absence of evidence rather than
+    evidence of refusal. The report-level floor is the minimum of those values
+    across the listed sessions and carries no safety margin; it describes the
+    sessions in this report and is not a universal transport constant.
+
+    **The floor is not per direction.** Each single case is one round trip
+    through an echoing destination, so an accepted size means the browser-to-
+    server frame and the matching server-to-browser frame both survived. A
+    failure does not say which of the two directions refused it. WP6 asks for
+    per-direction budgets and this methodology cannot supply them; see the
+    known limitation recorded in `docs/wp2-relay-probe.md`.
     """
     validate_report(report, plan)
     summaries = []
@@ -1088,6 +1153,7 @@ def summarize_report(report, plan: MeasurementPlan = None) -> dict:
     for session in report["sessions"]:
         echoed: set = set()
         failed: set = set()
+        not_run: set = set()
         largest_frame = None
         for case in session["cases"]:
             if case["kind"] != CASE_SINGLE:
@@ -1099,11 +1165,13 @@ def summarize_report(report, plan: MeasurementPlan = None) -> dict:
                 largest_frame = (
                     frame if largest_frame is None else max(largest_frame, frame)
                 )
+            elif case["outcome"] == OUTCOME_NOT_RUN:
+                not_run.add(size)
             else:
                 failed.add(size)
         contiguous = None
-        for size in sorted(echoed | failed):
-            if size in failed:
+        for size in sorted(echoed | failed | not_run):
+            if size not in echoed:
                 break
             contiguous = size
         summaries.append(
@@ -1115,6 +1183,7 @@ def summarize_report(report, plan: MeasurementPlan = None) -> dict:
                 "largestEchoedInnerBytes": max(echoed) if echoed else None,
                 "maxDatagramSizeBytes": session["maxDatagramSizeBytes"],
                 "monotonic": not (echoed and failed and max(echoed) > min(failed)),
+                "notRunSingleCases": len(not_run),
                 "sessionIndex": session["sessionIndex"],
                 "smallestFailedInnerBytes": min(failed) if failed else None,
             }
