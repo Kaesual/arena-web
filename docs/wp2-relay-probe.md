@@ -202,6 +202,29 @@ has no authorization, no address mapping and no routing table. It exists so that
 the contract can be exercised, and so that its fault settings can produce the
 traffic the contract forbids.
 
+## The probe in the pinned browser
+
+The page was opened in the exact WP0 acceptance browser, Chrome for Testing
+`152.0.7977.64`, served from a clean checkout by `scripts/serve-probe.sh` on
+loopback. Its startup self-test reported:
+
+```text
+measurement vector sha256:546a9a859f92d72d0a2d7dc14acdd80410e0873148500b2d0e26765a6182a064 — 46 cases, ceiling 16384 bytes
+self-test passed: 50 conformance vectors, 46 loopback cases
+```
+
+That digest is exactly `sha256sum locks/relay-measurement-vector.json`, so the
+identity the browser will stamp into a report is the committed WP0 vector and
+not some other copy. The line also shows that the ES modules resolve, that
+`crypto.subtle` is available, that the browser's own implementation accepts all
+50 committed conformance vectors, and that a complete 46-case plan runs through
+the in-memory loopback inside the browser.
+
+This is **not** a measurement and involved no relay: no WebTransport session was
+opened, and the only network traffic was the loopback page load. It is evidence
+that the probe is ready to be pointed at an endpoint, nothing more. Real-browser
+acceptance of a routed session belongs to the pending work below.
+
 ## Routed acceptance: pending
 
 None of the following has been done, and none of it is claimed:
