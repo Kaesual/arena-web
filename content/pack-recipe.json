@@ -86,7 +86,7 @@
       "reference": "poopypants"
     },
     {
-      "reason": "Capture the Flag carrier effect shader registered unconditionally by cg_main.c; the FFA profile has no flags and OpenArena defines no shader of this name",
+      "reason": "Capture the Flag carrier effect shader cg_main.c registers under a runtime team-gametype guard the static reader cannot evaluate; the FFA profile never reaches it and OpenArena defines no shader of this name",
       "reference": "powerups/blueflag"
     },
     {

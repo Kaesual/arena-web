@@ -7,6 +7,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import random
 import sys
 import tarfile
 import tempfile
@@ -44,6 +45,7 @@ from qvm_references import (  # noqa: E402
     ReferenceError,
     baseq3_references,
     baseq3_translation_units,
+    registration_references,
     select_compiled_lines,
 )
 from test_game_assets import build_bsp, build_md3  # noqa: E402
@@ -419,12 +421,19 @@ class PackWriterTests(unittest.TestCase):
     def test_the_declared_compression_level_is_actually_in_force(self) -> None:
         # A level handed to the ZipFile constructor is ignored for a
         # caller-supplied ZipInfo, so without passing it to writestr the pack is
-        # silently written at zlib's default. The payload is arithmetic rather
-        # than random so it is identical on every interpreter.
-        payload = b"".join(
-            bytes([index % 7, index % 11, index % 13, index % 3])
-            for index in range(6000)
-        )
+        # silently written at zlib's default. The payload is built from a
+        # seeded generator, so it is identical on every interpreter, and it is
+        # shaped so that the default and declared levels compress it to
+        # different sizes — verified as a precondition below on both zlib and
+        # zlib-ng, so the test cannot silently turn vacuous.
+        rng = random.Random(20260829)
+        words = [bytes([65 + i % 26]) * (3 + i % 17) for i in range(200)]
+        chunks = []
+        for index in range(3000):
+            chunks.append(words[rng.randrange(200)])
+            if index % 7 == 0:
+                chunks.append(bytes(rng.randrange(256) for _ in range(11)))
+        payload = b"".join(chunks)
 
         def deflate(level: int) -> bytes:
             stream = zlib.compressobj(level, zlib.DEFLATED, -15)
@@ -432,6 +441,12 @@ class PackWriterTests(unittest.TestCase):
 
         declared = deflate(ZIP_COMPRESS_LEVEL)
         default = deflate(-1)
+        self.assertNotEqual(
+            len(default),
+            len(declared),
+            "payload no longer discriminates the compression levels; "
+            "the test below would be vacuous",
+        )
         with tempfile.TemporaryDirectory() as raw:
             output = Path(raw) / "pack.pk3"
             write_pk3({"a.bin": payload}, output)
@@ -441,10 +456,7 @@ class PackWriterTests(unittest.TestCase):
                     self.assertEqual(member.read(), payload)
                 stored_size = info.compress_size
         self.assertEqual(stored_size, len(declared))
-        if len(default) != len(declared):
-            # The regression the review found: on a toolchain where the levels
-            # actually differ, the archive must not be the default one.
-            self.assertNotEqual(stored_size, len(default))
+        self.assertNotEqual(stored_size, len(default))
 
     def test_two_writes_are_byte_identical(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -600,6 +612,46 @@ class QvmReferenceTests(unittest.TestCase):
         self.assertNotIn("models/players/james/lower.md3", literals)
         self.assertNotIn("sound/player/james/death1.wav", literals)
 
+    def test_an_unterminated_conditional_is_an_error(self) -> None:
+        # The one path by which the deliberately superset-producing reader
+        # could silently lose the tail of a translation unit.
+        with self.assertRaisesRegex(ReferenceError, "unterminated"):
+            select_compiled_lines('#ifdef MISSIONPACK\ndrop "x"\n', frozenset())
+
+    def test_registration_arguments_are_read_through_their_shapes(self) -> None:
+        # Each line exercises one property of the argument scanner: plain
+        # literals, a va() wrapper whose later arguments must be ignored, a
+        # depth-0 comma ending the first argument, adjacent-literal
+        # concatenation, a char literal that must not open a string, an escaped
+        # quote, and a trap that is not a registration.
+        text = "\n".join(
+            [
+                'cgs.media.a = trap_R_RegisterShader( "smokePuff" );',
+                'cgs.media.b = trap_R_RegisterShaderNoMip("menuback");',
+                "cgs.media.c = trap_R_RegisterModel("
+                ' va( "models/players/%s/head.md3", name ) );',
+                'cgs.media.d = trap_S_RegisterSound( "sound/n_health.wav",'
+                " qfalse );",
+                'trap_R_RegisterSkin(va("models/players/%s/%s.skin", m, s));',
+                'trap_R_RegisterShader( "gfx/" "2d/" "crosshaira" );',
+                "trap_R_RegisterShader( va(\"%s%i\", names[i], 'a' + j) );",
+                'trap_R_RegisterShader( "say \\"hi\\"" );',
+                'trap_Cvar_Set( "model", "sarge" );',
+            ]
+        )
+        found = set(registration_references(text))
+        self.assertIn(("shader", "smokePuff"), found)
+        self.assertIn(("shader", "menuback"), found)
+        self.assertIn(("model", "models/players/%s/head.md3"), found)
+        self.assertIn(("sound", "sound/n_health.wav"), found)
+        self.assertNotIn(("sound", "qfalse"), found)
+        self.assertIn(("skin", "models/players/%s/%s.skin"), found)
+        self.assertIn(("shader", "gfx/2d/crosshaira"), found)
+        self.assertIn(("shader", "%s%i"), found)
+        self.assertIn(("shader", 'say "hi"'), found)
+        for kind, name in found:
+            self.assertNotIn(name, ("model", "sarge"))
+
 
 class BuildGateTests(unittest.TestCase):
     """The gates in build-content-pack.py, exercised through its own module.
@@ -698,6 +750,33 @@ class BuildGateTests(unittest.TestCase):
                 output = Path(raw)
                 with self.assertRaisesRegex(ContentError, message):
                     self._build(recipe, output, output)
+
+    def test_generated_metadata_must_agree_with_the_members(self) -> None:
+        recipe = {
+            "profile": {
+                "map": "m",
+                "bots": [{"name": "B", "model": "x/default", "aifile": "bots/x_c.c"}],
+            }
+        }
+        metadata = {
+            "scripts/arenas.txt": '{\nmap\t\t"m"\n}\n',
+            "scripts/bots.txt": (
+                '{\nname\t\t"B"\nmodel\t\t"x/default"\naifile\t\t"bots/x_c.c"\n}\n'
+            ),
+        }
+        members = {
+            "maps/m.bsp": b"1",
+            "models/players/x/lower.md3": b"2",
+            "botfiles/bots/x_c.c": b"3",
+        }
+        self.module._check_generated_metadata(metadata, recipe, members)
+        with self.assertRaisesRegex(ContentError, "not a packaged member"):
+            self.module._check_generated_metadata(
+                metadata, recipe, {"maps/m.bsp": b"1"}
+            )
+        wrong_map = dict(metadata, **{"scripts/arenas.txt": '{\nmap\t\t"o"\n}\n'})
+        with self.assertRaisesRegex(ContentError, "profile map"):
+            self.module._check_generated_metadata(wrong_map, recipe, members)
 
 
 class CommittedRecipeTests(unittest.TestCase):

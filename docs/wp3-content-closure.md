@@ -299,8 +299,8 @@ groups:
 - **Single-player and Capture the Flag cues** outside this profile:
   `models/mapobjects/podium/podium4.md3`, `menu/medals/medal_victory`,
   `sound/player/announce/youwin.wav`, `sound/teamplay/flagret_{blu,red}.wav`,
-  and `powerups/blueflag`, the flag-carrier effect `cg_main.c` registers
-  unconditionally.
+  and `powerups/blueflag`, the flag-carrier effect `cg_main.c` registers under
+  a runtime team-gametype guard the static reader cannot evaluate.
 - **Assets OpenArena replaced differently**: the optional halo sub-models
   (`armor/shard_sphere`, `holdable/medkit_sphere`, `instant/invis_ring`),
   `sound/misc/windfly.wav` (OpenArena uses `sound/items/flight.wav`),
@@ -380,7 +380,7 @@ From a clean checkout:
 ```bash
 git submodule update --init --recursive
 scripts/check.sh
-CONTAINER_RUNTIME=podman scripts/fetch-content-sources.sh   # once, online
+scripts/fetch-content-sources.sh                            # once, online
 CONTAINER_RUNTIME=podman scripts/verify-content-pack.sh     # two clean assemblies
 ```
 
@@ -477,12 +477,18 @@ change: no schema, validator or WP0/WP1 artifact was modified.
 
 ## Findings recorded rather than fixed
 
-- **The shader stage reader models `renderergl1` only.** `renderergl2`'s
-  `ParseStage` additionally honours `diffuseMap`, `normalMap`, `bumpMap` and
-  `specularMap`. No shader in this pack uses any of them, so nothing is missing
-  today, but a later content source that did would have those stage images
-  invisible to the closure. The reader names its renderer so the gap is
-  visible.
+- **The shader stage reader models the stage image directives common to both
+  renderers.** `map`, `clampmap`, `videomap`, `animMap` and `skyParms` are what
+  name images in either renderer; `renderergl2`'s stage-type keywords
+  (`diffuseMap` and friends) select a stage type and name no image of their
+  own. What the reader does **not** model are `renderergl2`'s implicit,
+  optional companion-image probes — for a lightmapped diffuse stage it also
+  tries `<image>_n` (normal map, `tr_image.c`) and `<image>_s` (specular,
+  `tr_shader.c`) and silently proceeds without them. This matters because the
+  WP1 browser client builds `renderergl2` only (`BUILD_RENDERER_GL1 OFF` in
+  `cmake/platforms/emscripten.cmake`). No OpenArena shader in this pack ships
+  such companions, so nothing is missing; a later content source that did
+  provide them would have those optional images invisible to the closure.
 - **The generated members' licence evidence is pinned to a published commit.**
   `content/pack-recipe.json` points `arena-web`'s `licenseEvidenceUrl` at
   `LICENSE` at commit `1cc0a1a`, the newest published arena-web commit, whose

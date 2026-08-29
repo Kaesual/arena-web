@@ -234,9 +234,10 @@ class ClosureReport:
 class ShaderIndex:
     """Shader definitions across all candidate `scripts/*.shader` files.
 
-    Precedence follows `ScanAndLoadShaderFiles`: the engine reverse-sorts the
-    file list and takes the first definition it meets, so a definition in a
-    later-sorting file wins over the same name in an earlier one.
+    The engine concatenates the shader files in the reverse of the listing
+    order and takes the first definition it meets; for this pack that listing
+    is alphabetical because `write_pk3` stores members sorted, so a definition
+    in a later-sorting file wins. `shader_file_precedence` states the coupling.
     """
 
     def __init__(self, sources: SourceSet) -> None:
