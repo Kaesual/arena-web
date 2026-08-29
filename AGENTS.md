@@ -12,9 +12,9 @@ internal hostnames or unpublished operational details in code or
 documentation.
 
 The project is in planning/prototype state. `docs/initial-plan.md` records the
-current evidence and direction, but it is not yet an approved set of work
-packages. Do not silently turn an open decision there into an implementation
-contract.
+current evidence and decided prototype constraints, but it is not yet an
+approved set of work packages. Do not silently expand those constraints or
+turn later product ideas into prototype requirements.
 
 ## Submodule boundary
 
@@ -28,6 +28,12 @@ on the intended development branch rather than committing on a detached HEAD.
 Commit and push an ioquake3 change in that repository before bumping its pin
 here. A pin that exists only locally is not an acceptable project state.
 
+Keep the fork's `main` branch suitable for tracking upstream. Product engine
+changes belong on `web`; create and publish that branch before the first engine
+change, then update this repository's submodule branch metadata and pin.
+Until then, do not use `git submodule update --remote`; the recorded commit is
+the checkout contract.
+
 Avoid adding maps, asset packs or generated PK3 files to the engine fork. New
 source repositories may be pinned here when a submodule is genuinely the best
 contract; release archives should normally be identified by an explicit URL,
@@ -35,6 +41,9 @@ cryptographic digest and license/provenance record instead.
 
 ## Reproducibility and licensing
 
+- Unless a file says otherwise, original arena-web code and documentation are
+  GPL-2.0-or-later. Add SPDX identifiers to new source files where the file
+  format permits them.
 - Pin the Emscripten toolchain, source commits, content inputs and container
   bases exactly. A successful build must be reproducible from documented public
   inputs.
@@ -52,12 +61,20 @@ cryptographic digest and license/provenance record instead.
 
 - The browser client uses WebTransport through a small game-neutral relay
   contract; browsers do not gain direct UDP access.
-- Keep ioquake3's game datagrams intact at the engine boundary. Any tunnel
-  fragmentation must be bounded, authenticated, loss-tolerant and transparent
-  to the game protocol.
+- The public prototype relay and its test fixture live in this repository so a
+  reviewer can reproduce the networking evidence without private services.
+- Keep ioquake3's game datagrams intact at the engine boundary. Do not implement
+  tunnel fragmentation before packet and browser-path measurements require it.
+  Any such fragmentation must be bounded, authenticated, loss-tolerant and
+  transparent to the game protocol.
 - The first supported target is the pinned browser client against its pinned
   native server. Compatibility with arbitrary public Quake III/OpenArena
   servers is not an implicit requirement.
+- The first game profile is one freely redistributable map, FFA, offline bots
+  and a two-player multiplayer acceptance. Additional modes are later scope.
+- The first browser gate is one exact Chromium version string on one exact
+  desktop OS version, recorded by the owning work package. Other browsers,
+  mobile and touch are later scope.
 - Treat input, audio activation, frame timing, packet sizes, content load time
   and real-browser rendering as acceptance behavior, not incidental polish.
 
