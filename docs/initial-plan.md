@@ -1,7 +1,9 @@
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+
 # Browser arena: initial findings and prototype plan
 
 **Status:** Prototype constraints and work-package breakdown independently
-reviewed; WP0 is ready
+reviewed; WP0 complete
 
 ## Goal
 
@@ -153,6 +155,10 @@ prototype targets only its matching, pinned server and content set.
 ioquake3's netchan buffer is 1,400 bytes, but messages at or above its 1,300-byte
 fragment size are split. Including netchan headers, expected wire datagrams can
 reach 1,312 bytes from server to client and 1,314 bytes from client to server.
+The maximum unfragmented body is 1,299 bytes, which becomes 1,307 bytes from
+server to client and 1,309 bytes from client to server because only the client
+header includes the 2-byte qport. Fragment records add two further 2-byte
+fields, producing the 1,312/1,314-byte pair.
 Connectionless handshake packets bypass netchan fragmentation and can follow a
 different size bound. The existing relay adds a fixed 40-byte header and a
 two-byte length prefix for each enclosed UDP datagram, so the largest expected
@@ -256,7 +262,9 @@ These are bounded planning inputs, not open product scope:
 
 1. Record the exact Emscripten image/digest and the commands that reproduce the
    pinned upstream build, including any separate host-QVM tools step and the
-   reason for any deviation from upstream CI's toolchain version.
+   reason for any deviation from upstream CI's toolchain version. WP0 selected
+   Emscripten 6.0.8 and makes compatibility with that newer toolchain an
+   explicit WP1 gate; 3.1.58 remains reference evidence only.
 2. Choose the first map and player presentation by verified license,
    availability of preferred source and smallest reproducible dependency
    closure; aesthetics break ties rather than override provenance. Prove the

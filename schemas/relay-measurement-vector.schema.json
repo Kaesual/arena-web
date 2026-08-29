@@ -1,0 +1,134 @@
+{
+  "$id": "https://kaesual.github.io/arena-web/schemas/relay-measurement-vector.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "const": "../schemas/relay-measurement-vector.schema.json"
+    },
+    "directions": {
+      "additionalProperties": false,
+      "properties": {
+        "browserToServer": {
+          "items": {
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "serverToBrowser": {
+          "items": {
+            "maximum": 65535,
+            "minimum": 0,
+            "type": "integer"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "browserToServer",
+        "serverToBrowser"
+      ],
+      "type": "object"
+    },
+    "formatVersion": {
+      "const": 1
+    },
+    "framing": {
+      "additionalProperties": false,
+      "properties": {
+        "datagramLengthPrefixBytes": {
+          "const": 2
+        },
+        "relayHeaderBytes": {
+          "const": 40
+        },
+        "singleDatagramOverheadBytes": {
+          "const": 42
+        }
+      },
+      "required": [
+        "datagramLengthPrefixBytes",
+        "relayHeaderBytes",
+        "singleDatagramOverheadBytes"
+      ],
+      "type": "object"
+    },
+    "packedCases": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "direction": {
+            "const": "browserToServer"
+          },
+          "sizes": {
+            "items": {
+              "maximum": 65535,
+              "minimum": 0,
+              "type": "integer"
+            },
+            "maxItems": 4,
+            "minItems": 2,
+            "type": "array"
+          }
+        },
+        "required": [
+          "direction",
+          "sizes"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "payloadIdentification": {
+      "additionalProperties": false,
+      "properties": {
+        "minimumTaggedInnerBytes": {
+          "const": 16
+        },
+        "nonceBytes": {
+          "const": 16
+        },
+        "placement": {
+          "const": "payload-prefix"
+        },
+        "smallerCasesRunSequentially": {
+          "const": true
+        }
+      },
+      "required": [
+        "minimumTaggedInnerBytes",
+        "nonceBytes",
+        "placement",
+        "smallerCasesRunSequentially"
+      ],
+      "type": "object"
+    },
+    "requiredBoundaryBytes": {
+      "items": {
+        "minimum": 0,
+        "type": "integer"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    }
+  },
+  "required": [
+    "$schema",
+    "directions",
+    "formatVersion",
+    "framing",
+    "packedCases",
+    "payloadIdentification",
+    "requiredBoundaryBytes"
+  ],
+  "title": "arena-web routed datagram measurement vector",
+  "type": "object"
+}

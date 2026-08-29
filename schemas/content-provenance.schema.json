@@ -1,0 +1,175 @@
+{
+  "$id": "https://kaesual.github.io/arena-web/schemas/content-provenance.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "const": "https://kaesual.github.io/arena-web/schemas/content-provenance.schema.json"
+    },
+    "baselineIdentity": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "formatVersion": {
+      "const": 1
+    },
+    "members": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "licenseExpression": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "noticePaths": {
+            "items": {
+              "pattern": "^(?!/)(?!\\./)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)[^/]+(?:/[^/]+)*$",
+              "type": "string"
+            },
+            "type": "array",
+            "uniqueItems": true
+          },
+          "obligations": {
+            "items": {
+              "enum": [
+                "attribution",
+                "copyleft-source",
+                "license-notice",
+                "share-alike"
+              ]
+            },
+            "minItems": 1,
+            "type": "array",
+            "uniqueItems": true
+          },
+          "path": {
+            "pattern": "^(?!/)(?!\\./)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)[^/]+(?:/[^/]+)*$",
+            "type": "string"
+          },
+          "role": {
+            "enum": [
+              "asset",
+              "game-module",
+              "metadata",
+              "notice",
+              "source-code"
+            ]
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "size": {
+            "minimum": 0,
+            "type": "integer"
+          },
+          "sourceId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "sourcePath": {
+            "pattern": "^(?!/)(?!\\./)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)[^/]+(?:/[^/]+)*$",
+            "type": "string"
+          },
+          "transformation": {
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "required": [
+          "licenseExpression",
+          "noticePaths",
+          "obligations",
+          "path",
+          "role",
+          "sha256",
+          "size",
+          "sourceId",
+          "sourcePath",
+          "transformation"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "package": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "name"
+      ],
+      "type": "object"
+    },
+    "sources": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "id": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "licenseEvidenceUrl": {
+            "format": "uri",
+            "pattern": "^https://",
+            "type": "string"
+          },
+          "licenseExpression": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "preferredSourceRevision": {
+            "pattern": "^(?:git:[0-9a-f]{40}|sha256:[0-9a-f]{64})$",
+            "type": "string"
+          },
+          "preferredSourceUrl": {
+            "format": "uri",
+            "pattern": "^https://",
+            "type": "string"
+          },
+          "sourceIdentity": {
+            "pattern": "^(?:git:[0-9a-f]{40}|sha256:[0-9a-f]{64})$",
+            "type": "string"
+          },
+          "sourceUrl": {
+            "format": "uri",
+            "pattern": "^https://",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "licenseEvidenceUrl",
+          "licenseExpression",
+          "preferredSourceRevision",
+          "preferredSourceUrl",
+          "sourceIdentity",
+          "sourceUrl"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    }
+  },
+  "required": [
+    "$schema",
+    "baselineIdentity",
+    "formatVersion",
+    "members",
+    "package",
+    "sources"
+  ],
+  "title": "arena-web generated content provenance",
+  "type": "object"
+}

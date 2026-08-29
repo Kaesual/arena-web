@@ -1,0 +1,182 @@
+{
+  "$id": "https://kaesual.github.io/arena-web/schemas/artifact-manifest.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "const": "https://kaesual.github.io/arena-web/schemas/artifact-manifest.schema.json"
+    },
+    "artifacts": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "path": {
+            "pattern": "^(?!/)(?!\\./)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)[^/]+(?:/[^/]+)*$",
+            "type": "string"
+          },
+          "sha256": {
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          },
+          "size": {
+            "minimum": 0,
+            "type": "integer"
+          }
+        },
+        "required": [
+          "path",
+          "sha256",
+          "size"
+        ],
+        "type": "object"
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "baselineIdentity": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "baselineInputIds": {
+      "items": {
+        "minLength": 1,
+        "type": "string"
+      },
+      "minItems": 1,
+      "type": "array",
+      "uniqueItems": true
+    },
+    "digestAlgorithm": {
+      "const": "sha256"
+    },
+    "formatVersion": {
+      "const": 1
+    },
+    "inputs": {
+      "items": {
+        "oneOf": [
+          {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "identity": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "kind": {
+                "const": "archive"
+              }
+            },
+            "required": [
+              "id",
+              "identity",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "identity": {
+                "pattern": "^sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "kind": {
+                "const": "artifact-manifest"
+              }
+            },
+            "required": [
+              "id",
+              "identity",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "identity": {
+                "pattern": "^git:[0-9a-f]{40}$",
+                "type": "string"
+              },
+              "kind": {
+                "const": "git"
+              }
+            },
+            "required": [
+              "id",
+              "identity",
+              "kind"
+            ],
+            "type": "object"
+          },
+          {
+            "additionalProperties": false,
+            "properties": {
+              "id": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "identity": {
+                "pattern": "^[^@\\s:]+(?:/[^@\\s:]+)+@sha256:[0-9a-f]{64}$",
+                "type": "string"
+              },
+              "kind": {
+                "const": "oci-image"
+              }
+            },
+            "required": [
+              "id",
+              "identity",
+              "kind"
+            ],
+            "type": "object"
+          }
+        ]
+      },
+      "minItems": 1,
+      "type": "array"
+    },
+    "producer": {
+      "additionalProperties": false,
+      "properties": {
+        "commit": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "commit",
+        "name"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "$schema",
+    "artifacts",
+    "baselineIdentity",
+    "baselineInputIds",
+    "digestAlgorithm",
+    "formatVersion",
+    "inputs",
+    "producer"
+  ],
+  "title": "arena-web generated artifact manifest",
+  "type": "object"
+}

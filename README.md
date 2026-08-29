@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+
 # arena-web
 
 `arena-web` is the public integration repository for a small, independently
@@ -20,7 +22,9 @@ release.
 - `docs/initial-plan.md` records the independently reviewed feasibility
   findings, decisions, risks and prototype sequence.
 - `docs/prototype-work-packages.md` contains the approved, dependency-ordered
-  prototype increments and evidence gates. WP0 is next.
+  prototype increments and evidence gates.
+- `docs/immutable-baseline.md` records WP0's exact toolchain, browser,
+  acceptance-platform, metadata and relay-trust contracts.
 - `LICENSE` applies GPL-2.0-or-later to original arena-web code and
   documentation. Pinned components and content retain their own licenses.
 
@@ -34,7 +38,7 @@ should not be committed here merely for convenience.
 ## Checkout
 
 ```bash
-git clone --recurse-submodules git@github.com:Kaesual/arena-web.git
+git clone --recurse-submodules https://github.com/Kaesual/arena-web.git
 ```
 
 For an existing checkout:
@@ -47,14 +51,22 @@ The ioq3 pin is intentionally exact. Do not use `git submodule update --remote`:
 the branch metadata will move from `main` to the product `web` branch when that
 branch is created for the first engine change.
 
-No supported build command exists yet. The first implementation work package
-will pin and reproduce the upstream Emscripten build before this README grows a
-build procedure.
+No supported ioq3 build command exists yet. WP0 metadata can be checked without
+building the engine or downloading game content:
+
+```bash
+scripts/check.sh
+```
+
+The matching containerized check is `scripts/check-container.sh`. WP1 will add
+the first supported engine-build command.
 
 ## Licensing
 
 Original arena-web code and documentation are licensed under
-GPL-2.0-or-later. The pinned ioquake3 source retains its upstream GPL terms;
-game code, maps, models, textures, audio and other content retain their
-respective licenses. Every shipped content file will need machine-readable
-provenance. Proprietary Quake III game data is not part of this project.
+GPL-2.0-or-later. The pinned ioquake3 core and game code retain their upstream
+GPL terms, while its bundled third-party components retain their individual
+licenses recorded in the immutable baseline. Maps, models, textures, audio and
+other content likewise retain their respective licenses. Every shipped content
+file will need machine-readable provenance. Proprietary Quake III game data is
+not part of this project.

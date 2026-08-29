@@ -1,0 +1,493 @@
+{
+  "$schema": "../schemas/baseline-lock.schema.json",
+  "acceptancePlatform": {
+    "architecture": "x86_64",
+    "browserToolId": "chrome-for-testing",
+    "desktop": "GNOME",
+    "installationMedia": {
+      "acquisitionUrl": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-Live-44-1.7.x86_64.iso",
+      "checksumEvidence": {
+        "format": "OpenPGP-cleartext-signature",
+        "sha256": "023909e4d2e4521390f61fcfb863588bed6122362a546265ae19374a08a705ad",
+        "url": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-44-1.7-x86_64-CHECKSUM"
+      },
+      "fileName": "Fedora-Workstation-Live-44-1.7.x86_64.iso",
+      "sha256": "1620295f6a00c27c3208f0c00b8ece4eab1ec69b9002152d97488bf26a426ddf",
+      "size": 2851612672
+    },
+    "license": {
+      "distribution": "test-only-not-redistributed",
+      "evidenceIdentity": "sha256:023909e4d2e4521390f61fcfb863588bed6122362a546265ae19374a08a705ad",
+      "evidenceRetrievedAt": "2026-08-29",
+      "evidenceUrl": "https://download.fedoraproject.org/pub/fedora/linux/releases/44/Workstation/x86_64/iso/Fedora-Workstation-44-1.7-x86_64-CHECKSUM",
+      "expression": "LicenseRef-Fedora-Workstation-Aggregate"
+    },
+    "name": "Fedora Linux Workstation",
+    "preferredSource": {
+      "reason": "The acceptance-only Fedora Workstation ISO aggregates independently versioned source packages; arena-web neither modifies nor redistributes the installation medium.",
+      "status": "unavailable"
+    },
+    "version": "44"
+  },
+  "engine": {
+    "branch": "main",
+    "commit": "588393618dbc82e7207c21c6ddecca229944a03a",
+    "id": "ioq3",
+    "kind": "git",
+    "licenseComponents": [
+      {
+        "excludedPaths": [],
+        "id": "curl-headers",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/588393618dbc82e7207c21c6ddecca229944a03a/code/thirdparty/curl-8.15.0/include/curl/curl.h",
+          "expression": "curl"
+        },
+        "paths": [
+          "code/thirdparty/curl-8.15.0"
+        ],
+        "sourceRole": "emscripten-disabled-source"
+      },
+      {
+        "excludedPaths": [],
+        "id": "ijg",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "sha256:04705c110cb2469caa79fb71fba3d7bf834914706e9641a4589485c1f832565b",
+          "evidencePath": "jpeg-9f/README",
+          "evidenceRetrievedAt": "2026-08-29",
+          "evidenceUrl": "https://www.ijg.org/files/jpegsrc.v9f.tar.gz",
+          "expression": "IJG"
+        },
+        "paths": [
+          "code/thirdparty/jpeg-9f"
+        ],
+        "sourceRole": "browser-build-source"
+      },
+      {
+        "excludedPaths": [
+          "code/client/libmumblelink.c",
+          "code/client/libmumblelink.h",
+          "code/client/snd_adpcm.c",
+          "code/game/bg_lib.c",
+          "code/qcommon/ioapi.c",
+          "code/qcommon/ioapi.h",
+          "code/qcommon/md5.c",
+          "code/qcommon/unzip.c",
+          "code/qcommon/unzip.h",
+          "code/renderercommon/puff.c",
+          "code/renderercommon/puff.h",
+          "code/sys/sys_autoupdater.c",
+          "code/thirdparty/SDL2-2.32.8",
+          "code/thirdparty/curl-8.15.0",
+          "code/thirdparty/jpeg-9f",
+          "code/thirdparty/libogg-1.3.6",
+          "code/thirdparty/libs",
+          "code/thirdparty/libvorbis-1.3.7",
+          "code/thirdparty/openal-soft-1.24.3",
+          "code/thirdparty/opus-1.5.2",
+          "code/thirdparty/opusfile-0.12",
+          "code/thirdparty/zlib-1.3.1",
+          "code/tools/lcc"
+        ],
+        "id": "ioq3-core",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/588393618dbc82e7207c21c6ddecca229944a03a/COPYING.txt",
+          "expression": "GPL-2.0-or-later"
+        },
+        "paths": [
+          "code"
+        ],
+        "sourceRole": "engine-core"
+      },
+      {
+        "excludedPaths": [],
+        "id": "lcc-build-tool",
+        "license": {
+          "distribution": "build-tool-source-submodule-only",
+          "evidenceIdentity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/588393618dbc82e7207c21c6ddecca229944a03a/code/tools/lcc/COPYRIGHT",
+          "expression": "LicenseRef-LCC-1998"
+        },
+        "paths": [
+          "code/tools/lcc"
+        ],
+        "sourceRole": "qvm-build-tool"
+      },
+      {
+        "excludedPaths": [],
+        "id": "libogg",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "sha256:d2ab5758336489da61c12cc5bb757da5339c4ae9001f9bb0562b4370249af814",
+          "evidenceRetrievedAt": "2026-08-29",
+          "evidenceUrl": "https://raw.githubusercontent.com/xiph/ogg/v1.3.6/COPYING",
+          "expression": "BSD-3-Clause"
+        },
+        "paths": [
+          "code/thirdparty/libogg-1.3.6"
+        ],
+        "sourceRole": "browser-build-source"
+      },
+      {
+        "excludedPaths": [],
+        "id": "libvorbis",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "sha256:ec1815db59fcd302846df949d7424876cb2e2dc5ed1606c5fb0b36787b1cf43a",
+          "evidenceRetrievedAt": "2026-08-29",
+          "evidenceUrl": "https://raw.githubusercontent.com/xiph/vorbis/v1.3.7/COPYING",
+          "expression": "BSD-3-Clause"
+        },
+        "paths": [
+          "code/thirdparty/libvorbis-1.3.7"
+        ],
+        "sourceRole": "browser-build-source"
+      },
+      {
+        "excludedPaths": [],
+        "id": "minizip",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/588393618dbc82e7207c21c6ddecca229944a03a/code/qcommon/unzip.c",
+          "expression": "Zlib AND Info-ZIP"
+        },
+        "paths": [
+          "code/qcommon/ioapi.c",
+          "code/qcommon/ioapi.h",
+          "code/qcommon/unzip.c",
+          "code/qcommon/unzip.h"
+        ],
+        "sourceRole": "browser-build-source"
+      },
+      {
+        "excludedPaths": [],
+        "id": "mumble-link",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/588393618dbc82e7207c21c6ddecca229944a03a/code/client/libmumblelink.c",
+          "expression": "Zlib"
+        },
+        "paths": [
+          "code/client/libmumblelink.c",
+          "code/client/libmumblelink.h"
+        ],
+        "sourceRole": "browser-build-source"
+      },
+      {
+        "excludedPaths": [],
+        "id": "openal-headers",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "sha256:d808ce217e5b611854da622b57ec29fe545584c48bc5352fae72a4b6e5074a15",
+          "evidenceRetrievedAt": "2026-08-29",
+          "evidenceUrl": "https://raw.githubusercontent.com/kcat/openal-soft/1.24.3/COPYING",
+          "expression": "LGPL-2.0-or-later"
+        },
+        "paths": [
+          "code/thirdparty/openal-soft-1.24.3"
+        ],
+        "sourceRole": "browser-interface-header"
+      },
+      {
+        "excludedPaths": [],
+        "id": "opus",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/588393618dbc82e7207c21c6ddecca229944a03a/code/thirdparty/opus-1.5.2/include/opus.h",
+          "expression": "BSD-3-Clause"
+        },
+        "paths": [
+          "code/thirdparty/opus-1.5.2"
+        ],
+        "sourceRole": "browser-build-source"
+      },
+      {
+        "excludedPaths": [],
+        "id": "opusfile",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "sha256:0267ae795ab744c4e0f9c45e249440fdf2e75dac8c804f36066b28649bf74aaf",
+          "evidenceRetrievedAt": "2026-08-29",
+          "evidenceUrl": "https://raw.githubusercontent.com/xiph/opusfile/v0.12/COPYING",
+          "expression": "BSD-3-Clause"
+        },
+        "paths": [
+          "code/thirdparty/opusfile-0.12"
+        ],
+        "sourceRole": "browser-build-source"
+      },
+      {
+        "excludedPaths": [],
+        "id": "public-domain-md5",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/588393618dbc82e7207c21c6ddecca229944a03a/code/qcommon/md5.c",
+          "expression": "LicenseRef-Public-Domain-Colin-Plumb-MD5"
+        },
+        "paths": [
+          "code/qcommon/md5.c"
+        ],
+        "sourceRole": "browser-build-source"
+      },
+      {
+        "excludedPaths": [],
+        "id": "public-domain-updater",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/588393618dbc82e7207c21c6ddecca229944a03a/code/sys/sys_autoupdater.c",
+          "expression": "LicenseRef-Public-Domain-ioquake3-Autoupdater"
+        },
+        "paths": [
+          "code/sys/sys_autoupdater.c"
+        ],
+        "sourceRole": "feature-disabled-source"
+      },
+      {
+        "excludedPaths": [],
+        "id": "puff",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/588393618dbc82e7207c21c6ddecca229944a03a/code/renderercommon/puff.h",
+          "expression": "Zlib"
+        },
+        "paths": [
+          "code/renderercommon/puff.c",
+          "code/renderercommon/puff.h"
+        ],
+        "sourceRole": "browser-build-source"
+      },
+      {
+        "excludedPaths": [],
+        "id": "qvm-libc",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/588393618dbc82e7207c21c6ddecca229944a03a/code/game/bg_lib.c",
+          "expression": "BSD-3-Clause AND LicenseRef-Patrick-Powell-Snprintf"
+        },
+        "paths": [
+          "code/game/bg_lib.c"
+        ],
+        "sourceRole": "qvm-build-source"
+      },
+      {
+        "excludedPaths": [],
+        "id": "sdl-headers",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/588393618dbc82e7207c21c6ddecca229944a03a/code/thirdparty/SDL2-2.32.8/include/SDL_copying.h",
+          "expression": "Zlib"
+        },
+        "paths": [
+          "code/thirdparty/SDL2-2.32.8"
+        ],
+        "sourceRole": "emscripten-disabled-source"
+      },
+      {
+        "excludedPaths": [],
+        "id": "sdl-prebuilt-libraries",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/588393618dbc82e7207c21c6ddecca229944a03a/code/thirdparty/SDL2-2.32.8/include/SDL_copying.h",
+          "expression": "Zlib"
+        },
+        "paths": [
+          "code/thirdparty/libs"
+        ],
+        "sourceRole": "native-only-prebuilt"
+      },
+      {
+        "excludedPaths": [],
+        "id": "snd-adpcm",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/588393618dbc82e7207c21c6ddecca229944a03a/code/client/snd_adpcm.c",
+          "expression": "HPND"
+        },
+        "paths": [
+          "code/client/snd_adpcm.c"
+        ],
+        "sourceRole": "browser-build-source"
+      },
+      {
+        "excludedPaths": [],
+        "id": "zlib",
+        "license": {
+          "distribution": "product-source-and-binaries",
+          "evidenceIdentity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/588393618dbc82e7207c21c6ddecca229944a03a/code/thirdparty/zlib-1.3.1/zlib.h",
+          "expression": "Zlib"
+        },
+        "paths": [
+          "code/thirdparty/zlib-1.3.1"
+        ],
+        "sourceRole": "browser-build-source"
+      }
+    ],
+    "preferredSource": {
+      "revision": "588393618dbc82e7207c21c6ddecca229944a03a",
+      "status": "available",
+      "url": "https://github.com/Kaesual/ioq3.git"
+    },
+    "repository": "https://github.com/Kaesual/ioq3.git",
+    "submodulePath": "ioq3",
+    "treeClosure": {
+      "thirdpartyEntries": [
+        "SDL2-2.32.8",
+        "curl-8.15.0",
+        "jpeg-9f",
+        "libogg-1.3.6",
+        "libs",
+        "libvorbis-1.3.7",
+        "openal-soft-1.24.3",
+        "opus-1.5.2",
+        "opusfile-0.12",
+        "zlib-1.3.1"
+      ],
+      "toolEntries": [
+        "asm",
+        "lcc",
+        "stringify.c"
+      ]
+    }
+  },
+  "formatVersion": 1,
+  "licensePolicy": {
+    "productInputAllowedExpressions": [
+      "Apache-2.0",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "BSD-3-Clause AND LicenseRef-Patrick-Powell-Snprintf",
+      "CC-BY-3.0",
+      "CC-BY-4.0",
+      "CC-BY-SA-3.0",
+      "CC-BY-SA-4.0",
+      "GPL-2.0-only",
+      "GPL-2.0-or-later",
+      "GPL-3.0-only",
+      "GPL-3.0-or-later",
+      "HPND",
+      "IJG",
+      "Info-ZIP",
+      "LGPL-2.0-or-later",
+      "MIT",
+      "Zlib",
+      "Zlib AND Info-ZIP",
+      "curl"
+    ],
+    "productInputLicenseRefs": [
+      "LicenseRef-Patrick-Powell-Snprintf",
+      "LicenseRef-Public-Domain-Colin-Plumb-MD5",
+      "LicenseRef-Public-Domain-ioquake3-Autoupdater"
+    ],
+    "toolOnlyLicenseRefs": [
+      "LicenseRef-Chrome-For-Testing-Terms",
+      "LicenseRef-Emscripten-SDK-Aggregate",
+      "LicenseRef-Fedora-Workstation-Aggregate",
+      "LicenseRef-LCC-1998",
+      "LicenseRef-Ubuntu-Image-Aggregate"
+    ]
+  },
+  "relayTrust": {
+    "certificateHashProvisioning": "runtime-only",
+    "hashAlgorithm": "sha-256",
+    "maximumCertificateValidityDays": 14,
+    "mechanism": "serverCertificateHashes",
+    "requiredCertificateKeyAlgorithm": "ECDSA-P256",
+    "specificationUrl": "https://www.w3.org/TR/2026/WD-webtransport-20260706/#server-authentication-using-certificate-hashes"
+  },
+  "tools": [
+    {
+      "humanTag": "6.0.8",
+      "id": "emscripten-builder",
+      "image": "docker.io/emscripten/emsdk",
+      "immutableRef": "docker.io/emscripten/emsdk@sha256:8714ed3a9fb585e662c931259a996bac36a57a8dd34b81e8277436fd77364475",
+      "indexDigest": "sha256:f174124ff798a3ead1abef247d9a849c270b642d552fea500a42565ff210f765",
+      "kind": "oci-image",
+      "license": {
+        "distribution": "build-only-not-redistributed",
+        "evidenceIdentity": "git:e5bd3d0874e302a18f13c5b41f5bacf9a40c8e59",
+        "evidenceUrl": "https://github.com/emscripten-core/emsdk/blob/e5bd3d0874e302a18f13c5b41f5bacf9a40c8e59/LICENSE",
+        "expression": "LicenseRef-Emscripten-SDK-Aggregate"
+      },
+      "platform": "linux/amd64",
+      "platformDigest": "sha256:8714ed3a9fb585e662c931259a996bac36a57a8dd34b81e8277436fd77364475",
+      "preferredSource": {
+        "revision": "e5bd3d0874e302a18f13c5b41f5bacf9a40c8e59",
+        "status": "available",
+        "url": "https://github.com/emscripten-core/emsdk.git"
+      },
+      "role": "wasm-builder",
+      "version": "6.0.8"
+    },
+    {
+      "humanTag": "24.04",
+      "id": "native-builder-base",
+      "image": "docker.io/library/ubuntu",
+      "immutableRef": "docker.io/library/ubuntu@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316",
+      "indexDigest": "sha256:33ceb71981b602c1a7443a53469e4dba065f7503eab3078a2d7a57a2ab987517",
+      "kind": "oci-image",
+      "license": {
+        "distribution": "build-only-not-redistributed",
+        "evidenceIdentity": "git:af3b9de4349a4a641e44130fd245b130b9271b97",
+        "evidenceUrl": "https://github.com/docker-library/repo-info/blob/af3b9de4349a4a641e44130fd245b130b9271b97/repos/ubuntu/remote/24.04.md",
+        "expression": "LicenseRef-Ubuntu-Image-Aggregate"
+      },
+      "platform": "linux/amd64",
+      "platformDigest": "sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316",
+      "preferredSource": {
+        "revision": "461fbe29535e51d03451ae146a90f730671d950d",
+        "status": "available",
+        "url": "https://git.launchpad.net/cloud-images/+oci/ubuntu-base"
+      },
+      "role": "native-builder-base",
+      "version": "24.04"
+    },
+    {
+      "fileName": "chrome-linux64.zip",
+      "id": "chrome-for-testing",
+      "kind": "archive",
+      "license": {
+        "distribution": "test-only-not-redistributed",
+        "evidenceIdentity": "sha256:b082df9debbe418946e069a5937022d2124a16367e1a95f578e400a1b6bcdb91",
+        "evidenceRetrievedAt": "2026-08-29",
+        "evidenceUrl": "https://www.google.com/chrome/terms/",
+        "expression": "LicenseRef-Chrome-For-Testing-Terms"
+      },
+      "platform": "linux64",
+      "preferredSource": {
+        "reason": "The acceptance input is Google's branded test-only binary; it is downloaded for local testing and is never a distributed arena-web artifact.",
+        "status": "unavailable"
+      },
+      "revision": "1669021",
+      "role": "acceptance-browser",
+      "sha256": "8b592f066af71f054aab2cc80fc26f73c775c6d44ebb99d16ade924b24756c2e",
+      "size": 194030544,
+      "url": "https://storage.googleapis.com/chrome-for-testing-public/152.0.7977.64/linux64/chrome-linux64.zip",
+      "version": "152.0.7977.64"
+    }
+  ],
+  "upstreamEvidence": {
+    "compatibilityGate": "WP1 must produce two clean, byte-identical builds with Emscripten 6.0.8. Failure stops for a reviewed compatibility decision; it does not silently fall back to 3.1.58.",
+    "ioq3Commit": "588393618dbc82e7207c21c6ddecca229944a03a",
+    "ioq3WorkflowPath": ".github/workflows/build.yml",
+    "mapping": "The moving v13 action and Emscripten 3.1.58 are reference evidence only. arena-web deliberately targets the current official 6.0.8 image to share the maintained WebAssembly toolchain generation already used by the sibling Luanti browser port.",
+    "targetEmscriptenVersion": "6.0.8",
+    "upstreamEmscriptenAction": "mymindstorm/setup-emsdk@v13",
+    "upstreamEmscriptenVersion": "3.1.58",
+    "versionRelationship": "target-upgrade"
+  }
+}

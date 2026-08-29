@@ -1,6 +1,8 @@
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+
 # Browser arena: prototype work packages
 
-**Status:** Independently reviewed and approved; WP0 is ready
+**Status:** Independently reviewed and approved; WP0 complete
 
 This document turns the reviewed direction in
 [`initial-plan.md`](initial-plan.md) into coherent, testable increments. It
@@ -35,7 +37,7 @@ is a plan change; adding another platform is later scope.
 
 | WP | Outcome | Depends on | State |
 | --- | --- | --- | --- |
-| WP0 | Immutable toolchain and acceptance baseline | — | Ready |
+| WP0 | Immutable toolchain and acceptance baseline | — | ✅ Complete — exact public pins, closed license/tree inventory, schemas, relay vector and fail-closed validation |
 | WP1 | Reproducible unmodified ioq3 browser build | WP0 | Approved |
 | WP2 | Relay conformance probe and routed-path measurement | WP0 | Approved |
 | WP3 | Audited deterministic minimal-content closure | WP0 | Approved |
@@ -81,24 +83,35 @@ download.
 ### Scope
 
 - Record the existing ioq3 submodule commit as the engine and bundled
-  `baseq3` gamecode input.
+  `baseq3` gamecode input, with a closed component-level license inventory
+  rather than a blanket engine license. Express the GPL core as `code/` minus
+  every separately licensed directory, prebuilt library, build tool and
+  source-file exception; paths may not overlap silently.
 - Pin the Emscripten builder by exact version and platform-specific OCI digest.
-  Start from the version used by the pinned ioq3 upstream CI; any deviation
-  needs a written compatibility reason. Record how upstream's CI action pin
-  maps to the selected OCI image and digest.
-- Pin the native builder/container base by platform-specific digest.
+  The selected target is Emscripten 6.0.8; ioq3 CI's 3.1.58 remains recorded
+  reference evidence. The baseline records the upgrade reason and maps the
+  selected target to its OCI index and platform-manifest digests.
+- Pin the native builder base by platform-specific digest. It is build-only,
+  not a base for a distributed runtime image.
 - Pin one Linux x86_64 Chrome-for-Testing archive by full version, public URL
   and cryptographic digest, plus the exact desktop OS version used for manual
-  acceptance.
+  acceptance and the signed checksum identity for its installation medium.
 - Define the machine-readable lock and provenance formats used by later WPs.
 - Define the canonical artifact-manifest format and digest algorithm.
 - Record the routed-browser trust mechanism: public Web PKI or a pinned
   `serverCertificateHashes` certificate satisfying browser constraints. Do not
   rely on an undocumented machine-wide trust-store change.
 - Record the game-neutral WP2 measurement vector, including boundaries around
-  1,300, 1,307, 1,309, 1,312 and 1,314-byte inner UDP datagrams.
+  1,300, 1,307, 1,309, 1,312 and 1,314-byte inner UDP datagrams, useful
+  resolution below those boundaries and explicit oversized cases through
+  ioq3's 16,384-byte message bound.
 - Add validation that rejects moving references, missing digests, unknown
-  licenses and incomplete preferred-source records.
+  licenses and incomplete preferred-source records. Exercise all published
+  schemas with committed or test fixtures and prove load-bearing rejection
+  paths with negative tests. Bind validation to the staged submodule URL and
+  branch metadata and gitlink that form the commit candidate, reject unstaged
+  `.gitmodules` changes, require a clean ioq3 checkout and check the reviewed
+  third-party/tool inventory against that tree.
 
 ### Acceptance evidence
 
@@ -108,8 +121,14 @@ download.
 - The browser and builder can be obtained from only the committed public
   metadata.
 - The provenance schema distinguishes code licenses from separately aggregated
-  content licenses.
+  content licenses and records per-member role, obligations and resolved notice
+  members.
+- Generated artifact and content records bind themselves to the exact baseline
+  identity; every declared baseline input agrees with its locked kind and
+  immutable identity.
 - `git diff --check` and the lock/provenance validators pass.
+- The canonical baseline SHA-256 is documented, and later manifest/provenance
+  identities are explicitly reissued after any baseline byte change.
 
 ### Explicit non-goals
 
@@ -138,10 +157,26 @@ manifest.
 - Start each accepted build from a deleted build tree.
 - Keep build output outside Git and produce a deterministic manifest of the
   JavaScript, WebAssembly, data and generated shell/configuration artifacts.
+- Bind the manifest to WP0 and require `ioq3` and `emscripten-builder` as exact
+  baseline inputs; renamed or digest-divergent substitutes fail the build.
 - Run two clean builds in the pinned builder and compare their artifacts.
 - Verify the existing upstream path in which Emscripten disables native game
   libraries but leaves QVM builds enabled. Use a separate, equally pinned
   host-tools phase only if the clean build disproves that prior evidence.
+- Map every WP0 engine component to the observed preprocessing, compilation,
+  link or exclusion result. In particular, confirm or correct whether the
+  OpenAL snapshot is interface-header-only, whether SDL/curl/Mumble/updater and
+  prebuilt SDL libraries are excluded, and which minizip, codec and renderer
+  exceptions enter the browser artifact.
+- Record whether QVM generation executes the restrictive lcc build tool. Keep
+  lcc source/executables out of distributable browser and native artifacts and
+  stop for a release-policy review if the intended distribution would exceed
+  WP0's public-source-submodule boundary.
+- Audit the version-sensitive SDL port, filesystem export and ES-module settings
+  explicitly during the 3.1.58-to-6.0.8 compatibility gate.
+- Audit and record the actual linked license closure, including runtime code
+  supplied by Emscripten rather than the ioq3 checkout, and assemble the notices
+  and corresponding-source obligations needed for browser distribution.
 - Record whether the resulting client actually requires cross-origin isolation;
   the current non-threaded link configuration suggests that it may not.
 - Treat the generated upstream shell and retail-data configuration only as
@@ -151,10 +186,16 @@ manifest.
 
 - Two clean builds from the same inputs produce identical artifact manifests
   and byte-identical distributable engine artifacts.
+- Both accepted builds use Emscripten 6.0.8. A compatibility failure stops for
+  review and cannot silently switch the accepted result back to 3.1.58.
 - Compiler and tool versions in the log match WP0 exactly.
 - No proprietary PK3 or other Quake III data is read or emitted.
 - The output manifest identifies every artifact by size and cryptographic
-  digest.
+  digest, names the exact WP0 baseline and agrees with its ioq3 and Emscripten
+  identities.
+- The license report distinguishes the GPL engine/QVM from every separately
+  licensed linked component, has no unresolved provisional source-role claim
+  and resolves all shipped notices.
 - A documented command reproduces the result from a clean checkout.
 
 This WP has no playable-runtime acceptance because free data has not yet been
@@ -201,10 +242,13 @@ without ioq3. This repository does not create a second relay server.
   of those environment-specific values.
 - Separate protocol framing and measurement logic from the browser transport so
   deterministic tests can exercise them with an in-memory adapter.
-- Send the WP0 measurement vector, adjacent boundary sizes and
-  session-specific nonces in both directions through a configured UDP echo
-  destination behind the relay. Include single-datagram and bounded packed
-  multi-datagram cases while keeping the probe implementation game-neutral.
+- Send the WP0 measurement vector, adjacent boundary sizes and session-specific
+  payload-prefix nonces in both directions through a configured UDP echo
+  destination behind the relay. Run payloads smaller than the nonce
+  sequentially. Include single-datagram cases in both directions and bounded
+  packed multi-datagram cases only from browser to server, matching the
+  asymmetric framing contract, while keeping the probe implementation
+  game-neutral.
 - Run the public probe across at least one routed network path. Keep endpoint
   details out of the repository and record only non-secret topology
   characteristics.
@@ -363,8 +407,10 @@ size census for WP6.
 
 ### Scope
 
-- Build the native dedicated server from the WP0 engine/base image and the
-  exact WP3 QVM/content identities.
+- Build the native dedicated server from the WP0 engine commit, a separately
+  pinned WP5 runtime base and the exact WP3 QVM/content identities. The runtime
+  base must record its distribution and preferred-source obligations and must
+  not inherit the build-only WP0 Ubuntu builder.
 - Add a minimal server configuration for the single FFA map and bots.
 - Build or pin a matching native test client without proprietary data.
 - Run connection, representative FFA/bot play, disconnect and reconnect while

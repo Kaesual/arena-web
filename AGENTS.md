@@ -1,3 +1,5 @@
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+
 # arena-web agent instructions
 
 These instructions apply to this repository and supplement any more specific
@@ -11,10 +13,10 @@ not refer to private repositories, private infrastructure, credentials,
 internal hostnames or unpublished operational details in code or
 documentation.
 
-The project is in planning/prototype state. `docs/initial-plan.md` records the
-current evidence and decided prototype constraints, but it is not yet an
-approved set of work packages. Do not silently expand those constraints or
-turn later product ideas into prototype requirements.
+The project is in prototype state. `docs/initial-plan.md` records the current
+evidence and decided prototype constraints; `docs/prototype-work-packages.md`
+contains the approved delivery sequence. Do not silently expand those
+constraints or turn later product ideas into prototype requirements.
 
 ## Submodule boundary
 

@@ -1,0 +1,607 @@
+{
+  "$defs": {
+    "archiveTool": {
+      "additionalProperties": false,
+      "properties": {
+        "fileName": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "const": "archive"
+        },
+        "license": {
+          "$ref": "#/$defs/license"
+        },
+        "platform": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "preferredSource": {
+          "$ref": "#/$defs/preferredSource"
+        },
+        "revision": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "role": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "size": {
+          "minimum": 1,
+          "type": "integer"
+        },
+        "url": {
+          "format": "uri",
+          "pattern": "^https://",
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "fileName",
+        "id",
+        "kind",
+        "license",
+        "platform",
+        "preferredSource",
+        "revision",
+        "role",
+        "sha256",
+        "size",
+        "url",
+        "version"
+      ],
+      "type": "object"
+    },
+    "license": {
+      "additionalProperties": false,
+      "properties": {
+        "distribution": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "evidenceIdentity": {
+          "pattern": "^(?:git:[0-9a-f]{40}|sha256:[0-9a-f]{64})$",
+          "type": "string"
+        },
+        "evidencePath": {
+          "pattern": "^(?!/)(?!\\./)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)[^/]+(?:/[^/]+)*$",
+          "type": "string"
+        },
+        "evidenceRetrievedAt": {
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}$",
+          "type": "string"
+        },
+        "evidenceUrl": {
+          "format": "uri",
+          "pattern": "^https://",
+          "type": "string"
+        },
+        "expression": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "distribution",
+        "evidenceIdentity",
+        "evidenceUrl",
+        "expression"
+      ],
+      "type": "object"
+    },
+    "licenseComponent": {
+      "additionalProperties": false,
+      "properties": {
+        "excludedPaths": {
+          "items": {
+            "pattern": "^(?!/)(?!\\./)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)[^/]+(?:/[^/]+)*$",
+            "type": "string"
+          },
+          "type": "array",
+          "uniqueItems": true
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "license": {
+          "$ref": "#/$defs/license"
+        },
+        "paths": {
+          "items": {
+            "pattern": "^(?!/)(?!\\./)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)[^/]+(?:/[^/]+)*$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "sourceRole": {
+          "enum": [
+            "browser-build-source",
+            "browser-interface-header",
+            "emscripten-disabled-source",
+            "engine-core",
+            "feature-disabled-source",
+            "native-only-prebuilt",
+            "qvm-build-source",
+            "qvm-build-tool"
+          ]
+        }
+      },
+      "required": [
+        "excludedPaths",
+        "id",
+        "license",
+        "paths",
+        "sourceRole"
+      ],
+      "type": "object"
+    },
+    "ociTool": {
+      "additionalProperties": false,
+      "properties": {
+        "humanTag": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "image": {
+          "pattern": "^[^@\\s:]+(?:/[^@\\s:]+)+$",
+          "type": "string"
+        },
+        "immutableRef": {
+          "pattern": "^[^@\\s]+@sha256:[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "indexDigest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "kind": {
+          "const": "oci-image"
+        },
+        "license": {
+          "$ref": "#/$defs/license"
+        },
+        "platform": {
+          "const": "linux/amd64"
+        },
+        "platformDigest": {
+          "$ref": "#/$defs/sha256Digest"
+        },
+        "preferredSource": {
+          "$ref": "#/$defs/preferredSource"
+        },
+        "role": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "version": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "humanTag",
+        "id",
+        "image",
+        "immutableRef",
+        "indexDigest",
+        "kind",
+        "license",
+        "platform",
+        "platformDigest",
+        "preferredSource",
+        "role",
+        "version"
+      ],
+      "type": "object"
+    },
+    "preferredSource": {
+      "oneOf": [
+        {
+          "additionalProperties": false,
+          "properties": {
+            "revision": {
+              "oneOf": [
+                {
+                  "pattern": "^[0-9a-f]{40}$",
+                  "type": "string"
+                },
+                {
+                  "pattern": "^sha256:[0-9a-f]{64}$",
+                  "type": "string"
+                }
+              ]
+            },
+            "status": {
+              "const": "available"
+            },
+            "url": {
+              "format": "uri",
+              "pattern": "^https://",
+              "type": "string"
+            }
+          },
+          "required": [
+            "revision",
+            "status",
+            "url"
+          ],
+          "type": "object"
+        },
+        {
+          "additionalProperties": false,
+          "properties": {
+            "reason": {
+              "minLength": 20,
+              "type": "string"
+            },
+            "status": {
+              "const": "unavailable"
+            }
+          },
+          "required": [
+            "reason",
+            "status"
+          ],
+          "type": "object"
+        }
+      ]
+    },
+    "sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "sha256Digest": {
+      "pattern": "^sha256:[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "$id": "https://kaesual.github.io/arena-web/schemas/baseline-lock.schema.json",
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "const": "../schemas/baseline-lock.schema.json"
+    },
+    "acceptancePlatform": {
+      "additionalProperties": false,
+      "properties": {
+        "architecture": {
+          "const": "x86_64"
+        },
+        "browserToolId": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "desktop": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "installationMedia": {
+          "additionalProperties": false,
+          "properties": {
+            "acquisitionUrl": {
+              "format": "uri",
+              "pattern": "^https://",
+              "type": "string"
+            },
+            "checksumEvidence": {
+              "additionalProperties": false,
+              "properties": {
+                "format": {
+                  "const": "OpenPGP-cleartext-signature"
+                },
+                "sha256": {
+                  "$ref": "#/$defs/sha256"
+                },
+                "url": {
+                  "format": "uri",
+                  "pattern": "^https://",
+                  "type": "string"
+                }
+              },
+              "required": [
+                "format",
+                "sha256",
+                "url"
+              ],
+              "type": "object"
+            },
+            "fileName": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "sha256": {
+              "$ref": "#/$defs/sha256"
+            },
+            "size": {
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          "required": [
+            "acquisitionUrl",
+            "checksumEvidence",
+            "fileName",
+            "sha256",
+            "size"
+          ],
+          "type": "object"
+        },
+        "license": {
+          "$ref": "#/$defs/license"
+        },
+        "name": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "preferredSource": {
+          "$ref": "#/$defs/preferredSource"
+        },
+        "version": {
+          "minLength": 1,
+          "type": "string"
+        }
+      },
+      "required": [
+        "architecture",
+        "browserToolId",
+        "desktop",
+        "installationMedia",
+        "license",
+        "name",
+        "preferredSource",
+        "version"
+      ],
+      "type": "object"
+    },
+    "engine": {
+      "additionalProperties": false,
+      "properties": {
+        "branch": {
+          "const": "main"
+        },
+        "commit": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "id": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "kind": {
+          "const": "git"
+        },
+        "licenseComponents": {
+          "items": {
+            "$ref": "#/$defs/licenseComponent"
+          },
+          "minItems": 1,
+          "type": "array"
+        },
+        "preferredSource": {
+          "$ref": "#/$defs/preferredSource"
+        },
+        "repository": {
+          "format": "uri",
+          "pattern": "^https://",
+          "type": "string"
+        },
+        "submodulePath": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "treeClosure": {
+          "additionalProperties": false,
+          "properties": {
+            "thirdpartyEntries": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            },
+            "toolEntries": {
+              "items": {
+                "minLength": 1,
+                "type": "string"
+              },
+              "minItems": 1,
+              "type": "array",
+              "uniqueItems": true
+            }
+          },
+          "required": [
+            "thirdpartyEntries",
+            "toolEntries"
+          ],
+          "type": "object"
+        }
+      },
+      "required": [
+        "branch",
+        "commit",
+        "id",
+        "kind",
+        "licenseComponents",
+        "preferredSource",
+        "repository",
+        "submodulePath",
+        "treeClosure"
+      ],
+      "type": "object"
+    },
+    "formatVersion": {
+      "const": 1
+    },
+    "licensePolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "productInputAllowedExpressions": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "productInputLicenseRefs": {
+          "items": {
+            "pattern": "^LicenseRef-[A-Za-z0-9.-]+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "toolOnlyLicenseRefs": {
+          "items": {
+            "pattern": "^LicenseRef-[A-Za-z0-9.-]+$",
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        }
+      },
+      "required": [
+        "productInputAllowedExpressions",
+        "productInputLicenseRefs",
+        "toolOnlyLicenseRefs"
+      ],
+      "type": "object"
+    },
+    "relayTrust": {
+      "additionalProperties": false,
+      "properties": {
+        "certificateHashProvisioning": {
+          "const": "runtime-only"
+        },
+        "hashAlgorithm": {
+          "const": "sha-256"
+        },
+        "maximumCertificateValidityDays": {
+          "const": 14
+        },
+        "mechanism": {
+          "const": "serverCertificateHashes"
+        },
+        "requiredCertificateKeyAlgorithm": {
+          "const": "ECDSA-P256"
+        },
+        "specificationUrl": {
+          "format": "uri",
+          "pattern": "^https://www\\.w3\\.org/",
+          "type": "string"
+        }
+      },
+      "required": [
+        "certificateHashProvisioning",
+        "hashAlgorithm",
+        "maximumCertificateValidityDays",
+        "mechanism",
+        "requiredCertificateKeyAlgorithm",
+        "specificationUrl"
+      ],
+      "type": "object"
+    },
+    "tools": {
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/archiveTool"
+          },
+          {
+            "$ref": "#/$defs/ociTool"
+          }
+        ]
+      },
+      "minItems": 3,
+      "type": "array"
+    },
+    "upstreamEvidence": {
+      "additionalProperties": false,
+      "properties": {
+        "compatibilityGate": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "ioq3Commit": {
+          "pattern": "^[0-9a-f]{40}$",
+          "type": "string"
+        },
+        "ioq3WorkflowPath": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "mapping": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "targetEmscriptenVersion": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "upstreamEmscriptenAction": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "upstreamEmscriptenVersion": {
+          "minLength": 1,
+          "type": "string"
+        },
+        "versionRelationship": {
+          "enum": [
+            "target-downgrade",
+            "target-upgrade",
+            "upstream-aligned"
+          ]
+        }
+      },
+      "required": [
+        "compatibilityGate",
+        "ioq3Commit",
+        "ioq3WorkflowPath",
+        "mapping",
+        "targetEmscriptenVersion",
+        "upstreamEmscriptenAction",
+        "upstreamEmscriptenVersion",
+        "versionRelationship"
+      ],
+      "type": "object"
+    }
+  },
+  "required": [
+    "$schema",
+    "acceptancePlatform",
+    "engine",
+    "formatVersion",
+    "licensePolicy",
+    "relayTrust",
+    "tools",
+    "upstreamEvidence"
+  ],
+  "title": "arena-web immutable baseline lock",
+  "type": "object"
+}
