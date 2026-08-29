@@ -63,6 +63,7 @@ const report = {
   profile: null,
   identities: [],
   configFiles: [],
+  botEntries: [],
   totalArtifactBytes: 0,
   timings: { pageStartedAtEpochMs: Date.now() },
   markers: {},
@@ -228,6 +229,17 @@ function parseProfile(profile) {
   requireString(profile.map, `${PROFILE_URL}: map`);
   requireObject(profile.manifests, `${PROFILE_URL}: manifests`);
   requireObject(profile.readyMarkers, `${PROFILE_URL}: readyMarkers`);
+  // An empty marker string would be found in every console line the engine
+  // prints, so every milestone would fire on the first one.
+  for (const [name, needle] of Object.entries(profile.readyMarkers)) {
+    requireString(needle, `${PROFILE_URL}: readyMarkers.${name}`);
+  }
+  if (!Array.isArray(profile.bots) || profile.bots.length === 0) {
+    throw new LoaderError(`${PROFILE_URL}: bots must be a non-empty list`);
+  }
+  for (const bot of profile.bots) {
+    requireString(requireObject(bot, `${PROFILE_URL}: bots entry`).name, `${PROFILE_URL}: bots[].name`);
+  }
   if (!Array.isArray(profile.artifacts) || profile.artifacts.length === 0) {
     throw new LoaderError(`${PROFILE_URL}: artifacts must be a non-empty list`);
   }
@@ -366,12 +378,31 @@ async function loadArtifacts(profile) {
   return loaded;
 }
 
-function recordEngineLine(line, stream, markers) {
+// Quake III colour codes are '^' followed by any character other than '^'
+// (ioq3 code/qcommon/q_shared.h, Q_IsColorString). The engine prints
+// "<netname>^7 entered the game", so a name comparison has to see through them.
+function stripColorCodes(line) {
+  return line.replace(/\^[^^]/g, "");
+}
+
+function recordEngineLine(line, stream, markers, botNames) {
   if (report.engineLog.length < ENGINE_LOG_LIMIT) {
     report.engineLog.push(stream === "err" ? `[stderr] ${line}` : line);
   } else {
     report.engineLogDropped += 1;
   }
+
+  // Which bot joined, and when. The generic "entered the game" marker below
+  // cannot answer that: the engine prints it for every client and the local
+  // player is always first (ioq3 code/game/g_client.c:1026).
+  const plain = stripColorCodes(line).trim();
+  for (const name of botNames) {
+    if (plain === `${name} entered the game` && !report.botEntries.some((entry) => entry.name === name)) {
+      report.botEntries.push({ name, at: since() });
+      note("bot-entered-game", name);
+    }
+  }
+
   for (const [name, needle] of markers) {
     if (report.markers[name] === undefined && line.includes(needle)) {
       report.markers[name] = since();
@@ -520,6 +551,7 @@ async function recordAudioActivation() {
 
 async function boot(profile, artifacts) {
   const markers = Object.entries(profile.readyMarkers);
+  const botNames = profile.bots.map((bot) => bot.name);
   const byRole = new Map();
   for (const artifact of profile.artifacts) {
     if (artifact.role !== "filesystem") {
@@ -580,8 +612,8 @@ async function boot(profile, artifacts) {
         report.timings.filesystemPopulatedMs = since();
       },
     ],
-    print: (line) => recordEngineLine(line, "out", markers),
-    printErr: (line) => recordEngineLine(line, "err", markers),
+    print: (line) => recordEngineLine(line, "out", markers, botNames),
+    printErr: (line) => recordEngineLine(line, "err", markers, botNames),
     onRuntimeInitialized: () => {
       report.timings.runtimeInitializedMs = since();
       note("runtime-initialized", null);
@@ -607,6 +639,7 @@ function snapshot() {
     profile: report.profile,
     identities: report.identities,
     configFiles: report.configFiles,
+    botEntries: report.botEntries,
     totalArtifactBytes: report.totalArtifactBytes,
     timings: report.timings,
     markers: report.markers,

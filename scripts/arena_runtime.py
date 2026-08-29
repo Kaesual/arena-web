@@ -71,7 +71,10 @@ REQUIRED_CONFIG_FILE = "default.cfg"
 MANIFEST_NAMES = ("content", "engine")
 MANIFEST_PREFIXES = {"content": "content", "engine": "engine"}
 
-READY_MARKER_NAMES = ("botEnteredGame", "clientGameLoaded", "serverSpawned")
+# "clientEnteredGame" is deliberately not a bot marker: ioq3
+# code/game/g_client.c:1026 prints it for every client that begins, the local
+# player before any bot. Bots are proved by name, from profile.bots.
+READY_MARKER_NAMES = ("clientEnteredGame", "clientGameLoaded", "serverSpawned")
 
 ARTIFACT_ROLES = ("filesystem", "module-script", "module-wasm")
 SINGLETON_ROLES = ("module-script", "module-wasm")
