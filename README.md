@@ -18,8 +18,10 @@ release.
   Engine and platform changes belong in that fork rather than as a permanent
   patch stack here.
 - `docs/initial-plan.md` records the initial feasibility findings, decisions,
-  risks and prototype sequence. Its product constraints are decided; reviewed
-  work packages still need to be derived from it.
+  risks and prototype sequence. Its product constraints are decided; the
+  proposed work packages derived from it still need review.
+- `docs/prototype-work-packages.md` contains the proposed, dependency-ordered
+  prototype increments. It remains a review draft until explicitly approved.
 - `LICENSE` applies GPL-2.0-or-later to original arena-web code and
   documentation. Pinned components and content retain their own licenses.
 

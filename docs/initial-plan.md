@@ -1,7 +1,7 @@
 # Browser arena: initial findings and prototype plan
 
-**Status:** Prototype constraints independently reviewed; work-package
-breakdown pending
+**Status:** Prototype constraints independently reviewed; work-package draft
+awaiting review
 
 ## Goal
 
@@ -264,9 +264,10 @@ These are bounded planning inputs, not open product scope:
 
 ## Next planning action
 
-Turn steps 1–6 into coherent, reviewable work packages. Each package should
-state its pinned inputs, concrete output, automated checks, manual acceptance,
-license evidence, security implications and explicit non-goals. Review that
+Review the proposed packages in
+[`prototype-work-packages.md`](prototype-work-packages.md). Each package states
+its pinned inputs, concrete output, automated checks, manual acceptance,
+license evidence, security implications and explicit non-goals. Approve the
 breakdown before modifying the ioquake3 fork or introducing content downloads.
 
 The independent read-only plan review completed before the breakdown phase;
