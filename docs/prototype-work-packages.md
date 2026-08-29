@@ -2,7 +2,7 @@
 
 # Browser arena: prototype work packages
 
-**Status:** Independently reviewed and approved; WP0 complete
+**Status:** Independently reviewed and approved; WP0 and WP1 complete
 
 This document turns the reviewed direction in
 [`initial-plan.md`](initial-plan.md) into coherent, testable increments. It
@@ -38,7 +38,7 @@ is a plan change; adding another platform is later scope.
 | WP | Outcome | Depends on | State |
 | --- | --- | --- | --- |
 | WP0 | Immutable toolchain and acceptance baseline | — | ✅ Complete — exact public pins, closed license/tree inventory, schemas, relay vector and fail-closed validation |
-| WP1 | Reproducible unmodified ioq3 browser build | WP0 | Approved |
+| WP1 | Reproducible unmodified ioq3 browser build | WP0 | ✅ Complete — two clean offline builds in the pinned Emscripten 6.0.8 image produce byte-identical artifacts and one validated manifest, with the observed component, QVM/lcc, license-closure and isolation findings recorded |
 | WP2 | Relay conformance probe and routed-path measurement | WP0 | Approved |
 | WP3 | Audited deterministic minimal-content closure | WP0 | Approved |
 | WP4 | One-map offline browser arena with bots | WP1, WP3 | Approved |
@@ -143,6 +143,34 @@ Focused reproducibility and licensing review of the lock formats, validators
 and every initial pin.
 
 ## WP1 — Reproducible upstream browser build
+
+**State:** ✅ Complete. The evidence is
+[`wp1-build-evidence.md`](wp1-build-evidence.md); the artifact identities are
+[`manifests/browser-client.json`](../manifests/browser-client.json).
+
+### Result
+
+The scope below was met without an engine or build-system change, so no ioq3
+enablement WP is needed and the `web` branch was not created. Decided facts:
+
+- Emscripten 6.0.8 builds the pinned tree unchanged. The SDL port, filesystem
+  export and ES-module settings all work as upstream wrote them, so the
+  compatibility gate closes on 6.0.8 and 3.1.58 stays reference evidence.
+- Accepted builds are offline. `-sUSE_SDL=2` makes the SDK fetch an SDL2 source
+  snapshot, so that snapshot is pre-fetched once against the identity the
+  pinned SDK itself pins and then mounted read-only.
+- Two clean builds produced identical manifests and byte-identical artifacts.
+  Determinism needs `SOURCE_DATE_EPOCH`, fixed container paths, a fixed
+  locale/timezone and a source export without Git metadata — all product
+  orchestration, no engine patch.
+- QVM generation does execute lcc, as native host tools inside the same pinned
+  builder, and no lcc source or executable reaches the distributable tree. The
+  WP0 distribution boundary holds and no release-policy review is due.
+- Two WP0 `sourceRole` values are corrected by observation: the bundled SDL2
+  and OpenAL snapshots are not inputs to the browser artifact at all. The
+  artifact's SDL2 and OpenAL come from the Emscripten SDK.
+- The client requires no cross-origin isolation in this non-threaded link
+  configuration.
 
 ### Outcome
 

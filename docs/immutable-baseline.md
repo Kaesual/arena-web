@@ -105,6 +105,12 @@ applicable notice and corresponding-source obligation. A component absent from
 the final link may be reported as absent; it may not be erased from the source
 inventory.
 
+WP1 has recorded that mapping in
+[`wp1-build-evidence.md`](wp1-build-evidence.md), including its correction of
+the provisional SDL and OpenAL roles. That document reports the observed
+browser closure; this lock keeps describing the pinned source tree, and neither
+the inventory nor the baseline identity changed.
+
 ## Native builder decision
 
 The native builder begins from Ubuntu 24.04 rather than ioq3 CI's older Ubuntu

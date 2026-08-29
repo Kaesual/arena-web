@@ -3,7 +3,7 @@
 # Browser arena: initial findings and prototype plan
 
 **Status:** Prototype constraints and work-package breakdown independently
-reviewed; WP0 complete
+reviewed; WP0 and WP1 complete
 
 ## Goal
 
