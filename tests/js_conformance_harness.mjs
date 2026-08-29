@@ -339,6 +339,31 @@ const validatorRejections = {
 
 const faultSummary = measurement.summarizeReport(faultReport, faultPlan);
 
+// A run stopped before it reached every case, so the JS notRun/timedOut split
+// is exercised rather than inferred: with a bound of two, one pump starts the
+// first two cases and never reaches the rest.
+const partialConfig = measurement.parseConfig({
+  authorization: "harness",
+  destinationPortMatchesProjection: true,
+  endpointTemplate: "https://harness.invalid/{authorization}",
+  maxInFlightDatagrams: 2,
+  routingPrefixHex: framing.bytesToHex(prefix),
+});
+const partialAdapter = new adapters.LoopbackAdapter(20000, returnPrefix, {
+  echo: false,
+});
+const partialDriver = new measurement.SessionDriver(
+  faultPlan,
+  partialAdapter,
+  new Uint8Array(12),
+  partialConfig,
+);
+partialDriver.pump(0);
+const partialRun = {
+  datagramsSent: partialAdapter.receivedDatagrams,
+  outcomes: partialDriver.sessionRecord().cases.map((item) => item.outcome),
+};
+
 // Configuration rejections both implementations must agree on. The spaced hex
 // is the interesting one: it has the right character length but decodes short.
 function configRefused(overrides) {
@@ -422,6 +447,7 @@ process.stdout.write(
     faultRuns,
     faultSummary,
     lateUntaggedEcho,
+    partialRun,
     validatorRejections,
     planCases: plan.cases.length,
     planDatagrams: plan.cases.reduce(

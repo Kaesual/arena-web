@@ -14,6 +14,8 @@ authorization value appears in the vectors, and none may be added.
 
 from __future__ import annotations
 
+import json
+
 from relay_loopback import SYNTHETIC_PREFIX, SYNTHETIC_RETURN_PREFIX
 from relay_probe import (
     BROWSER_TO_SERVER,
@@ -31,8 +33,6 @@ from relay_probe import (
     encode_frame,
     frame_bytes_for_sizes,
 )
-
-import json
 
 VECTOR_KIND = "arena-web-routed-datagram-conformance-vectors"
 VECTOR_FORMAT_VERSION = 1

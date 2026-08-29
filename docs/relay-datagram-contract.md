@@ -269,9 +269,9 @@ A conforming receiver:
 A sender:
 
 - refuses to send a frame larger than the transport's reported maximum datagram
-  size, and records that refusal as a distinct outcome rather than attempting the
-  write. The reported maximum is a per-session, per-path observation and is never
-  treated as a universal constant;
+  size, and records that refusal as a distinct outcome rather than attempting
+  the write. The reported maximum is a per-session, per-path observation and is
+  never treated as a universal constant;
 - never fragments. The absence of a transport large enough for a given inner
   size is a measurement result, not a reason to split the datagram;
 - sends packed multi-datagram frames only in the browser-to-server direction.

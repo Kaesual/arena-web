@@ -100,18 +100,18 @@ function checkConformanceVectors(vectors) {
       item.direction,
     );
     if (bytesToHex(frame) !== item.frameHex) {
-      throw new Error(`encode case ${item.name} produced other bytes`);
+      throw new RelayProbeError(`encode case ${item.name} produced other bytes`);
     }
     if (frame.length !== item.frameBytes) {
-      throw new Error(`encode case ${item.name} has the wrong length`);
+      throw new RelayProbeError(`encode case ${item.name} has the wrong length`);
     }
     const decoded = decodeFrame(frame, item.direction);
     if (decoded.datagrams.length !== payloads.length) {
-      throw new Error(`decode of ${item.name} lost a datagram`);
+      throw new RelayProbeError(`decode of ${item.name} lost a datagram`);
     }
     decoded.datagrams.forEach((datagram, index) => {
       if (bytesToHex(datagram) !== item.payloadHexes[index]) {
-        throw new Error(`decode of ${item.name} changed a payload`);
+        throw new RelayProbeError(`decode of ${item.name} changed a payload`);
       }
     });
   }
@@ -125,11 +125,13 @@ function checkConformanceVectors(vectors) {
       item.maxInnerDatagramBytes,
     );
     if (decoded.datagrams.length !== item.payloadHexes.length) {
-      throw new Error(`acceptance ${item.name} decoded the wrong datagram count`);
+      throw new RelayProbeError(
+        `acceptance ${item.name} decoded the wrong datagram count`,
+      );
     }
     decoded.datagrams.forEach((datagram, index) => {
       if (bytesToHex(datagram) !== item.payloadHexes[index]) {
-        throw new Error(`acceptance ${item.name} changed a payload`);
+        throw new RelayProbeError(`acceptance ${item.name} changed a payload`);
       }
     });
   }
@@ -145,7 +147,7 @@ function checkConformanceVectors(vectors) {
       rejected = error instanceof RelayFrameError;
     }
     if (!rejected) {
-      throw new Error(`decode rejection ${item.name} was accepted`);
+      throw new RelayProbeError(`decode rejection ${item.name} was accepted`);
     }
   }
   for (const item of vectors.encodeRejections) {
@@ -161,13 +163,13 @@ function checkConformanceVectors(vectors) {
       rejected = error instanceof RelayFrameError;
     }
     if (!rejected) {
-      throw new Error(`encode rejection ${item.name} was accepted`);
+      throw new RelayProbeError(`encode rejection ${item.name} was accepted`);
     }
   }
   for (const item of vectors.tagCases) {
     const tag = datagramTag(hexToBytes(item.sessionNonceHex), item.ordinal);
     if (bytesToHex(tag) !== item.tagHex) {
-      throw new Error(`tag case ${item.name} produced other bytes`);
+      throw new RelayProbeError(`tag case ${item.name} produced other bytes`);
     }
   }
   for (const item of vectors.payloadCases) {
@@ -177,7 +179,9 @@ function checkConformanceVectors(vectors) {
       item.size,
     );
     if (bytesToHex(payload) !== item.payloadHex) {
-      throw new Error(`payload case ${item.name} produced other bytes`);
+      throw new RelayProbeError(
+        `payload case ${item.name} produced other bytes`,
+      );
     }
   }
   return (
@@ -208,12 +212,14 @@ function checkDriverAgainstLoopback() {
     (item) => item.outcome !== OUTCOME_ECHOED,
   );
   if (unexpected.length > 0) {
-    throw new Error(
+    throw new RelayProbeError(
       `the loopback self-test did not complete case ${unexpected[0].caseIndex}`,
     );
   }
   if (record.unmatchedFrames || record.malformedFrames || record.foreignFrames) {
-    throw new Error("the loopback self-test produced unattributed frames");
+    throw new RelayProbeError(
+      "the loopback self-test produced unattributed frames",
+    );
   }
   return record.cases.length;
 }
@@ -337,9 +343,15 @@ async function measureOneSession(adapter, config, nonce, sessionIndex) {
         "the run did not reach them",
     );
   }
-  // Stop before the caller closes: pumping a closed session would start cases
-  // that can never be answered.
+  // Stop before closing: pumping a closed session would start cases that can
+  // never be answered.
   stopped = true;
+  // The read loop is parked in `reader.read()`, which settles on a datagram or
+  // on the session closing — nothing else. Setting `stopped` does not wake it,
+  // so the close has to happen HERE, before the await below, or this function
+  // never returns. The caller's finally is the exception-path safety net, not a
+  // substitute; `close()` tolerates being called twice.
+  await adapter.close();
   await reading;
   const record = driver.sessionRecord();
   pathNotes = config.pathNotes;
@@ -361,7 +373,7 @@ async function onRun() {
   elements.run.disabled = true;
   try {
     if (!selfTestPassed) {
-      throw new Error("the self-test has not passed");
+      throw new RelayProbeError("the self-test has not passed");
     }
     await runOneSession();
     // A single-use allowance is spent. Make that visible rather than letting a
@@ -398,7 +410,7 @@ async function start() {
   try {
     const vectorResponse = await fetch("../locks/relay-measurement-vector.json");
     if (!vectorResponse.ok) {
-      throw new Error("the measurement vector could not be read");
+      throw new RelayProbeError("the measurement vector could not be read");
     }
     const vectorBytes = await vectorResponse.arrayBuffer();
     measurementVectorSha256 = await sha256Hex(vectorBytes);
@@ -409,7 +421,7 @@ async function start() {
     );
     const conformanceResponse = await fetch("./conformance-vectors.json");
     if (!conformanceResponse.ok) {
-      throw new Error("the conformance vectors could not be read");
+      throw new RelayProbeError("the conformance vectors could not be read");
     }
     const conformance = await conformanceResponse.json();
     const checked = checkConformanceVectors(conformance);

@@ -29,7 +29,7 @@ or committed manifest was changed.
 | [`probe/conformance-vectors.json`](../probe/conformance-vectors.json) | 54 committed cases: 19 encoded frames, 4 ceiling acceptances, 15 rejections, 8 tags, 8 payloads |
 | `probe/relay-framing.js`, `probe/measurement.js`, `probe/adapters.js`, `probe/probe.js`, `probe/index.html` | the standalone browser probe, including its own report validator so the page never renders or offers an unvalidated report |
 | [`scripts/serve-probe.sh`](../scripts/serve-probe.sh) | loopback static server for the probe |
-| [`tests/test_relay_probe.py`](../tests/test_relay_probe.py) | 124 deterministic tests, raising the suite from 162 to 286 |
+| [`tests/test_relay_probe.py`](../tests/test_relay_probe.py) | 125 deterministic tests, raising the suite from 162 to 287 |
 | [`tests/js_conformance_harness.mjs`](../tests/js_conformance_harness.mjs) | runs the browser sources under Node so the suite can compare the two implementations |
 
 The tests run in `scripts/check.sh` and in the containerized
@@ -59,10 +59,10 @@ The measurement vector lists sizes for both directions and the contract requires
 single-datagram cases in both, but the traffic goes through a destination that
 echoes UDP payloads unchanged. A browser cannot therefore ask for a
 server-to-browser size independently: the return size is whatever it sent. One
-round trip at `n` bytes consequently exercises the browser-to-server direction at
-`n` and the server-to-browser direction at `n` at the same time, and the plan's
-single cases are the union of the two direction lists — all 42 sizes of the
-committed vector, which happen to be identical in both.
+round trip at `n` bytes consequently exercises the browser-to-server direction
+at `n` and the server-to-browser direction at `n` at the same time, and the
+plan's single cases are the union of the two direction lists — all 42 sizes of
+the committed vector, which happen to be identical in both.
 
 A packed case is where the two directions separate. Its `k` inner datagrams
 leave in one frame and come back as `k` frames, so it measures a large
@@ -169,7 +169,8 @@ The tests cover the acceptance evidence that does not need a network:
   vector digest, a sent frame size that disagrees with its inner sizes, a
   returned frame that does not carry the 42-byte overhead, a returned size the
   case never sent or one counted more often than it was sent, a negative,
-  infinite or `NaN` round-trip time, a round-trip time on a case that did not echo, an
+  infinite or `NaN` round-trip time, a round-trip time on a case that did not
+  echo, an
   echoed case that returned other sizes, more returned frames than datagrams
   sent, reused ordinals, non-ascending case or session indices, a size above the
   plan ceiling, a case whose kind disagrees with its datagram count, a refusal
@@ -185,9 +186,9 @@ The tests cover the acceptance evidence that does not need a network:
   sent but whose timeout had not expired when the caller stopped driving is
   recorded as a timeout, because within that run it was sent and never answered.
   The error is one-directional and safe — such a case is reported as not
-  accepted, never as accepted — so it can only understate the usable range, and the summary treats a never-run case as a gap
-  that stops the contiguous accepted range rather than as either an acceptance
-  or a refusal.
+  accepted, never as accepted — so it can only understate the usable range. The
+  summary treats a never-run case as a gap that stops the contiguous accepted
+  range rather than as either an acceptance or a refusal.
   The browser sizes its time budget from the plan so that a path answering
   nothing at all still reaches every case, because an unrun case is a hole in
   the very range WP6 reads.
@@ -240,22 +241,29 @@ without access to any relay source. Three things make that checkable here:
    Python plan validator unchanged. The comparison also covers the two places
    the languages differ rather than agree by construction: the late untagged
    echo, where both must refuse to attribute the frame, and endpoint
-   substitution, where JavaScript's `String.replace` would expand `$&`, `` $` ``,
-   `$'`, `$$` and `$1` in the authorization instead of inserting it. These tests
-   skip where Node is absent and run in the pinned container image, which ships
-   Node 24.
+   substitution, where JavaScript's `String.replace` would expand `$&`,
+   `` $` ``, `$'`, `$$` and `$1` in the authorization instead of inserting it.
+   These tests skip where Node is absent and run in the pinned container image,
+   which ships Node 24.
 4. **The browser's rejection side is driven, not assumed.** The browser is what
    takes the routed measurement, and its `foreignFrames` counter is the
    concurrent-session evidence, so leaving its accounting untested would have
-   left the load-bearing part unproven. The published in-memory adapter now
-   carries the same fault settings in both languages, and the suite drives the
+   left the load-bearing part unproven. The published in-memory adapter carries
+   the same *fault* settings in both languages — its cross-delivery mode, used
+   for the two-session isolation test, exists only in the Python one — and the
+   suite drives the
    browser through truncated, packed, header-only, oversize-declaring,
    corrupting, dropping, refusing and foreign-prefix relays plus a foreign-nonce
    frame, asserting its counters and outcomes equal the reference's run for run.
    Every counter the browser owns — foreign, malformed, prefix-mismatch,
-   unattributed and write failures — and every outcome it can reach is exercised
-   by that set. Its validator is driven over the same mutations the Python
-   report tests use, and its summary is compared with the reference's.
+   unattributed and write failures — is reached by that set, together with the
+   echoed, payload-mismatch, send-failed and timed-out outcomes. The remaining
+   two are covered separately: refused-for-size by the record-equality run at a
+   1,200-byte transport limit, and never-run by a run deliberately stopped
+   before it reaches its last cases, whose never-run/timed-out split is asserted
+   equal to the reference's for the same schedule. Its validator is driven over
+   the same mutations the reference's is, in the same test, and its summary is
+   compared with the reference's.
 
 Point 3 is the strongest statement available without a network: two
 independently written implementations of the published contract, driven by the
@@ -315,16 +323,20 @@ other session's echo — and a falsely completed 0-byte case would have lifted
 drop sizes below the tag length from the contiguous walk as soon as a report
 holds more than one session, **and** every summary names its
 `untaggedSingleSizes` and sets `contiguousExcludesUntagged`. The caveat now
-travels in the JSON the floor travels in, instead of living only here. The floor is deliberately per session and
-carries no safety margin; choosing a margin is WP6's decision, not this
-document's.
+travels in the JSON the floor travels in, instead of living only here.
+
+The floor is deliberately per session and carries no safety margin; choosing a
+margin is WP6's decision, not this document's.
 
 Two concurrent sessions need two browser contexts, and each context numbers its
 own sessions from zero, so their reports cannot simply be concatenated —
 identical session indices would collide. `merge_reports` in
 [`scripts/relay_probe.py`](../scripts/relay_probe.py) renumbers them in the
-order given, refuses inputs that name different measurement vectors, leaves its
-inputs untouched, and validates the result; that path is committed and tested.
+order given, refuses inputs that name different measurement vectors or describe
+the path differently, leaves its inputs untouched, and validates the result
+against the measurement plan it is given — the merged report is the routed
+round's actual deliverable, so it is the one that most needs checking. That path
+is committed and tested.
 The routed round therefore produces the concurrent-session evidence as one valid
 report without new code.
 
@@ -388,7 +400,7 @@ and the report has no field in which any of them could be recorded.
 ## Repeating what exists
 
 ```bash
-scripts/check.sh                                  # 286 tests, no network
+scripts/check.sh                                  # 287 tests, no network
 CONTAINER_RUNTIME=podman scripts/check-container.sh
 python3 scripts/emit-relay-conformance-vectors.py --check
 scripts/serve-probe.sh                            # then open http://127.0.0.1:8173/probe/

@@ -11,6 +11,7 @@ import {
   BROWSER_TO_SERVER,
   MAX_LENGTH_PREFIX_VALUE,
   SERVER_TO_BROWSER,
+  RelayProbeError,
   decodeFrame,
   encodeFrame,
   hexToBytes,
@@ -124,7 +125,9 @@ export function runLoopbackSession(driver, adapter, stepMs = 1, maxSteps = 10000
     now += stepMs;
     driver.pump(now);
   }
-  throw new Error("loopback session did not finish within the step budget");
+  throw new RelayProbeError(
+    "loopback session did not finish within the step budget",
+  );
 }
 
 export class WebTransportAdapter {
@@ -146,7 +149,7 @@ export class WebTransportAdapter {
   // class name is carried out; the message is dropped on the floor here.
   static async connect(config) {
     if (typeof WebTransport === "undefined") {
-      throw new Error("this browser has no WebTransport");
+      throw new RelayProbeError("this browser has no WebTransport");
     }
     const options = {};
     if (config.certificateHashes.length > 0) {
@@ -161,7 +164,9 @@ export class WebTransportAdapter {
       await transport.ready;
     } catch (error) {
       const name = error && error.name ? ` (${error.name})` : "";
-      throw new Error(`the transport refused to open a session${name}`);
+      throw new RelayProbeError(
+        `the transport refused to open a session${name}`,
+      );
     }
     const maxDatagramSizeBytes = transport.datagrams.maxDatagramSize;
     if (!Number.isInteger(maxDatagramSizeBytes) || maxDatagramSizeBytes <= 0) {
@@ -170,7 +175,7 @@ export class WebTransportAdapter {
       } catch (error) {
         // Already gone; nothing to close.
       }
-      throw new Error(
+      throw new RelayProbeError(
         "the transport did not report a usable maxDatagramSize; refusing to " +
           "guess one",
       );

@@ -1541,11 +1541,106 @@ class BrowserImplementationTests(unittest.TestCase):
             )
         self.assertEqual(sorted(self.observed["configRejections"]), sorted(reference))
 
-    def test_browser_validator_rejects_every_mutation_the_reference_does(self) -> None:
+    def test_browser_stops_a_run_with_the_same_never_run_split(self) -> None:
+        """The JS notRun branch is otherwise unreachable in test: the loopback
+        answers everything, so nothing is ever left unstarted."""
+        plan = self.fault_plan()
+        relay = LoopbackRelay(max_datagram_size_bytes=20000, echo=False)
+        adapter = relay.attach()
+        driver = SessionDriver(
+            plan,
+            adapter,
+            bytes(SESSION_NONCE_BYTES),
+            make_config(maxInFlightDatagrams=2),
+        )
+        driver.pump(0)
+        expected = {
+            "datagramsSent": relay.received_datagrams,
+            "outcomes": [item["outcome"] for item in driver.session_record()["cases"]],
+        }
+        self.assertEqual(self.observed["partialRun"], expected)
+        self.assertEqual(
+            expected["outcomes"],
+            [OUTCOME_TIMED_OUT, OUTCOME_TIMED_OUT, OUTCOME_NOT_RUN, OUTCOME_NOT_RUN],
+        )
+
+    def test_both_validators_reject_every_mutation(self) -> None:
+        """The harness reports the browser's verdict; the same mutations are
+        applied here so the two validators are compared, not just observed."""
+        plan = self.fault_plan()
+        driver, _ = run_plan(plan, relay=LoopbackRelay(max_datagram_size_bytes=20000))
+        base = build_report([driver.session_record()], "ab" * 32, "harness")
+
+        def with_frames(report):
+            return next(
+                item
+                for item in report["sessions"][0]["cases"]
+                if item["receivedFrames"]
+            )
+
+        def unrun(report, outcome):
+            item = with_frames(report)
+            item["outcome"] = outcome
+            item["roundTripMilliseconds"] = None
+
+        mutations = {
+            "badKind": lambda r: r.__setitem__("kind", "something-else"),
+            "caseWiderThanBound": lambda r: r["sessions"][0].__setitem__(
+                "maxInFlightDatagrams", 1
+            ),
+            "collidingSessionIndices": lambda r: r["sessions"].append(
+                copy.deepcopy(r["sessions"][0])
+            ),
+            "echoedAboveTransportMaximum": lambda r: r["sessions"][0].__setitem__(
+                "maxDatagramSizeBytes", 43
+            ),
+            "foreignReturnedSize": lambda r: (
+                unrun(r, OUTCOME_TIMED_OUT),
+                with_frames(r).__setitem__(
+                    "receivedFrames",
+                    [
+                        {
+                            "frameBytes": 99 + SINGLE_DATAGRAM_OVERHEAD_BYTES,
+                            "innerBytes": 99,
+                        }
+                    ],
+                ),
+            ),
+            "frameArithmetic": lambda r: r["sessions"][0]["cases"][0].__setitem__(
+                "sentFrameBytes", r["sessions"][0]["cases"][0]["sentFrameBytes"] + 1
+            ),
+            "missingField": lambda r: r.pop("framing"),
+            "negativeCounter": lambda r: r["sessions"][0].__setitem__(
+                "foreignFrames", -1
+            ),
+            "notRunWithFrames": lambda r: unrun(r, OUTCOME_NOT_RUN),
+            "overheadArithmetic": lambda r: with_frames(r)["receivedFrames"][
+                0
+            ].__setitem__(
+                "frameBytes",
+                with_frames(r)["receivedFrames"][0]["frameBytes"] + 1,
+            ),
+            "planMismatch": lambda r: r["sessions"][0]["cases"].pop(),
+            "reusedOrdinal": lambda r: r["sessions"][0]["cases"][1].__setitem__(
+                "ordinals", list(r["sessions"][0]["cases"][0]["ordinals"])
+            ),
+            "sendFailedWithFrames": lambda r: unrun(r, OUTCOME_SEND_FAILED),
+            "spacedDigest": lambda r: r.__setitem__(
+                "measurementVectorSha256", (" " + "ab" * 32)[:64]
+            ),
+            "unknownField": lambda r: r.__setitem__("extra", 1),
+            "uppercaseDigest": lambda r: r.__setitem__(
+                "measurementVectorSha256", "AB" * 32
+            ),
+        }
         rejections = self.observed["validatorRejections"]
-        self.assertTrue(rejections, "the harness reported no validator cases")
-        accepted = sorted(name for name, refused in rejections.items() if not refused)
-        self.assertEqual(accepted, [])
+        self.assertEqual(sorted(rejections), sorted(mutations))
+        for name, mutate in mutations.items():
+            report = copy.deepcopy(base)
+            mutate(report)
+            with self.assertRaises(MeasurementReportError, msg=name):
+                validate_report(report, plan)
+            self.assertTrue(rejections[name], f"the browser accepted {name}")
 
     def test_browser_summary_matches_the_reference(self) -> None:
         plan = self.fault_plan()
