@@ -5,17 +5,12 @@
 from __future__ import annotations
 
 import argparse
-import json
 import sys
 from pathlib import Path
 
-from relay_vectors import build_conformance_vectors
+from relay_vectors import encode_conformance_vectors
 
 DEFAULT_OUTPUT = Path("probe") / "conformance-vectors.json"
-
-
-def encode(vectors) -> str:
-    return json.dumps(vectors, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
 
 def main() -> int:
@@ -34,7 +29,7 @@ def main() -> int:
     arguments = parser.parse_args()
     root = Path(__file__).resolve().parent.parent
     output = arguments.output or root / DEFAULT_OUTPUT
-    encoded = encode(build_conformance_vectors())
+    encoded = encode_conformance_vectors()
     if arguments.check:
         try:
             current = output.read_text(encoding="utf-8")

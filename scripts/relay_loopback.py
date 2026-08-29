@@ -63,15 +63,21 @@ class LoopbackAdapter:
         self.max_datagram_size_bytes = max_datagram_size_bytes
         self.inbox: list = []
         self.sent_frames = 0
+        self.write_failures = 0
 
     def send(self, frame: bytes) -> None:
         if len(frame) > self.max_datagram_size_bytes:
+            self.write_failures += 1
             raise AdapterSendError(
                 f"frame of {len(frame)} bytes exceeds the "
                 f"{self.max_datagram_size_bytes} byte transport maximum"
             )
+        try:
+            self._relay.deliver(self, frame)
+        except AdapterSendError:
+            self.write_failures += 1
+            raise
         self.sent_frames += 1
-        self._relay.deliver(self, frame)
 
     def drain(self) -> list:
         frames, self.inbox = self.inbox, []

@@ -17,6 +17,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from relay_loopback import (  # noqa: E402
     FAULT_CORRUPT_PAYLOAD,
+    FAULT_NONE,
     FAULT_DECLARED_OVERSIZE,
     FAULT_FOREIGN_PREFIX,
     FAULT_HEADER_ONLY_RETURN,
@@ -67,7 +68,10 @@ from relay_probe import (  # noqa: E402
     summarize_report,
     validate_report,
 )
-from relay_vectors import build_conformance_vectors  # noqa: E402
+from relay_vectors import (  # noqa: E402
+    build_conformance_vectors,
+    encode_conformance_vectors,
+)
 
 COMMITTED_VECTOR = json.loads(
     (ROOT / "locks" / "relay-measurement-vector.json").read_text(encoding="utf-8")
@@ -508,6 +512,43 @@ class ProbeConfigTests(unittest.TestCase):
     def test_path_notes_must_be_text(self) -> None:
         with self.assertRaises(ProbeConfigError):
             parse_probe_config(dict(BASE_CONFIG, pathNotes=17))
+
+
+class ConfigHexStrictnessTests(unittest.TestCase):
+    """`bytes.fromhex` skips whitespace, so a value of the right length can
+    decode short. A 20-byte routing prefix would then fail deep inside the run,
+    and a short expected return prefix would silently reject every frame."""
+
+    def test_whitespace_inside_a_hex_field_is_refused(self) -> None:
+        spaced = "  " + SYNTHETIC_PREFIX.hex()[2:]
+        self.assertEqual(len(spaced), RELAY_HEADER_BYTES * 2)
+        self.assertEqual(len(bytes.fromhex(spaced)), RELAY_HEADER_BYTES - 1)
+        with self.assertRaises(ProbeConfigError):
+            parse_probe_config(dict(BASE_CONFIG, routingPrefixHex=spaced))
+        with self.assertRaises(ProbeConfigError):
+            parse_probe_config(dict(BASE_CONFIG, expectedReturnPrefixHex=spaced))
+        with self.assertRaises(ProbeConfigError):
+            parse_probe_config(
+                dict(BASE_CONFIG, certificateHashes=["  " + "ab" * 32][:1])
+            )
+
+    def test_uppercase_hex_is_accepted_for_configuration(self) -> None:
+        config = make_config(routingPrefixHex=SYNTHETIC_PREFIX.hex().upper())
+        self.assertEqual(config.routing_prefix, SYNTHETIC_PREFIX)
+
+    def test_the_authorization_stays_out_of_the_generated_repr(self) -> None:
+        self.assertNotIn("one-time-value", repr(make_config()))
+
+
+class ReportDigestStrictnessTests(unittest.TestCase):
+    def test_only_lowercase_unspaced_sha256_is_accepted(self) -> None:
+        plan = MeasurementPlan.from_vector(make_vector([16, 17, 18]))
+        driver, _ = run_plan(plan)
+        record = driver.session_record()
+        validate_report(build_report([record], "ab" * 32), plan)
+        for digest in ("AB" * 32, " " + "ab" * 32, "ab" * 32 + " ", "ab" * 31 + "g "):
+            with self.assertRaises(MeasurementReportError, msg=digest):
+                validate_report(build_report([record], digest), plan)
 
 
 class SessionTests(unittest.TestCase):
@@ -962,6 +1003,15 @@ class ReportValidationTests(unittest.TestCase):
         case["roundTripMilliseconds"] = None
         self.assert_rejected(report)
 
+    def test_write_failures_are_reported_and_bounded(self) -> None:
+        report = self.valid()
+        self.assertEqual(report["sessions"][0]["writeFailures"], 0)
+        report["sessions"][0]["writeFailures"] = -1
+        self.assert_rejected(report)
+        report = self.valid()
+        del report["sessions"][0]["writeFailures"]
+        self.assert_rejected(report)
+
     def test_a_case_wider_than_the_reported_bound_is_rejected(self) -> None:
         report = self.valid()
         report["sessions"][0]["maxInFlightDatagrams"] = 1
@@ -1015,6 +1065,27 @@ class MergeTests(unittest.TestCase):
         merge_reports(self.reports)
         for report in self.reports:
             self.assertEqual(report["sessions"][0]["sessionIndex"], 0)
+
+    def test_the_merged_report_is_checked_against_the_plan(self) -> None:
+        broken = copy.deepcopy(self.reports[1])
+        broken["sessions"][0]["cases"].pop()
+        with self.assertRaises(MeasurementReportError):
+            merge_reports([self.reports[0], broken], self.plan)
+
+    def test_differing_path_notes_are_refused_rather_than_dropped(self) -> None:
+        first = copy.deepcopy(self.reports[0])
+        second = copy.deepcopy(self.reports[1])
+        first["pathNotes"] = "wired"
+        second["pathNotes"] = "wireless"
+        with self.assertRaises(MeasurementReportError):
+            merge_reports([first, second], self.plan)
+        merged = merge_reports([first, second], self.plan, path_notes="two paths")
+        self.assertEqual(merged["pathNotes"], "two paths")
+        # One side carrying notes and the other silent is not a disagreement.
+        second["pathNotes"] = ""
+        self.assertEqual(
+            merge_reports([first, second], self.plan)["pathNotes"], "wired"
+        )
 
     def test_reports_naming_different_vectors_do_not_merge(self) -> None:
         other = copy.deepcopy(self.reports[1])
@@ -1072,6 +1143,43 @@ class SummaryTests(unittest.TestCase):
         self.assertEqual(session["failedSingleCases"], 0)
         self.assertEqual(summary["conservativeInnerFloorBytes"], 16)
 
+    def test_untagged_sizes_cannot_lift_the_floor_of_a_multi_session_report(
+        self,
+    ) -> None:
+        """Two concurrent sessions send identical untagged payloads, so an
+        untagged case can be completed by the other session's echo. Such a size
+        is not isolation-grade and must not raise the floor a JSON-only consumer
+        reads."""
+        plan = MeasurementPlan.from_vector(make_vector([0, 1, 16, 17, 18]))
+        single = self.build(plan, LoopbackRelay(max_datagram_size_bytes=20000))
+        lone = summarize_report(single, plan)["sessions"][0]
+        self.assertFalse(lone["contiguousExcludesUntagged"])
+        self.assertEqual(lone["untaggedSingleSizes"], [0, 1])
+        self.assertEqual(lone["contiguousInnerBytes"], 18)
+
+        # The same run, but with the 16-byte case failing, in a two-session
+        # report: the walk must start above the untagged sizes and stop at once.
+        second = copy.deepcopy(single["sessions"][0])
+        second["sessionIndex"] = 1
+        merged = build_report(
+            [single["sessions"][0], second], single["measurementVectorSha256"]
+        )
+        for session in merged["sessions"]:
+            case = next(
+                item for item in session["cases"] if item["sentInnerBytes"] == [16]
+            )
+            case["outcome"] = OUTCOME_TIMED_OUT
+            case["receivedFrames"] = []
+            case["roundTripMilliseconds"] = None
+        summary = summarize_report(merged, plan)
+        for session in summary["sessions"]:
+            self.assertTrue(session["contiguousExcludesUntagged"])
+            self.assertEqual(session["untaggedSingleSizes"], [0, 1])
+            # 0 and 1 echoed but are excluded, and 16 failed, so nothing is
+            # contiguously accepted rather than "up to 1 byte".
+            self.assertIsNone(session["contiguousInnerBytes"])
+        self.assertIsNone(summary["conservativeInnerFloorBytes"])
+
     def test_the_floor_is_the_minimum_across_the_listed_sessions(self) -> None:
         plan = MeasurementPlan.from_vector(make_vector([16, 17, 18, 64, 65]))
         wide = self.build(plan, LoopbackRelay(max_datagram_size_bytes=20000))
@@ -1115,6 +1223,35 @@ class ConformanceVectorTests(unittest.TestCase):
             self.assertEqual(len(frame), case["frameBytes"], case["name"])
             decoded = decode_frame(frame, case["direction"])
             self.assertEqual(list(decoded.datagrams), payloads, case["name"])
+
+    def test_the_committed_file_is_byte_identical_to_the_emitter(self) -> None:
+        # The structural comparison above would pass on a reformatted file, and
+        # the emitter's --check is a separate command. This pins the bytes.
+        self.assertEqual(
+            (ROOT / "probe" / "conformance-vectors.json").read_text(encoding="utf-8"),
+            encode_conformance_vectors(),
+        )
+
+    def test_every_acceptance_case_decodes_at_its_ceiling(self) -> None:
+        # Without these an implementation could use `length >= ceiling` and pass
+        # every rejection vector while refusing the plan's largest size.
+        self.assertTrue(COMMITTED_CONFORMANCE["decodeAcceptances"])
+        for case in COMMITTED_CONFORMANCE["decodeAcceptances"]:
+            decoded = decode_frame(
+                bytes.fromhex(case["frameHex"]),
+                case["direction"],
+                case["maxInnerDatagramBytes"],
+            )
+            self.assertEqual(
+                [datagram.hex() for datagram in decoded.datagrams],
+                case["payloadHexes"],
+                case["name"],
+            )
+            self.assertEqual(
+                max(len(datagram) for datagram in decoded.datagrams),
+                case["maxInnerDatagramBytes"],
+                case["name"],
+            )
 
     def test_every_decode_rejection_is_rejected(self) -> None:
         for case in COMMITTED_CONFORMANCE["decodeRejections"]:
@@ -1203,6 +1340,7 @@ class BrowserImplementationTests(unittest.TestCase):
         expected = sum(
             len(COMMITTED_CONFORMANCE[name])
             for name in (
+                "decodeAcceptances",
                 "decodeRejections",
                 "encodeCases",
                 "encodeRejections",
@@ -1263,6 +1401,157 @@ class BrowserImplementationTests(unittest.TestCase):
         self.assertEqual(self.observed["lateUntaggedEcho"], expected)
         self.assertEqual(expected["unmatchedFrames"], 1)
         self.assertNotIn(OUTCOME_PAYLOAD_MISMATCH, expected["outcomes"])
+
+    FAULT_PLAN_SIZES = [16, 17, 18]
+
+    def fault_plan(self):
+        return MeasurementPlan.from_vector(
+            make_vector(self.FAULT_PLAN_SIZES),
+            max_in_flight_datagrams=DEFAULT_MAX_IN_FLIGHT_DATAGRAMS,
+        )
+
+    def reference_fault_run(self, relay, config=None):
+        plan = self.fault_plan()
+        adapter = relay.attach()
+        driver = SessionDriver(
+            plan, adapter, bytes(SESSION_NONCE_BYTES), config or make_config()
+        )
+        run_session(driver, adapter)
+        record = driver.session_record()
+        return {
+            "foreignFrames": record["foreignFrames"],
+            "malformedFrames": record["malformedFrames"],
+            "outcomes": [item["outcome"] for item in record["cases"]],
+            "prefixMismatchFrames": record["prefixMismatchFrames"],
+            "unmatchedFrames": record["unmatchedFrames"],
+            "writeFailures": record["writeFailures"],
+        }
+
+    def test_browser_accounting_matches_the_reference_under_every_fault(self) -> None:
+        """The browser is what takes the routed measurement, and its counters
+        are the concurrent-session evidence. Every rejection path it owns is
+        driven here and compared with the reference implementation."""
+        cases = {
+            "clean": LoopbackRelay(max_datagram_size_bytes=20000),
+            "truncatedReturn": LoopbackRelay(
+                max_datagram_size_bytes=20000, fault=FAULT_TRUNCATED_RETURN
+            ),
+            "packedReturn": LoopbackRelay(
+                max_datagram_size_bytes=20000, fault=FAULT_PACKED_RETURN
+            ),
+            "headerOnlyReturn": LoopbackRelay(
+                max_datagram_size_bytes=20000, fault=FAULT_HEADER_ONLY_RETURN
+            ),
+            "declaredOversize": LoopbackRelay(
+                max_datagram_size_bytes=20000, fault=FAULT_DECLARED_OVERSIZE
+            ),
+            "corruptPayload": LoopbackRelay(
+                max_datagram_size_bytes=20000, fault=FAULT_CORRUPT_PAYLOAD
+            ),
+            "dropped": LoopbackRelay(
+                max_datagram_size_bytes=20000, drop_inner_sizes=(17,)
+            ),
+            "refused": LoopbackRelay(max_datagram_size_bytes=20000, refuse_send=True),
+        }
+        for name, relay in cases.items():
+            self.assertEqual(
+                self.observed["faultRuns"][name],
+                self.reference_fault_run(relay),
+                f"fault {name}",
+            )
+        self.assertEqual(
+            self.observed["faultRuns"]["foreignPrefix"],
+            self.reference_fault_run(
+                LoopbackRelay(
+                    max_datagram_size_bytes=20000, fault=FAULT_FOREIGN_PREFIX
+                ),
+                make_config(expectedReturnPrefixHex=SYNTHETIC_RETURN_PREFIX.hex()),
+            ),
+        )
+        # Every counter the browser owns is actually reached by this set.
+        reached = set()
+        for run in self.observed["faultRuns"].values():
+            reached.update(name for name, value in run.items() if value)
+            reached.update(run["outcomes"])
+        for name in (
+            "foreignFrames",
+            "malformedFrames",
+            "prefixMismatchFrames",
+            "unmatchedFrames",
+            "writeFailures",
+            OUTCOME_ECHOED,
+            OUTCOME_PAYLOAD_MISMATCH,
+            OUTCOME_SEND_FAILED,
+            OUTCOME_TIMED_OUT,
+        ):
+            self.assertIn(name, reached)
+
+    def test_browser_counts_a_foreign_nonce_like_the_reference(self) -> None:
+        plan = self.fault_plan()
+        relay = LoopbackRelay(max_datagram_size_bytes=20000, echo=False)
+        adapter = relay.attach()
+        driver = SessionDriver(plan, adapter, bytes(SESSION_NONCE_BYTES), make_config())
+        driver.pump(0)
+        driver.receive(
+            encode_frame(
+                SYNTHETIC_RETURN_PREFIX,
+                (build_payload(bytes([9] * SESSION_NONCE_BYTES), 0, 16),),
+                SERVER_TO_BROWSER,
+            ),
+            1,
+        )
+        record = driver.session_record()
+        self.assertEqual(
+            self.observed["faultRuns"]["foreignNonce"],
+            {
+                "foreignFrames": record["foreignFrames"],
+                "malformedFrames": record["malformedFrames"],
+                "outcomes": [item["outcome"] for item in record["cases"]],
+                "prefixMismatchFrames": record["prefixMismatchFrames"],
+                "unmatchedFrames": record["unmatchedFrames"],
+                "writeFailures": record["writeFailures"],
+            },
+        )
+        self.assertEqual(record["foreignFrames"], 1)
+
+    def test_browser_refuses_the_same_configurations_as_the_reference(self) -> None:
+        spaced = "  " + SYNTHETIC_PREFIX.hex()[2:]
+        reference = {
+            "spacedRoutingPrefix": dict(BASE_CONFIG, routingPrefixHex=spaced),
+            "spacedReturnPrefix": dict(BASE_CONFIG, expectedReturnPrefixHex=spaced),
+            "shortRoutingPrefix": dict(
+                BASE_CONFIG, routingPrefixHex=SYNTHETIC_PREFIX.hex()[2:]
+            ),
+            "nonHexRoutingPrefix": dict(BASE_CONFIG, routingPrefixHex="zz" * 40),
+            "unacknowledgedPort": dict(
+                BASE_CONFIG, destinationPortMatchesProjection=False
+            ),
+            "emptyAuthorization": dict(BASE_CONFIG, authorization=""),
+            "templateWithoutPlaceholder": dict(
+                BASE_CONFIG, endpointTemplate="https://relay.invalid/none"
+            ),
+            "boundBelowOne": dict(BASE_CONFIG, maxInFlightDatagrams=0),
+        }
+        for name, mapping in reference.items():
+            with self.assertRaises(ProbeConfigError, msg=name):
+                parse_probe_config(mapping)
+            self.assertTrue(
+                self.observed["configRejections"][name],
+                f"the browser accepted {name}",
+            )
+        self.assertEqual(sorted(self.observed["configRejections"]), sorted(reference))
+
+    def test_browser_validator_rejects_every_mutation_the_reference_does(self) -> None:
+        rejections = self.observed["validatorRejections"]
+        self.assertTrue(rejections, "the harness reported no validator cases")
+        accepted = sorted(name for name, refused in rejections.items() if not refused)
+        self.assertEqual(accepted, [])
+
+    def test_browser_summary_matches_the_reference(self) -> None:
+        plan = self.fault_plan()
+        driver, _ = run_plan(plan, relay=LoopbackRelay(max_datagram_size_bytes=20000))
+        report = build_report([driver.session_record()], "ab" * 32, "harness")
+        self.assertEqual(self.observed["faultSummary"], summarize_report(report, plan))
 
     def test_a_browser_report_validates_against_the_reference_validator(self) -> None:
         for limit in self.limits:

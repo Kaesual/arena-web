@@ -26,10 +26,10 @@ or committed manifest was changed.
 | [`scripts/relay_probe.py`](../scripts/relay_probe.py) | the reference implementation: frame grammar, payload tag, measurement plan, session driver, report validator |
 | [`scripts/relay_loopback.py`](../scripts/relay_loopback.py) | the in-memory relay and echo destination, with deliberate contract violations for the rejection paths |
 | [`scripts/relay_vectors.py`](../scripts/relay_vectors.py) + [`emit-relay-conformance-vectors.py`](../scripts/emit-relay-conformance-vectors.py) | the portable conformance vectors and their emitter |
-| [`probe/conformance-vectors.json`](../probe/conformance-vectors.json) | 50 committed cases: 19 encoded frames, 15 rejections, 8 tags, 8 payloads |
+| [`probe/conformance-vectors.json`](../probe/conformance-vectors.json) | 54 committed cases: 19 encoded frames, 4 ceiling acceptances, 15 rejections, 8 tags, 8 payloads |
 | `probe/relay-framing.js`, `probe/measurement.js`, `probe/adapters.js`, `probe/probe.js`, `probe/index.html` | the standalone browser probe, including its own report validator so the page never renders or offers an unvalidated report |
 | [`scripts/serve-probe.sh`](../scripts/serve-probe.sh) | loopback static server for the probe |
-| [`tests/test_relay_probe.py`](../tests/test_relay_probe.py) | 109 deterministic tests, raising the suite from 162 to 271 |
+| [`tests/test_relay_probe.py`](../tests/test_relay_probe.py) | 124 deterministic tests, raising the suite from 162 to 286 |
 | [`tests/js_conformance_harness.mjs`](../tests/js_conformance_harness.mjs) | runs the browser sources under Node so the suite can compare the two implementations |
 
 The tests run in `scripts/check.sh` and in the containerized
@@ -181,8 +181,13 @@ The tests cover the acceptance evidence that does not need a network:
   report that fails it; the Python validator stays authoritative and the tests
   compare against it.
 - **Cases that never ran** — a case the run never reached is recorded as never
-  run, not as a timeout, and the summary treats it as a gap that stops the
-  contiguous accepted range rather than as either an acceptance or a refusal.
+  run, not as a timeout. One case in between is worth naming: a case that *was*
+  sent but whose timeout had not expired when the caller stopped driving is
+  recorded as a timeout, because within that run it was sent and never answered.
+  The error is one-directional and safe — such a case is reported as not
+  accepted, never as accepted — so it can only understate the usable range, and the summary treats a never-run case as a gap
+  that stops the contiguous accepted range rather than as either an acceptance
+  or a refusal.
   The browser sizes its time budget from the plan so that a path answering
   nothing at all still reaches every case, because an unrun case is a hole in
   the very range WP6 reads.
@@ -239,6 +244,18 @@ without access to any relay source. Three things make that checkable here:
    `$'`, `$$` and `$1` in the authorization instead of inserting it. These tests
    skip where Node is absent and run in the pinned container image, which ships
    Node 24.
+4. **The browser's rejection side is driven, not assumed.** The browser is what
+   takes the routed measurement, and its `foreignFrames` counter is the
+   concurrent-session evidence, so leaving its accounting untested would have
+   left the load-bearing part unproven. The published in-memory adapter now
+   carries the same fault settings in both languages, and the suite drives the
+   browser through truncated, packed, header-only, oversize-declaring,
+   corrupting, dropping, refusing and foreign-prefix relays plus a foreign-nonce
+   frame, asserting its counters and outcomes equal the reference's run for run.
+   Every counter the browser owns — foreign, malformed, prefix-mismatch,
+   unattributed and write failures — and every outcome it can reach is exercised
+   by that set. Its validator is driven over the same mutations the Python
+   report tests use, and its summary is compared with the reference's.
 
 Point 3 is the strongest statement available without a network: two
 independently written implementations of the published contract, driven by the
@@ -257,14 +274,14 @@ loopback. Its startup self-test reported:
 
 ```text
 measurement vector sha256:546a9a859f92d72d0a2d7dc14acdd80410e0873148500b2d0e26765a6182a064 — 46 cases, ceiling 16384 bytes
-self-test passed: 50 conformance vectors, 46 loopback cases
+self-test passed: 54 conformance vectors, 46 loopback cases
 ```
 
 That digest is exactly `sha256sum locks/relay-measurement-vector.json`, so the
 identity the browser will stamp into a report is the committed WP0 vector and
 not some other copy. The line also shows that the ES modules resolve, that
 `crypto.subtle` is available, that the browser's own implementation accepts all
-50 committed conformance vectors, and that a complete 46-case plan runs through
+54 committed conformance vectors, and that a complete 46-case plan runs through
 the in-memory loopback inside the browser.
 
 This is **not** a measurement and involved no relay: no WebTransport session was
@@ -288,7 +305,17 @@ None of the following has been done, and none of it is claimed:
 
 The report format, the summary reduction and the per-session floor are
 implemented and tested, so the routed round produces the report by running the
-probe rather than by writing new code. The floor is deliberately per session and
+probe rather than by writing new code.
+
+One hazard in that reduction is closed in the data rather than only in prose.
+Two concurrent sessions send byte-identical untagged payloads, so in a report
+holding more than one session an untagged case may have been completed by the
+other session's echo — and a falsely completed 0-byte case would have lifted
+`contiguousInnerBytes` from nothing to a number. Both implementations therefore
+drop sizes below the tag length from the contiguous walk as soon as a report
+holds more than one session, **and** every summary names its
+`untaggedSingleSizes` and sets `contiguousExcludesUntagged`. The caveat now
+travels in the JSON the floor travels in, instead of living only here. The floor is deliberately per session and
 carries no safety margin; choosing a margin is WP6's decision, not this
 document's.
 
@@ -335,6 +362,16 @@ and the report has no field in which any of them could be recorded.
   the rejection is recorded as a timeout. The size pre-check covers the failure
   mode this probe is measuring; whether the browser ever rejects a write that
   fits `maxDatagramSize` is a question for the routed round.
+- **`maxDatagramSizeBytes` is a connect-time sample.** The probe reads the
+  transport's reported maximum once, when the session opens, and records that.
+  It does not re-read it per send. The value can in principle change during a
+  session; if it does, the report will name the value the session started with.
+  Re-reading per send is a small change the routed round can make if a real path
+  turns out to move it.
+- **Write failures are counted, not attributed.** A rejected datagram write is
+  observed after the fact, so the affected case shows as a timeout. The count
+  now travels in the report as a session counter rather than only in the page
+  log, so a reader of the JSON can see that a session had failed writes at all.
 - **The floor is not per direction, and cannot be made so by this method.**
   Every single case is one round trip through a destination that echoes payloads
   unchanged, so an accepted size means the browser-to-server frame *and* the
@@ -351,7 +388,7 @@ and the report has no field in which any of them could be recorded.
 ## Repeating what exists
 
 ```bash
-scripts/check.sh                                  # 271 tests, no network
+scripts/check.sh                                  # 286 tests, no network
 CONTAINER_RUNTIME=podman scripts/check-container.sh
 python3 scripts/emit-relay-conformance-vectors.py --check
 scripts/serve-probe.sh                            # then open http://127.0.0.1:8173/probe/

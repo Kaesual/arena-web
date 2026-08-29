@@ -32,6 +32,8 @@ from relay_probe import (
     frame_bytes_for_sizes,
 )
 
+import json
+
 VECTOR_KIND = "arena-web-routed-datagram-conformance-vectors"
 VECTOR_FORMAT_VERSION = 1
 
@@ -151,7 +153,8 @@ def _decode_rejections() -> list:
             "frameHex": (single + b"\x00").hex(),
             "maxInnerDatagramBytes": MAX_LENGTH_PREFIX_VALUE,
             "name": "trailingByteAfterLastDatagram",
-            "rule": "a frame does not end inside a length prefix",
+            "rule": "a frame carries no trailing byte after the last inner "
+            "payload; one trailing byte cannot begin a length field",
         },
         {
             "direction": SERVER_TO_BROWSER,
@@ -169,6 +172,45 @@ def _decode_rejections() -> list:
             "rule": "an inner datagram above the accepted ceiling is refused",
         },
     ]
+
+
+def _decode_acceptances() -> list:
+    """Cases that must be accepted, including exactly at the ceiling.
+
+    The rejection vectors alone let an implementation refuse a datagram *at*
+    the ceiling and still pass, which would then refuse the measurement plan's
+    largest size. These pin the boundary from the other side.
+    """
+    prefix = SYNTHETIC_RETURN_PREFIX
+    cases = []
+    for size in (0, 1, 1023):
+        payload = build_payload(VECTOR_SESSION_NONCE, 0, size)
+        cases.append(
+            {
+                "direction": SERVER_TO_BROWSER,
+                "frameHex": encode_frame(
+                    prefix, (payload,), SERVER_TO_BROWSER, size
+                ).hex(),
+                "maxInnerDatagramBytes": size,
+                "name": f"innerDatagramExactlyAtCeiling{size}",
+                "payloadHexes": [payload.hex()],
+                "prefixHex": prefix.hex(),
+            }
+        )
+    packed = [build_payload(VECTOR_SESSION_NONCE, index, 64) for index in range(2)]
+    cases.append(
+        {
+            "direction": BROWSER_TO_SERVER,
+            "frameHex": encode_frame(
+                SYNTHETIC_PREFIX, packed, BROWSER_TO_SERVER, 64
+            ).hex(),
+            "maxInnerDatagramBytes": 64,
+            "name": "packedDatagramsExactlyAtCeiling64",
+            "payloadHexes": [payload.hex() for payload in packed],
+            "prefixHex": SYNTHETIC_PREFIX.hex(),
+        }
+    )
+    return cases
 
 
 def _encode_rejections() -> list:
@@ -220,6 +262,7 @@ def _encode_rejections() -> list:
 def build_conformance_vectors() -> dict:
     """Return the whole vector document."""
     return {
+        "decodeAcceptances": _decode_acceptances(),
         "decodeRejections": _decode_rejections(),
         "encodeCases": _encode_cases(),
         "encodeRejections": _encode_rejections(),
@@ -260,3 +303,17 @@ def build_conformance_vectors() -> dict:
             for ordinal in _TAG_ORDINALS
         ],
     }
+
+
+def encode_conformance_vectors() -> str:
+    """Return the exact committed serialization of the vector document.
+
+    The emitter and the test that guards the committed file share this, so the
+    committed bytes are pinned rather than only the parsed structure.
+    """
+    return (
+        json.dumps(
+            build_conformance_vectors(), indent=2, sort_keys=True, ensure_ascii=False
+        )
+        + "\n"
+    )

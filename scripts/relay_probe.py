@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import copy
 import math
+import re
 import struct
 from collections import Counter, deque
 from dataclasses import dataclass, field
@@ -438,6 +439,11 @@ class MeasurementPlan:
 
 AUTHORIZATION_PLACEHOLDER = "{authorization}"
 
+# bytes.fromhex() skips ASCII whitespace, so a value of the right character
+# length can decode short. Every hex field is matched explicitly instead.
+_HEX_DIGITS = re.compile(r"[0-9a-fA-F]+")
+_SHA256_LOWER_HEX = re.compile(r"[0-9a-f]{64}")
+
 _CONFIG_FIELDS = (
     "authorization",
     "caseTimeoutMilliseconds",
@@ -482,17 +488,19 @@ def _hex_bytes(value, name: str, expected_bytes: int) -> bytes:
         raise ProbeConfigError(
             f"{name} is {len(value)} characters, not {expected_bytes * 2}"
         )
-    try:
-        return bytes.fromhex(value)
-    except ValueError as error:
-        raise ProbeConfigError(f"{name} is not hexadecimal") from error
+    if not _HEX_DIGITS.fullmatch(value):
+        raise ProbeConfigError(f"{name} is not hexadecimal")
+    decoded = bytes.fromhex(value)
+    if len(decoded) != expected_bytes:
+        raise ProbeConfigError(f"{name} does not decode to {expected_bytes} bytes")
+    return decoded
 
 
 @dataclass(frozen=True)
 class ProbeConfig:
     """The runtime values a probe session needs, none of which are committed."""
 
-    authorization: str
+    authorization: str = field(repr=False)
     endpoint_template: str
     routing_prefix: bytes
     expected_return_prefix: bytes = b""
@@ -826,6 +834,9 @@ class SessionDriver:
             "prefixMismatchFrames": self.prefix_mismatch_frames,
             "sessionIndex": self.session_index,
             "unmatchedFrames": self.unmatched_frames,
+            # Reported by the transport, not the driver: a datagram write can
+            # fail after the driver has handed the frame over.
+            "writeFailures": getattr(self.adapter, "write_failures", 0),
         }
 
 
@@ -847,34 +858,50 @@ def build_report(
     }
 
 
-def merge_reports(reports, path_notes: str = None) -> dict:
+def merge_reports(
+    reports, plan: MeasurementPlan = None, path_notes: str = None
+) -> dict:
     """Combine reports from separate browser contexts into one valid report.
 
     The concurrent-session evidence needs two sessions running at once, which
     means two browser contexts, and each context numbers its own sessions from
     zero. Concatenating them would collide, so the sessions are renumbered in
     the order given. Every input must name the same measurement vector, because
-    a report that mixed two vectors would describe two different plans.
+    a report that mixed two vectors would describe two different plans, and the
+    merged result is checked against `plan` like any other report — it is the
+    routed round's actual deliverable, so it is the one that most needs it.
+
+    Path notes describe the path, and two reports describing it differently
+    cannot be merged into one description. Rather than keeping the first
+    silently, differing non-empty notes are refused; pass `path_notes` to state
+    the combined description explicitly.
     """
     reports = [copy.deepcopy(report) for report in reports]
     if not reports:
         raise MeasurementReportError("no reports to merge")
     digest = reports[0]["measurementVectorSha256"]
     sessions = []
+    notes = set()
     for report in reports:
         if report.get("measurementVectorSha256") != digest:
             raise MeasurementReportError("reports name different measurement vectors")
         if report.get("kind") != REPORT_KIND:
             raise MeasurementReportError("a report has an unsupported kind")
+        if report.get("pathNotes"):
+            notes.add(report["pathNotes"])
         for session in report.get("sessions", []):
             session["sessionIndex"] = len(sessions)
             sessions.append(session)
+    if path_notes is None and len(notes) > 1:
+        raise MeasurementReportError(
+            "reports carry different path notes; pass path_notes to combine them"
+        )
     merged = build_report(
         sessions,
         digest,
-        reports[0].get("pathNotes", "") if path_notes is None else path_notes,
+        (notes.pop() if notes else "") if path_notes is None else path_notes,
     )
-    return validate_report(merged)
+    return validate_report(merged, plan)
 
 
 # --------------------------------------------------------------------------
@@ -899,6 +926,7 @@ _SESSION_FIELDS = (
     "prefixMismatchFrames",
     "sessionIndex",
     "unmatchedFrames",
+    "writeFailures",
 )
 _CASE_FIELDS = (
     "caseIndex",
@@ -915,6 +943,7 @@ _SESSION_COUNTERS = (
     "malformedFrames",
     "prefixMismatchFrames",
     "unmatchedFrames",
+    "writeFailures",
 )
 
 
@@ -952,14 +981,11 @@ def validate_report(report, plan: MeasurementPlan = None) -> dict:
     }:
         raise MeasurementReportError("report framing does not match the contract")
     digest = report["measurementVectorSha256"]
-    if not isinstance(digest, str) or len(digest) != 64:
+    if not isinstance(digest, str) or not _SHA256_LOWER_HEX.fullmatch(digest):
+        # Lowercase only, and no whitespace: the digest is compared against
+        # `sha256sum` output and against the browser implementation, which is
+        # equally strict.
         raise MeasurementReportError("measurementVectorSha256 is not a SHA-256 digest")
-    try:
-        bytes.fromhex(digest)
-    except ValueError as error:
-        raise MeasurementReportError(
-            "measurementVectorSha256 is not hexadecimal"
-        ) from error
     if not isinstance(report["pathNotes"], str):
         raise MeasurementReportError("pathNotes is not a string")
     sessions = report["sessions"]
@@ -1150,15 +1176,26 @@ def summarize_report(report, plan: MeasurementPlan = None) -> dict:
     validate_report(report, plan)
     summaries = []
     floors = []
+    # An untagged payload carries no session nonce, so in a report holding more
+    # than one session an untagged case could have been completed by the other
+    # session's identical echo. Such a size is not isolation-grade evidence and
+    # must not be able to lift the floor, so it is dropped from the walk. The
+    # sizes are also named in the output, because the floor travels as JSON and
+    # a consumer reading only the JSON would otherwise never learn which sizes
+    # carry that caveat.
+    concurrent = len(report["sessions"]) > 1
     for session in report["sessions"]:
         echoed: set = set()
         failed: set = set()
         not_run: set = set()
+        untagged: set = set()
         largest_frame = None
         for case in session["cases"]:
             if case["kind"] != CASE_SINGLE:
                 continue
             size = case["sentInnerBytes"][0]
+            if size < MINIMUM_TAGGED_INNER_BYTES:
+                untagged.add(size)
             if case["outcome"] == OUTCOME_ECHOED:
                 echoed.add(size)
                 frame = case["sentFrameBytes"]
@@ -1169,14 +1206,18 @@ def summarize_report(report, plan: MeasurementPlan = None) -> dict:
                 not_run.add(size)
             else:
                 failed.add(size)
+        walked = echoed | failed | not_run
+        if concurrent:
+            walked -= untagged
         contiguous = None
-        for size in sorted(echoed | failed | not_run):
+        for size in sorted(walked):
             if size not in echoed:
                 break
             contiguous = size
         summaries.append(
             {
                 "contiguousInnerBytes": contiguous,
+                "contiguousExcludesUntagged": concurrent and bool(untagged),
                 "echoedSingleCases": len(echoed),
                 "failedSingleCases": len(failed),
                 "largestEchoedFrameBytes": largest_frame,
@@ -1186,6 +1227,7 @@ def summarize_report(report, plan: MeasurementPlan = None) -> dict:
                 "notRunSingleCases": len(not_run),
                 "sessionIndex": session["sessionIndex"],
                 "smallestFailedInnerBytes": min(failed) if failed else None,
+                "untaggedSingleSizes": sorted(untagged),
             }
         )
         floors.append(contiguous)

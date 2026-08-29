@@ -17,30 +17,89 @@ import {
 } from "./relay-framing.js";
 import { AdapterSendError } from "./measurement.js";
 
+// The same fault names scripts/relay_loopback.py uses, so a fault run can be
+// compared across the two implementations.
+export const FAULT_NONE = "";
+export const FAULT_TRUNCATED_RETURN = "truncatedReturn";
+export const FAULT_PACKED_RETURN = "packedReturn";
+export const FAULT_CORRUPT_PAYLOAD = "corruptPayload";
+export const FAULT_FOREIGN_PREFIX = "foreignPrefix";
+export const FAULT_HEADER_ONLY_RETURN = "headerOnlyReturn";
+export const FAULT_DECLARED_OVERSIZE = "declaredOversize";
+
 export class LoopbackAdapter {
-  constructor(maxDatagramSizeBytes, returnPrefix) {
+  constructor(maxDatagramSizeBytes, returnPrefix, options = {}) {
     this.maxDatagramSizeBytes = maxDatagramSizeBytes;
     this.returnPrefix = returnPrefix;
+    this.echo = options.echo === undefined ? true : options.echo;
+    this.fault = options.fault || FAULT_NONE;
+    this.dropInnerSizes = new Set(options.dropInnerSizes || []);
+    this.refuseSend = options.refuseSend === true;
     this.inbox = [];
     this.receivedDatagrams = 0;
+    this.receivedFrames = 0;
+    this.undeliverableReturns = 0;
+    this.writeFailures = 0;
   }
 
   send(frame) {
     if (frame.length > this.maxDatagramSizeBytes) {
+      this.writeFailures += 1;
       throw new AdapterSendError("frame exceeds the transport maximum");
     }
+    if (this.refuseSend) {
+      this.writeFailures += 1;
+      throw new AdapterSendError("the transport refused the frame");
+    }
     const decoded = decodeFrame(frame, BROWSER_TO_SERVER, MAX_LENGTH_PREFIX_VALUE);
+    this.receivedFrames += 1;
     this.receivedDatagrams += decoded.datagrams.length;
+    if (!this.echo) {
+      return;
+    }
     for (const payload of decoded.datagrams) {
-      const returned = encodeFrame(
-        this.returnPrefix,
-        [payload],
-        SERVER_TO_BROWSER,
-      );
-      if (returned.length <= this.maxDatagramSizeBytes) {
+      if (this.dropInnerSizes.has(payload.length)) {
+        continue;
+      }
+      for (const returned of this.returnFrames(payload)) {
+        if (returned.length > this.maxDatagramSizeBytes) {
+          this.undeliverableReturns += 1;
+          continue;
+        }
         this.inbox.push(returned);
       }
     }
+  }
+
+  returnFrames(payload) {
+    let prefix = this.returnPrefix;
+    if (this.fault === FAULT_FOREIGN_PREFIX) {
+      prefix = this.returnPrefix.map((value) => value ^ 0xff);
+    }
+    if (this.fault === FAULT_CORRUPT_PAYLOAD && payload.length > 0) {
+      const copy = payload.slice();
+      copy[copy.length - 1] ^= 0xff;
+      payload = copy;
+    }
+    if (this.fault === FAULT_HEADER_ONLY_RETURN) {
+      return [prefix.slice()];
+    }
+    if (this.fault === FAULT_PACKED_RETURN) {
+      return [encodeFrame(prefix, [payload, payload], BROWSER_TO_SERVER)];
+    }
+    if (this.fault === FAULT_DECLARED_OVERSIZE) {
+      const frame = new Uint8Array(prefix.length + 2 + payload.length);
+      frame.set(prefix, 0);
+      frame[prefix.length] = 0xff;
+      frame[prefix.length + 1] = 0xff;
+      frame.set(payload, prefix.length + 2);
+      return [frame];
+    }
+    const frame = encodeFrame(prefix, [payload], SERVER_TO_BROWSER);
+    if (this.fault === FAULT_TRUNCATED_RETURN) {
+      return [frame.subarray(0, frame.length - 1)];
+    }
+    return [frame];
   }
 
   drain() {
@@ -79,6 +138,12 @@ export class WebTransportAdapter {
 
   // The URL is composed here and nowhere else, so the authorization exists only
   // for the duration of this call and is never stored, logged or reported.
+  //
+  // Construction and readiness are wrapped because platform errors quote the
+  // URL they failed on: Chromium's TypeError for an invalid URL, or for a URL
+  // carrying a fragment, embeds the whole thing. That message must never escape
+  // this function, because the URL contains the authorization. Only the error's
+  // class name is carried out; the message is dropped on the floor here.
   static async connect(config) {
     if (typeof WebTransport === "undefined") {
       throw new Error("this browser has no WebTransport");
@@ -90,11 +155,21 @@ export class WebTransportAdapter {
         value: hexToBytes(value),
       }));
     }
-    const transport = new WebTransport(config.endpointUrl(), options);
-    await transport.ready;
+    let transport;
+    try {
+      transport = new WebTransport(config.endpointUrl(), options);
+      await transport.ready;
+    } catch (error) {
+      const name = error && error.name ? ` (${error.name})` : "";
+      throw new Error(`the transport refused to open a session${name}`);
+    }
     const maxDatagramSizeBytes = transport.datagrams.maxDatagramSize;
     if (!Number.isInteger(maxDatagramSizeBytes) || maxDatagramSizeBytes <= 0) {
-      await transport.close();
+      try {
+        transport.close();
+      } catch (error) {
+        // Already gone; nothing to close.
+      }
       throw new Error(
         "the transport did not report a usable maxDatagramSize; refusing to " +
           "guess one",

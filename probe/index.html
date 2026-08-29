@@ -105,10 +105,14 @@
     </p>
 
     <p class="note">
-      Every value below is runtime input. Nothing typed here is stored by the
-      page, written into the report, or committed to the repository. Use a
-      short-lived, single-use authorization: the field is cleared after each
-      session so a spent allowance is not reused by accident.
+      Every value below is runtime input, and none of it is committed to the
+      repository. The <strong>authorization, endpoint, certificate hashes and
+      routing prefix</strong> are secrets or environment detail: they stay in
+      this page, never reach the report, and never reach the log. The session
+      settings and the path notes below <em>do</em> travel in the report, which
+      is what they are for. Use a short-lived, single-use authorization: the
+      field is cleared after each session so a spent allowance is not reused by
+      accident.
     </p>
 
     <h2>Runtime configuration</h2>
@@ -133,7 +137,14 @@
       </label>
       <label>
         Short-lived authorization
-        <span>Single-use. Substituted into the URL only at connect time.</span>
+        <span
+          >Single-use. Substituted into the template verbatim at connect time —
+          the page does not percent-encode it, so supply a token that is already
+          safe at its position in the URL. Base64url is; a value containing
+          <code>#</code>, <code>&amp;</code>, <code>?</code>, <code>/</code> or
+          <code>+</code> would change the URL's structure rather than its
+          value.</span
+        >
         <input type="password" id="authorization" autocomplete="off" />
       </label>
       <label>
@@ -208,7 +219,8 @@
         <span
           >Non-secret topology characteristics only, for example
           &ldquo;residential fibre, IPv4, wired&rdquo;. This text is copied into
-          the report.</span
+          the report verbatim, so do not put an endpoint, address or token in
+          it.</span
         >
         <input type="text" id="pathNotes" autocomplete="off" />
       </label>

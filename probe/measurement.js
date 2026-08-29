@@ -616,6 +616,9 @@ export class SessionDriver {
       prefixMismatchFrames: this.prefixMismatchFrames,
       sessionIndex: this.sessionIndex,
       unmatchedFrames: this.unmatchedFrames,
+      // Reported by the transport, not the driver: a datagram write can fail
+      // after the driver has handed the frame over.
+      writeFailures: this.adapter.writeFailures || 0,
     };
   }
 }
@@ -657,6 +660,7 @@ const SESSION_FIELDS = [
   "prefixMismatchFrames",
   "sessionIndex",
   "unmatchedFrames",
+  "writeFailures",
 ];
 const CASE_FIELDS = [
   "caseIndex",
@@ -673,6 +677,7 @@ const SESSION_COUNTERS = [
   "malformedFrames",
   "prefixMismatchFrames",
   "unmatchedFrames",
+  "writeFailures",
 ];
 
 function requireFields(record, fields, label) {
@@ -937,16 +942,26 @@ export function summarizeReport(report, plan = null) {
   validateReport(report, plan);
   const summaries = [];
   const floors = [];
+  // An untagged payload carries no session nonce, so in a report holding more
+  // than one session an untagged case could have been completed by the other
+  // session's identical echo. Such a size is not isolation-grade evidence and
+  // must not lift the floor, and the sizes are named in the output because the
+  // floor travels as JSON.
+  const concurrent = report.sessions.length > 1;
   for (const session of report.sessions) {
     const echoed = new Set();
     const failed = new Set();
     const notRun = new Set();
+    const untagged = new Set();
     let largestFrame = null;
     for (const item of session.cases) {
       if (item.kind !== CASE_SINGLE) {
         continue;
       }
       const size = item.sentInnerBytes[0];
+      if (size < MINIMUM_TAGGED_INNER_BYTES) {
+        untagged.add(size);
+      }
       if (item.outcome === OUTCOME_ECHOED) {
         echoed.add(size);
         largestFrame =
@@ -960,9 +975,11 @@ export function summarizeReport(report, plan = null) {
       }
     }
     let contiguous = null;
-    const ordered = Array.from(new Set([...echoed, ...failed, ...notRun])).sort(
-      (left, right) => left - right,
-    );
+    let walked = new Set([...echoed, ...failed, ...notRun]);
+    if (concurrent) {
+      walked = new Set([...walked].filter((size) => !untagged.has(size)));
+    }
+    const ordered = Array.from(walked).sort((left, right) => left - right);
     for (const size of ordered) {
       if (!echoed.has(size)) {
         break;
@@ -973,6 +990,7 @@ export function summarizeReport(report, plan = null) {
     const failedValues = Array.from(failed);
     summaries.push({
       contiguousInnerBytes: contiguous,
+      contiguousExcludesUntagged: concurrent && untagged.size > 0,
       echoedSingleCases: echoed.size,
       failedSingleCases: failed.size,
       largestEchoedFrameBytes: largestFrame,
@@ -986,6 +1004,7 @@ export function summarizeReport(report, plan = null) {
       notRunSingleCases: notRun.size,
       sessionIndex: session.sessionIndex,
       smallestFailedInnerBytes: failed.size ? Math.min(...failedValues) : null,
+      untaggedSingleSizes: Array.from(untagged).sort((left, right) => left - right),
     });
     floors.push(contiguous);
   }

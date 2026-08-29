@@ -17,10 +17,14 @@ import {
   encodeFrame,
   hexToBytes,
   RelayFrameError,
+  RelayProbeError,
 } from "./relay-framing.js";
 import {
-  OUTCOME_ECHOED,
+  AdapterSendError,
+  MeasurementPlanError,
   MeasurementReportError,
+  OUTCOME_ECHOED,
+  ProbeConfigError,
   SessionDriver,
   buildPlan,
   buildReport,
@@ -38,11 +42,33 @@ const SELF_TEST_RETURN_PREFIX = new Uint8Array(40).map(
   (_value, index) => (index + 0x80) & 0xff,
 );
 
+// Only this project's own error classes carry messages that are known not to
+// contain runtime configuration. Anything else — a platform error above all —
+// contributes its class name and nothing more, because Chromium's WebTransport
+// errors quote the URL, and the URL carries the authorization.
+const OWN_ERRORS = [
+  AdapterSendError,
+  MeasurementPlanError,
+  MeasurementReportError,
+  ProbeConfigError,
+  RelayFrameError,
+  RelayProbeError,
+];
+
+function describeError(error) {
+  if (OWN_ERRORS.some((kind) => error instanceof kind)) {
+    return error.message;
+  }
+  return error && error.name ? error.name : "an unexpected failure";
+}
+
 const elements = {};
 let plan = null;
 let measurementVectorSha256 = null;
 let selfTestPassed = false;
 const sessionRecords = [];
+// The validated value, not the raw field: parseConfig is what accepted it.
+let pathNotes = "";
 
 function log(message) {
   const line = document.createElement("div");
@@ -86,6 +112,24 @@ function checkConformanceVectors(vectors) {
     decoded.datagrams.forEach((datagram, index) => {
       if (bytesToHex(datagram) !== item.payloadHexes[index]) {
         throw new Error(`decode of ${item.name} changed a payload`);
+      }
+    });
+  }
+  // Acceptance exactly at the ceiling. Without these, an implementation using
+  // `length >= ceiling` would pass every rejection vector and then refuse the
+  // plan's largest size.
+  for (const item of vectors.decodeAcceptances) {
+    const decoded = decodeFrame(
+      hexToBytes(item.frameHex),
+      item.direction,
+      item.maxInnerDatagramBytes,
+    );
+    if (decoded.datagrams.length !== item.payloadHexes.length) {
+      throw new Error(`acceptance ${item.name} decoded the wrong datagram count`);
+    }
+    decoded.datagrams.forEach((datagram, index) => {
+      if (bytesToHex(datagram) !== item.payloadHexes[index]) {
+        throw new Error(`acceptance ${item.name} changed a payload`);
       }
     });
   }
@@ -138,6 +182,7 @@ function checkConformanceVectors(vectors) {
   }
   return (
     vectors.encodeCases.length +
+    vectors.decodeAcceptances.length +
     vectors.decodeRejections.length +
     vectors.encodeRejections.length +
     vectors.tagCases.length +
@@ -208,11 +253,7 @@ function refreshReport() {
   if (sessionRecords.length === 0) {
     return;
   }
-  const report = buildReport(
-    sessionRecords,
-    measurementVectorSha256,
-    elements.pathNotes.value,
-  );
+  const report = buildReport(sessionRecords, measurementVectorSha256, pathNotes);
   let summary;
   try {
     summary = summarizeReport(report, plan);
@@ -242,8 +283,30 @@ async function runOneSession() {
   const config = readConfig();
   const sessionIndex = sessionRecords.length;
   const nonce = crypto.getRandomValues(new Uint8Array(12));
+  // Everything that can be refused is refused before the single-use
+  // authorization is spent. The driver's own construction can reject a
+  // configuration the form permits — a bound below the widest packed case, for
+  // one — and doing that after connecting would burn an allowance and leave a
+  // session open. A placeholder transport carries the plan checks; the real
+  // adapter replaces it once the session exists.
+  new SessionDriver(
+    plan,
+    { maxDatagramSizeBytes: 1, send: () => {} },
+    nonce,
+    config,
+    sessionIndex,
+  );
   log(`session ${sessionIndex}: connecting`);
   const adapter = await WebTransportAdapter.connect(config);
+  try {
+    await measureOneSession(adapter, config, nonce, sessionIndex);
+  } finally {
+    // Whatever happened, the session does not outlive this call.
+    await adapter.close();
+  }
+}
+
+async function measureOneSession(adapter, config, nonce, sessionIndex) {
   log(`session ${sessionIndex}: maxDatagramSize ${adapter.maxDatagramSizeBytes}`);
   const driver = new SessionDriver(plan, adapter, nonce, config, sessionIndex);
   const started = performance.now();
@@ -269,16 +332,17 @@ async function runOneSession() {
   }
   if (!driver.finished) {
     log(
-      `session ${sessionIndex}: time budget exceeded; ` +
-        "every unfinished case is recorded as timed out",
+      `session ${sessionIndex}: time budget exceeded; unfinished cases are ` +
+        "recorded as timed out where they were sent, and as never run where " +
+        "the run did not reach them",
     );
   }
-  // Stop before closing: pumping a closed session would start cases that can
-  // never be answered.
+  // Stop before the caller closes: pumping a closed session would start cases
+  // that can never be answered.
   stopped = true;
-  await adapter.close();
   await reading;
   const record = driver.sessionRecord();
+  pathNotes = config.pathNotes;
   sessionRecords.push(record);
   log(`session ${sessionIndex}: ${describe(record)}`);
   log(
@@ -305,7 +369,7 @@ async function onRun() {
     elements.authorization.value = "";
     log("authorization field cleared; paste a fresh one for the next session");
   } catch (error) {
-    log(`refused: ${error.message}`);
+    log(`refused: ${describeError(error)}`);
   } finally {
     elements.run.disabled = false;
   }
@@ -343,14 +407,18 @@ async function start() {
       `measurement vector sha256:${measurementVectorSha256} — ` +
         `${plan.cases.length} cases, ceiling ${plan.maxInnerDatagramBytes} bytes`,
     );
-    const conformance = await (await fetch("./conformance-vectors.json")).json();
+    const conformanceResponse = await fetch("./conformance-vectors.json");
+    if (!conformanceResponse.ok) {
+      throw new Error("the conformance vectors could not be read");
+    }
+    const conformance = await conformanceResponse.json();
     const checked = checkConformanceVectors(conformance);
     const driven = checkDriverAgainstLoopback();
     selfTestPassed = true;
     log(`self-test passed: ${checked} conformance vectors, ${driven} loopback cases`);
     elements.run.disabled = false;
   } catch (error) {
-    log(`self-test failed: ${error.message}`);
+    log(`self-test failed: ${describeError(error)}`);
     log("the probe will not open a session until this passes");
   }
 }

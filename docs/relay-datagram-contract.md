@@ -65,6 +65,15 @@ placeholder, and the client substitutes the short-lived authorization value into
 it at connect time. The parameter name is part of the template and therefore
 environment-specific.
 
+**The substitution is verbatim.** A conforming client inserts the authorization
+exactly as given and does not percent-encode it, because encoding a value that
+was already encoded would corrupt it and a client cannot tell the two apart. The
+operator must therefore supply a token that is already safe at its position in
+the URL — base64url is, for instance — since a value containing `#`, `&`, `?`,
+`/` or `+` would change the URL's structure rather than its value. A `#` is the
+worst of them: it makes the result a URL with a fragment, which WebTransport
+rejects.
+
 An authorization is expected to be short-lived and single-use. The client
 obtains one per session, never persists it, never writes it into a report, and
 never reuses one across sessions. A relay that rejects an invalid or expired
@@ -133,7 +142,12 @@ Normative rules:
    frame with none, or with two or more, is malformed.
 5. There is no padding and no alignment. A frame that ends in the middle of a
    length field or in the middle of an inner payload is malformed, and so is a
-   frame with any trailing byte after the last complete inner payload.
+   frame with any trailing byte after the last complete inner payload. Note
+   that "trailing byte" is decided by the grammar, not by intent: a single
+   trailing byte cannot begin a length field and is malformed, while two
+   trailing bytes are read as a further length field and therefore as another
+   inner record, which is legal whenever the bytes that follow it are, including
+   the zero-length case.
 6. An inner length of 0 is legal in both directions. The measurement vector
    requires a 0-byte inner datagram as a measured case in both directions, so a
    0-byte inner datagram is a valid frame, not an error.
@@ -244,7 +258,11 @@ A conforming receiver:
   refused when the plan is built rather than by breaking the bound at run time.
   A case that is not answered before its configured timeout is completed as a
   timeout rather than retained, and a case the run never reached is recorded as
-  never run rather than as a timeout.
+  never run rather than as a timeout. A caller may stop driving while a case is
+  outstanding but before its timeout has expired; that case is recorded as a
+  timeout too, because it was sent and never answered *within the run*. The
+  error is one-directional and safe: such a case is reported as not accepted,
+  never as accepted, so it can only understate the usable range.
 
 ## Sending obligations
 
