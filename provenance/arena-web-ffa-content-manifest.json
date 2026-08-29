@@ -1,0 +1,62 @@
+{
+  "$schema": "https://kaesual.github.io/arena-web/schemas/artifact-manifest.schema.json",
+  "artifacts": [
+    {
+      "path": "baseq3/arena-web-ffa.pk3",
+      "sha256": "0f0b4b65cb0beb22655b6140c4b22007a841656dce10f105c325cd3d3f67bea4",
+      "size": 23933020
+    }
+  ],
+  "baselineIdentity": "sha256:d565905280ac8575ad2798d4e1cd5cabb18c694a4b6b192957c48a41c416f039",
+  "baselineInputIds": [
+    "ioq3"
+  ],
+  "digestAlgorithm": "sha256",
+  "formatVersion": 1,
+  "inputs": [
+    {
+      "id": "arena-web",
+      "identity": "sha256:5ef6beb896704d0dc2f2ec27de687ca3976770d88c9df05adffbb8a573b286b3",
+      "kind": "archive"
+    },
+    {
+      "id": "ioq3",
+      "identity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+      "kind": "git"
+    },
+    {
+      "id": "openarena-088-data",
+      "identity": "sha256:66db4a12ed575f4fee8eb2171acdd925c105e3b49570a12baf99968d13d302f0",
+      "kind": "archive"
+    },
+    {
+      "id": "openarena-data",
+      "identity": "sha256:66c7bcf44022ce96331c15718e7145d5367aa23bff95e2fce7abfc844ae6e588",
+      "kind": "archive"
+    },
+    {
+      "id": "openarena-maps",
+      "identity": "sha256:f9922a8e080e5f1de3e190deb355f50f8ca1700dcbe28aab88be07e6a45dea60",
+      "kind": "archive"
+    },
+    {
+      "id": "openarena-misc",
+      "identity": "sha256:ba65afb212c6909e974b32d9f0b2696e33c579bf63e44e1d9320c7b183f00c6c",
+      "kind": "archive"
+    },
+    {
+      "id": "openarena-players",
+      "identity": "sha256:7e443d7171414ae97514209e2512388d616dafbaadfdcf63204821491ffcb5c6",
+      "kind": "archive"
+    },
+    {
+      "id": "openarena-textures",
+      "identity": "sha256:40229bb6852675e29684817af80b66a839c89b7062043ff3df5f3f420846bb0a",
+      "kind": "archive"
+    }
+  ],
+  "producer": {
+    "commit": "1cc0a1a3d5e84ee2f3a3ff9305a962810e4283d2",
+    "name": "arena-web scripts/build-content-pack.sh"
+  }
+}

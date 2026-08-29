@@ -1,0 +1,559 @@
+{
+  "$comment": "Selection input for scripts/build-content-pack.py. See docs/wp3-content-closure.md.",
+  "acceptedUnresolved": [
+    {
+      "reason": "PunkBuster branding drawn only by the server-browser filter row; no free equivalent exists and none is wanted",
+      "reference": "menu/art/pblogo"
+    },
+    {
+      "reason": "single-player post-game award art; OpenArena ships no replacement and the FFA profile has no tier progression",
+      "reference": "menu/medals/medal_victory"
+    },
+    {
+      "reason": "single-player podium spawned by g_arenas.c only in single-player mode",
+      "reference": "models/mapobjects/podium/podium4.md3"
+    },
+    {
+      "reason": "argument of trap_FS_GetFileList in the player-model menu, not a file reference",
+      "reference": "models/players"
+    },
+    {
+      "reason": "Team Arena character skin; no free source provides the characters/ tree",
+      "reference": "models/players/characters/james/lower_lily.skin"
+    },
+    {
+      "reason": "Team Arena character skin; no free source provides the characters/ tree",
+      "reference": "models/players/characters/james/lower_lily_red.skin"
+    },
+    {
+      "reason": "Team Arena character skin; no free source provides the characters/ tree",
+      "reference": "models/players/characters/james/lower_red.skin"
+    },
+    {
+      "reason": "Team Arena character skin; no free source provides the characters/ tree",
+      "reference": "models/players/characters/james/stroggs/lower_lily.skin"
+    },
+    {
+      "reason": "Team Arena character skin; no free source provides the characters/ tree",
+      "reference": "models/players/characters/james/stroggs/lower_lily_red.skin"
+    },
+    {
+      "reason": "Team Arena character skin; no free source provides the characters/ tree",
+      "reference": "models/players/characters/james/stroggs/lower_red.skin"
+    },
+    {
+      "reason": "optional armour-shard halo; OpenArena's replacement armour model has no separate sphere and the renderer omits the effect",
+      "reference": "models/powerups/armor/shard_sphere.md3"
+    },
+    {
+      "reason": "optional medkit halo; OpenArena's replacement holdable model has no separate sphere",
+      "reference": "models/powerups/holdable/medkit_sphere.md3"
+    },
+    {
+      "reason": "optional invisibility halo; OpenArena's replacement powerup model has no separate ring",
+      "reference": "models/powerups/instant/invis_ring.md3"
+    },
+    {
+      "reason": "Team Arena prox-mine launcher view model; the FFA profile has no Team Arena weapons",
+      "reference": "models/weapons/v_launch/tris.md3"
+    },
+    {
+      "reason": "end-of-match loss music; OpenArena ships no baseq3 music/win or music/loss track",
+      "reference": "music/loss"
+    },
+    {
+      "reason": "end-of-match loss music; OpenArena ships no baseq3 music/win or music/loss track",
+      "reference": "music/loss.wav"
+    },
+    {
+      "reason": "worldspawn music key of maps/oa_pvomit.bsp; OpenArena 0.8.8 itself ships no such track, so the reference dangles upstream too",
+      "reference": "music/sonic5.wav"
+    },
+    {
+      "reason": "end-of-match win music; OpenArena ships no baseq3 music/win or music/loss track",
+      "reference": "music/win"
+    },
+    {
+      "reason": "end-of-match win music; OpenArena ships no baseq3 music/win or music/loss track",
+      "reference": "music/win.wav"
+    },
+    {
+      "reason": "placeholder material name left in models/weaphits/bullet.md3 by its author; the renderer answers it with the default shader",
+      "reference": "poopypants"
+    },
+    {
+      "reason": "placeholder material name left in models/weaphits/boom01.md3 by its author; the renderer answers it with the default shader",
+      "reference": "rocketflare_001"
+    },
+    {
+      "reason": "flight-powerup wind loop; OpenArena replaced it with sound/items/flight.wav and ships no windfly",
+      "reference": "sound/misc/windfly.wav"
+    },
+    {
+      "reason": "single-player post-game clip; OpenArena ships no sound/player/announce tree",
+      "reference": "sound/player/announce/youwin.wav"
+    },
+    {
+      "reason": "Capture the Flag return cue; the FFA profile has no flags",
+      "reference": "sound/teamplay/flagret_blu.wav"
+    },
+    {
+      "reason": "Capture the Flag return cue; the FFA profile has no flags",
+      "reference": "sound/teamplay/flagret_red.wav"
+    },
+    {
+      "reason": "placeholder material name left in models/misc/telep.md3 by its author; the renderer answers it with the default shader",
+      "reference": "teleportereffect"
+    }
+  ],
+  "botfileRoots": [
+    "botfiles/bots/default_c.c",
+    "botfiles/items.c",
+    "botfiles/match.c",
+    "botfiles/rnd.c",
+    "botfiles/syn.c",
+    "botfiles/weapons.c"
+  ],
+  "formatVersion": 1,
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/arenas.txt",
+    "scripts/bots.txt"
+  ],
+  "generatedSource": {
+    "id": "arena-web",
+    "licenseEvidenceUrl": "https://raw.githubusercontent.com/Kaesual/arena-web/main/LICENSE",
+    "licenseExpression": "GPL-2.0-or-later",
+    "preferredSourceRevision": "recipe",
+    "preferredSourceUrl": "https://github.com/Kaesual/arena-web",
+    "sourceIdentity": "recipe",
+    "sourceUrl": "https://github.com/Kaesual/arena-web"
+  },
+  "noticeFile": "NOTICE-arena-web.txt",
+  "notices": [
+    "COPYING",
+    "CREDITS",
+    "CREDITS-0.8.5",
+    "CREDITS-0.8.8",
+    "NOTICE-arena-web.txt",
+    "README"
+  ],
+  "packPath": "baseq3/arena-web-ffa.pk3",
+  "package": {
+    "id": "arena-web-ffa-oa_pvomit",
+    "name": "arena-web one-map FFA content pack"
+  },
+  "profile": {
+    "arena": {
+      "bots": "Skelebot Rai Sly",
+      "fraglimit": "15",
+      "longname": "Projectile Vomit",
+      "map": "oa_pvomit",
+      "type": "ffa"
+    },
+    "bots": [
+      {
+        "aifile": "bots/skelebot_c.c",
+        "model": "skelebot/default",
+        "name": "Skelebot"
+      },
+      {
+        "aifile": "bots/rai_c.c",
+        "model": "skelebot/default",
+        "name": "Rai"
+      },
+      {
+        "aifile": "bots/sly_c.c",
+        "model": "skelebot/default",
+        "name": "Sly"
+      }
+    ],
+    "map": "oa_pvomit",
+    "playerModels": [
+      "skelebot/default"
+    ]
+  },
+  "sources": [
+    {
+      "archiveRoot": "openarena-data-0.8.5split.orig",
+      "debianPackage": "openarena-data 0.8.5split-17",
+      "documents": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "README"
+      ],
+      "fileName": "openarena-data_0.8.5split.orig.tar.bz2",
+      "id": "openarena-data",
+      "licenseEvidenceUrl": "https://sources.debian.org/data/main/o/openarena-data/0.8.5split-17/debian/copyright",
+      "licenseExpression": "GPL-2.0-or-later",
+      "nonDefaultLicensePaths": [],
+      "precedence": 10,
+      "preferredSourceRevision": "sha256:66c7bcf44022ce96331c15718e7145d5367aa23bff95e2fce7abfc844ae6e588",
+      "preferredSourceUrl": "https://snapshot.debian.org/file/f5a635134add3bde41491678a1c6731c3cb61373",
+      "sha256": "66c7bcf44022ce96331c15718e7145d5367aa23bff95e2fce7abfc844ae6e588",
+      "size": 91071346,
+      "sourceIdentity": "sha256:66c7bcf44022ce96331c15718e7145d5367aa23bff95e2fce7abfc844ae6e588",
+      "sourceUrl": "https://snapshot.debian.org/file/f5a635134add3bde41491678a1c6731c3cb61373",
+      "trees": [
+        "pak0"
+      ],
+      "url": "https://snapshot.debian.org/file/f5a635134add3bde41491678a1c6731c3cb61373"
+    },
+    {
+      "archiveRoot": "openarena-maps-0.8.5split.orig",
+      "debianPackage": "openarena-maps 0.8.5split-17",
+      "documents": [],
+      "fileName": "openarena-maps_0.8.5split.orig.tar.bz2",
+      "id": "openarena-maps",
+      "licenseEvidenceUrl": "https://sources.debian.org/data/main/o/openarena-maps/0.8.5split-17/debian/copyright",
+      "licenseExpression": "GPL-2.0-or-later",
+      "nonDefaultLicensePaths": [],
+      "precedence": 20,
+      "preferredSourceRevision": "sha256:f9922a8e080e5f1de3e190deb355f50f8ca1700dcbe28aab88be07e6a45dea60",
+      "preferredSourceUrl": "https://snapshot.debian.org/file/54decd2749e0fd99f95d5830f0883202466d49b1",
+      "sha256": "f9922a8e080e5f1de3e190deb355f50f8ca1700dcbe28aab88be07e6a45dea60",
+      "size": 41711739,
+      "sourceIdentity": "sha256:f9922a8e080e5f1de3e190deb355f50f8ca1700dcbe28aab88be07e6a45dea60",
+      "sourceUrl": "https://snapshot.debian.org/file/54decd2749e0fd99f95d5830f0883202466d49b1",
+      "trees": [
+        "pak1-maps"
+      ],
+      "url": "https://snapshot.debian.org/file/54decd2749e0fd99f95d5830f0883202466d49b1"
+    },
+    {
+      "archiveRoot": "openarena-players-0.8.5split.orig",
+      "debianPackage": "openarena-players 0.8.5split-17",
+      "documents": [],
+      "fileName": "openarena-players_0.8.5split.orig.tar.bz2",
+      "id": "openarena-players",
+      "licenseEvidenceUrl": "https://sources.debian.org/data/main/o/openarena-players/0.8.5split-17/debian/copyright",
+      "licenseExpression": "GPL-2.0-or-later",
+      "nonDefaultLicensePaths": [
+        "models/players/merman/*"
+      ],
+      "precedence": 30,
+      "preferredSourceRevision": "sha256:7e443d7171414ae97514209e2512388d616dafbaadfdcf63204821491ffcb5c6",
+      "preferredSourceUrl": "https://snapshot.debian.org/file/e00e0702eea0bf2684d551f43505870972604624",
+      "sha256": "7e443d7171414ae97514209e2512388d616dafbaadfdcf63204821491ffcb5c6",
+      "size": 104856904,
+      "sourceIdentity": "sha256:7e443d7171414ae97514209e2512388d616dafbaadfdcf63204821491ffcb5c6",
+      "sourceUrl": "https://snapshot.debian.org/file/e00e0702eea0bf2684d551f43505870972604624",
+      "trees": [
+        "pak2-players"
+      ],
+      "url": "https://snapshot.debian.org/file/e00e0702eea0bf2684d551f43505870972604624"
+    },
+    {
+      "archiveRoot": "openarena-textures-0.8.5split.orig",
+      "debianPackage": "openarena-textures 0.8.5split-17",
+      "documents": [],
+      "fileName": "openarena-textures_0.8.5split.orig.tar.bz2",
+      "id": "openarena-textures",
+      "licenseEvidenceUrl": "https://sources.debian.org/data/main/o/openarena-textures/0.8.5split-17/debian/copyright",
+      "licenseExpression": "GPL-2.0-or-later",
+      "nonDefaultLicensePaths": [],
+      "precedence": 40,
+      "preferredSourceRevision": "sha256:40229bb6852675e29684817af80b66a839c89b7062043ff3df5f3f420846bb0a",
+      "preferredSourceUrl": "https://snapshot.debian.org/file/6a01c27f8faa44ddd231987913199e6684a822d5",
+      "sha256": "40229bb6852675e29684817af80b66a839c89b7062043ff3df5f3f420846bb0a",
+      "size": 449360566,
+      "sourceIdentity": "sha256:40229bb6852675e29684817af80b66a839c89b7062043ff3df5f3f420846bb0a",
+      "sourceUrl": "https://snapshot.debian.org/file/6a01c27f8faa44ddd231987913199e6684a822d5",
+      "trees": [
+        "pak4-textures"
+      ],
+      "url": "https://snapshot.debian.org/file/6a01c27f8faa44ddd231987913199e6684a822d5"
+    },
+    {
+      "archiveRoot": "openarena-misc-0.8.5split.orig",
+      "debianPackage": "openarena-misc 0.8.5split-17",
+      "documents": [],
+      "fileName": "openarena-misc_0.8.5split.orig.tar.bz2",
+      "id": "openarena-misc",
+      "licenseEvidenceUrl": "https://sources.debian.org/data/main/o/openarena-misc/0.8.5split-17/debian/copyright",
+      "licenseExpression": "GPL-2.0-or-later",
+      "nonDefaultLicensePaths": [],
+      "precedence": 50,
+      "preferredSourceRevision": "sha256:ba65afb212c6909e974b32d9f0b2696e33c579bf63e44e1d9320c7b183f00c6c",
+      "preferredSourceUrl": "https://snapshot.debian.org/file/507c253b8a2cf9f02e690cbbc9b727016a00a3c3",
+      "sha256": "ba65afb212c6909e974b32d9f0b2696e33c579bf63e44e1d9320c7b183f00c6c",
+      "size": 37021328,
+      "sourceIdentity": "sha256:ba65afb212c6909e974b32d9f0b2696e33c579bf63e44e1d9320c7b183f00c6c",
+      "sourceUrl": "https://snapshot.debian.org/file/507c253b8a2cf9f02e690cbbc9b727016a00a3c3",
+      "trees": [
+        "pak5-TA",
+        "pak6-misc"
+      ],
+      "url": "https://snapshot.debian.org/file/507c253b8a2cf9f02e690cbbc9b727016a00a3c3"
+    },
+    {
+      "archiveRoot": "openarena-088-data-0.8.8.orig",
+      "debianPackage": "openarena-088-data 0.8.8-17",
+      "documents": [
+        "CREDITS-0.8.8"
+      ],
+      "fileName": "openarena-088-data_0.8.8.orig.tar.bz2",
+      "id": "openarena-088-data",
+      "licenseEvidenceUrl": "https://sources.debian.org/data/main/o/openarena-088-data/0.8.8-17/debian/copyright",
+      "licenseExpression": "GPL-2.0-or-later",
+      "nonDefaultLicensePaths": [
+        "maps/oa_thor.*"
+      ],
+      "precedence": 60,
+      "preferredSourceRevision": "sha256:66db4a12ed575f4fee8eb2171acdd925c105e3b49570a12baf99968d13d302f0",
+      "preferredSourceUrl": "https://snapshot.debian.org/file/8c0fafd0f4e81d021c8b9d042654e5d83e011a57",
+      "sha256": "66db4a12ed575f4fee8eb2171acdd925c105e3b49570a12baf99968d13d302f0",
+      "size": 189161133,
+      "sourceIdentity": "sha256:66db4a12ed575f4fee8eb2171acdd925c105e3b49570a12baf99968d13d302f0",
+      "sourceUrl": "https://snapshot.debian.org/file/8c0fafd0f4e81d021c8b9d042654e5d83e011a57",
+      "trees": [
+        "pak6-patch088"
+      ],
+      "url": "https://snapshot.debian.org/file/8c0fafd0f4e81d021c8b9d042654e5d83e011a57"
+    }
+  ],
+  "templateExpansions": [
+    {
+      "expansions": [
+        "gfx/2d/crosshaira",
+        "gfx/2d/crosshairb",
+        "gfx/2d/crosshairc",
+        "gfx/2d/crosshaird",
+        "gfx/2d/crosshaire",
+        "gfx/2d/crosshairf",
+        "gfx/2d/crosshairg",
+        "gfx/2d/crosshairh",
+        "gfx/2d/crosshairi",
+        "gfx/2d/crosshairj"
+      ],
+      "template": "gfx/2d/crosshair%c"
+    },
+    {
+      "expansions": [
+        "levelshots/oa_pvomit"
+      ],
+      "template": "levelshots/%s"
+    },
+    {
+      "expansions": [
+        "levelshots/oa_pvomit.tga"
+      ],
+      "template": "levelshots/%s.tga"
+    },
+    {
+      "expansions": [
+        "maps/oa_pvomit.bsp"
+      ],
+      "template": "maps/%s.bsp"
+    },
+    {
+      "expansions": [],
+      "reason": "argument of trap_FS_GetFileList, not a file reference",
+      "template": "models/players/%s"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s%s/%s%s_%s.%s"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s%s/%s%s_%s_%s.%s"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s%s/%s/%s%s_%s.%s"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s%s/%s/%s_%s.%s"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s%s/%s_%s.%s"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s%s/%s_%s_%s.%s"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s/%s"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s/%slower_%s.skin"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s/%supper_%s.skin"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s/animation.cfg"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s/head.md3"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s/head_%s.skin"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s/icon_%s.tga"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s/icon_default.tga"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s/lower.md3"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s/lower_%s.skin"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s/upper.md3"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "models/players/%s/upper_%s.skin"
+    },
+    {
+      "expansions": [],
+      "reason": "Team Arena character layout; no free source provides it and the FFA profile never selects one",
+      "template": "models/players/characters/%s/%slower_%s.skin"
+    },
+    {
+      "expansions": [],
+      "reason": "Team Arena character layout; no free source provides it and the FFA profile never selects one",
+      "template": "models/players/characters/%s/%supper_%s.skin"
+    },
+    {
+      "expansions": [],
+      "reason": "Team Arena character layout; no free source provides it and the FFA profile never selects one",
+      "template": "models/players/characters/%s/animation.cfg"
+    },
+    {
+      "expansions": [],
+      "reason": "Team Arena character layout; no free source provides it and the FFA profile never selects one",
+      "template": "models/players/characters/%s/icon_%s.tga"
+    },
+    {
+      "expansions": [],
+      "reason": "Team Arena character layout; no free source provides it and the FFA profile never selects one",
+      "template": "models/players/characters/%s/lower.md3"
+    },
+    {
+      "expansions": [],
+      "reason": "Team Arena character layout; no free source provides it and the FFA profile never selects one",
+      "template": "models/players/characters/%s/upper.md3"
+    },
+    {
+      "expansions": [],
+      "reason": "Team Arena character layout; no free source provides it and the FFA profile never selects one",
+      "template": "models/players/heads/%s/%s.md3"
+    },
+    {
+      "expansions": [],
+      "reason": "expanded by the profile's player-model closure, which packages the selected model's own MD3, skin, animation, icon and voice files directly",
+      "template": "sound/player/%s/%s"
+    },
+    {
+      "expansions": [],
+      "reason": "bot-personality announcement clip; OpenArena ships no sound/player/announce tree",
+      "template": "sound/player/announce/%s.wav"
+    },
+    {
+      "expansions": [],
+      "reason": "single-player tier result clip; OpenArena ships no sound/player/announce tree",
+      "template": "sound/player/announce/%s_wins.wav"
+    },
+    {
+      "expansions": [
+        "sound/player/footsteps/boot1.wav",
+        "sound/player/footsteps/boot2.wav",
+        "sound/player/footsteps/boot3.wav",
+        "sound/player/footsteps/boot4.wav"
+      ],
+      "template": "sound/player/footsteps/boot%i.wav"
+    },
+    {
+      "expansions": [
+        "sound/player/footsteps/clank1.wav",
+        "sound/player/footsteps/clank2.wav",
+        "sound/player/footsteps/clank3.wav",
+        "sound/player/footsteps/clank4.wav"
+      ],
+      "template": "sound/player/footsteps/clank%i.wav"
+    },
+    {
+      "expansions": [
+        "sound/player/footsteps/energy1.wav",
+        "sound/player/footsteps/energy2.wav",
+        "sound/player/footsteps/energy3.wav",
+        "sound/player/footsteps/energy4.wav"
+      ],
+      "template": "sound/player/footsteps/energy%i.wav"
+    },
+    {
+      "expansions": [
+        "sound/player/footsteps/flesh1.wav",
+        "sound/player/footsteps/flesh2.wav",
+        "sound/player/footsteps/flesh3.wav",
+        "sound/player/footsteps/flesh4.wav"
+      ],
+      "template": "sound/player/footsteps/flesh%i.wav"
+    },
+    {
+      "expansions": [
+        "sound/player/footsteps/mech1.wav",
+        "sound/player/footsteps/mech2.wav",
+        "sound/player/footsteps/mech3.wav",
+        "sound/player/footsteps/mech4.wav"
+      ],
+      "template": "sound/player/footsteps/mech%i.wav"
+    },
+    {
+      "expansions": [
+        "sound/player/footsteps/splash1.wav",
+        "sound/player/footsteps/splash2.wav",
+        "sound/player/footsteps/splash3.wav",
+        "sound/player/footsteps/splash4.wav"
+      ],
+      "template": "sound/player/footsteps/splash%i.wav"
+    },
+    {
+      "expansions": [
+        "sound/player/footsteps/step1.wav",
+        "sound/player/footsteps/step2.wav",
+        "sound/player/footsteps/step3.wav",
+        "sound/player/footsteps/step4.wav"
+      ],
+      "template": "sound/player/footsteps/step%i.wav"
+    }
+  ]
+}
