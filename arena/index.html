@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: GPL-2.0-or-later -->
+<!--
+  arena-web offline vertical slice: the product-owned loader page.
+
+  This page is not ioquake3's generated Emscripten demo shell. That shell is
+  build evidence only (see docs/wp1-build-evidence.md); this file and
+  loader.js are original arena-web code and are the only loader the product
+  packages.
+
+  It loads nothing but same-origin files that scripts/arena_runtime.py staged
+  and digest-verified against the committed manifests.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="referrer" content="no-referrer">
+<!-- An empty data icon, so the browser requests no favicon: the served set is
+     exactly the staged, digest-verified files and nothing else. -->
+<link rel="icon" href="data:,">
+<title>arena-web offline slice</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --ink: #e8e6e1;
+    --dim: #9c988f;
+    --edge: #2b2b2b;
+  }
+
+  html, body {
+    margin: 0;
+    padding: 0;
+    height: 100%;
+    background: #000;
+    color: var(--ink);
+    font: 14px/1.5 system-ui, sans-serif;
+    overflow: hidden;
+  }
+
+  #stage {
+    position: relative;
+    width: 100vw;
+    height: 100vh;
+    background: #000;
+  }
+
+  /*
+    SDL2's Emscripten video driver owns the canvas backing-store size and
+    addresses this element as the hard-coded selector "#canvas"
+    (SDL_emscriptenvideo.c). The loader owns only its CSS box.
+  */
+  #canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: #000;
+    outline: none;
+  }
+
+  #overlay {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    padding: 24px;
+    box-sizing: border-box;
+    background: rgba(0, 0, 0, 0.86);
+    text-align: center;
+  }
+
+  #overlay[hidden] {
+    display: none;
+  }
+
+  #title {
+    font-size: 20px;
+    letter-spacing: 0.04em;
+    margin: 0;
+  }
+
+  #message {
+    margin: 0;
+    max-width: 46em;
+    color: var(--dim);
+    white-space: pre-wrap;
+  }
+
+  #progress {
+    width: min(420px, 80vw);
+    height: 6px;
+    border: 1px solid var(--edge);
+    background: #111;
+  }
+
+  #progress > div {
+    height: 100%;
+    width: 0;
+    background: var(--ink);
+    transition: width 120ms linear;
+  }
+
+  button {
+    font: inherit;
+    color: var(--ink);
+    background: #1a1a1a;
+    border: 1px solid var(--edge);
+    padding: 8px 18px;
+    cursor: pointer;
+  }
+
+  button:hover:enabled {
+    background: #262626;
+  }
+
+  button:disabled {
+    color: #5a5750;
+    cursor: default;
+  }
+
+  #controls {
+    position: absolute;
+    right: 10px;
+    bottom: 10px;
+    display: flex;
+    gap: 8px;
+    opacity: 0.55;
+  }
+
+  #controls:hover {
+    opacity: 1;
+  }
+
+  #hint {
+    position: absolute;
+    left: 50%;
+    top: 12px;
+    transform: translateX(-50%);
+    padding: 6px 12px;
+    background: rgba(0, 0, 0, 0.72);
+    border: 1px solid var(--edge);
+    color: var(--dim);
+  }
+
+  #hint[hidden] {
+    display: none;
+  }
+</style>
+</head>
+<body>
+<div id="stage">
+  <canvas id="canvas" tabindex="0"></canvas>
+
+  <p id="hint" hidden>Click the arena to capture the mouse. Esc releases it.</p>
+
+  <div id="controls">
+    <button id="fullscreen" type="button" disabled>Fullscreen</button>
+  </div>
+
+  <div id="overlay">
+    <h1 id="title">arena-web offline slice</h1>
+    <p id="message">Preparing.</p>
+    <div id="progress"><div id="progress-bar"></div></div>
+    <button id="start" type="button" disabled>Start</button>
+  </div>
+</div>
+<script type="module" src="loader.js"></script>
+</body>
+</html>

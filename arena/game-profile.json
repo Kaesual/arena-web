@@ -1,0 +1,142 @@
+{
+  "$comment": [
+    "SPDX-License-Identifier: GPL-2.0-or-later",
+    "The product-owned content configuration of the one-map FFA vertical slice.",
+    "It is data, not code: scripts/arena_runtime.py validates it, stages exactly",
+    "the artifacts it names, and recomputes 'engineArguments' from the",
+    "declarative fields below so the loader can consume that list verbatim.",
+    "Every engine-facing value is derived from the pinned ioquake3 tree:",
+    "  cvars              read by the modules named in each cvar comment below",
+    "  +map / +addbot     ioq3 code/qcommon/common.c Com_AddStartupCommands and",
+    "                     code/qcommon/cmd.c Cmd_ExecuteString, which forwards an",
+    "                     unknown command to the running server game module",
+    "  addbot argument order and the 2000/1500 ms delay cadence reproduce",
+    "                     ioq3 code/game/g_bot.c Svcmd_AddBot_f, G_SpawnBots,",
+    "                     BOT_BEGIN_DELAY_BASE and BOT_BEGIN_DELAY_INCREMENT",
+    "  readyMarkers       exact Com_Printf strings of the pinned sources",
+    "r_mode, r_customwidth and r_customheight are deliberately absent: the loader",
+    "derives them from the live canvas box, and a committed value would be an",
+    "environment-specific one.",
+    "The game directory is 'arena' and not ioquake3's 'baseq3' on purpose: with",
+    "com_basegame set to baseq3 the engine demands the retail pak0..pak8 and",
+    "refuses to start (code/qcommon/files.c FS_CheckPak0), while any other game",
+    "directory selects standalone operation. The engine also requires a readable",
+    "default.cfg in that directory, which is what configFiles supplies."
+  ],
+  "formatVersion": 1,
+  "package": "arena-web-ffa-oa_pvomit",
+  "basegame": "arena",
+  "map": "oa_pvomit",
+  "playerModel": "skelebot/default",
+  "bots": [
+    { "name": "Skelebot", "skill": 3 },
+    { "name": "Rai", "skill": 3 },
+    { "name": "Sly", "skill": 3 }
+  ],
+  "cvars": {
+    "bot_enable": "1",
+    "com_basegame": "arena",
+    "fraglimit": "15",
+    "g_gametype": "0",
+    "headmodel": "skelebot/default",
+    "model": "skelebot/default",
+    "net_enabled": "0",
+    "r_allowResize": "1",
+    "sv_maxclients": "8",
+    "sv_pure": "0",
+    "timelimit": "0"
+  },
+  "cvarNotes": {
+    "bot_enable": "ioq3 code/server/sv_game.c: Svcmd_AddBot_f refuses to run when this is 0",
+    "com_basegame": "ioq3 code/qcommon/files.c: the game directory the pack and QVMs are placed in; any name other than 'baseq3' selects standalone operation in FS_CheckPak0",
+    "fraglimit": "ioq3 code/game/g_main.c: the arena profile of content/pack-recipe.json",
+    "g_gametype": "ioq3 code/game/bg_public.h GT_FFA",
+    "headmodel": "ioq3 code/client/cl_main.c defaults it to the unpackaged 'sarge'",
+    "model": "ioq3 code/cgame/cg_players.c: DEFAULT_MODEL 'sarge' is not in the audited pack, so the fallback would be fatal",
+    "net_enabled": "ioq3 code/qcommon/net_ip.c: this work package is strictly offline",
+    "r_allowResize": "ioq3 code/sdl/sdl_glimp.c: adds SDL_WINDOW_RESIZABLE so a canvas resize reaches the engine",
+    "sv_maxclients": "ioq3 code/game/g_main.c: slots for the local player and the bots",
+    "sv_pure": "ioq3 code/server/sv_init.c: the local listen server serves its own single pack",
+    "timelimit": "ioq3 code/game/g_main.c: the profile ends on the frag limit"
+  },
+  "readyMarkers": {
+    "serverSpawned": "Server: oa_pvomit",
+    "clientGameLoaded": "CL_InitCGame:",
+    "botEnteredGame": "entered the game"
+  },
+  "readyMarkerNotes": {
+    "serverSpawned": "ioq3 code/server/sv_init.c:409",
+    "clientGameLoaded": "ioq3 code/client/cl_cgame.c:757",
+    "botEnteredGame": "ioq3 code/game/g_client.c:1026"
+  },
+  "manifests": {
+    "content": "provenance/arena-web-ffa-content-manifest.json",
+    "engine": "manifests/browser-client.json"
+  },
+  "configFiles": [
+    {
+      "source": "default.cfg",
+      "served": "default.cfg",
+      "fsPath": "/arena/default.cfg"
+    }
+  ],
+  "artifacts": [
+    {
+      "manifest": "engine",
+      "path": "ioquake3.js",
+      "served": "engine/ioquake3.js",
+      "role": "module-script"
+    },
+    {
+      "manifest": "engine",
+      "path": "ioquake3.wasm",
+      "served": "engine/ioquake3.wasm",
+      "role": "module-wasm"
+    },
+    {
+      "manifest": "engine",
+      "path": "baseq3/vm/cgame.qvm",
+      "served": "engine/baseq3/vm/cgame.qvm",
+      "role": "filesystem",
+      "fsPath": "/arena/vm/cgame.qvm"
+    },
+    {
+      "manifest": "engine",
+      "path": "baseq3/vm/qagame.qvm",
+      "served": "engine/baseq3/vm/qagame.qvm",
+      "role": "filesystem",
+      "fsPath": "/arena/vm/qagame.qvm"
+    },
+    {
+      "manifest": "engine",
+      "path": "baseq3/vm/ui.qvm",
+      "served": "engine/baseq3/vm/ui.qvm",
+      "role": "filesystem",
+      "fsPath": "/arena/vm/ui.qvm"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa.pk3",
+      "served": "content/baseq3/arena-web-ffa.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa.pk3"
+    }
+  ],
+  "engineArguments": [
+    "+set", "bot_enable", "1",
+    "+set", "com_basegame", "arena",
+    "+set", "fraglimit", "15",
+    "+set", "g_gametype", "0",
+    "+set", "headmodel", "skelebot/default",
+    "+set", "model", "skelebot/default",
+    "+set", "net_enabled", "0",
+    "+set", "r_allowResize", "1",
+    "+set", "sv_maxclients", "8",
+    "+set", "sv_pure", "0",
+    "+set", "timelimit", "0",
+    "+map", "oa_pvomit",
+    "+addbot", "Skelebot", "3", "free", "2000",
+    "+addbot", "Rai", "3", "free", "3500",
+    "+addbot", "Sly", "3", "free", "5000"
+  ]
+}
