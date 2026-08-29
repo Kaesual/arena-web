@@ -284,7 +284,7 @@ acceptance, and the plan's failure boundary still applies there.
 ## Determinism
 
 Two clean assemblies were run by `scripts/verify-content-pack.sh` from
-arena-web commit `cd65e12b487f8f0baf1fb5a29600a541c2bc89e4`:
+arena-web commit `a20fff4c82ff151c925fa5249e7fc83cb7502d62`:
 
 ```text
 === comparing the two assemblies ===
