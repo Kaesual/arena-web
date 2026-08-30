@@ -102,7 +102,7 @@ committed identity.
 | [`probe/conformance-vectors.json`](../probe/conformance-vectors.json) | 82 committed cases: 19 encoded frames, 4 ceiling acceptances, 15 frame rejections, 8 tags, 8 payloads, 10 control datagrams, 7 control rejections, 3 headers, 3 header rejections, 5 return-header decisions |
 | `probe/relay-framing.js`, `probe/measurement.js`, `probe/adapters.js`, `probe/probe.js`, `probe/index.html` | the standalone browser probe, including its own report validator so the page never renders or offers an unvalidated report |
 | [`scripts/serve-probe.sh`](../scripts/serve-probe.sh) | loopback static server for the probe |
-| [`tests/test_relay_probe.py`](../tests/test_relay_probe.py) | 157 deterministic tests for this work package; the repository suite is 667 |
+| [`tests/test_relay_probe.py`](../tests/test_relay_probe.py) | 162 deterministic tests for this work package; the repository suite is 672 |
 | [`tests/js_conformance_harness.mjs`](../tests/js_conformance_harness.mjs) | runs the browser sources under Node so the suite can compare the two implementations |
 
 The tests run in `scripts/check.sh` and in the containerized
@@ -447,8 +447,8 @@ record above is kept as what was seen then.
 
 This is **not** a measurement and involved no relay: no WebTransport session was
 opened, and the only network traffic was the loopback page load. It is evidence
-that the probe is ready to be pointed at an endpoint, nothing more. Real-browser
-acceptance of a routed session belongs to the pending work below.
+that the probe is ready to be pointed at an endpoint, nothing more. The
+real-browser acceptance of a routed session is the completed round below.
 
 ## Routed acceptance — completed 2026-08-30
 
@@ -512,8 +512,25 @@ the operator for the round and dismantled afterwards; none of it is, or ever
 was, something this repository carries.
 
 The report format, the summary reduction and the per-session floor are
-implemented and tested, so the routed round produces the report by running the
+implemented and tested, so the routed round produced its report by running the
 probe rather than by writing new code.
+
+**What the committed record backs, and what it cannot.** The record carries
+the numbers — the per-case outcomes, sizes, counters and times that every
+figure above is drawn from, re-validated by the suite on every gate run. Its
+format deliberately has no field for a timestamp, a context identity or a
+refused attempt, so the session sequencing, the fact that two sessions were
+live at once, and the in-band refusal observation are driver and operator
+observations of the round, recorded here and not representable in the JSON.
+One provenance note on the times: the recorded `roundTripMilliseconds` values
+sit on a 2⁻²⁵ ms grid near tenths of a millisecond. That is the pinned
+browser's own clock: the probe page is not cross-origin isolated, so the
+browser coarsens `performance.now()` to 100 µs, and an experiment against the
+pinned binary shows its coarsened values lie exactly on that grid — the
+recorded times are differences of two such values, and a test pins both
+properties on the committed bytes. The committed file is the `merge_reports`
+re-serialisation of the page-validated context reports, which is why its
+whitespace is the merge tool's rather than the download blob's.
 
 One hazard in that reduction is closed in the data rather than only in prose.
 Two concurrent sessions send byte-identical untagged payloads, so in a report
@@ -537,8 +554,8 @@ the path differently, leaves its inputs untouched, and validates the result
 against the measurement plan it is given — the merged report is the routed
 round's actual deliverable, so it is the one that most needs checking. That path
 is committed and tested.
-The routed round therefore produces the concurrent-session evidence as one valid
-report without new code.
+The routed round produced the concurrent-session evidence exactly that way, as
+one valid merged report, without new code.
 
 ### What the operator supplied
 
@@ -575,6 +592,14 @@ the assigned address, which the page also keeps out of its log.
   the return, and the destination-port acknowledgement is gone.
 - ~~**How the endpoint expects authorization.**~~ Settled by the same amendment:
   in the session's first datagram, refused in band, terminal.
+- **Destination scoping was never exercised.** The withdrawn pending list
+  asked that an authorization "assigns an address for only the configured
+  destination". The round's authorizations did name only the echo destination,
+  but no session ever attempted a different one, so the scoping was supplied
+  as a property of the provisioning rather than observed as a refusal. The
+  property remains enforced and tested on the relay side; a routed observation
+  of it would need a second, unauthorized destination and belongs to whatever
+  round next has one.
 - **Whether a keep-alive is required at all**, and at what interval. The
   datagram type exists and inbound ones are recognised; nothing periodic is
   sent. The routed round's sessions each completed in well under a minute, so
@@ -613,7 +638,7 @@ the assigned address, which the page also keeps out of its log.
 ## Repeating what exists
 
 ```bash
-scripts/check.sh                                  # 667 tests, no network
+scripts/check.sh                                  # 672 tests, no network
 CONTAINER_RUNTIME=podman scripts/check-container.sh
 python3 scripts/emit-relay-conformance-vectors.py --check
 scripts/serve-probe.sh                            # then open http://127.0.0.1:8173/probe/

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 import shutil
@@ -2330,8 +2331,6 @@ class CommittedRoutedMeasurementTests(unittest.TestCase):
         ).read_bytes()
 
     def test_the_record_validates_against_the_committed_vector(self) -> None:
-        import hashlib
-
         plan = MeasurementPlan.from_vector(json.loads(self.vector_bytes))
         validate_report(self.record, plan)
         self.assertEqual(
@@ -2341,25 +2340,64 @@ class CommittedRoutedMeasurementTests(unittest.TestCase):
         summary = summarize_report(self.record, plan)
         self.assertEqual(len(summary["sessions"]), len(self.record["sessions"]))
 
-    def test_the_record_holds_the_concurrent_evidence_shape(self) -> None:
+    def test_the_record_carries_the_numbers_the_evidence_document_quotes(
+        self,
+    ) -> None:
+        plan = MeasurementPlan.from_vector(json.loads(self.vector_bytes))
+        summary = summarize_report(self.record, plan)
+        self.assertEqual(summary["conservativeInnerFloorBytes"], 768)
+        for session in summary["sessions"]:
+            self.assertEqual(session["maxDatagramSizeBytes"], 1024)
+            self.assertEqual(session["largestEchoedInnerBytes"], 768)
+            self.assertEqual(session["smallestFailedInnerBytes"], 1024)
+            self.assertTrue(session["monotonic"])
+        for session in self.record["sessions"]:
+            self.assertEqual(session["writeFailures"], 0)
+
+    def test_the_record_holds_the_merge_shape(self) -> None:
         # Five sessions, renumbered 0..4 by the merge; more than one session
-        # is what makes the untagged-case exclusion in the summary apply.
+        # is what makes the untagged-case exclusion in the summary apply. The
+        # format cannot represent which sessions overlapped in time, so
+        # concurrency itself is an operator observation, not a record field.
         self.assertEqual(len(self.record["sessions"]), 5)
         self.assertEqual(
             [session["sessionIndex"] for session in self.record["sessions"]],
             list(range(5)),
         )
 
+    def test_the_round_trip_times_carry_the_pinned_browsers_clock_grid(
+        self,
+    ) -> None:
+        # The pinned browser is not cross-origin isolated on the probe page,
+        # so it coarsens performance.now() to 100 microseconds — and its
+        # coarsened values lie on a 2^-25 ms grid, which an experiment against
+        # the pinned binary reproduces directly. Round trips are differences
+        # of two such values. This pins that provenance: every recorded time
+        # sits on that grid, within grid distance of a tenth of a millisecond.
+        times = [
+            case["roundTripMilliseconds"]
+            for session in self.record["sessions"]
+            for case in session["cases"]
+            if case.get("roundTripMilliseconds") is not None
+        ]
+        self.assertTrue(times)
+        for value in times:
+            self.assertEqual(value, round(value * 2**25) / 2**25)
+            self.assertLess(abs(value * 10 - round(value * 10)), 1e-5)
+
     def test_the_record_names_no_runtime_value(self) -> None:
         # The report format has no field for the endpoint, authorization,
         # destination or assigned address; this pins that the committed record
-        # also smuggles none of them through its two free-text carriers.
+        # also smuggles none of them through its one free-text field. The
+        # markers are generic prefixes only — a URL scheme separator, the JWT
+        # header start, and the private/ULA address prefixes the integration
+        # environment classes use — never a fragment of an actual value.
         self.assertEqual(
             self.record["pathNotes"],
             "workstation browser to rehearsal VM relay, one routed LAN hop",
         )
         text = json.dumps(self.record)
-        for marker in ("://", "eyJ", "f4d3", "192.168", "fd00"):
+        for marker in ("://", "eyJ", "192.168", "10.", "fd", "f::"):
             self.assertNotIn(marker, text)
 
 
