@@ -697,14 +697,47 @@ OpenArena item shaders, and the comparison that made it look browser-specific
 was against expectation rather than against the native client at the same
 camera position. Nothing to fix, and nothing carried forward.
 
-### Symptom 3, frame flicker — **unconfirmed headlessly, pending the operator**
+### Symptom 3, frame flicker — **resolved, confirmed by the operator**
 
 The patched build is frame-bitstable in the headless harness, so the
-instrumentation available here cannot see it. That is not evidence of absence:
-the symptom was reported on a real display and compositor, which is precisely
-what the harness does not have. It is carried forward as a re-check for the
-operator on the real desktop, against the patched client, rather than as a
-finding either way.
+instrumentation available here could not see the symptom either way, and it was
+carried forward as a re-check for the operator on the real desktop. That
+re-check happened on 2026-08-30: playing the patched client on the real display
+and compositor, the operator reports the world renders stably and the flicker
+is gone.
+
+### The operator's confirmation of the fix — 2026-08-30
+
+The operator played the patched build on the real desktop and confirmed all
+three symptoms resolved: the map's coloured light strips — the parity target
+taken from the native reference images — now render correctly, item, weapon
+and character-model textures are correct at distance, and the world renders
+stably with no flicker. In the operator's words, every reported bug is
+correctly fixed, with no new regression observed.
+
+### Two pre-existing content gaps, reported 2026-08-30 — **open**
+
+While confirming the fix, the operator reported two visual gaps that predate
+the renderer work (explicitly not regressions):
+
+1. **The machine gun's spinning barrel is missing.** The content pack carries
+   `models/weapons2/machinegun/machinegun.md3` but no
+   `machinegun_barrel.md3`. The engine constructs that file name at runtime by
+   string surgery (`code/cgame/cg_weapons.c:663` appends `_barrel.md3`), which
+   is exactly the class of reference WP3's *static* reading of the QVM sources
+   cannot extract, and a missing barrel model registers as `0` and is silently
+   not drawn — the spin logic itself is present (`cg_weapons.c:1137`).
+2. **The lightning gun's beam is invisible.** The pack carries the weapon
+   model, skin and muzzle flashes but no beam shader or texture. The renderer's
+   beam path exists and works (`code/renderergl2/tr_surface.c:742`,
+   `RT_LIGHTNING`), and gameplay is unaffected — damage and aim feel correct —
+   so the gap is the missing art, not the engine.
+
+Both are content-closure gaps, not renderer defects. The follow-up is a small
+deliberate content increment: check whether the pinned OpenArena archives
+provide these assets at all, extend the recipe with explicit
+reference bookkeeping if they do (or record a stated acceptance if they do
+not), and rebuild the pack reproducibly with reissued records.
 
 ### An operational fact found on the way
 
