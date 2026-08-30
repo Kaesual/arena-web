@@ -8,14 +8,12 @@ as a WP1 contract amendment. WP6's decision was made by the operator on
 2026-08-30 — strategy 2, `FRAGMENT_SIZE = 704` at the record-backed 768-byte
 floor, with the profile bounds and all ten WP8 thresholds frozen — every point
 as the analysis proposed, and recomputable from the committed records. The
-mandatory independent protocol/security review returned **fix-first**: the
-arithmetic was confirmed error-free and the strategy endorsed, but the
-packet-class census was incomplete and several bounds were not enforceable. Those
-fixes are made, and the three extensions the review produced were settled by the
-operator on 2026-08-30 — two confirmed as drafted, and the shared rate-limit
-bucket decided against the accepted-gap draft in favour of a cvar-gated engine
-change that extends WP7's scope. WP6 does not close and WP7 stays blocked only
-until the review re-verifies the fixes. WP7 and WP8 carry
+mandatory independent protocol/security review returned **fix-first**; its four
+MAJOR findings were resolved, the three extensions it produced were settled by
+the operator the same day, and a re-verification pass then **passed**, finding
+no decided value had drifted. **WP6 is complete.** WP7 and WP8 carry
+implementation-ready contracts, and WP7 is blocked only on explicit approval to
+start it. WP7 and WP8 carry
 implementation-ready contracts with the decided values filled in
 
 This document turns the reviewed direction in
@@ -57,8 +55,8 @@ is a plan change; adding another platform is later scope.
 | WP3 | Audited deterministic minimal-content closure | WP0 | ✅ Complete — two clean assemblies in the pinned builder image produce a byte-identical 668-member `oa_pvomit` FFA pack from six digest-pinned Debian-cleaned OpenArena archives, every member `GPL-2.0-or-later` with resolved notices, and every reference the two static readings of the pinned `baseq3` QVM sources extract either resolves or is a recipe acceptance with a stated reason |
 | WP4 | One-map offline browser arena with bots | WP1, WP3 | ✅ Complete — the witnessed round of 2026-08-30 passed every gameplay, input, focus, audio, console and clean-relaunch check (report in the evidence documents); the known browser-renderer defect class (white lightmapped surfaces mitigated by the reviewed `r_vertexLight` workaround and guarded by a near-white regression check; distance-graded entity shading; frame flicker) is recorded as decided while the timeboxed root-cause hunt continues on scratch builds. Closure accepted the operator-chosen Brave/KDE variation (the pinned Chrome is exercised by the automated harness on every gate run) and recorded one new accepted limitation: runtime resize and fullscreen-after-start do not update the engine resolution. **Post-closure, 2026-08-30:** the defect class is resolved — white lightmapped surfaces root-caused to a GLSL ES `mediump` precision default and fixed in the engine (workaround removed), entity shading reclassified as renderergl2's normal native look rather than a browser defect, and frame flicker confirmed resolved by the operator on the real display, who also confirmed light-strip parity with the native reference images. Two pre-existing content gaps the operator reported at the same time — the machine gun's missing barrel model and the lightning gun's missing beam art — are recorded in the evidence document as an open content follow-up |
 | WP5 | Matching native server and packet census | WP0, WP3 | ✅ Complete — the pinned native toolchain, the reproducible dedicated server, the runtime-base server image and a 41,833-datagram census of a driven session are built, reviewed and green, and the witnessed round of 2026-08-30 closed the one outstanding acceptance word with a player kill against a bot (report and native reference images in the evidence documents) |
-| WP6 | Measured network-sizing decision | WP2, WP5 | Decision made by the operator on 2026-08-30 (strategy 2, `FRAGMENT_SIZE` 704 at the record-backed 768-byte floor, profile bounds, thresholds frozen), every point as proposed. The independent protocol/security review returned fix-first — the arithmetic was confirmed error-free and the strategy endorsed, but the class census was incomplete (the client-originated 1,038-byte `getmotd`) and the server-browser exclusion, the browser-only fail-closed check and the relay's shared server address needed enforceable answers; all are fixed, and the three extensions they produced were settled by the operator on 2026-08-30, one of them by extending WP7's scope with a cvar-gated port-aware rate-limit bucket rather than accepting the gap — the routed budget refutes intact datagrams (the pinned browser refused to write frames at exactly the 1,312- and 1,314-byte sizes an unchanged engine needs), a symmetric `FRAGMENT_SIZE` reduction carries every netchan case at either candidate (704 at the selected 768-byte floor, 896 at the 982-byte derived budget considered and not selected), and the out-of-band classes the engine never fragments are bounded by the profile plus a fail-closed emitted-size check. Derivation, boundary cases and thresholds in [`wp6-network-sizing.md`](wp6-network-sizing.md), recomputable with `scripts/derive-network-sizing.py` |
-| WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | Contract complete with the decided values filled in and the review's enforcement requirements folded in (address rule, two-endpoint size check at `Sys_SendPacket`, server-browser neutralization, CSPRNG `Sys_RandomBytes`, and the operator's 2026-08-30 scope extension for cvar-gated port-aware rate-limit buckets); blocked on WP6's re-review |
+| WP6 | Measured network-sizing decision | WP2, WP5 | ✅ Complete — a reviewed, recomputable sizing decision: the routed budget refutes intact datagrams, and the selected strategy is a symmetric `FRAGMENT_SIZE` reduction to **704** at the record-backed 768-byte floor, with profile bounds for the out-of-band classes the engine never fragments, a fail-closed emitted-size check on both endpoints at `Sys_SendPacket`, and ten frozen WP8 thresholds. Built: [`wp6-network-sizing.md`](wp6-network-sizing.md), the `scripts/derive-network-sizing.py` derivation that recomputes every number from the two committed records (with a suite that requires doctored records to flip its verdicts), and implementation-ready WP7/WP8 contracts. The operator decided all five open points on 2026-08-30 and the three review extensions the same day; the mandatory independent protocol/security review returned fix-first, and its four MAJOR findings — the unlisted 1,038-byte `getmotd`, the unenforced server-browser exclusion, the one-directional fail-closed machinery and the shared relay address — were resolved and confirmed by a re-verification pass that found no decided value had drifted |
+| WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | Contract complete and its gate passed: the decided values are filled in and the review's enforcement requirements folded in (address rule, two-endpoint size check at `Sys_SendPacket`, server-browser neutralization, CSPRNG `Sys_RandomBytes`, the relay's live-source-port constraint, and the operator's 2026-08-30 scope extension for cvar-gated port-aware rate-limit buckets). Blocked only on explicit approval to start |
 | WP8 | Two-browser multiplayer acceptance | WP5, WP7 | Contract complete, thresholds frozen 2026-08-30; blocked on WP7 |
 | WP9 | Public product-integration blueprint | WP8 | Scope gate |
 
@@ -784,15 +782,10 @@ covers connectionless and netchan traffic and measures the correct boundary.
 
 ## WP6 — Measured network-sizing decision
 
-**State:** Decision made by the operator on 2026-08-30, every point as
-proposed. The mandatory independent protocol/security review returned
-**fix-first**: no arithmetic error and the strategy endorsed, but the
-packet-class census was incomplete and two bounds the strategy leans on were not
-enforceable. Those fixes are made, and the three extensions the review produced
-were settled the same day — including the shared rate-limit bucket, which the
-operator chose to fix in WP7 rather than accept. No open decisions remain; WP6
-closes when the review re-verifies the fixes, and WP7 stays blocked until
-then.
+**State:** ✅ Complete. The operator decided every point on 2026-08-30, the
+independent protocol/security review returned fix-first, its four MAJOR findings
+were resolved, and the re-verification pass confirmed them with no decided value
+drifted. WP7 is blocked only on explicit approval to start.
 
 ### Result
 
@@ -821,10 +814,15 @@ does *not* address is out-of-band traffic, which the engine never fragments and
 to which it applies no packet-sized ceiling at all: `statusResponse` reaches
 1,443 bytes, `connect` 1,039 and the server-elicited `echo` reply 1,022, so the
 decision adds explicit profile bounds and a fail-closed emitted-size check
-rather than relying on fragmentation. Most of those classes are excluded because
-the client never originates them; `echo` is the exception, because the
-destination triggers it, and it is the reason the emitted-size check is a
-requirement rather than a belt-and-braces addition.
+rather than relying on fragmentation. Those classes fall into three kinds, and
+the distinction is load-bearing because an earlier two-way version of it — origin
+only — is exactly what let the 1,038-byte `getmotd` go unlisted. Some are
+excluded by **origin**, because the client never sends them. `echo` is excluded
+by nothing: the **destination** elicits it, which is why the emitted-size check
+is a requirement rather than a belt-and-braces addition. And `getmotd` and
+`getKeyAuthorize` are bounded by **destination** — they are addressed to the
+update and authorize servers rather than the pinned one, so the bound on them is
+WP7's address rule, not a size cap.
 
 The operator settled all five open points on 2026-08-30, each exactly as
 proposed: strategy 2 with its profile bounds, the record-backed 768-byte target
@@ -976,8 +974,11 @@ re-censused, because the selected strategy changes server-side packet logic.
 - The value is a **protocol constant**, not a send-side tuning knob: the
   receiver infers end-of-message from `fragmentLength == FRAGMENT_SIZE`. The
   browser client and the native server must therefore be built from the same
-  engine pin. Asymmetry is a silent truncation, so WP7 must include a test that
-  fails when the two disagree rather than relying on the build to be careful.
+  engine pin. Asymmetry is a silent truncation, so WP7 must *demonstrate*
+  agreement rather than rely on the build being careful — by the two
+  artifact-level observations named in the acceptance envelope below, not by a
+  source-level equality test, which cannot fail because the constant lives in
+  one file.
 - Enforce the `[decision: userinfo cap]` on the **formatted `connect` data
   string**, not on the userinfo copy. The two differ: `CL_CheckForResend` copies
   the userinfo and *then* adds `protocol`, `qport` and `challenge`
@@ -988,6 +989,12 @@ re-censused, because the selected strategy changes server-side packet logic.
   Truncating an info string can cut a key/value pair in half and drop the
   `challenge` key the server requires (`sv_client.c:369,402-419`), turning a cap
   violation into an unexplained connect failure instead of a clear one.
+  Note what the number then means: capping the formatted string at 512 bytes
+  leaves an effective userinfo allowance of **502 bytes**, once the 10 fixed
+  bytes of `connect "` and its closing quote are accounted for, against the
+  752-byte limit the arithmetic computes for the selected target. That is
+  conservative on purpose — it is roughly two-thirds of what the budget would
+  permit and still far above what the profile uses.
 - Add a fail-closed emitted-size check **at `Sys_SendPacket`**, in **both** the
   browser client and the native server build. The seam is named deliberately: it
   is the only point below both `NET_OutOfBandPrint` and `NET_OutOfBandData` —
@@ -999,10 +1006,15 @@ re-censused, because the selected strategy changes server-side packet logic.
   budget, refuses to send when it does not fit, and counts and surfaces the
   refusal per direction and per class. The pre-compression size is not a bound
   and must not be used as one.
-- The server build carries the same check and the same counters. The largest
-  over-budget classes — `statusResponse` 1,443, `infoResponse` 1,040, the rcon
-  redirect's `print` 1,017 — are all server-emitted, so a browser-only check
-  leaves them unmeasured: the datagram would be emitted, dropped by the relay or
+- The server build carries the same check and the same counters. Its **budget
+  source differs and must be stated**: a native server reads no WebTransport
+  maximum, so there is nothing session-derived for it to compare against. Its
+  budget is the decided **768-byte floor**, fixed at build or launch time rather
+  than re-read per send. The browser's per-send re-read exists because a
+  transport can change its reported maximum; the server has no such input.
+  The largest over-budget classes — `statusResponse` 1,443, `infoResponse`
+  1,040, the rcon redirect's `print` 1,017 — are all server-emitted, so a
+  browser-only check leaves them unmeasured: the datagram would be emitted, dropped by the relay or
   the transport, and counted nowhere. A server-side over-budget emission is a
   counted, surfaced event.
 - Split the refusal counters into **client-originated** and **elicited**
@@ -1043,16 +1055,26 @@ re-censused, because the selected strategy changes server-side packet logic.
   hash, `SVC_BucketForAddress` (`:405-427`) compares it alongside the address
   bytes, and `leakyBucket_s` (`server.h:313-328`) gains a port field populated
   when a bucket is created. Only the per-address limiter is affected —
-  `SVC_RateLimitAddress` (`:518-521`), reached by `getchallenge`
-  (`sv_client.c:71`), `getstatus` (`:549`), `getinfo` (`:612`) and `rcon`
-  (`:719`); the global `outboundLeakyBucket` is not per-address and does not
-  change.
+  `SVC_RateLimitAddress` (`sv_main.c:518-521`), reached by `getchallenge`
+  (`sv_client.c:71`), `getstatus` (`sv_main.c:549`), `getinfo`
+  (`sv_main.c:612`) and `rcon` (`sv_main.c:719`); the global
+  `outboundLeakyBucket` is not per-address and does not change.
   Two things must be preserved in how this is written. The default stays
   upstream because port-keyed rate limits are **evadable on the open internet**,
   where an attacker varies the source port freely; this deployment is safe only
   because the game server is reachable solely from the relay, so the source port
   is assigned by the relay rather than chosen by an attacker. And the cvar's
   documentation must say so, because the constraint has to travel with the code.
+- **Relay-side constraint the integration environment must meet:** the relay
+  must never assign a **live** session's server-facing source port to another
+  session. `SV_DirectConnect` matches an existing client slot on the base
+  address **and (qport OR source port)** — a disjunction, at
+  `sv_client.c:373-379` and `:457-465` — so a reused live port makes the server
+  match the new session onto the first player's slot deterministically,
+  regardless of qport. The CSPRNG requirement below does not cover this: it
+  makes qport collisions unlikely, and this path needs none. Nothing in the
+  engine can enforce it, so WP7 records it as a requirement on the environment
+  and WP8 evidences it.
 - Implement the browser's `Sys_RandomBytes` as a real CSPRNG
   (`crypto.getRandomValues`). This is a security requirement, not housekeeping:
   `qport` comes from `Com_RandomBytes` (`common.c:2816-2818`), which falls back
@@ -1083,7 +1105,9 @@ re-censused, because the selected strategy changes server-side packet logic.
   including the compressed `connect` case and an oversize `echo` reply, the
   userinfo cap, the budget-change path, and fragment reassembly at the selected
   `FRAGMENT_SIZE` including the zero-length terminator case.
-- Symmetry is observed on **artifacts**, not asserted in source: the constant is
+- Symmetry evidence is the pair of artifact-level observations below, not a
+  source-level equality test. Stated once here so the two bullets agree:
+  the constant is
   file-static to one file, so a source-level "client and server agree" test
   compares the value with itself and cannot fail. The server artifact is pinned
   by the re-census's fragment geometry below; the browser artifact is pinned by
@@ -1149,7 +1173,11 @@ matching native server while meeting the frozen thresholds.
 - Planned disconnect/reconnect exercises for each client.
 - Server-side evidence that both players appear only as the relay's IPv4
   endpoint with distinct per-player source ports, and that neither player's
-  public address appears.
+  public address appears. The distinct source ports are **correctness** evidence
+  as well as privacy evidence: `SV_DirectConnect` matches a client slot on base
+  address and (qport **or** source port), so two live sessions sharing a
+  server-facing port is a deterministic slot collision, not merely a privacy
+  weakness.
 
 ### Numeric thresholds
 
@@ -1273,11 +1301,12 @@ integration implementation is scheduled.
    mandatory independent protocol/security review of
    [`wp6-network-sizing.md`](wp6-network-sizing.md) then returned **fix-first**,
    endorsing the strategy and the arithmetic but requiring a complete packet-class
-   census and enforceable bounds; those fixes are made. The three extensions the
-   review produced — `cl_motd 0`, the refusal-counter split and a cvar-gated
-   port-aware rate-limit bucket in WP7's scope — were settled on 2026-08-30, so
-   the gate now closes on one remaining step: the review re-verifying the fixes.
-   Until it does, WP6 does not close and WP7 does not start.
+   census and enforceable bounds; those fixes were made, and the three
+   extensions it produced — `cl_motd 0`, the refusal-counter split and a
+   cvar-gated port-aware rate-limit bucket in WP7's scope — were settled on
+   2026-08-30. The re-verification pass then **passed**. **This gate is
+   closed.** WP7 is not blocked by any remaining review or decision; it starts
+   when the coordinator and operator explicitly approve it.
 4. **Vertical-slice closure:** WP8 reviews the complete two-client evidence
    before WP9 or any hosting integration begins.
 

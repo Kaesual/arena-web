@@ -2,7 +2,11 @@
 
 # WP6: the measured network-sizing decision
 
-**Status:** **decided** — the operator selected every open point on 2026-08-30,
+**Status:** **complete and closed.** The decision is made, the independent
+protocol/security review has passed on re-verification, and no open decisions
+remain. WP7 is blocked only on explicit approval to start.
+
+The operator selected every open point on 2026-08-30,
 each one exactly as this analysis proposed: strategy 2 with its profile bounds,
 the record-backed 768-byte sizing target giving `FRAGMENT_SIZE = 704`, the
 64-byte reserve and alignment, the 512-byte userinfo cap, and all ten WP8
@@ -27,10 +31,16 @@ oversize-refusal counter split, so the frozen zero threshold applies to
 client-originated refusals while elicited ones are informational; and — chosen
 over the accepted-gap draft this document previously carried — a cvar-gated
 port-aware rate-limit bucket added to WP7's scope, defaulting to exact upstream
-behaviour and enabled in the managed profile. **No open decisions remain.**
+behaviour and enabled in the managed profile.
 
-**Still open:** the independent review re-verifying these fixes. WP6 closes when
-it passes; WP7 stays blocked until then.
+**Re-verification: pass.** The independent review re-verified the fixes,
+confirmed all four MAJOR findings resolved in substance, reproduced every new
+citation against the pin, and found no decided value had drifted. Its eleven
+remaining findings were documentation consistency rather than substance and are
+folded in here; one of them corrected a claim in the opposite direction from the
+way it was first reported, which is recorded at the point it applies. **WP6 is
+closed.** WP7 is now blocked only on the coordinator's and operator's explicit
+approval to start it.
 
 WP2 measured what a browser can push through the relay. WP5 measured what the
 game actually puts on the wire. This document puts the two together, adds the
@@ -662,8 +672,12 @@ two obvious call sites are each wrong in one direction: `rcon` bypasses
 pre-compression size. `Sys_SendPacket` is the only point below both, and below
 the `cl_packetdelay`/`sv_packetdelay` queue (`net_chan.c:528,550-566`). Putting
 the check there makes "after compression" automatic rather than a rule someone
-has to remember, and it makes the check total: every datagram the engine emits
-passes through it.
+has to remember, and it makes the check total for everything that leaves the
+process. Not quite *every* datagram the engine emits: `NET_SendPacket` returns
+early for `NA_LOOPBACK`, `NA_BOT` and `NA_BAD` before reaching this seam
+(`net_chan.c:544-553`), so loopback traffic goes to `NET_SendLoopPacket` and is
+never sized — consistent with that function's existing entry in the inherited
+gaps below, and harmless because nothing on a relayed path is loopback.
 
 ### Where the change lands
 
@@ -739,8 +753,9 @@ The change is deliberately small and off by default:
   A sensible name is `sv_rateLimitPerPort`; WP7 finalizes the exact spelling.
 - Only the per-address limiter is affected: `SVC_RateLimitAddress`
   (`sv_main.c:518-521`), reached by `getchallenge` (`sv_client.c:71`),
-  `getstatus` (`:549`), `getinfo` (`:612`) and `rcon` (`:719`). The global
-  `outboundLeakyBucket` is not per-address and does not change.
+  `getstatus` (`sv_main.c:549`), `getinfo` (`sv_main.c:612`) and `rcon`
+  (`sv_main.c:719`). The global `outboundLeakyBucket` is not per-address and
+  does not change.
 
 **Why the default stays upstream, and why turning it on here is safe.** On the
 open internet, keying rate limits by source port is a mistake: an attacker
@@ -751,6 +766,31 @@ the game server is reachable **only** from the relay — every packet it sees ha
 already been authorized and forwarded, so the source port is assigned by the
 relay rather than chosen by an attacker. A cvar defaulting to upstream behaviour
 keeps that reasoning local to the environment where it holds.
+
+**Two further things the cvar's warning must carry.**
+
+*It is a trade, not pure gain.* Keying on the port also means a client whose
+reconnect arrives on a **fresh** relay source port is no longer limited where
+upstream would have limited it — the reconnect throttle that per-IP bucketing
+gave for free is weakened in exactly the case the change is designed to help.
+That is acceptable here, because the relay authorizes every session before it
+forwards anything and the threat model is one player stalling another rather
+than an anonymous flood. But it is a trade and the documentation should say so
+rather than presenting port-keying as strictly better.
+
+*Bucket exhaustion fails closed, into a denial.* The table holds `MAX_BUCKETS`
+= 16,384 live buckets (`sv_main.c:364`), reclaimed only after `burst * period`
+of inactivity. Port-keying creates a bucket per **session** rather than per
+address, so it moves the table meaningfully closer to full. When it is full,
+`SVC_BucketForAddress` returns `NULL` (`sv_main.c:478`) and `SVC_RateLimit`
+skips its whole body and returns `qtrue` (`:486-507`) — and every caller reads
+`qtrue` as "drop this request". So exhaustion does not disable the limiter; it
+**denies connectionless requests for everyone**, including `getchallenge`, which
+is the connect path. Harmless in this deployment only because relay-only
+reachability bounds the number of live source ports by the number of authorized
+sessions, which is orders of magnitude below 16,384 — and that reasoning is
+precisely what stops being true if anything else is ever allowed to reach the
+server, so it belongs in the warning rather than in this document alone.
 
 **The long-term direction, unscheduled and deliberately not coupled to WP7.**
 The cleaner fix is topological rather than engine-side: give the relay's
@@ -768,6 +808,25 @@ touches rate limiting only; the demultiplexing and the port rewrite are
 untouched, so the hazard above remains a documented residual gap mitigated by
 requiring a real CSPRNG for `qport`. Only the IPv6 leg would remove it. WP8's
 distinct-qports evidence requirement therefore stands.
+
+**And there is a constraint on the relay that this decision must state, because
+nothing in the engine can enforce it.** `SV_DirectConnect` matches an existing
+client slot on the base address **and (qport OR source port)** — the disjunction
+is the point, at `sv_client.c:373-379` for the reconnect throttle and `:457-465`
+for slot reuse, and WP5's census document already records the behaviour. So if
+the relay ever assigns a **live** session's server-facing source port to a
+*different* session, the server matches the new session onto the first player's
+slot on the port alone, however good the new session's qport is. The CSPRNG
+requirement does not help here: it makes qport collisions unlikely, and this
+path needs no qport collision at all.
+
+**The relay must therefore never reuse a live session's server-facing source
+port for another session.** It is a relay-side property, outside this repository
+and outside the engine, stated here and in the WP7 contract because it is the
+kind of assumption that stays invisible until it fails. It also reframes WP8's
+distinct-source-ports evidence: that has been listed as *privacy* evidence, and
+it is equally **correctness** evidence — two live sessions sharing a
+server-facing port is a deterministic slot collision, not a privacy nicety.
 
 ## Strategy 3 — bounded engine-pair tunnel fragmentation
 
@@ -966,7 +1025,7 @@ disconnect/reconnect exercises for each.
 | Connection success | 100% of connect attempts within 3 attempts; ≥ 90% on the first attempt | The gamestate is the first large transfer; a sizing error shows up as a *deterministic* connect failure, so anything below this is a sizing bug rather than flakiness. With the port-aware rate-limit bucket enabled in the managed profile, the shared-address caveat that would otherwise have applied to this row is gone for the acceptance topology. |
 | Unexpected disconnects | **0** per client per 15-minute session | With a fixed profile and a bounded queue there is no benign cause; one is a defect to explain, not a rate to tolerate. |
 | Planned reconnects | 100% success, each within 10 s to in-game | The census's own reconnect completed; the budget here is the fresh authorization plus a second gamestate. |
-| Packet send failures | **0** oversize refusals; ≤ 0.1% write failures | Zero oversize is the direct test of this decision — one refusal means a class was missed. Write failures are a transport property WP2 never observed, so a small non-zero allowance is honest. |
+| Packet send failures | **0** *client-originated* oversize refusals; elicited refusals counted separately and informational; ≤ 0.1% write failures | Zero oversize is the direct test of this decision — one refusal means a class was missed. **Refined by the operator on 2026-08-30** so the zero applies only to client-originated refusals: the `echo` mechanism this decision installs deliberately produces *elicited* refusals when it works correctly, and an assessor reading this row must not fail the run on one. Write failures are a transport property WP2 never observed, so a small non-zero allowance is honest. |
 | Frame pacing | ≥ 95% of frames within 2× the median frame time; no frame > 250 ms after the first 10 s | WP4 established the offline baseline; this bounds what the network backend is allowed to add, and excludes startup. |
 | Long tasks | No main-thread task > 100 ms after the first 10 s | A synchronous drain of a fragment burst would show up here; it is the specific failure mode a smaller `FRAGMENT_SIZE` makes more likely. |
 | Relay-added latency | Median round trip ≤ 1.5× the direct native round trip on the same path; 99th percentile ≤ 3× | Relative rather than absolute, because the routed path's own latency is an environment property and the record has no absolute baseline to hold anyone to. |

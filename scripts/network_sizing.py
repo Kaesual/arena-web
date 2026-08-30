@@ -777,7 +777,14 @@ class PrototypeProfile:
             "gameNameBytes": self.game_name_bytes,
             "infoStringBytes": self.info_string_bytes,
             "nameBytes": self.name_bytes,
+            "cdkeyBytes": self.cdkey_bytes,
             "serverBrowserQueriesOnRelayPath": self.server_browser_queries_on_relay_path,
+            # These two drive `getmotd` and `getKeyAuthorize` on/off the relay
+            # path, so a reader of the JSON must be able to see them: without
+            # them the profile block would not show the `cl_motd 0` decision
+            # that puts the largest client-originated class off the path.
+            "motdEnabled": self.motd_enabled,
+            "keyAuthorizeReachable": self.key_authorize_reachable,
         }
 
 
@@ -1890,9 +1897,14 @@ def _decision_block(
 def _refuting_cases(report: Any, sizes: Sequence[int]) -> list[dict[str, Any]]:
     """Find measured cases at exactly these inner sizes, and say what happened.
 
-    A refutation carries much more weight when the record already contains the
-    attempt: the sizes an unchanged engine needs were not merely computed to be
-    over budget, they were sent to a real relay and refused.
+    A refutation carries more weight when the record already contains the
+    attempt. What it contains is precise and worth stating precisely: the
+    measurement plan included cases at exactly the sizes an unchanged engine
+    needs, and the pinned browser refused to write them. That refusal is the
+    probe's own pre-send comparison against the reported maximum, not an
+    observation of the path — nothing reached the relay at those sizes. It still
+    settles strategy 1, because a datagram the client will not send is as fatal
+    as one the path drops.
     """
     wanted = set(sizes)
     found: dict[int, dict[str, Any]] = {}

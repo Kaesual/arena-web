@@ -774,10 +774,11 @@ class WorstCaseReplayTests(unittest.TestCase):
     worst-case shapes cannot be replayed over the real path in this WP. What can
     be replayed deterministically is the contract: the same frame encoder, the
     same relay model and the same size pre-check, driven at the datagram maximum
-    the routed record reports. A shape that this refuses would have been refused
-    on the routed path for the same arithmetic reason, and the routed record's
-    own refusals at 1,312 and 1,314 bytes are the evidence that the model and
-    the path agree at those sizes.
+    the routed record reports. The loopback model and the pinned browser refuse
+    the same sizes for the same reason — both compare the frame against the
+    reported maximum before writing it — so this is agreement between two
+    implementations of the *same rule*, not evidence that the path enforces it.
+    No frame above the reported maximum has been put on a wire by anything here.
     """
 
     REPORTED_MAXIMUM = 1024
