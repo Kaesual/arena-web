@@ -489,7 +489,22 @@ class CommittedCensusRecordTests(unittest.TestCase):
         baseline = json.loads(
             (ROOT / "locks" / "baseline.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(session["engineCommit"], baseline["engine"]["commit"])
+        # The census is the record of a session that was actually driven, so it
+        # names the engine commit that session ran and not the current pin. Both
+        # commits the lock accounts for are admissible — the pin, and the
+        # upstream base the pin declares — and nothing else is, so a measurement
+        # taken against an engine this repository never pinned is still refused.
+        # This census was taken at the upstream base; what the pin adds on top of
+        # it is enumerated in engine.appliedPatches and is confined to
+        # code/renderergl2/tr_glsl.c, which neither the dedicated server nor any
+        # datagram path compiles.
+        self.assertIn(
+            session["engineCommit"],
+            (
+                baseline["engine"]["commit"],
+                baseline["engine"]["upstreamBase"]["commit"],
+            ),
+        )
         profile = json.loads(
             (ROOT / "native" / "server-profile.json").read_text(encoding="utf-8")
         )

@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# One accepted browser build of the pinned, unmodified ioquake3 Emscripten
-# target, inside the WP0 builder image, from a deleted build tree, offline.
+# One accepted browser build of the pinned ioquake3 Emscripten target, inside
+# the WP0 builder image, from a deleted build tree, offline.
+#
+# The pin is the fork's `web` branch: the upstream base the lock names, plus the
+# enumerated patch series it enumerates beside it. The build target itself is
+# still upstream's, unchanged.
 #
 # Every identity comes from locks/baseline.json; nothing here re-states a
 # digest that the lock already owns.
@@ -21,7 +25,7 @@ print_image_only=0
 # PRODUCT_DATE; without it the engine embeds __DATE__ and no two builds agree.
 # The value is the pinned engine commit's own committer timestamp, so it is
 # derived from the baseline rather than from the moment of the build.
-expected_source_date_epoch=1784478090
+expected_source_date_epoch=1788085967
 
 usage() {
   cat <<'EOF'

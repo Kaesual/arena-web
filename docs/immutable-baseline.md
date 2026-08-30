@@ -3,7 +3,9 @@
 # Immutable prototype baseline
 
 **Status:** WP0 complete — independently reviewed; all findings addressed.
-Amended on 2026-08-30 to add the redistributed server runtime base.
+Amended on 2026-08-30 twice: first to add the redistributed server runtime base,
+then to move the engine pin from the unmodified upstream commit to the fork's
+`web` branch carrying an enumerated patch series on top of it.
 
 This document is the human-readable companion to
 [`locks/baseline.json`](../locks/baseline.json). The lock is authoritative for
@@ -14,16 +16,18 @@ reviewer obtains and verifies it.
 
 | Role | Version or revision | Immutable identity | Platform |
 | --- | --- | --- | --- |
-| Engine and bundled `baseq3` gamecode | ioq3 `588393618dbc82e7207c21c6ddecca229944a03a` | Git commit and submodule pin | source |
+| Engine and bundled `baseq3` gamecode | ioq3 fork `92351b8f0543448b9defaac25c552274eecbf15b` (`web`), on upstream base `588393618dbc82e7207c21c6ddecca229944a03a` | Git commit and submodule pin | source |
 | WebAssembly builder | Emscripten `6.0.8` | `sha256:8714ed3a9fb585e662c931259a996bac36a57a8dd34b81e8277436fd77364475` | `linux/amd64` |
 | Native builder base | Ubuntu `24.04` | `sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316` | `linux/amd64` |
 | Server runtime base | Debian `13-slim` (trixie, `13.6`) | `sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f` | `linux/amd64` |
 | Acceptance browser | Chrome for Testing `152.0.7977.64` (`r1669021`) | `sha256:8b592f066af71f054aab2cc80fc26f73c775c6d44ebb99d16ade924b24756c2e` | `linux64` |
 | Acceptance desktop | Fedora Linux Workstation 44, GNOME | Fedora Workstation 44 release media recorded in the lock | `x86_64` |
 
-The engine lock also binds the staged submodule branch metadata to `main`.
-Moving product engine work to `web` therefore requires an explicit baseline
-and published-schema reissue together with the new public commit and gitlink.
+The engine lock also binds the staged submodule branch metadata, now to `web`.
+That move happened on 2026-08-30, with the explicit baseline and
+published-schema reissue it was always going to require; see
+"[The engine pin is a fork commit](#the-engine-pin-is-a-fork-commit-and-what-that-obliges-the-lock-to-say)"
+below.
 
 OCI references used by builds end in the platform-manifest digest, not a tag.
 The corresponding multi-platform index digests are retained in the lock so a
@@ -66,6 +70,75 @@ Its `linux/amd64` member, and the actual build reference, is
 `sha256:8714ed3a9fb585e662c931259a996bac36a57a8dd34b81e8277436fd77364475`.
 The preferred source tag resolves to emsdk commit
 `e5bd3d0874e302a18f13c5b41f5bacf9a40c8e59`.
+
+## The engine pin is a fork commit, and what that obliges the lock to say
+
+**Amendment of 2026-08-30.** The pin was an unmodified upstream commit, and the
+lock could say nothing else: `engine.branch` was fixed to `main` and the record
+had no way to express "this commit, minus an upstream base, is exactly these
+changes". WP4's witnessed round then found a renderer defect that is an engine
+defect — under a GLSL ES driver the renderer's fragment shaders were compiled at
+`mediump`, which cannot hold the world-unit arithmetic they do, and lightmapped
+surfaces came out saturated white. The diagnosis and the fix are in
+[`wp1-build-evidence.md`](wp1-build-evidence.md); this section is about what the
+lock had to grow to hold it.
+
+The pin is now `92351b8f0543448b9defaac25c552274eecbf15b` on the fork's `web`
+branch. `main` in that fork continues to mirror upstream and is where the
+upstream base lives, exactly as the sibling Luanti port keeps an upstream mirror
+branch and a patch-carrying work branch apart.
+
+Two fields carry the claim, and they are meaningless apart:
+
+- `engine.upstreamBase` names the commit and the public repository the series
+  sits on — here `588393618dbc82e7207c21c6ddecca229944a03a` in
+  `https://github.com/ioquake3/ioq3`, which is upstream `main`'s head.
+- `engine.appliedPatches` enumerates what the pin adds: an `id`, the exact set
+  of tree `paths` the patch touches, a one-line `rationale`, and an
+  `upstreamStatus` from a closed vocabulary.
+
+`appliedPatches` is **present exactly when the pin is not the upstream base**.
+An absent list is the claim "this is the unmodified upstream tree", and the
+validator refuses an empty list as a second way of spelling it, just as it
+refuses an absent list on a pin that does differ. The two states therefore have
+one representation each, and neither can be reached by accident.
+
+`upstreamStatus` records a fact about the patch's upstream relationship and
+deliberately not an intention. Its only current value is `not-submitted`: no
+upstream submission exists. The patch is written to be upstream-mergeable — that
+is a property of how it is written, not a promise about what will happen to it —
+and submitting it is an optional later step that is deliberately not scheduled,
+because arena-web builds on Emscripten 6.0.8 while upstream's reference
+toolchain is 3.1.58 and validating against that older toolchain is not work this
+prototype wants. Adding a further status is a reviewed schema change, exactly as
+adding a patch is a reviewed lock change.
+
+None of that would be worth much as a declaration nobody checks, so
+`scripts/metadata.py` binds it to the submodule offline: the upstream base must
+be an ancestor of the pin, and the union of every record's `paths` must equal
+`git diff --name-only <upstreamBase> <commit>` in `ioq3/`. An undeclared changed
+path and a declared path that does not actually differ both fail. This check
+needs the submodule's Git directory, so it sits beside the existing lock-to-pin
+binding and is skipped with it under `--without-git-metadata`, which is the mode
+the container check uses.
+
+**Repository-local license evidence moves with the pin.** Every
+`licenseComponents[].license` whose `evidenceIdentity` is a `git:` identity must
+equal the pinned engine commit; that gate is unchanged, so those identities and
+their `evidenceUrl`s now name `92351b8f…` rather than the upstream base. The
+alternative — letting such evidence stay at the base, since the patch changes
+none of it — would have given the gate two acceptable answers, and a gate with
+two answers is a weaker gate. Pointing the evidence at the exact tree that is
+built keeps one answer and stays true: `COPYING.txt`, every bundled
+third-party notice and every per-file exception are byte-identical at the two
+commits, because the series touches one renderer source file and nothing else.
+`upstreamEvidence.ioq3Commit` follows the same rule for the same reason; the
+workflow file it cites is likewise byte-identical at both commits.
+
+What this amendment does not do: it does not turn the engine into a place for
+product features. The fork carries an enumerated series of small,
+upstream-mergeable fixes and the lock has to name every one of them; anything
+that could live in this repository still belongs in this repository.
 
 ## Engine license inventory
 
@@ -332,8 +405,8 @@ indented. Unknown top-level or record fields fail validation. The supported
 formats are:
 
 - [`baseline-lock.schema.json`](../schemas/baseline-lock.schema.json): exact
-  code, builder, browser, OS, redistributed-runtime-image, license-policy and
-  trust inputs;
+  code, its upstream base and applied patch series, builder, browser, OS,
+  redistributed-runtime-image, license-policy and trust inputs;
 - [`relay-measurement-vector.schema.json`](../schemas/relay-measurement-vector.schema.json):
   game-neutral WP2 sizes and framing constants;
 - [`artifact-manifest.schema.json`](../schemas/artifact-manifest.schema.json):
@@ -350,7 +423,8 @@ and content formats that do not yet have production instances. The validator
 then adds semantic checks that JSON Schema alone does not express well: OCI
 `image@platformDigest` agreement, immutable source identities, license policy,
 preferred-source completeness, normalized paths, sorted unique records, the
-ioq3 lock-to-public-submodule/index-gitlink/clean-checkout binding and
+ioq3 lock-to-public-submodule/index-gitlink/clean-checkout binding, the
+enumerated engine patch series against the real submodule diff, and
 cross-record references. Artifact manifests and content provenance name the
 SHA-256 identity of the baseline they use; declared baseline inputs must match
 its exact kind and identity. Any byte change to `locks/baseline.json` creates a
@@ -423,7 +497,7 @@ inspectable with:
 
 ```bash
 sha256sum locks/baseline.json
-# sha256:036573866ac5d3da70fbe0b736d8196ebfa94f8b5002bca7fd31fd91943fc1eb
+# sha256:f189bdb77a7d4f0838206572cd77d6cfc77344a54d318957a6f6aed5a84f528c
 ```
 
 The container check first verifies the lock against the host checkout's ioq3

@@ -52,7 +52,7 @@
       "size": 306680
     }
   ],
-  "baselineIdentity": "sha256:036573866ac5d3da70fbe0b736d8196ebfa94f8b5002bca7fd31fd91943fc1eb",
+  "baselineIdentity": "sha256:f189bdb77a7d4f0838206572cd77d6cfc77344a54d318957a6f6aed5a84f528c",
   "baselineInputIds": [
     "emscripten-builder",
     "ioq3"
@@ -72,7 +72,7 @@
     },
     {
       "id": "ioq3",
-      "identity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+      "identity": "git:92351b8f0543448b9defaac25c552274eecbf15b",
       "kind": "git"
     }
   ],

@@ -96,6 +96,42 @@
       ],
       "type": "object"
     },
+    "enginePatch": {
+      "$comment": "One enumerated, upstream-mergeable change the pinned engine commit carries on top of engine.upstreamBase. 'paths' is the exact set of tree paths the patch touches, and the offline validator compares the union of every record's paths with the real diff between the two commits.",
+      "additionalProperties": false,
+      "properties": {
+        "id": {
+          "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$",
+          "type": "string"
+        },
+        "paths": {
+          "items": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
+        "rationale": {
+          "minLength": 20,
+          "type": "string"
+        },
+        "upstreamStatus": {
+          "$comment": "A closed vocabulary of facts about the patch's upstream relationship, not of intentions. 'not-submitted' says only that no upstream submission exists. Adding a state is a reviewed schema change, exactly as adding a patch is a reviewed lock change.",
+          "enum": [
+            "not-submitted"
+          ]
+        }
+      },
+      "required": [
+        "id",
+        "paths",
+        "rationale",
+        "upstreamStatus"
+      ],
+      "type": "object"
+    },
     "license": {
       "additionalProperties": false,
       "properties": {
@@ -486,8 +522,16 @@
     "engine": {
       "additionalProperties": false,
       "properties": {
+        "appliedPatches": {
+          "items": {
+            "$ref": "#/$defs/enginePatch"
+          },
+          "minItems": 1,
+          "type": "array",
+          "uniqueItems": true
+        },
         "branch": {
-          "const": "main"
+          "const": "web"
         },
         "commit": {
           "pattern": "^[0-9a-f]{40}$",
@@ -546,6 +590,25 @@
             "toolEntries"
           ],
           "type": "object"
+        },
+        "upstreamBase": {
+          "additionalProperties": false,
+          "properties": {
+            "commit": {
+              "pattern": "^[0-9a-f]{40}$",
+              "type": "string"
+            },
+            "repository": {
+              "format": "uri",
+              "pattern": "^https://",
+              "type": "string"
+            }
+          },
+          "required": [
+            "commit",
+            "repository"
+          ],
+          "type": "object"
         }
       },
       "required": [
@@ -557,7 +620,8 @@
         "preferredSource",
         "repository",
         "submodulePath",
-        "treeClosure"
+        "treeClosure",
+        "upstreamBase"
       ],
       "type": "object"
     },

@@ -87,6 +87,15 @@ CORRESPONDING_SOURCE_REQUIRED_OBLIGATIONS = {
 # is: a second runtime base is a licensing decision, not a build detail.
 REQUIRED_REDISTRIBUTED_IMAGES = {"server-runtime-base": "server-runtime-base"}
 
+# The engine pin is a fork commit that carries an enumerated, upstream-mergeable
+# patch series on top of an exact upstream base. The status vocabulary is closed
+# for the same reason the license registries are: an unreviewed value would let
+# a record claim an upstream relationship nobody checked. It records facts about
+# that relationship and deliberately not intentions — "not-submitted" says that
+# no upstream submission exists, and says nothing about whether one will.
+ENGINE_PATCH_ID_RE = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+ENGINE_PATCH_UPSTREAM_STATUSES = {"not-submitted"}
+
 COMMIT_RE = re.compile(r"^[0-9a-f]{40}$")
 SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 SHA256_DIGEST_RE = re.compile(r"^sha256:[0-9a-f]{64}$")
@@ -772,27 +781,87 @@ def validate_baseline(value: Any, path: str = "baseline") -> dict[str, Any]:
             )
 
     engine = _object(baseline["engine"], f"{path}.engine")
-    _exact_keys(
-        engine,
-        (
-            "branch",
-            "commit",
-            "id",
-            "kind",
-            "licenseComponents",
-            "preferredSource",
-            "repository",
-            "submodulePath",
-            "treeClosure",
-        ),
-        f"{path}.engine",
-    )
+    # `appliedPatches` is present exactly when the pin is not the upstream base,
+    # so the two states have one representation each: an absent list claims an
+    # unmodified tree and an empty list is not a second way of saying it.
+    engine_keys = {
+        "branch",
+        "commit",
+        "id",
+        "kind",
+        "licenseComponents",
+        "preferredSource",
+        "repository",
+        "submodulePath",
+        "treeClosure",
+        "upstreamBase",
+    }
+    if "appliedPatches" in engine:
+        engine_keys.add("appliedPatches")
+    _exact_keys(engine, engine_keys, f"{path}.engine")
     if engine["kind"] != "git" or engine["id"] != "ioq3":
         _fail(f"{path}.engine", "must identify the ioq3 Git input")
-    if engine["branch"] != "main":
-        _fail(f"{path}.engine.branch", "must be main for the immutable WP0 pin")
+    if engine["branch"] != "web":
+        _fail(
+            f"{path}.engine.branch",
+            "must be web: the pin is the fork branch carrying the patch series",
+        )
     commit = _commit(engine["commit"], f"{path}.engine.commit")
     _https_url(engine["repository"], f"{path}.engine.repository")
+    upstream_base = _object(engine["upstreamBase"], f"{path}.engine.upstreamBase")
+    _exact_keys(
+        upstream_base, ("commit", "repository"), f"{path}.engine.upstreamBase"
+    )
+    upstream_commit = _commit(
+        upstream_base["commit"], f"{path}.engine.upstreamBase.commit"
+    )
+    _https_url(
+        upstream_base["repository"], f"{path}.engine.upstreamBase.repository"
+    )
+    # The whole point of the record: what the pin adds to the upstream base has
+    # to be enumerated. A pin that equals the base adds nothing and may not
+    # claim otherwise; a pin that does not must say what it carries.
+    applied_patches = _array(
+        engine.get("appliedPatches", []), f"{path}.engine.appliedPatches"
+    )
+    if commit == upstream_commit:
+        if "appliedPatches" in engine:
+            _fail(
+                f"{path}.engine.appliedPatches",
+                "must be absent when the pin is exactly the upstream base",
+            )
+    elif not applied_patches:
+        _fail(
+            f"{path}.engine.appliedPatches",
+            "must enumerate every patch the pin carries on top of the upstream base",
+        )
+    patch_ids: list[str] = []
+    for index, raw_patch in enumerate(applied_patches):
+        patch_path = f"{path}.engine.appliedPatches[{index}]"
+        patch = _object(raw_patch, patch_path)
+        _exact_keys(
+            patch, ("id", "paths", "rationale", "upstreamStatus"), patch_path
+        )
+        patch_id = _string(patch["id"], f"{patch_path}.id")
+        if not ENGINE_PATCH_ID_RE.fullmatch(patch_id):
+            _fail(f"{patch_path}.id", "must be a lowercase hyphenated identifier")
+        patch_ids.append(patch_id)
+        touched = _sorted_unique_strings(patch["paths"], f"{patch_path}.paths")
+        if not touched:
+            _fail(f"{patch_path}.paths", "must name at least one touched path")
+        for touched_index, touched_path in enumerate(touched):
+            _relative_path(touched_path, f"{patch_path}.paths[{touched_index}]")
+        rationale = _string(patch["rationale"], f"{patch_path}.rationale")
+        if len(rationale) < 20 or "\n" in rationale:
+            _fail(f"{patch_path}.rationale", "must state in one line why the patch exists")
+        if patch["upstreamStatus"] not in ENGINE_PATCH_UPSTREAM_STATUSES:
+            _fail(
+                f"{patch_path}.upstreamStatus",
+                f"must be one of {sorted(ENGINE_PATCH_UPSTREAM_STATUSES)}",
+            )
+    _unique(patch_ids, f"{path}.engine.appliedPatches[].id")
+    if patch_ids != sorted(patch_ids):
+        _fail(f"{path}.engine.appliedPatches", "must be sorted by id")
     if (
         _relative_path(engine["submodulePath"], f"{path}.engine.submodulePath")
         != "ioq3"
@@ -1958,6 +2027,88 @@ def verify_documented_baseline_identity(root: Path, baseline: dict[str, Any]) ->
         )
 
 
+def _git_is_ancestor(engine_root: Path, ancestor: str, descendant: str) -> bool:
+    """Whether `ancestor` is reachable from `descendant` in that checkout.
+
+    Separate from `_git_output` because the answer is the exit status rather
+    than the output, and a non-zero status here is a finding rather than the
+    failure to inspect Git that `_git_output` reports.
+    """
+    try:
+        completed = subprocess.run(
+            [
+                "git",
+                "-C",
+                str(engine_root),
+                "merge-base",
+                "--is-ancestor",
+                ancestor,
+                descendant,
+            ],
+            capture_output=True,
+            text=True,
+        )
+    except OSError as error:
+        _fail("engine.upstreamBase", f"cannot inspect Git ancestry: {error}")
+    return completed.returncode == 0
+
+
+def verify_engine_patch_series(root: Path, baseline: dict[str, Any]) -> None:
+    """Bind the enumerated patch series to the real diff in the submodule.
+
+    The lock's claim is not "some patches were applied" but "exactly these
+    paths differ from exactly this upstream base". Both halves are checkable
+    offline from the submodule alone, so both are checked: the base has to be
+    an ancestor of the pin — otherwise the series is not on top of it — and the
+    union of every record's `paths` has to equal the real diff, so neither an
+    undeclared change nor a declared change that was never made survives.
+
+    This lives beside `verify_engine_pin` because it needs the submodule's Git
+    directory, which the container check deliberately does not mount; both are
+    therefore skipped together under `--without-git-metadata`.
+    """
+    engine = baseline["engine"]
+    engine_root = root / engine["submodulePath"]
+    commit = engine["commit"]
+    upstream_commit = engine["upstreamBase"]["commit"]
+    declared = {
+        touched
+        for patch in engine.get("appliedPatches", [])
+        for touched in patch["paths"]
+    }
+    if commit == upstream_commit:
+        # validate_baseline already refused an enumerated patch here; the diff
+        # is then trivially empty and there is nothing to bind.
+        return
+    if not _git_is_ancestor(engine_root, upstream_commit, commit):
+        _fail(
+            "engine.upstreamBase.commit",
+            f"is not an ancestor of the pinned commit {commit}",
+        )
+    changed = _git_output(
+        [
+            "git",
+            "-C",
+            str(engine_root),
+            "diff",
+            "--name-only",
+            upstream_commit,
+            commit,
+        ],
+        "engine.appliedPatches",
+    )
+    actual = {line for line in changed.splitlines() if line}
+    if actual != declared:
+        undeclared = sorted(actual - declared)
+        unmade = sorted(declared - actual)
+        details = []
+        if undeclared:
+            details.append(f"undeclared changed paths {undeclared}")
+        if unmade:
+            details.append(f"declared paths that do not differ {unmade}")
+        _fail("engine.appliedPatches", "; ".join(details))
+
+
 def verify_engine_pin(root: Path, baseline: dict[str, Any]) -> None:
     expected = baseline["engine"]["commit"]
     expected_repository = baseline["engine"]["repository"]
@@ -2081,6 +2232,7 @@ def validate_repository(root: Path, *, verify_git: bool = True) -> list[Path]:
     verify_documented_baseline_identity(root, baseline)
     if verify_git:
         verify_engine_pin(root, baseline)
+        verify_engine_patch_series(root, baseline)
     allowed_licenses = set(baseline["licensePolicy"]["productInputAllowedExpressions"])
 
     validated.append(baseline_path)

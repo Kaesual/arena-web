@@ -38,6 +38,7 @@ from metadata import (  # noqa: E402
     validate_measurement_vector,
     validate_repository,
     verify_documented_baseline_identity,
+    verify_engine_patch_series,
     verify_engine_pin,
     verify_engine_tree,
 )
@@ -220,8 +221,121 @@ class BaselineTests(unittest.TestCase):
 
     def test_engine_branch_is_identity_bearing(self) -> None:
         candidate = copy.deepcopy(self.baseline)
-        candidate["engine"]["branch"] = "web"
-        with self.assertRaisesRegex(MetadataError, "immutable WP0 pin"):
+        candidate["engine"]["branch"] = "main"
+        with self.assertRaisesRegex(MetadataError, "must be web"):
+            validate_baseline(candidate)
+
+    def test_committed_engine_enumerates_what_the_pin_adds(self) -> None:
+        engine = self.baseline["engine"]
+        self.assertNotEqual(engine["commit"], engine["upstreamBase"]["commit"])
+        self.assertTrue(engine["appliedPatches"])
+        for patch in engine["appliedPatches"]:
+            self.assertTrue(patch["paths"])
+            self.assertEqual(patch["upstreamStatus"], "not-submitted")
+
+    def test_patched_pin_must_enumerate_its_patches(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        del candidate["engine"]["appliedPatches"]
+        with self.assertRaisesRegex(MetadataError, "must enumerate every patch"):
+            validate_baseline(candidate)
+
+    def test_empty_patch_list_is_not_a_second_way_of_saying_unmodified(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["engine"]["appliedPatches"] = []
+        with self.assertRaisesRegex(MetadataError, "must enumerate every patch"):
+            validate_baseline(candidate)
+
+    def test_unmodified_pin_may_not_claim_a_patch(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["engine"]["upstreamBase"]["commit"] = candidate["engine"]["commit"]
+        with self.assertRaisesRegex(MetadataError, "must be absent"):
+            validate_baseline(candidate)
+
+    def test_unmodified_pin_omits_the_patch_list(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["engine"]["upstreamBase"]["commit"] = candidate["engine"]["commit"]
+        del candidate["engine"]["appliedPatches"]
+        validate_baseline(candidate)
+
+    def test_engine_requires_an_upstream_base(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        del candidate["engine"]["upstreamBase"]
+        with self.assertRaisesRegex(MetadataError, "upstreamBase"):
+            validate_baseline(candidate)
+
+    def test_upstream_base_repository_must_be_public_https(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["engine"]["upstreamBase"][
+            "repository"
+        ] = "git@github.com:ioquake3/ioq3.git"
+        with self.assertRaisesRegex(MetadataError, "upstreamBase.repository"):
+            validate_baseline(candidate)
+
+    def test_upstream_base_rejects_unknown_fields(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["engine"]["upstreamBase"]["tag"] = "5.17.0"
+        with self.assertRaisesRegex(MetadataError, "upstreamBase"):
+            validate_baseline(candidate)
+
+    def test_patch_record_rejects_unknown_fields(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["engine"]["appliedPatches"][0]["author"] = "somebody"
+        with self.assertRaisesRegex(MetadataError, "appliedPatches"):
+            validate_baseline(candidate)
+
+    def test_patch_upstream_status_is_a_closed_vocabulary(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["engine"]["appliedPatches"][0]["upstreamStatus"] = "merged-upstream"
+        with self.assertRaisesRegex(MetadataError, "upstreamStatus"):
+            validate_baseline(candidate)
+
+    def test_patch_id_must_be_a_slug(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["engine"]["appliedPatches"][0]["id"] = "Renderer Fix"
+        with self.assertRaisesRegex(MetadataError, "lowercase hyphenated"):
+            validate_baseline(candidate)
+
+    def test_patch_rationale_must_be_one_substantial_line(self) -> None:
+        for rationale in ("too short", "a long enough rationale\nwith two lines"):
+            with self.subTest(rationale=rationale):
+                candidate = copy.deepcopy(self.baseline)
+                candidate["engine"]["appliedPatches"][0]["rationale"] = rationale
+                with self.assertRaisesRegex(MetadataError, "one line"):
+                    validate_baseline(candidate)
+
+    def test_patch_paths_must_be_normalized_relative_paths(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["engine"]["appliedPatches"][0]["paths"] = [
+            "../code/renderergl2/tr_glsl.c"
+        ]
+        with self.assertRaisesRegex(MetadataError, "normalized relative"):
+            validate_baseline(candidate)
+
+    def test_patch_paths_must_be_sorted_and_unique(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["engine"]["appliedPatches"][0]["paths"] = [
+            "code/renderergl2/tr_glsl.c",
+            "code/renderercommon/tr_types.h",
+        ]
+        with self.assertRaisesRegex(MetadataError, "must be sorted"):
+            validate_baseline(candidate)
+
+    def test_patch_ids_must_be_unique_and_sorted(self) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        first = candidate["engine"]["appliedPatches"][0]
+        candidate["engine"]["appliedPatches"] = [
+            first,
+            copy.deepcopy(first),
+        ]
+        with self.assertRaisesRegex(MetadataError, "must not contain duplicates"):
+            validate_baseline(candidate)
+
+        candidate = copy.deepcopy(self.baseline)
+        first = candidate["engine"]["appliedPatches"][0]
+        later = copy.deepcopy(first)
+        later["id"] = "aaa-earlier-by-sort-order"
+        candidate["engine"]["appliedPatches"] = [first, later]
+        with self.assertRaisesRegex(MetadataError, "must be sorted by id"):
             validate_baseline(candidate)
 
     def test_engine_tree_rejects_unreviewed_thirdparty_entry(self) -> None:
@@ -365,7 +479,7 @@ class BaselineTests(unittest.TestCase):
         git_output.side_effect = [
             "",
             self.baseline["engine"]["repository"],
-            "web",
+            "main",
             expected,
             expected,
             "",
@@ -392,6 +506,51 @@ class BaselineTests(unittest.TestCase):
         ]
         with self.assertRaisesRegex(MetadataError, "engine.checkoutWorktree"):
             verify_engine_pin(ROOT, self.baseline)
+
+    def test_committed_patch_series_is_exactly_the_real_diff(self) -> None:
+        """The enumerated series, against the submodule this checkout has."""
+        verify_engine_patch_series(ROOT, self.baseline)
+
+    @mock.patch("metadata._git_output")
+    @mock.patch("metadata._git_is_ancestor")
+    def test_unmodified_pin_needs_no_git_inspection(
+        self, is_ancestor: mock.Mock, git_output: mock.Mock
+    ) -> None:
+        candidate = copy.deepcopy(self.baseline)
+        candidate["engine"]["upstreamBase"]["commit"] = candidate["engine"]["commit"]
+        del candidate["engine"]["appliedPatches"]
+        verify_engine_patch_series(ROOT, candidate)
+        is_ancestor.assert_not_called()
+        git_output.assert_not_called()
+
+    @mock.patch("metadata._git_is_ancestor", return_value=False)
+    def test_upstream_base_must_be_an_ancestor_of_the_pin(
+        self, is_ancestor: mock.Mock
+    ) -> None:
+        with self.assertRaisesRegex(MetadataError, "is not an ancestor"):
+            verify_engine_patch_series(ROOT, self.baseline)
+
+    @mock.patch("metadata._git_output")
+    @mock.patch("metadata._git_is_ancestor", return_value=True)
+    def test_undeclared_changed_path_is_rejected(
+        self, is_ancestor: mock.Mock, git_output: mock.Mock
+    ) -> None:
+        git_output.return_value = (
+            "code/renderergl2/tr_glsl.c\ncode/qcommon/net_chan.c\n"
+        )
+        with self.assertRaisesRegex(MetadataError, "undeclared changed paths"):
+            verify_engine_patch_series(ROOT, self.baseline)
+
+    @mock.patch("metadata._git_output")
+    @mock.patch("metadata._git_is_ancestor", return_value=True)
+    def test_declared_path_that_does_not_differ_is_rejected(
+        self, is_ancestor: mock.Mock, git_output: mock.Mock
+    ) -> None:
+        git_output.return_value = ""
+        with self.assertRaisesRegex(
+            MetadataError, "declared paths that do not differ"
+        ):
+            verify_engine_patch_series(ROOT, self.baseline)
 
     def test_container_check_uses_locked_builder(self) -> None:
         builder = next(

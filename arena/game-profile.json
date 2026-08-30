@@ -53,8 +53,7 @@
     "r_allowResize": "1",
     "sv_maxclients": "8",
     "sv_pure": "0",
-    "timelimit": "0",
-    "r_vertexLight": "1"
+    "timelimit": "0"
   },
   "cvarNotes": {
     "bot_enable": "ioq3 code/game/g_bot.c:761: Svcmd_AddBot_f (g_bot.c:752) returns immediately when this is 0",
@@ -67,8 +66,7 @@
     "r_allowResize": "ioq3 code/sdl/sdl_glimp.c: adds SDL_WINDOW_RESIZABLE so a canvas resize reaches the engine",
     "sv_maxclients": "ioq3 code/game/g_main.c: slots for the local player and the bots",
     "sv_pure": "ioq3 code/qcommon/files.c:1419: FS_FindVM (files.c:1398) only considers a loose vm/*.qvm in a directory search path while fs_numServerPaks is 0, so the QVMs written beside the pack are findable only on an impure client",
-    "timelimit": "ioq3 code/game/g_main.c: the profile ends on the frag limit",
-    "r_vertexLight": "ioq3 code/renderergl2/tr_init.c:1274. Workaround, not a preference: under Emscripten/WebGL the lightmapped world-surface path intermittently renders surfaces as solid white in roughly two of three sessions (WebGL 1 and 2, with and without FBOs, merged lightmaps and VAOs; no GL error; the native client is clean), while the vertex-lit path was clean in seven of seven sessions. Diagnosed 2026-08-30; evidence and the deferred root-cause work are recorded in wp4-vertical-slice.md. Remove when the engine defect is fixed."
+    "timelimit": "ioq3 code/game/g_main.c: the profile ends on the frag limit"
   },
   "readyMarkers": {
     "serverSpawned": "Server: oa_pvomit",
@@ -157,9 +155,6 @@
     "0",
     "+set",
     "r_allowResize",
-    "1",
-    "+set",
-    "r_vertexLight",
     "1",
     "+set",
     "sv_maxclients",
