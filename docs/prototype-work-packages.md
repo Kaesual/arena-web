@@ -3,7 +3,8 @@
 # Browser arena: prototype work packages
 
 **Status:** Independently reviewed and approved; WP0, WP1, WP3, WP4 and WP5
-complete; WP2's routed acceptance and the renderer root-cause hunt remain open
+complete; the renderer root-cause hunt is closed and its fix is an amendment to
+WP1's contract; WP2's routed acceptance remains open
 
 This document turns the reviewed direction in
 [`initial-plan.md`](initial-plan.md) into coherent, testable increments. It
@@ -39,10 +40,10 @@ is a plan change; adding another platform is later scope.
 | WP | Outcome | Depends on | State |
 | --- | --- | --- | --- |
 | WP0 | Immutable toolchain and acceptance baseline | — | ✅ Complete — exact public pins, closed license/tree inventory, schemas, relay vector and fail-closed validation |
-| WP1 | Reproducible unmodified ioq3 browser build | WP0 | ✅ Complete — two clean offline builds in the pinned Emscripten 6.0.8 image produce byte-identical artifacts and one validated manifest, with the observed component, QVM/lcc, license-closure and isolation findings recorded |
+| WP1 | Reproducible ioq3 browser build | WP0 | ✅ Complete — two clean offline builds in the pinned Emscripten 6.0.8 image produce byte-identical artifacts and one validated manifest, with the observed component, QVM/lcc, license-closure and isolation findings recorded. **Amended 2026-08-30:** "unmodified ioq3" is deliberately replaced by "the pinned upstream base plus the patches the lock enumerates", to carry the WP4 renderer fix; see the amendment section of the evidence document |
 | WP2 | Relay conformance probe and routed-path measurement | WP0 | Deterministic part implemented — public contract, browser probe, in-memory adapter and 125 deterministic tests; routed acceptance pending operator-supplied runtime values |
 | WP3 | Audited deterministic minimal-content closure | WP0 | ✅ Complete — two clean assemblies in the pinned builder image produce a byte-identical 668-member `oa_pvomit` FFA pack from six digest-pinned Debian-cleaned OpenArena archives, every member `GPL-2.0-or-later` with resolved notices, and every reference the two static readings of the pinned `baseq3` QVM sources extract either resolves or is a recipe acceptance with a stated reason |
-| WP4 | One-map offline browser arena with bots | WP1, WP3 | ✅ Complete — the witnessed round of 2026-08-30 passed every gameplay, input, focus, audio, console and clean-relaunch check (report in the evidence documents); the known browser-renderer defect class (white lightmapped surfaces mitigated by the reviewed `r_vertexLight` workaround and guarded by a near-white regression check; distance-graded entity shading; frame flicker) is recorded as decided while the timeboxed root-cause hunt continues on scratch builds. Closure accepted the operator-chosen Brave/KDE variation (the pinned Chrome is exercised by the automated harness on every gate run) and recorded one new accepted limitation: runtime resize and fullscreen-after-start do not update the engine resolution |
+| WP4 | One-map offline browser arena with bots | WP1, WP3 | ✅ Complete — the witnessed round of 2026-08-30 passed every gameplay, input, focus, audio, console and clean-relaunch check (report in the evidence documents); the known browser-renderer defect class (white lightmapped surfaces mitigated by the reviewed `r_vertexLight` workaround and guarded by a near-white regression check; distance-graded entity shading; frame flicker) is recorded as decided while the timeboxed root-cause hunt continues on scratch builds. Closure accepted the operator-chosen Brave/KDE variation (the pinned Chrome is exercised by the automated harness on every gate run) and recorded one new accepted limitation: runtime resize and fullscreen-after-start do not update the engine resolution. **Post-closure, 2026-08-30:** the defect class is resolved — white lightmapped surfaces root-caused to a GLSL ES `mediump` precision default and fixed in the engine (workaround removed), entity shading reclassified as renderergl2's normal native look rather than a browser defect, and frame flicker left as an operator re-check on a real display |
 | WP5 | Matching native server and packet census | WP0, WP3 | ✅ Complete — the pinned native toolchain, the reproducible dedicated server, the runtime-base server image and a 41,833-datagram census of a driven session are built, reviewed and green, and the witnessed round of 2026-08-30 closed the one outstanding acceptance word with a player kill against a bot (report and native reference images in the evidence documents) |
 | WP6 | Measured network-sizing decision | WP2, WP5 | Approved |
 | WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | Scope gate |
@@ -143,7 +144,7 @@ download.
 Focused reproducibility and licensing review of the lock formats, validators
 and every initial pin.
 
-## WP1 — Reproducible upstream browser build
+## WP1 — Reproducible browser build
 
 **State:** ✅ Complete. The evidence is
 [`wp1-build-evidence.md`](wp1-build-evidence.md); the artifact identities are
@@ -152,7 +153,14 @@ and every initial pin.
 ### Result
 
 The scope below was met without an engine or build-system change, so no ioq3
-enablement WP is needed and the `web` branch was not created. Decided facts:
+enablement WP was needed and WP1 closed with no `web` branch. That last part was
+amended on 2026-08-30, deliberately and after the fact: WP4's witnessed round
+found a renderer defect that only the engine could fix, so the pin is now the
+fork's `web` branch — the same upstream base, plus the patches the lock
+enumerates and a validator checks. See
+[the amendment section](wp1-build-evidence.md#amendment-of-2026-08-30-the-pin-carries-a-patch-series).
+Everything below still holds; none of it depended on the tree being unpatched.
+Decided facts:
 
 - Emscripten 6.0.8 builds the pinned tree unchanged. The SDL port, filesystem
   export and ES-module settings all work as upstream wrote them, so the
@@ -163,7 +171,10 @@ enablement WP is needed and the `web` branch was not created. Decided facts:
 - Two clean builds produced identical manifests and byte-identical artifacts.
   Determinism needs `SOURCE_DATE_EPOCH`, fixed container paths, a fixed
   locale/timezone and a source export without Git metadata — all product
-  orchestration, no engine patch.
+  orchestration, and still no patch to any build-system file. The epoch is
+  taken from the lock's upstream base commit, so a renderer-only engine patch
+  moves the renderer artifacts and leaves the QVMs and the dedicated server
+  byte-identical.
 - QVM generation does execute lcc, as native host tools inside the same pinned
   builder, and no lcc source or executable reaches the distributable tree. The
   WP0 distribution boundary holds and no release-policy review is due.
@@ -176,8 +187,10 @@ enablement WP is needed and the `web` branch was not created. Decided facts:
 ### Outcome
 
 A clean checkout reproducibly builds the pinned ioq3 Emscripten target without
-product networking or engine-source changes and emits an exact artifact
-manifest.
+product networking, and emits an exact artifact manifest. Engine source changes
+are not forbidden but enumerated: the lock names the upstream base and every
+patch on top of it, and the validator refuses a pin whose real diff is not
+exactly what is declared.
 
 ### Scope
 
@@ -591,10 +604,11 @@ the generic license gate refuses to serve, the pre-existing product/tool
 registry disjointness and two previously untested branches are pinned by
 tests, and `evidenceUrl` is a commit-pinned `docker-library/repo-info`
 locator. `docs/immutable-baseline.md` carries the amendment rationale; the
-baseline identity is now
+baseline identity became
 `sha256:036573866ac5d3da70fbe0b736d8196ebfa94f8b5002bca7fd31fd91943fc1eb` and
 no artifact digest moved (both deterministic builds re-verified by the
-implementer and independently reproduced by the coordinator). The coordinator
+implementer and independently reproduced by the coordinator). That identity was
+superseded later the same day by the engine-pin amendment. The coordinator
 reviewed the fix delta directly — gates, external evidence claims, a mutation
 check on the new validator branch — and recorded the decision that a second
 independent review round was not required for it.

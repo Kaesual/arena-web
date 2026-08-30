@@ -31,10 +31,17 @@ Commit and push an ioquake3 change in that repository before bumping its pin
 here. A pin that exists only locally is not an acceptable project state.
 
 Keep the fork's `main` branch suitable for tracking upstream. Product engine
-changes belong on `web`; create and publish that branch before the first engine
-change, then update this repository's submodule branch metadata and pin.
-Until then, do not use `git submodule update --remote`; the recorded commit is
-the checkout contract.
+changes belong on `web`, which now exists and is what this repository pins.
+
+The pin is not "whatever is on `web`". It is the upstream base commit
+`locks/baseline.json` names plus the patches it enumerates in
+`engine.appliedPatches`, and `scripts/metadata.py` refuses a pin whose real diff
+against that base is not exactly the declared set of paths. A new engine change
+is therefore three things together: the commit on `web`, its enumerated record
+in the lock, and the reissued baseline identity with every record that embeds
+it. Keep each patch small, self-contained and written so it would be
+upstream-mergeable. Do not use `git submodule update --remote`; the recorded
+commit is the checkout contract.
 
 Avoid adding maps, asset packs or generated PK3 files to the engine fork. New
 source repositories may be pinned here when a submodule is genuinely the best

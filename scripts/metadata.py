@@ -853,7 +853,10 @@ def validate_baseline(value: Any, path: str = "baseline") -> dict[str, Any]:
             _relative_path(touched_path, f"{patch_path}.paths[{touched_index}]")
         rationale = _string(patch["rationale"], f"{patch_path}.rationale")
         if len(rationale) < 20 or "\n" in rationale:
-            _fail(f"{patch_path}.rationale", "must state in one line why the patch exists")
+            _fail(
+                f"{patch_path}.rationale",
+                "must state in one line why the patch exists",
+            )
         if patch["upstreamStatus"] not in ENGINE_PATCH_UPSTREAM_STATUSES:
             _fail(
                 f"{patch_path}.upstreamStatus",
@@ -2092,6 +2095,10 @@ def verify_engine_patch_series(root: Path, baseline: dict[str, Any]) -> None:
             str(engine_root),
             "diff",
             "--name-only",
+            # Without this, a rename is reported as its destination path alone
+            # and the source path a patch also touches would never have to be
+            # declared. The declared set must be the complete one.
+            "--no-renames",
             upstream_commit,
             commit,
         ],

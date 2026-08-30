@@ -78,8 +78,9 @@ git submodule update --init --recursive
 ```
 
 The ioq3 pin is intentionally exact. Do not use `git submodule update --remote`:
-the branch metadata will move from `main` to the product `web` branch when that
-branch is created for the first engine change.
+the pin is the fork's `web` branch, which is the upstream base commit the lock
+names plus the patches it enumerates, and moving it is a reviewed baseline
+change rather than a fetch. The fork's `main` continues to mirror upstream.
 
 Committed metadata can be checked without building the engine or downloading
 game content:

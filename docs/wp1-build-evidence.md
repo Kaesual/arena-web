@@ -1,34 +1,40 @@
 <!-- SPDX-License-Identifier: GPL-2.0-or-later -->
 
-# WP1 evidence: reproducible upstream browser build
+# WP1 evidence: reproducible browser build
 
-**Status:** WP1 complete — two clean builds accepted, byte-identical
+**Status:** WP1 complete — two clean builds accepted, byte-identical. Amended
+on 2026-08-30: the pin is no longer an unmodified upstream commit but the fork's
+`web` branch, carrying one enumerated patch on top of it. See
+"[Amendment: the pin carries a patch series](#amendment-of-2026-08-30-the-pin-carries-a-patch-series)".
 
-This document records what an accepted browser build of the pinned, unmodified
-ioquake3 Emscripten target actually is: its exact inputs, the commands that
-repeat it, the environment controls that make it deterministic, the observed
-license closure and the findings WP1 was required to confirm or correct.
+This document records what an accepted browser build of the pinned ioquake3
+Emscripten target actually is: its exact inputs, the commands that repeat it,
+the environment controls that make it deterministic, the observed license
+closure and the findings WP1 was required to confirm or correct.
 
 The generated engine artifacts are not committed. Their identities are, in
 [`manifests/browser-client.json`](../manifests/browser-client.json).
 
-No engine or build-system change was needed. `ioq3/` is untouched at its pinned
-commit, and no `web` branch was created.
+WP1 itself needed no engine or build-system change, and closed with `ioq3/`
+untouched at its pinned upstream commit and no `web` branch. That contract was
+amended after WP4's witnessed round found a renderer defect that only the engine
+could fix; the amendment section below records what changed and what did not.
 
 ## Inputs
 
 | Role | Identity |
 | --- | --- |
-| Engine and bundled `baseq3` gamecode | ioq3 `588393618dbc82e7207c21c6ddecca229944a03a` |
+| Engine and bundled `baseq3` gamecode | ioq3 fork `92351b8f0543448b9defaac25c552274eecbf15b` (branch `web`), on upstream base `588393618dbc82e7207c21c6ddecca229944a03a` |
 | WebAssembly builder | `docker.io/emscripten/emsdk@sha256:8714ed3a9fb585e662c931259a996bac36a57a8dd34b81e8277436fd77364475` (Emscripten 6.0.8, `linux/amd64`) |
 | SDL2 source snapshot for `-sUSE_SDL=2` | upstream tag `release-2.32.10`, obtained as `https://github.com/libsdl-org/SDL/archive/release-2.32.10.zip` |
-| Baseline the manifest binds to | `sha256:036573866ac5d3da70fbe0b736d8196ebfa94f8b5002bca7fd31fd91943fc1eb` |
+| Baseline the manifest binds to | `sha256:f189bdb77a7d4f0838206572cd77d6cfc77344a54d318957a6f6aed5a84f528c` |
 
-That baseline identity moved on 2026-08-30, when the WP0 amendment added the
-redistributed server runtime base. The build does not read that entry, so the
-manifest was reissued against the new whole-file identity and every artifact
-digest below stayed byte-identical; nothing in this document's evidence
-changed.
+That baseline identity has moved twice on 2026-08-30. First the WP0 amendment
+added the redistributed server runtime base: the build does not read that entry,
+so the manifest was reissued against the new whole-file identity and every
+artifact digest stayed byte-identical. Then the engine pin moved to the fork
+commit above, which the build very much does read; that reissue is the amendment
+section below, and it moved two of the ten artifact digests.
 
 The first two identities are read out of
 [`locks/baseline.json`](../locks/baseline.json) at build time by
@@ -163,12 +169,12 @@ or linker input.
 
 ## Determinism controls
 
-These are product orchestration only. No ioq3 source or build-system file was
-patched.
+These are product orchestration only. No ioq3 build-system file is patched, and
+the one patched source file is enumerated in the lock rather than applied here.
 
 | Control | Value | Why |
 | --- | --- | --- |
-| `SOURCE_DATE_EPOCH` | `1784478090` | CMake turns it into the compiled-in `PRODUCT_DATE`. Without it the engine embeds `__DATE__` and no two builds agree. The value is the pinned engine commit's own committer timestamp, so it is derived from the baseline, and the build fails if the checkout's commit timestamp is not exactly that. |
+| `SOURCE_DATE_EPOCH` | `1784478090` | CMake turns it into the compiled-in `PRODUCT_DATE`. Without it the engine embeds `__DATE__` and no two builds agree. The value is the committer timestamp of the lock's **upstream base** commit, so it is derived from the baseline, and the build fails if that commit's timestamp is not exactly this. The base rather than the pin, deliberately: see the amendment section. |
 | Git metadata absent from `/src` | `git archive` export | Makes `PRODUCT_VERSION` exactly `1.36` instead of a `git describe` suffix whose abbreviation length is environment-dependent. |
 | Fixed container paths | `/src`, `/ports`, `/work` | Build output cannot depend on where the checkout lives. |
 | `LC_ALL=C`, `LANG=C`, `TZ=UTC` | fixed | Locale- and timezone-independent formatting. |
@@ -180,18 +186,15 @@ containing `1.36`.
 
 ## Accepted builds
 
-Two complete clean builds were run by `scripts/verify-browser-build.sh` from
-arena-web commit `7c50b6e3d35af601bfb21e67f9da976b44fc5bf3`. They produced
-identical artifact manifests and byte-identical artifacts.
+The current accepted result is the patched pin's. Two complete clean builds were
+run by `scripts/verify-browser-build.sh` from arena-web commit
+`c6a6b7f37a8d0e8046b35be8403c4f3bb4708904`; they produced identical artifact
+manifests and byte-identical artifacts. A third clean build, from
+`dd827ede405942766b741500bcd002f169c56bf1`, emitted the same ten digests and
+differs from the committed manifest in `producer.commit` alone.
 
-Artifact manifest as those builds wrote it:
-`sha256:c6665366ec489a8ba470caffa2faf91c52183a9d920628746bff36780dafab56`.
-The 2026-08-30 reissue changed one field of it, `baselineIdentity`, so the
-committed manifest is now
-`sha256:fbfdac8b0eb8b982b7f01d5ece11eaefa1ffaf9583d7095f872f814ffdb2b12b`.
-Two further clean builds run against the amended lock, whose whole-file
-identity is the `sha256:03657386…` above, produced the same ten digests below;
-their manifest differs from the committed one in `producer.commit` alone.
+Committed artifact manifest:
+`sha256:0ce5721e9ea41b6c40c542a7a0b21255fe4657d69e7ae7954618dfa62e2cfb76`.
 
 ```text
 12d597a49bc351149d7459692a0311cc5e186cf4f376c703ddaa6cfa27a602e4  baseq3/vm/cgame.qvm
@@ -199,12 +202,21 @@ their manifest differs from the committed one in `producer.commit` alone.
 23ba9181726e108be05a0096a9f49f3c7643d4ff8888267a6948c4a4e8389c33  baseq3/vm/ui.qvm
 d75941dc65e1c0006ac8ac5925af3291a4c1e7b6975a295e0f5cf86a7ee2aa66  ioquake3-config.json
 a43ca343372f7f8683d46d137f3ebbfbd8f5879d71a84fbbd6a3ff907082bcb2  ioquake3.html
-43c37ad7b82e0d6dbd7f6913542fbf3c2e9bac55656953de064ecdc6d13d53e9  ioquake3.js
-14d6e24174897e13ef4f35c9bee186da138d8d919cad6524e0d798d6c6b3ad8a  ioquake3.wasm
+b7d4f0f2c9e3871359bfcab097787f988ea366e2ab8bf8c37211b91975866fb7  ioquake3.js
+55108e97a43ce8a6140b0e912ff0246cb8fefd84d03b18cdae152aa4d0bf4802  ioquake3.wasm
 a9963c8a60dd3a4a4ec9e278ef6b00fa40b4ab663e980f90baa48bdccf469949  missionpack/vm/cgame.qvm
 cd615ce97dd65b2879158b540f0d331eb27fb52be9af7c8350dcc403955e3f68  missionpack/vm/qagame.qvm
 80783e0cfe98e5ea0009863c02c56b3c022a7c74468b5218c4870ce178accec5  missionpack/vm/ui.qvm
 ```
+
+WP1's own accepted builds, before the pin carried a patch, were run from
+`7c50b6e3d35af601bfb21e67f9da976b44fc5bf3` and wrote
+`sha256:c6665366ec489a8ba470caffa2faf91c52183a9d920628746bff36780dafab56`;
+the WP0 amendment reissued that manifest as
+`sha256:fbfdac8b0eb8b982b7f01d5ece11eaefa1ffaf9583d7095f872f814ffdb2b12b`
+with every artifact digest unchanged. Those builds differed from the ten digests
+above in `ioquake3.js` (`43c37ad7…`) and `ioquake3.wasm` (`14d6e241…`, 2,339,266
+bytes) and in nothing else.
 
 Six further builds run during development produced the same ten digests: one
 with container network access before the offline port pre-fetch existed, one
@@ -390,7 +402,7 @@ source-role claim remains unresolved.
 | Notice | Identity |
 | --- | --- |
 | ioquake3 `COPYING.txt` (GPL-2.0) | `sha256:fac9da110d1433f4df0cb9f5dda9449e9aff6ee236ed240fa29e3e92926c363a` at the pinned commit |
-| Per-component notices inside the ioq3 tree (Xiph, Opus, zlib, minizip, Mumble Link, ADPCM, MD5, puff, `bg_lib.c`) | the pinned commit `588393618dbc82e7207c21c6ddecca229944a03a` |
+| Per-component notices inside the ioq3 tree (Xiph, Opus, zlib, minizip, Mumble Link, ADPCM, MD5, puff, `bg_lib.c`) | the pinned commit `92351b8f0543448b9defaac25c552274eecbf15b`, where each is byte-identical to the upstream base |
 | IJG terms | `jpeg-9f/README` in `sha256:04705c110cb2469caa79fb71fba3d7bf834914706e9641a4589485c1f832565b`, as pinned by WP0 |
 | Emscripten LICENSE | `sha256:620a78084fc7ca97c0b5dea9abf891f3ffcadfdbf305276f099c9c4e12fc1d86` |
 | musl COPYRIGHT | `sha256:b870108ec5e7790e9f9919064f1b9421d62d5f9b0e6c230c6adf7ea2da62e97b` |
@@ -400,9 +412,11 @@ source-role claim remains unresolved.
 ### Corresponding source
 
 The GPL corresponding source for a distributed browser client is: the pinned
-public ioq3 commit; this repository's build orchestration at the commit named
-in the manifest's `producer`; the pinned Emscripten SDK, whose preferred source
-the baseline records as emsdk commit
+public ioq3 commit, which is the fork commit carrying the enumerated series and
+not the upstream base — the built source is the patched tree, and the fork is
+public for exactly that reason; this repository's build orchestration at the
+commit named in the manifest's `producer`; the pinned Emscripten SDK, whose
+preferred source the baseline records as emsdk commit
 `e5bd3d0874e302a18f13c5b41f5bacf9a40c8e59`; and the SDL2 port archive named
 above. All four are public and immutably identified.
 
@@ -439,6 +453,159 @@ build output, and none is produced.
 
 The upstream shell also hardcodes `+set net_enabled 0`, which is why the
 network sources compile but no multiplayer path is exercised here.
+
+## Amendment of 2026-08-30: the pin carries a patch series
+
+WP1 closed on a contract that is written into its own title: a **reproducible
+unmodified ioq3 browser build**. That contract is deliberately amended here. It
+did not survive contact with WP4's witnessed round, which found that the browser
+client renders a third of the lightmapped world white — and the cause turned out
+to be in the engine, where this repository could not reach it.
+
+### What the defect was
+
+`GLSL_GetShaderHeader` (`code/renderergl2/tr_glsl.c`) emitted
+`precision mediump float;` for every GLSL ES shader stage. GLSL ES has no
+default float precision in the fragment language, so a default must be emitted;
+`mediump` is the wrong one for this renderer. It is only required to cover
+±2^15 with 10 bits of mantissa, and `lightall_fp.glsl` does world-unit
+arithmetic per fragment:
+
+```text
+viewDir = u_ViewOrigin - position     (interpolated, world units)
+E       = normalize(viewDir)
+```
+
+On a map whose coordinates run into the thousands, `dot(viewDir, viewDir)`
+overflows to infinity, `normalize()` returns the zero vector, `E` and
+`EH = dot(E, H)` become 0, and `CalcSpecular()`'s
+`v = (EH * EH) * (roughness + 0.5) + EPSILON` collapses onto `EPSILON` — which
+is `1e-8` and itself underflows to zero at `mediump`. The division by it is
+unbounded and the surface is drawn saturated white. Desktop GL parses precision
+qualifiers and ignores them, which is why the identical shader source is correct
+natively and only a GLES driver that honours them is affected.
+
+A WebGL probe on the same driver (Chrome 152 / ANGLE over Mesa radeonsi)
+confirms the mechanism directly rather than by inference: at `mediump`,
+`normalize(vec3(1200.0))` returns the zero vector and `1.0e-8 > 0.0` is false,
+while both behave at `highp`.
+
+### The patch, and what it is not
+
+One patch, `renderergl2-glsl-es-highp`, touching `code/renderergl2/tr_glsl.c`
+and nothing else. It adds `GLSL_AddFloatPrecision()`: `highp` unconditionally
+for the vertex stage — which is what GLSL ES already defaults to, so the old
+code was a downgrade there — and a `GL_FRAGMENT_PRECISION_HIGH`-guarded `highp`
+for the fragment stage, because `highp` is mandatory in GLSL ES 3.00 but
+optional in 1.00 and the previous `mediump` behaviour is retained where it is
+unavailable.
+
+It is written to be upstream-mergeable: it changes no arena-web-specific
+behaviour, carries its reasoning in its commit message as upstream rationale,
+and would be correct for any GLES target. An upstream submission is an
+**optional later step and is deliberately not scheduled** — arena-web builds on
+Emscripten 6.0.8 while ioquake3's reference toolchain is 3.1.58, and validating
+against that older toolchain is not work this prototype wants to take on. The
+lock records the fact rather than the intention: `upstreamStatus` is
+`not-submitted`.
+
+### The contract, restated
+
+The pin is **not** "unmodified ioq3" any more, and it is **not** "a fork we
+change as we like" either. It is:
+
+> the exact upstream base commit the lock names, plus the exact patches the lock
+> enumerates, and nothing else.
+
+The fork is `https://github.com/Kaesual/ioq3.git`; its `main` mirrors upstream
+and holds the base, `web` holds the series. The pin is
+`92351b8f0543448b9defaac25c552274eecbf15b`; the base is
+`588393618dbc82e7207c21c6ddecca229944a03a`, which is upstream `main`'s head. The
+enumeration lives in `engine.appliedPatches` and the record type, its presence
+rule and the offline check that binds it to the real submodule diff are
+described in
+[`immutable-baseline.md`](immutable-baseline.md#the-engine-pin-is-a-fork-commit-and-what-that-obliges-the-lock-to-say).
+The practical consequence for this document is that "unmodified" is now a claim
+the lock makes and a validator checks, rather than a sentence in a report.
+
+### The embedded product date follows the base, not the pin
+
+`SOURCE_DATE_EPOCH` used to be the pinned engine commit's committer timestamp.
+Moving the pin moved it, and the first rebuild showed what that costs:
+`PRODUCT_DATE` is compiled into `code/game/g_main.c` and `code/qcommon/common.c`,
+so both `qagame` QVMs and the dedicated server binary changed too — at identical
+sizes, for a renderer patch that touches neither.
+
+The epoch is therefore taken from `engine.upstreamBase.commit`, through a
+`scripts/baseline-inputs.py` field rather than a literal repeated in a script.
+`PRODUCT_DATE` is ioquake3's own product version string and this fork's patch
+series does not make the engine a newer ioquake3 release; what identifies an
+accepted build is the commits and digests the lock and the manifests carry. The
+practical gain is that the difference between two accepted builds now equals the
+difference between their sources.
+
+### What the rebuild actually moved
+
+Three clean builds, digests above. Against the pre-patch manifest, exactly two
+artifacts differ:
+
+| Artifact | Before | After |
+| --- | --- | --- |
+| `ioquake3.wasm` | `14d6e241…`, 2,339,266 bytes | `55108e97…`, 2,339,387 bytes (+121) |
+| `ioquake3.js` | `43c37ad7…` | `b7d4f0f2…`, same 266,707 bytes |
+
+Everything else — all six QVMs, `ioquake3.html`, `ioquake3-config.json` — is
+byte-identical. `ioquake3.js` moves because the Emscripten glue embeds
+memory-layout constants that follow the grown data section, not because the
+patch reaches JavaScript.
+
+### Scope proof: the dedicated server is untouched
+
+The patch is renderer-only, and the dedicated server compiles no renderer, so
+the WP5 artifact had to come out byte-identical. It did.
+`scripts/verify-native-build.sh --target server` ran two clean server builds and
+two image builds:
+
+| Evidence | Result |
+| --- | --- |
+| `ioq3ded`, both builds | `sha256:dbb194f26ec8870e004da56acc11d5caa449dd2a2afd829be957f534cef499d2`, 798,456 bytes — the digest WP5 recorded |
+| Server-image content set | all four entries unchanged, including `arena/vm/qagame.qvm` `449fbd19…` |
+| Two image builds | the same image id |
+| Regenerated manifest vs. `provenance/arena-web-server.json` | agrees, `producer` aside |
+
+The image **id** does change, to
+`27a307166f2fad40c73a8a4df2c59e5a1f9db13584383296a84ec5306f42dfc2`, and the
+image was rebuilt for that reason: `native/server.Containerfile` stamps the
+engine commit, the baseline identity and the producing commit into
+`com.kaesual.arena-web.*` labels, so an unrebuilt image would keep asserting the
+superseded baseline while the provenance record asserted the new one. The
+distributed bytes under `/opt/arena-web` are the same bytes; only the labels
+moved. The WP5 evidence documents are records of the rounds they describe and
+are left exactly as written.
+
+### Validation of the fix
+
+The investigation that produced the patch measured, in the pinned browser:
+the near-white fraction of an in-game frame dropping from about 33% to about
+1.3%; 0 of 14 instrumented harness runs defective where the base rate had been
+roughly two in three; all 115 GLSL programs still compiling; and both WebGL 1
+and WebGL 2 fixed.
+
+After the rebuild, with the `r_vertexLight` workaround removed from
+`arena/game-profile.json`, `scripts/run-arena-acceptance.sh` was run three
+times — six sessions, eighteen in-game screenshots — and every check passed in
+every round. Near-white fractions per round, in capture order:
+
+| Round | In-game near-white fractions |
+| --- | --- |
+| 1 | 0.0092, 0.0065, 0.0036, 0.0064, 0.0052, 0.0059 |
+| 2 | 0.0064, 0.0252, 0.0024, 0.0050, 0.0048, 0.0054 |
+| 3 | 0.0081, 0.0063, 0.0069, 0.0069, 0.0023, 0.0022 |
+
+The `canvas-no-white-surface-regression` gate is unchanged at 5%, and it now
+guards the real fix rather than a workaround. The one 2.5% frame is a view with
+genuinely bright surfaces in it, an order of magnitude below the gate and two
+below the 15–52% the defect produced.
 
 ## What this does not prove
 

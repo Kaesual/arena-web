@@ -2,26 +2,28 @@
 
 # WP4 evidence: offline browser vertical slice
 
-**Status:** implemented; witnessed real-browser acceptance **pending**. The
-first witnessed attempt on 2026-08-30 found an intermittent renderer defect,
-now mitigated by a reviewed configuration workaround and guarded by an
-automated regression check — see "The witnessed round found a renderer
-defect" below. The round restarts from the beginning.
+**Status:** complete — the witnessed round of 2026-08-30 passed and its closure
+decisions are recorded below. The renderer defect that round found has since
+been root-caused and fixed in the engine, the configuration workaround it
+needed is removed, and the other two symptoms are reclassified; see "The defect
+class, resolved" below. The sections between are kept as the record of how the
+round actually went.
 
 This document records what the offline one-map FFA slice is, how the engine is
 booted, which bytes a local serve is allowed to hand to the browser, what the
 automated pre-acceptance run observed in the exact WP0 browser, and — just as
-precisely — which parts of WP4's acceptance a person still has to witness.
+precisely — which parts of WP4's acceptance a person had to witness.
 
 The slice is built and green: the pinned browser loads it from a clean local
 serve, the engine boots, the map is entered with three bots that fight each
 other, every runtime artifact matches its committed manifest identity, and no
-QVM rejection, uncaught exception or renderer-fatal error occurs. What has
-**not** happened is a human at the WP0 acceptance desktop playing it. That
-round is listed at the end and nothing here claims it.
+QVM rejection, uncaught exception or renderer-fatal error occurs.
 
-`ioq3/` is untouched at its pinned commit. No lock, schema, manifest,
-provenance record, content recipe or WP0/WP1/WP2/WP3 script was changed.
+WP4 itself changed no lock, schema, manifest, provenance record, content recipe
+or WP0/WP1/WP2/WP3 script, and left `ioq3/` untouched at its pinned commit. The
+post-closure renderer fix did move the engine pin, deliberately and under its
+own amendment; everything WP4 built is unchanged by it apart from the removed
+workaround.
 
 ## What was built
 
@@ -533,7 +535,7 @@ From a clean checkout, with the WP1 build and the WP3 pack already produced
 [`wp3-content-closure.md`](wp3-content-closure.md)):
 
 ```bash
-scripts/check.sh                                   # 421 tests, no network
+scripts/check.sh                                   # 634 tests, no network
 scripts/serve-arena.sh                             # then open http://127.0.0.1:8174/
 ```
 
@@ -593,7 +595,9 @@ repeated measurement in the pinned browser:
   the historical VAO-cache fixes (upstream #678, #723) are already in the pin
   with the cache defaulted off.
 
-**The mitigation** is `r_vertexLight 1` in the committed profile: the browser
+**The mitigation** — since removed; the root cause was found and fixed later the
+same day, see "The defect class, resolved" below — was `r_vertexLight 1` in the
+committed profile: the browser
 slice renders with per-vertex lighting instead of lightmaps. That is a visual
 downgrade confined to the browser — the native client keeps lightmaps and its
 defaults — and it is marked in the profile as a workaround to remove, not a
@@ -638,7 +642,83 @@ byte-for-byte upstream while it runs. If it ends in a small engine patch, the
 agreed model is a public fork carrying enumerated, upstream-mergeable patches
 on top of the pinned upstream commit — the same model the operator's Luanti
 fork uses — which also means amending WP1's "unmodified ioq3" contract
-deliberately at that point, plus an upstream issue or pull request.
+deliberately at that point.
+
+## The defect class, resolved — 2026-08-30, after closure
+
+The hunt above ran and ended. This section is the outcome for all three
+symptoms; it is recorded after WP4's closure and changes none of the closure
+evidence, which stands as written.
+
+### Symptom 1, white lightmapped surfaces — **root-caused and fixed**
+
+It was an engine defect, and a precision one. `GLSL_GetShaderHeader`
+(`code/renderergl2/tr_glsl.c`) emitted `precision mediump float;` for every
+GLSL ES shader stage. `mediump` only has to cover ±2^15 with 10 bits of
+mantissa, and `lightall_fp.glsl` works in world units per fragment: on a map
+whose coordinates run into the thousands, `dot(viewDir, viewDir)` overflows,
+`normalize()` returns the zero vector, and `CalcSpecular()`'s `1e-8` epsilon
+underflows to zero as well, so the specular term is unbounded and the surface
+is drawn saturated white. Desktop GL ignores precision qualifiers, which is
+exactly why the native client was clean and only the browser was not — the
+"native is clean" observation above was evidence *for* this cause, not against
+an engine cause.
+
+A WebGL probe on the same driver confirms the mechanism without inference: at
+`mediump`, `normalize(vec3(1200.0))` returns the zero vector and `1.0e-8 > 0.0`
+is false; at `highp` both behave.
+
+The fix is one enumerated patch on the fork's `web` branch,
+`renderergl2-glsl-es-highp`, touching that one file: `highp` unconditionally in
+the vertex stage and `GL_FRAGMENT_PRECISION_HIGH`-guarded `highp` in the
+fragment stage. The engine pin, the amended WP1 contract, the rebuilt client and
+the full validation numbers are in
+[`wp1-build-evidence.md`](wp1-build-evidence.md#amendment-of-2026-08-30-the-pin-carries-a-patch-series).
+
+Measured: the near-white fraction of an in-game frame fell from about 33% to
+about 1.3% in the investigation, 0 of 14 instrumented runs were defective
+against a base rate of roughly two in three, all 115 GLSL programs still
+compile, and WebGL 1 and WebGL 2 are both fixed.
+
+**The `r_vertexLight 1` workaround is removed** from `arena/game-profile.json`,
+together with its `cvarNote`, and `engineArguments` is regenerated from the
+declarative fields. The browser slice renders with lightmaps again. Three
+post-fix acceptance rounds — six sessions, eighteen in-game screenshots — passed
+every check with near-white fractions between 0.0022 and 0.0252. The
+`canvas-no-white-surface-regression` gate keeps its 5% threshold unchanged and
+now guards the fix instead of the workaround.
+
+### Symptom 2, distance-graded entity shading — **reclassified, not a browser defect**
+
+This is not a defect of the browser build. The native client renders these
+items identically at the same distances: the black modulate stages and
+white/oversaturated additive stages are renderergl2's normal look for these
+OpenArena item shaders, and the comparison that made it look browser-specific
+was against expectation rather than against the native client at the same
+camera position. Nothing to fix, and nothing carried forward.
+
+### Symptom 3, frame flicker — **unconfirmed headlessly, pending the operator**
+
+The patched build is frame-bitstable in the headless harness, so the
+instrumentation available here cannot see it. That is not evidence of absence:
+the symptom was reported on a real display and compositor, which is precisely
+what the harness does not have. It is carried forward as a re-check for the
+operator on the real desktop, against the patched client, rather than as a
+finding either way.
+
+### An operational fact found on the way
+
+**ioquake3 silently drops startup `+` commands beyond 32 lines.**
+`Com_ParseCommandLine` (`code/qcommon/common.c:413`) stores at most
+`MAX_CONSOLE_LINES` = 32 console lines and simply `return`s when it reaches
+that number — no warning, no error. Line 0 is the segment before the first
+`+`, so at most 31 `+` commands survive.
+
+That is a hard constraint on generated `engineArguments`, which grow with every
+cvar and every bot in the profile. The committed profile currently emits 15,
+plus the three the loader derives from the live canvas, so there is room; but a
+profile that quietly crossed the bound would lose its trailing `+addbot` lines
+with nothing in any log to say so. Anyone adding cvars or bots should count.
 
 ## Operator acceptance checklist — **completed 2026-08-30**
 
