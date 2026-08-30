@@ -1314,6 +1314,14 @@ integration implementation is scheduled.
 4. **Vertical-slice closure:** WP8 reviews the complete two-client evidence
    before WP9 or any hosting integration begins.
 
+## Scheduled follow-up outside the numbered packages
+
+The operator decided on 2026-08-31 that the accepted WP4 limitation —
+runtime resize and fullscreen-after-start do not update the engine
+resolution — is deliberately **not** part of WP7's network scope and will be
+addressed as its own small work package **after WP7**, covering the
+loader/engine canvas-size propagation.
+
 ## Input still needed from the operator
 
 No additional input is needed to review or begin WP0 if the Linux x86_64

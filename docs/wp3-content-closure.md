@@ -546,6 +546,11 @@ change: no schema, validator or WP0/WP1 artifact was modified.
 
 ## Amendment of 2026-08-31: the names the gamecode constructs at runtime
 
+**Operator confirmation, 2026-08-31:** after this amendment was built and
+reviewed, the operator ran a visual round on the real display and confirmed
+that both reported defects are resolved — the machine gun's barrel renders
+and spins, and the lightning gun's beam is visible.
+
 WP3 closed on the bounded claim above: every reference the two static readings
 extract resolves or is a recipe acceptance. The claim held; the bound bit.
 While confirming the WP4 renderer fix on 2026-08-30, the operator reported two
