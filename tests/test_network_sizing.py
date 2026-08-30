@@ -33,6 +33,8 @@ sys.path.insert(0, str(ROOT / "tests"))
 
 from network_sizing import (  # noqa: E402
     CLIENT_TO_SERVER,
+    DESTINATION_AUTHORIZE,
+    DESTINATION_UPDATE,
     CONNECTIONLESS,
     NETCHAN,
     SERVER_TO_CLIENT,
@@ -331,6 +333,28 @@ class ConnectionlessBoundaryTests(unittest.TestCase):
         self.assertEqual(case.inner_bytes, 40)
         self.assertEqual(case.code_ceiling_bytes, 1037)
 
+    def test_getmotd_is_client_originated_on_the_connect_path(self):
+        case = self.cases["getmotd"]
+        self.assertEqual(case.inner_bytes, 1038)
+        self.assertEqual(case.direction, CLIENT_TO_SERVER)
+        self.assertFalse(case.fragmentable)
+        self.assertEqual(case.destination, DESTINATION_UPDATE)
+        # Off the path by two independent mechanisms, which is the point: the
+        # cvar is settable at runtime, the address rule is not.
+        self.assertFalse(case.on_relay_path)
+
+    def test_enabling_the_motd_puts_it_on_the_path(self):
+        chatty = PrototypeProfile(motd_enabled=True)
+        cases = {case.name: case for case in connectionless_boundary_cases(chatty)}
+        self.assertTrue(cases["getmotd"].on_relay_path)
+
+    def test_get_key_authorize_is_small_but_a_second_destination(self):
+        case = self.cases["getKeyAuthorize"]
+        self.assertEqual(case.inner_bytes, 64)
+        self.assertEqual(case.destination, DESTINATION_AUTHORIZE)
+        self.assertFalse(case.on_relay_path)
+        self.assertIn("CD key", case.privacy_note)
+
     def test_the_engine_ceiling_is_the_out_of_band_buffer(self):
         # The point of the connectionless analysis: the engine applies no
         # packet-sized ceiling here, only the message buffer.
@@ -509,9 +533,14 @@ class DerivationTests(unittest.TestCase):
         self.assertFalse(intact["observedTrafficViableAtRecordBackedFloor"])
         self.assertFalse(intact["observedTrafficViableAtDerivedBudget"])
 
-    def test_the_refutation_is_backed_by_measured_refusals(self):
-        # The sizes an unchanged engine needs were not merely computed to be
-        # over budget; the routed round sent them and the transport refused.
+    def test_the_refutation_is_backed_by_planned_and_refused_cases(self):
+        # The routed round *planned* cases at exactly the sizes an unchanged
+        # engine needs, and the pinned browser refused to write them. The
+        # outcome is the probe's own pre-send comparison against the reported
+        # maximum, not an observation of the path — nothing reached the relay.
+        # That still refutes strategy 1 by itself: a browser that will not put
+        # the frame on the wire ends the matter regardless of what the path
+        # would have done with it.
         intact = self.result["strategies"]["intactDatagrams"]
         sizes = {case["innerBytes"]: case for case in intact["refutedByMeasuredCases"]}
         self.assertIn(1312, sizes)
@@ -539,6 +568,17 @@ class DerivationTests(unittest.TestCase):
         self.assertEqual(
             reduction["derivedReportedMaximum"]["target"]["marginBytes"], 72
         )
+
+    def test_second_destination_classes_are_reported(self):
+        # getmotd and getKeyAuthorize are addressed away from the one
+        # destination the relay profile has. Size is not what makes them
+        # dangerous, so they are their own population.
+        rows = {row["name"]: row for row in self.result["secondDestinationClasses"]}
+        self.assertEqual(set(rows), {"getmotd", "getKeyAuthorize"})
+        self.assertTrue(rows["getmotd"]["overBudgetAtSelectedTarget"])
+        self.assertFalse(rows["getKeyAuthorize"]["overBudgetAtSelectedTarget"])
+        for row in rows.values():
+            self.assertTrue(row["privacyNote"])
 
     def test_the_on_path_classes_needing_a_bound(self):
         # `connect` is originated by the client and `echo` is elicited from it

@@ -47,6 +47,16 @@ DIRECTIONS = (CLIENT_TO_SERVER, SERVER_TO_CLIENT)
 NETCHAN = "netchan"
 CONNECTIONLESS = "connectionless"
 
+# Where a datagram is addressed. The relay profile has exactly one destination
+# (docs/relay-datagram-contract.md), so a class addressed anywhere else can only
+# reach the relay if the browser backend maps every netadr_t onto the pinned
+# destination — the obvious shortcut when there is only one, and the reason WP7
+# is required to refuse and count such a send rather than re-address it.
+DESTINATION_PINNED = "pinned game destination"
+DESTINATION_UPDATE = "update server, PORT_UPDATE"
+DESTINATION_AUTHORIZE = "authorize server, PORT_AUTHORIZE"
+SECOND_DESTINATIONS = (DESTINATION_UPDATE, DESTINATION_AUTHORIZE)
+
 
 class NetworkSizingError(ValueError):
     """Raised when an input record cannot support the derivation."""
@@ -734,6 +744,20 @@ class PrototypeProfile:
     # with this value reproduces the census's observed 40-byte maximum exactly.
     game_name_bytes: int = len("Quake3Arena")
     server_browser_queries_on_relay_path: bool = False
+    # `+set cl_motd 0`. Unlike com_legacyprotocol this cvar carries no CVAR_INIT
+    # (code/client/cl_main.c:3562 registers it with flags 0), so it can be
+    # changed after start — which is why the launch setting is defence in depth
+    # and the structural bound is WP7's refusal to send anywhere but the pinned
+    # destination.
+    motd_enabled: bool = False
+    # `getKeyAuthorize` additionally needs com_standalone 0 (CVAR_ROM, default 0
+    # at code/qcommon/common.c:2708) and an NA_IP server address; the relay's
+    # destinations are virtual IPv6, so a conforming address mapping never
+    # reaches it. That is a structural mitigation, not a profile setting.
+    key_authorize_reachable: bool = False
+    # The maximum cdkey characters CL_RequestAuthorization will copy,
+    # code/client/cl_main.c:1613-1615.
+    cdkey_bytes: int = 32
 
     @property
     def info_string_bytes(self) -> int:
@@ -792,6 +816,8 @@ class BoundaryCase:
     observed_bytes: int | None = None
     compressed: bool = False
     variable_term: str = ""
+    destination: str = DESTINATION_PINNED
+    privacy_note: str = ""
 
     @property
     def fixed_bytes(self) -> int:
@@ -837,6 +863,9 @@ class BoundaryCase:
             "compressedOnTheWire": self.compressed,
             "variableTerm": self.variable_term,
             "fixedBytes": self.fixed_bytes,
+            "destination": self.destination,
+            "addressedToSecondDestination": self.destination != DESTINATION_PINNED,
+            "privacyNote": self.privacy_note,
         }
 
 
@@ -853,14 +882,19 @@ OOB_PRINT_CEILING_CITATION = "code/qcommon/net_chan.c:575,589"
 OOB_DATA_CEILING_BYTES = engine_value("MAX_MSGLEN") * 2
 OOB_DATA_CEILING_CITATION = "code/qcommon/net_chan.c:600,616"
 
-# `Huff_Compress` sets cursize to (bloc >> 3) + 12 with bloc starting at 16 bits
-# (code/qcommon/huffman.c:421,431). The bit emitter clamps against the input
-# size (huffman.c:312-315), but the not-yet-transmitted literal path
-# (huffman.c:329-331) and the trailing flush (huffman.c:429) are not clamped, so
-# the coder can expand its input by a small constant rather than only shrink it.
-# Two bytes is that constant. It is derived from the coder's structure, not
-# measured, which is exactly why the decision requires the emitted size to be
-# checked on the wire instead of trusted.
+# The Huffman coder can expand its input by two bytes, and the bound is derived
+# rather than assumed — "compression is not a bound" rests on it, so it is worth
+# the arithmetic:
+#
+#   `send()` clamps at `bloc >= maxoffset` -> `bloc = maxoffset + 1`
+#   (code/qcommon/huffman.c:311-313), so the coded stream cannot run away. But
+#   the not-yet-transmitted literal path adds 8 unclamped bits after the NYT
+#   symbol (huffman.c:329-331), and the trailing flush adds one more byte. So
+#   the output is at most (size * 8 + 9 + 8) >> 3 = size + 2 bytes, on top of
+#   the untouched 12-byte offset the caller passes (net_chan.c:616).
+#
+# Two bytes is that constant. It is structural, not measured, which is exactly
+# why the decision requires the emitted size to be checked on the wire.
 HUFFMAN_EXPANSION_BYTES = 2
 
 # The server's rcon output redirect buffer, code/server/sv_main.c:714.
@@ -989,6 +1023,26 @@ def connectionless_boundary_cases(
     rcon_terms = (
         ("out-of-band prefix", OUT_OF_BAND_PREFIX_BYTES),
         ("message, MAX_RCON_MESSAGE - 4", 1024 - OUT_OF_BAND_PREFIX_BYTES),
+    )
+
+    # The connect path's two datagrams to *other* destinations. `getmotd` is the
+    # larger and the more surprising: CL_Connect_f calls CL_RequestMotd
+    # unconditionally before anything else, so it is client-originated with no
+    # user action, and neither the "the client never originates it" exclusion
+    # used for the server browser nor netchan fragmentation applies to it.
+    motd_terms = (
+        ("out-of-band prefix", OUT_OF_BAND_PREFIX_BYTES),
+        ('literal "getmotd \""', len('getmotd "')),
+        ("info, MAX_INFO_STRING - 1", info),
+        ('literal quote and newline', 2),
+    )
+
+    key_authorize_terms = (
+        ("out-of-band prefix", OUT_OF_BAND_PREFIX_BYTES),
+        ('literal "getKeyAuthorize"', len("getKeyAuthorize")),
+        ('space and cl_anonymous, "%i" of an int', 1 + digits),
+        ("space", 1),
+        ("cdkey alphanumerics, capped at 32", profile.cdkey_bytes),
     )
 
     # The rcon *answer*. SV_FlushRedirect prints the accumulated command output
@@ -1182,6 +1236,74 @@ def connectionless_boundary_cases(
                 "" if profile.server_browser_queries_on_relay_path else browser_note
             ),
             note="a fixed literal",
+        ),
+        BoundaryCase(
+            name="getmotd",
+            direction=CLIENT_TO_SERVER,
+            kind=CONNECTIONLESS,
+            fragmentable=False,
+            inner_bytes=_sum_terms(motd_terms),
+            terms=motd_terms,
+            citation="code/client/cl_main.c:1519-1547,1721",
+            code_ceiling_bytes=OOB_PRINT_CEILING_BYTES,
+            ceiling_citation=OOB_PRINT_CEILING_CITATION,
+            destination=DESTINATION_UPDATE,
+            on_relay_path=profile.motd_enabled,
+            off_path_reason=(
+                ""
+                if profile.motd_enabled
+                else (
+                    "the profile sets cl_motd 0, and independently of that the "
+                    "datagram is addressed to the update server rather than the "
+                    "pinned destination, which WP7 must refuse rather than "
+                    "re-address"
+                )
+            ),
+            privacy_note=(
+                "carries the renderer string and com_version; re-addressing it "
+                "to the game destination would hand the player's GPU string to "
+                "the game server"
+            ),
+            note=(
+                "the largest client-originated datagram on the connect path, and "
+                "the one the analysis first missed. CL_Connect_f calls "
+                "CL_RequestMotd unconditionally (cl_main.c:1721); the function is "
+                "compiled in whenever STANDALONE is not defined "
+                "(UPDATE_SERVER_NAME, qcommon.h:255-256) and returns early only "
+                "when cl_motd is 0 - a cvar registered with flags 0, so it is "
+                "settable at runtime and cannot carry the bound alone"
+            ),
+        ),
+        BoundaryCase(
+            name="getKeyAuthorize",
+            direction=CLIENT_TO_SERVER,
+            kind=CONNECTIONLESS,
+            fragmentable=False,
+            inner_bytes=_sum_terms(key_authorize_terms),
+            terms=key_authorize_terms,
+            citation="code/client/cl_main.c:1606-1630,2396-2398",
+            code_ceiling_bytes=OOB_PRINT_CEILING_BYTES,
+            ceiling_citation=OOB_PRINT_CEILING_CITATION,
+            destination=DESTINATION_AUTHORIZE,
+            on_relay_path=profile.key_authorize_reachable,
+            off_path_reason=(
+                ""
+                if profile.key_authorize_reachable
+                else (
+                    "addressed to the authorize server, and additionally gated on "
+                    "an NA_IP server address, which a virtual-IPv6 relay "
+                    "destination is not"
+                )
+            ),
+            privacy_note=(
+                "carries the CD key's alphanumerics; re-addressing it to the "
+                "game destination would disclose the key to the game server"
+            ),
+            note=(
+                "small, but a second non-game destination on the connect path, "
+                "and the reason the address rule is about destinations rather "
+                "than about sizes"
+            ),
         ),
         BoundaryCase(
             name="echo",
@@ -1685,6 +1807,27 @@ def derive(
         "profile": profile.as_json(),
         "budgets": budgets,
         "decision": _decision_block(targets, profile),
+        # Classes the engine addresses somewhere other than the one destination
+        # the relay profile has. Their size is not what makes them dangerous —
+        # `getKeyAuthorize` is 64 bytes — so they are reported as their own
+        # population rather than folded into the over-budget lists. WP7's rule
+        # that a send to a non-pinned destination is refused and counted is what
+        # bounds them, and it bounds them whatever their size and whatever a
+        # future engine change adds to this list.
+        "secondDestinationClasses": [
+            {
+                "name": case.name,
+                "direction": case.direction,
+                "destination": case.destination,
+                "innerBytes": case.inner_bytes,
+                "overBudgetAtSelectedTarget": not _fits(
+                    case.inner_bytes, targets[SELECTED_TARGET].budget_bytes
+                ),
+                "privacyNote": case.privacy_note,
+            }
+            for case in connectionless
+            if case.destination != DESTINATION_PINNED
+        ],
         "boundaryCases": _class_fit_rows(stock_netchan + connectionless, budgets),
         "observedClasses": _class_fit_rows(facts.observed, budgets),
         "strategies": {

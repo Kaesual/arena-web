@@ -169,6 +169,20 @@ def render(result: dict) -> str:
         if row["offPathReason"]:
             lines.append(f"      off path: {row['offPathReason']}")
 
+    lines.append(_rule("Classes addressed to a second destination"))
+    lines.append(
+        "The relay profile has exactly one destination. These are refused and "
+        "counted by WP7's address rule, never re-addressed:"
+    )
+    for row in result["secondDestinationClasses"]:
+        lines.append(
+            f"  {row['name']} ({row['direction']}, {row['destination']}): "
+            f"{row['innerBytes']} bytes; over budget at the selected target: "
+            f"{row['overBudgetAtSelectedTarget']}"
+        )
+        if row["privacyNote"]:
+            lines.append(f"      privacy: {row['privacyNote']}")
+
     lines.append(_rule("Strategy 1 - intact datagrams, no engine change"))
     intact = result["strategies"]["intactDatagrams"]
     lines.append(
