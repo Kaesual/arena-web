@@ -544,6 +544,9 @@ travels in the JSON the floor travels in, instead of living only here.
 
 The floor is deliberately per session and carries no safety margin; choosing a
 margin is WP6's decision, not this document's.
+[`wp6-network-sizing.md`](wp6-network-sizing.md) has now proposed one — a
+64-byte reserve below the accepted budget — and consumes the 768-byte floor and
+the 982-byte derived budget as its two candidate sizing targets.
 
 Two concurrent sessions need two browser contexts, and each context numbers its
 own sessions from zero, so their reports cannot simply be concatenated —
@@ -633,7 +636,9 @@ the assigned address, which the page also keeps out of its log.
   than the one it received, which the contract's echo destination is not. WP6
   inherits this gap knowingly, and the packed cases are the only asymmetry the
   present plan produces — a large browser-to-server frame answered by several
-  small server-to-browser ones.
+  small server-to-browser ones. WP6 resolved it by holding **both** directions
+  to the same single budget, which is the conservative reading, and records the
+  gap as inherited rather than closed.
 
 ## Repeating what exists
 

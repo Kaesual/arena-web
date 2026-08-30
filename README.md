@@ -49,7 +49,11 @@ release.
   `docs/wp5-packet-census.md` records the build, the image and the packet
   census.
 - `records/` holds the machine-readable measurement records the work packages
-  produce, starting with the WP5 packet census.
+  produce: the WP5 packet census and the WP2 routed datagram measurement.
+- `docs/wp6-network-sizing.md` is the network-sizing decision those two records
+  feed: which ioquake3 datagrams fit through the measured browser path, the
+  code-level sizes a short session cannot produce, and the proposed transport
+  strategy. `scripts/derive-network-sizing.py` recomputes every number in it.
 - `docs/relay-datagram-contract.md` is the public routed datagram contract: the
   protocol subset and byte-exact framing a browser needs to reach one game
   destination through a compatible relay.
@@ -220,6 +224,23 @@ an integration environment supplies them.
 
 The deterministic half of the contract needs no browser and runs in
 `scripts/check.sh`.
+
+## Recomputing the network-sizing decision
+
+The routed measurement and the packet census together decide how the engine's
+datagrams have to be sized to fit through the relay. That arithmetic is a
+script rather than a prose claim:
+
+```bash
+scripts/derive-network-sizing.py            # the readable derivation
+scripts/derive-network-sizing.py --json     # the same numbers as JSON
+```
+
+It reads only committed bytes — no network, no clock — re-validates the routed
+record against the committed measurement vector, restates the engine constants
+with a `file:line` citation each, and prints the per-direction maxima, the relay
+overhead, both candidate budgets, which packet classes fit at each, and the cost
+of each candidate fragment size. See `docs/wp6-network-sizing.md`.
 
 ## Licensing
 
