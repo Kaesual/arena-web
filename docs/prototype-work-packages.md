@@ -41,7 +41,7 @@ is a plan change; adding another platform is later scope.
 | --- | --- | --- | --- |
 | WP0 | Immutable toolchain and acceptance baseline | — | ✅ Complete — exact public pins, closed license/tree inventory, schemas, relay vector and fail-closed validation |
 | WP1 | Reproducible ioq3 browser build | WP0 | ✅ Complete — two clean offline builds in the pinned Emscripten 6.0.8 image produce byte-identical artifacts and one validated manifest, with the observed component, QVM/lcc, license-closure and isolation findings recorded. **Amended 2026-08-30:** "unmodified ioq3" is deliberately replaced by "the pinned upstream base plus the patches the lock enumerates", to carry the WP4 renderer fix; see the amendment section of the evidence document |
-| WP2 | Relay conformance probe and routed-path measurement | WP0 | Deterministic part implemented — public contract, browser probe, in-memory adapter and 125 deterministic tests; routed acceptance pending operator-supplied runtime values |
+| WP2 | Relay conformance probe and routed-path measurement | WP0 | Deterministic part implemented and amended 2026-08-30 to the in-band session profile — public contract, browser probe, in-memory adapter and 155 deterministic tests; routed acceptance still pending operator-supplied runtime values and the integration UDP-echo provisioning |
 | WP3 | Audited deterministic minimal-content closure | WP0 | ✅ Complete — two clean assemblies in the pinned builder image produce a byte-identical 668-member `oa_pvomit` FFA pack from six digest-pinned Debian-cleaned OpenArena archives, every member `GPL-2.0-or-later` with resolved notices, and every reference the two static readings of the pinned `baseq3` QVM sources extract either resolves or is a recipe acceptance with a stated reason |
 | WP4 | One-map offline browser arena with bots | WP1, WP3 | ✅ Complete — the witnessed round of 2026-08-30 passed every gameplay, input, focus, audio, console and clean-relaunch check (report in the evidence documents); the known browser-renderer defect class (white lightmapped surfaces mitigated by the reviewed `r_vertexLight` workaround and guarded by a near-white regression check; distance-graded entity shading; frame flicker) is recorded as decided while the timeboxed root-cause hunt continues on scratch builds. Closure accepted the operator-chosen Brave/KDE variation (the pinned Chrome is exercised by the automated harness on every gate run) and recorded one new accepted limitation: runtime resize and fullscreen-after-start do not update the engine resolution. **Post-closure, 2026-08-30:** the defect class is resolved — white lightmapped surfaces root-caused to a GLSL ES `mediump` precision default and fixed in the engine (workaround removed), entity shading reclassified as renderergl2's normal native look rather than a browser defect, and frame flicker left as an operator re-check on a real display |
 | WP5 | Matching native server and packet census | WP0, WP3 | ✅ Complete — the pinned native toolchain, the reproducible dedicated server, the runtime-base server image and a 41,833-datagram census of a driven session are built, reviewed and green, and the witnessed round of 2026-08-30 closed the one outstanding acceptance word with a player kill against a bot (report and native reference images in the evidence documents) |
@@ -269,8 +269,23 @@ contract is
 [`relay-datagram-contract.md`](relay-datagram-contract.md). The specification,
 the browser probe, the in-memory adapter and the deterministic tests exist; no
 measurement against a real endpoint has been taken, and the payload budget WP6
-needs has not been derived. The evidence document lists the one-time runtime
-values an operator must supply before the routed round can begin.
+needs has not been derived.
+
+The guided readiness check recorded in
+[`wp2-routed-readiness-2026-08-30.md`](wp2-routed-readiness-2026-08-30.md) found
+that the integration profile did not match the session model of the relay the
+routed round will use. The compatibility increment it names is **implemented**:
+the contract and the probe moved to the in-band session profile, the 40-byte
+routing header became a public self-contained profile the probe builds and
+validates, the invalid-authorization case became an in-band refusal followed by
+session termination, and the zero-length boundary is exercised in both
+directions. The amendment is recorded in the evidence document; the committed
+measurement vector is unchanged.
+
+What is still missing is not code. The routed round waits on the operator-
+supplied runtime values the evidence document lists and on the integration
+provisioning of the readiness report's steps 5 to 7 — the byte-exact UDP echo
+destination, the single-use authorizations and the endpoint trust input.
 
 ### Outcome
 

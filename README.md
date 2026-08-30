@@ -210,13 +210,13 @@ scripts/serve-probe.sh          # then open http://127.0.0.1:8173/probe/
 ```
 
 The page first runs the committed conformance vectors and a complete in-memory
-session through its own implementation of
-`docs/relay-datagram-contract.md`, and refuses to open a network session if
-anything disagrees. The endpoint, trust input, short-lived authorization and
-routing prefix are typed in at runtime; none of them is committed here, and the
-measurement report has no field for them. Without those values the probe runs
-its self-test and stops, which is the intended state until an integration
-environment supplies them.
+session — including the in-band address exchange — through its own
+implementation of `docs/relay-datagram-contract.md`, and refuses to open a
+network session if anything disagrees. The endpoint, trust input, short-lived
+authorization and virtual destination are typed in at runtime; none of them is
+committed here, and the measurement report has no field for them. Without those
+values the probe runs its self-test and stops, which is the intended state until
+an integration environment supplies them.
 
 The deterministic half of the contract needs no browser and runs in
 `scripts/check.sh`.

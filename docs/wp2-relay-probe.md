@@ -2,7 +2,8 @@
 
 # WP2 evidence: relay conformance probe
 
-**Status:** deterministic part implemented; routed acceptance **pending**
+**Status:** deterministic part implemented, amended 2026-08-30 to the in-band
+session profile; routed acceptance **pending**
 
 This document records what exists for WP2 today and, just as precisely, what
 does not. The public contract, the browser probe, the in-memory adapter and the
@@ -10,26 +11,99 @@ deterministic tests are built and green. The routed acceptance — a real
 endpoint, real measurements, a machine-readable report from the pinned browser
 and a payload budget derived from repeated sessions — has **not** happened, and
 cannot happen until an operator supplies the one-time runtime values listed at
-the end.
+the end and provisions the integration UDP echo path.
 
 Nothing here is a measurement result. No number in this document was observed on
 a network path.
 
 `ioq3/` is untouched at its pinned commit. No lock, schema, WP0/WP1/WP3 script
-or committed manifest was changed.
+or committed manifest was changed, and the committed measurement vector is
+byte-identical: still
+`sha256:546a9a859f92d72d0a2d7dc14acdd80410e0873148500b2d0e26765a6182a064`, still
+46 cases.
+
+## Amendment 2026-08-30: the in-band session profile
+
+The routed-readiness check recorded in
+[`wp2-routed-readiness-2026-08-30.md`](wp2-routed-readiness-2026-08-30.md) found
+that the contract's *integration* profile did not match the session model of the
+relay the routed round will run against. The framing was compatible; the way a
+session is authorized and addressed was not. This amendment replaces that part of
+the profile. It is a deliberate change of a normative document, made before any
+routed measurement existed, and it changes no measured size, no case and no
+committed identity.
+
+**Withdrawn**
+
+- *Authorization in the endpoint URL.* The endpoint was an `https` template
+  containing exactly one `{authorization}` placeholder, substituted verbatim at
+  connect time.
+- *Refusal by handshake.* An invalid authorization was expected to be refused by
+  refusing or closing the WebTransport session, with no in-band answer.
+- *The opaque 40-byte routing prefix.* The header was runtime input supplied as
+  80 hexadecimal characters, never parsed, pinned on first sight, and its
+  destination port was an operator acknowledgement rather than a check.
+- *The keep-alive expressed as the smallest legal frame.* Byte-identical to the
+  0-byte measurement case, so it needed sequencing rules to stay apart from it.
+
+**Adopted**
+
+- *A plain endpoint URL and an in-band exchange.* The endpoint carries no
+  authorization and no placeholder — a URL still containing one is refused with
+  an explanation. A session begins with one `REQUEST_ADDRESS` carrying the
+  authorization verbatim as UTF-8, and is unusable until `ADDRESS_ASSIGNED`
+  names its 16-byte virtual client address.
+- *In-band refusal, then termination.* An invalid or refused authorization is
+  answered with `ERROR` code `0x00000002`, after which the relay closes the
+  session. The acceptance case for invalid authorization changed accordingly:
+  it now requires that exact in-band code followed by a session that carries
+  nothing further. Neither the authorization nor the endpoint nor the relay's own
+  error text may appear in a log or a report; only the code does.
+- *A public, self-contained routing header.* The 40 bytes are type, destination
+  address and port, source address and port. The probe builds the outbound header
+  from runtime destination values and its assigned address, and validates a return
+  header on three of its four fields. The fourth, the return source port, is the
+  destination's own reply port, which a client cannot predict and therefore does
+  not check. The first-frame pin and the destination-port acknowledgement are
+  both gone: the client writes the port itself.
+- *A keep-alive datagram type.* `KEEP_ALIVE` is its own type, so it can never be
+  confused with a 0-byte measurement datagram. The probe still sends none, but it
+  recognises and counts an inbound one instead of calling it malformed.
+- *Zero-length inner datagrams, stated behaviourally.* A conforming relay carries
+  a zero-length inner datagram to the destination and wraps a zero-length
+  response as a return frame declaring length 0. Since 2026-08-30 the relay this
+  repository measures against behaves that way in both directions. A relay that
+  discards it leaves the committed vector's 0-byte case unanswered, which a
+  conforming client records as a case that did not complete — never as an
+  acceptance.
+
+**Consequences for the artifacts**
+
+- The measurement report's `formatVersion` is **2**. The opaque
+  `prefixMismatchFrames` counter became `headerMismatchFrames`, and the session
+  record gained `errorDatagrams`, `keepAliveDatagrams` and
+  `unexpectedControlDatagrams`. No routed report of either version exists; the
+  bump is there so none can be misread if one turns up.
+- The runtime configuration changed shape: `endpointTemplate`,
+  `routingPrefixHex`, `expectedReturnPrefixHex` and
+  `destinationPortMatchesProjection` are gone; `endpointUrl`,
+  `destinationAddressHex`, `destinationPort`, `clientSourcePort` and
+  `assignmentTimeoutMilliseconds` replace them.
+- The conformance vectors grew from 54 to 82 cases and their `formatVersion` is
+  2. The measurement vector did not change at all.
 
 ## What was built
 
 | Path | Role |
 | --- | --- |
-| [`relay-datagram-contract.md`](relay-datagram-contract.md) | the normative public specification of the game-destination subset |
-| [`scripts/relay_probe.py`](../scripts/relay_probe.py) | the reference implementation: frame grammar, payload tag, measurement plan, session driver, report validator |
-| [`scripts/relay_loopback.py`](../scripts/relay_loopback.py) | the in-memory relay and echo destination, with deliberate contract violations for the rejection paths |
+| [`relay-datagram-contract.md`](relay-datagram-contract.md) | the normative public specification of the game-destination subset, including the 2026-08-30 session and header profile |
+| [`scripts/relay_probe.py`](../scripts/relay_probe.py) | the reference implementation: datagram types, session setup, relay header, frame grammar, payload tag, measurement plan, session driver, report validator |
+| [`scripts/relay_loopback.py`](../scripts/relay_loopback.py) | the in-memory relay and echo destination, modelling the session semantics, with deliberate contract violations for the rejection paths |
 | [`scripts/relay_vectors.py`](../scripts/relay_vectors.py) + [`emit-relay-conformance-vectors.py`](../scripts/emit-relay-conformance-vectors.py) | the portable conformance vectors and their emitter |
-| [`probe/conformance-vectors.json`](../probe/conformance-vectors.json) | 54 committed cases: 19 encoded frames, 4 ceiling acceptances, 15 rejections, 8 tags, 8 payloads |
+| [`probe/conformance-vectors.json`](../probe/conformance-vectors.json) | 82 committed cases: 19 encoded frames, 4 ceiling acceptances, 15 frame rejections, 8 tags, 8 payloads, 10 control datagrams, 7 control rejections, 3 headers, 3 header rejections, 5 return-header decisions |
 | `probe/relay-framing.js`, `probe/measurement.js`, `probe/adapters.js`, `probe/probe.js`, `probe/index.html` | the standalone browser probe, including its own report validator so the page never renders or offers an unvalidated report |
 | [`scripts/serve-probe.sh`](../scripts/serve-probe.sh) | loopback static server for the probe |
-| [`tests/test_relay_probe.py`](../tests/test_relay_probe.py) | 125 deterministic tests, raising the suite from 162 to 287 |
+| [`tests/test_relay_probe.py`](../tests/test_relay_probe.py) | 155 deterministic tests for this work package; the repository suite is 665 |
 | [`tests/js_conformance_harness.mjs`](../tests/js_conformance_harness.mjs) | runs the browser sources under Node so the suite can compare the two implementations |
 
 The tests run in `scripts/check.sh` and in the containerized
@@ -38,10 +112,14 @@ third-party dependency and no network.
 
 ## The framing this repository now fixes
 
+- Every datagram opens with a 4-byte big-endian type. A session begins with
+  `REQUEST_ADDRESS` and `ADDRESS_ASSIGNED`; `RELAY_PACKET` carries measurement
+  traffic; `ERROR` and `KEEP_ALIVE` are recognised, counted and ignored.
 - One relay frame is one WebTransport datagram. There is no framing above the
   datagram and no fragmentation.
-- A frame opens with a 40-byte relay header, followed by inner UDP datagrams
-  each introduced by a 2-byte big-endian unsigned length.
+- A frame opens with a 40-byte relay header — type, destination address and
+  port, source address and port — followed by inner UDP datagrams each
+  introduced by a 2-byte big-endian unsigned length.
 - Browser to server carries **one or more** inner datagrams; server to browser
   carries **exactly one**.
 - No padding, no trailing bytes. A frame that ends inside a length field or
@@ -79,20 +157,29 @@ that rule; the check exists so a future vector cannot quietly break correlation.
 
 The work-package text and the WP0 measurement vector determine the framing
 completely. Four things they leave open were decided here, and each is recorded
-in the specification rather than buried in code:
+in the specification rather than buried in code. Two of the four were revised by
+the 2026-08-30 amendment above; both are stated here in their current form, with
+what they replaced.
 
-**The 40-byte header is opaque.** Its size and position are fixed; its interior
-is not defined by any input this repository is allowed to use, and it was not
-reverse-engineered. The contract therefore treats it as a routing prefix that a
-client never parses, and the probe takes it as runtime configuration. Of the two
-properties the contract requires of it, only one is checkable from a client: the
-probe pins the first accepted return prefix, or compares against an
-operator-supplied one, and refuses any later frame that differs. That detects
-drift and is not a security mechanism — a probe that has never seen the correct
-prefix adopts whichever arrives first, and what attributes a datagram to a
-session is the payload tag. The other property, that the prefix addresses one
-destination on the projected port, cannot be checked at all from bytes the
-contract does not parse.
+**The 40-byte header is a public, self-contained profile.** It is type,
+destination address and port, source address and port. The probe builds the
+outbound header from the destination values it is given and the client address
+the relay assigned, and accepts a return frame only when its type, destination
+address, destination port and source address are the ones this session must see.
+The return header's source port is the destination's own reply port, which a
+client cannot predict from the virtual port it addressed, so it is reported
+rather than checked. None of this is a security mechanism: it establishes that a
+frame belongs to this session's destination pair, and what attributes a datagram
+to a *case* is the payload tag.
+
+*This replaced an opaque prefix.* Until 2026-08-30 the header was 80 hexadecimal
+characters of runtime input that a client never parsed. Only one of its two
+required properties was checkable from a client — the probe pinned the first
+accepted return prefix and refused any later frame that differed — and the
+other, that the prefix addressed one destination on the projected port, was an
+operator acknowledgement the probe refused to run without. Both are now
+unnecessary: the client writes the port itself, and a wrong one is answered by
+the relay rather than assumed away.
 
 **The 16-byte payload tag is a session nonce plus a datagram ordinal.** The
 vector fixes the length, the payload-prefix placement and that shorter payloads
@@ -103,24 +190,38 @@ session bytes followed by a 4-byte big-endian ordinal, assigned in send order
 across the whole plan. Every remaining payload byte is the filler `i mod 256`,
 which makes an echo byte-comparable.
 
-**Authorization travels in the endpoint URL.** A browser `WebTransport`
-construction offers no request-header control, so a browser-presented
-authorization can only be in the URL or in the session's first message. This
-profile uses the URL through a single operator-supplied `{authorization}`
-placeholder, which keeps the parameter name environment-specific and keeps the
-token a separate field that is never stored, logged or reported.
+**Authorization travels in the session's first datagram.** A browser
+`WebTransport` construction offers no request-header control, so a
+browser-presented authorization can only be in the URL or in the session's first
+message. This profile uses the first message: one `REQUEST_ADDRESS` carrying the
+value verbatim as UTF-8, answered by the assignment that makes the session
+usable, or by an in-band `ERROR` code `0x00000002` after which the relay closes
+the session. The value is opaque here — nothing in this repository parses it or
+knows how it is issued — and it is single-use by construction: the handshake
+holds the only copy, drops it when the request datagram is built, and refuses to
+build a second one. The page clears its field after every attempt, successful or
+not, because a refused attempt spent the value just as a completed one did.
 
-**A keep-alive is specified but not implemented, and its frame shape is the
-smallest legal frame.** The vector already requires a 0-byte inner datagram to
-be a valid measured case, so an idle keep-alive needs no new message type: it is
-the routing prefix plus one 0-byte inner datagram, 42 bytes, never sent while a
-case is outstanding, with returned 0-byte datagrams consumed against the
-outstanding keep-alive count first. The contract says all of that.
+*This replaced a URL placeholder.* Until 2026-08-30 the operator supplied an
+endpoint template containing exactly one `{authorization}` placeholder and the
+probe substituted the value verbatim at connect time. That put a secret into a
+URL, which platform errors quote; it required the operator to supply a token
+already safe at its position in the URL; and it did not match the session model
+the routed round has to speak. A template still carrying the placeholder is now
+refused with an explanation rather than opened with a literal brace in its path.
+
+**A keep-alive has its own datagram type, and the probe still sends none.**
+`KEEP_ALIVE` is the 4-byte type plus meaningless padding, and a relay answers one
+with a keep-alive of its own. Because it is a distinct type it can never be
+confused with the committed vector's 0-byte case — which is exactly what the
+withdrawn profile's "smallest legal frame" keep-alive was byte-identical to, and
+why that version needed sequencing rules and an outstanding-keep-alive count to
+keep the two apart. Those rules are gone.
 
 The probe **sends none**, and the deterministic round carries no keep-alive
-code, configuration field or report counter. A measurement plan is never idle:
-a case is always either outstanding or ready to start, so a keep-alive could
-never fire during a run. An earlier version shipped the mechanism anyway; it was
+timer or configuration field. A measurement plan is never idle: a case is always
+either outstanding or ready to start, so a keep-alive could never fire during a
+run. An earlier version shipped the sending mechanism anyway; it was
 unreachable, its counter appeared in every report proving nothing, and an
 unanswered keep-alive would have blocked the sequential untagged cases
 indefinitely because nothing timed it out. A mechanism that cannot fire is worse
@@ -128,27 +229,45 @@ than an absent one, so it was removed rather than left as decoration. Keeping a
 session alive matters when a session is *held* open — which this probe does not
 do, and which the routed round introduces.
 
-Because the port equality is unverifiable from an opaque prefix, the probe turns
-it into an explicit operator acknowledgement and refuses to run without it. That
-is a gate, not a check, and the routed round should confirm the port by other
-means.
+The probe does **receive** keep-alives, because a relay answers one, so the
+driver recognises the type and counts it rather than calling ordinary traffic
+malformed.
 
 ## What the deterministic tests prove
 
 The tests cover the acceptance evidence that does not need a network:
 
 - **Missing runtime configuration** — every required field, unknown fields, a
-  non-`https` endpoint, a template without exactly one placeholder, an empty
-  authorization, a prefix that is not 40 hexadecimal bytes, a certificate hash
-  that is not a SHA-256 digest, out-of-range numbers, and the unacknowledged
-  destination port are each refused.
-- **Malformed relay frames** — short frames, a frame ending inside a length
-  field or a payload, a trailing byte, a server-to-browser frame with none or
-  two inner datagrams, a browser-to-server frame with none, a prefix of the
-  wrong length, an unknown direction, and a declared length above the accepted
-  ceiling. The in-memory relay injects truncated, packed, header-only,
-  oversize-declaring and foreign-prefix return frames, and none of them
-  completes a case.
+  non-`https` endpoint, an endpoint carrying a fragment or the withdrawn
+  `{authorization}` placeholder, an empty authorization, a destination address
+  that is not 16 hexadecimal bytes or is the unspecified address, a port outside
+  1–65535, a certificate hash that is not a SHA-256 digest, and out-of-range
+  numbers are each refused.
+- **Session setup** — the authorization is spent exactly once and a second
+  request datagram is refused; a datagram accepted before the request was built
+  is refused; an assignment of the wrong length, the wrong type or the
+  unspecified address is refused; a keep-alive during setup is ignored rather
+  than fatal; an in-band `ERROR` raises a refusal carrying **only** its code,
+  with neither the authorization nor the relay's text in the message; the
+  in-memory relay then closes the session, and nothing further can be sent on
+  it. Relay traffic sent before an assignment is never answered, and a driver
+  built without a routing context is refused.
+- **Malformed relay frames and headers** — short frames, a frame ending inside a
+  length field or a payload, a trailing byte, a server-to-browser frame with none
+  or two inner datagrams, a browser-to-server frame with none, a header of the
+  wrong length or the wrong type, an unknown direction, and a declared length
+  above the accepted ceiling. A return header is checked field by field: a
+  foreign destination address, a foreign destination port and a foreign source
+  address are each refused while the relay's own header still completes the case,
+  and the return source port is accepted whatever it is. The in-memory relay
+  injects truncated, packed, header-only, oversize-declaring and
+  foreign-header return frames, and none of them completes a case.
+- **Control datagrams inside a measuring session** — an answered keep-alive, a
+  second address assignment, an in-band destination refusal, an unknown type and
+  a datagram too short to carry one are each counted in their own bucket, and
+  none of them completes a case. An unauthorized destination is answered in band
+  and its cases still time out, because an unknown and an unauthorized
+  destination are the same answer.
 - **Mismatched nonces** — two concurrent sessions on a deliberately
   cross-delivering relay each complete only their own **nonce-tagged** cases and
   count the other's traffic as foreign. The qualifier is the whole point. A
@@ -200,6 +319,17 @@ The tests cover the acceptance evidence that does not need a network:
   one is asserted rather than asserted-about: the test measures peak allocation
   with `tracemalloc` and fails if the decoder allocates anything close to what
   the declared length asks for.
+- **The zero-byte case, on the wire in both directions.** The outbound frame is
+  asserted to be exactly 42 bytes ending in `0x0000`; the relay is asserted to
+  have seen an inner datagram of length 0; the return frame is asserted to be
+  exactly 42 bytes ending in `0x0000` and to decode to one empty datagram; and
+  the case completes. The failing side is pinned too: an in-memory relay that
+  discards a zero-length inner datagram — the behaviour the amendment removed —
+  leaves that case unanswered while every larger case still echoes, so a
+  non-conforming relay cannot quietly produce a conforming measurement. Both
+  implementations are compared on that pair of runs, and the browser's own
+  startup self-test refuses to pass unless a zero-length inner datagram actually
+  crossed its loopback relay.
 
 Two properties the driver enforces are tested through the relay rather than by
 inspection: payloads below the tag length run with nothing else outstanding in
@@ -221,10 +351,10 @@ complete enough for an independent implementation to satisfy the same tests
 without access to any relay source. Three things make that checkable here:
 
 1. **The vectors are the conformance suite.** `probe/conformance-vectors.json`
-   fixes the exact bytes of every encoded frame, every rejection and every tag
-   and payload derivation, with the opaque routing prefix supplied as input in
-   each case. A second implementation needs only this file and the
-   specification.
+   fixes the exact bytes of every control datagram, every encoded frame, every
+   outbound header, every rejection and every tag and payload derivation, plus
+   the return headers a session must accept and must refuse. A second
+   implementation needs only this file and the specification.
 2. **A second implementation already exists and the suite checks it.** The
    browser probe's JavaScript is a separate implementation of the same contract
    — frame grammar, tag, plan, session driver and report validator. It is not
@@ -238,11 +368,15 @@ without access to any relay source. Three things make that checkable here:
    refusals, the JavaScript driver's session record is asserted to be *equal* to
    the Python driver's, including every ordinal, frame size, returned size,
    outcome and round-trip time. The resulting report then validates against the
-   Python plan validator unchanged. The comparison also covers the two places
+   Python plan validator unchanged. The comparison also covers the places
    the languages differ rather than agree by construction: the late untagged
-   echo, where both must refuse to attribute the frame, and endpoint
-   substitution, where JavaScript's `String.replace` would expand `$&`,
-   `` $` ``, `$'`, `$$` and `$1` in the authorization instead of inserting it.
+   echo, where both must refuse to attribute the frame; the authorization on the
+   wire, where `TextEncoder` and `str.encode` must produce the same bytes for
+   values containing `$&`, `` $` ``, `$'`, `$$`, `$1` and non-ASCII characters;
+   the single-use rule, where both must refuse a second request datagram; the
+   in-band refusal, where both must raise a refusal carrying only its code and
+   then refuse to send anything else on that session; and the zero-byte case,
+   preserved and dropped, where both must produce the same outcomes.
    These tests skip where Node is absent and run in the pinned container image,
    which ships Node 24.
 4. **The browser's rejection side is driven, not assumed.** The browser is what
@@ -253,10 +387,13 @@ without access to any relay source. Three things make that checkable here:
    for the two-session isolation test, exists only in the Python one — and the
    suite drives the
    browser through truncated, packed, header-only, oversize-declaring,
-   corrupting, dropping, refusing and foreign-prefix relays plus a foreign-nonce
-   frame, asserting its counters and outcomes equal the reference's run for run.
-   Every counter the browser owns — foreign, malformed, prefix-mismatch,
-   unattributed and write failures — is reached by that set, together with the
+   corrupting, dropping, refusing, foreign-header, unauthorized-destination and
+   zero-length-dropping relays, plus a foreign-nonce frame and a run of control
+   datagrams, asserting its counters and outcomes equal the reference's run for
+   run.
+   Every counter the browser owns — foreign, malformed, header-mismatch,
+   unattributed, relay errors, keep-alives, unexpected control datagrams and
+   write failures — is reached by that set, together with the
    echoed, payload-mismatch, send-failed and timed-out outcomes. The remaining
    two are covered separately: refused-for-size by the record-equality run at a
    1,200-byte transport limit, and never-run by a run deliberately stopped
@@ -288,9 +425,17 @@ self-test passed: 54 conformance vectors, 46 loopback cases
 That digest is exactly `sha256sum locks/relay-measurement-vector.json`, so the
 identity the browser will stamp into a report is the committed WP0 vector and
 not some other copy. The line also shows that the ES modules resolve, that
-`crypto.subtle` is available, that the browser's own implementation accepts all
-54 committed conformance vectors, and that a complete 46-case plan runs through
+`crypto.subtle` is available, that the browser's own implementation accepts every
+committed conformance vector, and that a complete 46-case plan runs through
 the in-memory loopback inside the browser.
+
+**That observation predates the 2026-08-30 amendment and its second line no
+longer reproduces.** The vector count is now 82, and the loopback session the
+self-test runs goes through the in-band setup exchange and asserts that a
+zero-length inner datagram actually crossed the relay. The first line is
+unchanged, because the measurement vector is. A fresh pinned-browser observation
+therefore has to be taken before this is used as acceptance evidence again; the
+record above is kept as what was seen, not as what to expect.
 
 This is **not** a measurement and involved no relay: no WebTransport session was
 opened, and the only network traffic was the loopback page load. It is evidence
@@ -305,11 +450,19 @@ None of the following has been done, and none of it is claimed:
   path;
 - observing the browser-reported datagram size, the successful payload range and
   the failure behaviour of a real path;
-- confirming that the endpoint rejects invalid authorization and accepts a fresh
-  short-lived one for only the configured destination;
-- two concurrent sessions with distinct virtual addresses on a real relay;
+- confirming that the endpoint answers an invalid authorization with in-band
+  error `0x00000002` and then terminates the session, and that it accepts a
+  fresh short-lived one and assigns an address for only the configured
+  destination;
+- two concurrent sessions with distinct assigned virtual addresses on a real
+  relay;
 - a machine-readable measurement report from the exact WP0 browser;
 - the conservative payload budget WP6 needs, derived from repeated sessions.
+
+The provisioning the readiness report lists as steps 5 to 7 — a byte-exact UDP
+echo destination behind a temporary integration mapping, enough short-lived
+single-use authorizations, and endpoint trust at runtime — is also still open,
+and is not something this repository can supply.
 
 The report format, the summary reduction and the per-session floor are
 implemented and tested, so the routed round produces the report by running the
@@ -342,32 +495,42 @@ report without new code.
 
 ### What the operator must supply
 
-Per the plan's own list, and refined by what the probe turned out to need:
+Per the plan's own list, and refined by what the probe turned out to need after
+the 2026-08-30 amendment:
 
-- a compatible integration relay endpoint, as an `https` WebTransport URL
-  template containing exactly one `{authorization}` placeholder;
+- a compatible integration relay endpoint, as a plain `https` WebTransport URL —
+  **no** authorization, placeholder or fragment in it;
 - a browser-compatible trust mechanism: public Web PKI, or the SHA-256
   fingerprint of an ECDSA P-256 certificate whose total validity is at most 14
   days, as recorded in [`immutable-baseline.md`](immutable-baseline.md);
 - a UDP echo destination behind the relay, reachable at the pinned virtual
   destination;
-- the 40-byte routing prefix for that destination, and confirmation that the
-  destination port it encodes matches the projected endpoint exactly;
-- two distinct virtual addresses for the concurrent-session evidence;
+- that destination's virtual IPv6 address, as 32 hexadecimal characters, and its
+  UDP port as a number. The probe writes both into every outbound header, so
+  there is nothing left to acknowledge;
 - one fresh single-use authorization per session, and enough of them for
-  repeated sessions.
+  repeated sessions. Each must permit only the echo destination used for the
+  run, and each must assign a virtual client address — the concurrent-session
+  evidence needs the two sessions to be assigned **distinct** addresses, which
+  is a property of the authorizations, not something the probe requests.
+
+The virtual client address is no longer an operator input: the relay assigns it
+during setup and the probe reads it from the assignment.
 
 None of these values may be committed. The probe takes all of them at runtime,
-and the report has no field in which any of them could be recorded.
+and the report has no field in which any of them could be recorded — including
+the assigned address, which the page also keeps out of its log.
 
 ### Open items the routed round has to settle
 
-- **The relay header's interior.** If the integration environment publishes it,
-  the contract can stop treating it as opaque and the probe can verify the
-  destination port itself instead of accepting an acknowledgement.
-- **How the endpoint expects authorization.** If it is not a URL parameter, the
-  specification needs a second presentation and the probe a second code path.
-- **Whether a keep-alive is required at all**, and at what interval.
+- ~~**The relay header's interior.**~~ Settled by the 2026-08-30 amendment: the
+  header is a public, self-contained profile, the probe builds it and validates
+  the return, and the destination-port acknowledgement is gone.
+- ~~**How the endpoint expects authorization.**~~ Settled by the same amendment:
+  in the session's first datagram, refused in band, terminal.
+- **Whether a keep-alive is required at all**, and at what interval. The
+  datagram type exists and inbound ones are recognised; nothing periodic is
+  sent, and only a held-open routed session can say whether that matters.
 - **Write-failure attribution.** A WebTransport datagram write resolves after
   the datagram is queued, so a rejected write is observed one case late: the
   adapter marks itself failed and refuses later sends, but the case that caused
@@ -400,7 +563,7 @@ and the report has no field in which any of them could be recorded.
 ## Repeating what exists
 
 ```bash
-scripts/check.sh                                  # 287 tests, no network
+scripts/check.sh                                  # 665 tests, no network
 CONTAINER_RUNTIME=podman scripts/check-container.sh
 python3 scripts/emit-relay-conformance-vectors.py --check
 scripts/serve-probe.sh                            # then open http://127.0.0.1:8173/probe/

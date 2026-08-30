@@ -122,6 +122,14 @@ The smallest coherent compatibility increment is:
 No integration value from steps 5–7 belongs in a commit or in the resulting
 measurement report.
 
+**Later on the same day:** steps 1 to 4 were carried out. The public contract
+and probe adopted the in-band session profile and the self-contained routing
+header, the invalid-authorization case became an in-band refusal followed by
+session termination, and the shared relay's game path preserves a zero-length
+UDP datagram in both directions. The amendment is recorded in
+[`wp2-relay-probe.md`](wp2-relay-probe.md). Steps 5 to 7 remain open, and the
+observations recorded above are left exactly as they were made.
+
 ## ioquake3 compatibility assessment
 
 Using the same shared relay for the browser ioquake3 client is feasible and is

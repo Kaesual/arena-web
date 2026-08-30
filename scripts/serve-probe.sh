@@ -6,7 +6,7 @@
 # own files, so the repository root is the served directory.
 #
 # This server is for local use only. It hands out no configuration: the endpoint,
-# trust input, authorization and routing prefix are typed into the page at
+# trust input, authorization and virtual destination are typed into the page at
 # runtime and never leave the browser.
 
 set -euo pipefail
