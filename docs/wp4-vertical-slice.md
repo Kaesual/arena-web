@@ -6,8 +6,10 @@
 decisions are recorded below. The renderer defect that round found has since
 been root-caused and fixed in the engine, the configuration workaround it
 needed is removed, and the other two symptoms are reclassified; see "The defect
-class, resolved" below. The sections between are kept as the record of how the
-round actually went.
+class, resolved" below. The two content gaps reported alongside are closed by
+WP3's amendment, with one recorded cause corrected, in the dated note of
+2026-08-31 at the end of that section. The sections between are kept as the
+record of how the round actually went.
 
 This document records what the offline one-map FFA slice is, how the engine is
 booted, which bytes a local serve is allowed to hand to the browser, what the
@@ -715,7 +717,7 @@ and character-model textures are correct at distance, and the world renders
 stably with no flicker. In the operator's words, every reported bug is
 correctly fixed, with no new regression observed.
 
-### Two pre-existing content gaps, reported 2026-08-30 — **open**
+### Two pre-existing content gaps, reported 2026-08-30 — **open → closed 2026-08-31**
 
 While confirming the fix, the operator reported two visual gaps that predate
 the renderer work (explicitly not regressions):
@@ -766,7 +768,7 @@ delivered on 2026-08-31 as an in-band WP3 amendment: a fail-closed
 `derivedReferences` recipe category for the names `cg_weapons.c:658-668`
 constructs at runtime, the missing barrels and every reachable muzzle flash
 restored from the pinned archives (grapple excluded by the operator's
-decision of 2026-08-30), and the pack identity reissued at 696 members. The
+decision of 2026-08-30), and the pack identity reissued at 698 members. The
 what, the why and the per-member digests are in
 [the WP3 amendment section](wp3-content-closure.md#amendment-of-2026-08-31-the-names-the-gamecode-constructs-at-runtime).
 One incidental effect on this document's records: the plasma flash's closure

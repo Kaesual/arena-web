@@ -122,6 +122,48 @@
     "botfiles/syn.c",
     "botfiles/weapons.c"
   ],
+  "derivedConstructionSites": [
+    {
+      "appends": "_flash.md3",
+      "file": "code/cgame/cg_weapons.c",
+      "lines": [
+        658,
+        660
+      ]
+    },
+    {
+      "appends": "_barrel.md3",
+      "file": "code/cgame/cg_weapons.c",
+      "lines": [
+        662,
+        664
+      ]
+    },
+    {
+      "appends": "_hand.md3",
+      "file": "code/cgame/cg_weapons.c",
+      "lines": [
+        666,
+        668
+      ]
+    },
+    {
+      "appends": "_barrel.md3",
+      "file": "code/q3_ui/ui_players.c",
+      "lines": [
+        91,
+        93
+      ]
+    },
+    {
+      "appends": "_flash.md3",
+      "file": "code/q3_ui/ui_players.c",
+      "lines": [
+        96,
+        98
+      ]
+    }
+  ],
   "derivedReferences": [
     {
       "constructedFrom": "models/weapons2/bfg/bfg.md3",
@@ -154,6 +196,22 @@
         "models/weapons2/bfg/bfg_flash.md3"
       ],
       "reference": "models/weapons2/bfg/bfg_flash.md3"
+    },
+    {
+      "constructedFrom": "models/weapons2/bfg/bfg.md3",
+      "construction": {
+        "appends": "_hand.md3",
+        "file": "code/cgame/cg_weapons.c",
+        "lines": [
+          666,
+          668
+        ]
+      },
+      "kind": "model",
+      "members": [
+        "models/weapons2/bfg/bfg_hand.md3"
+      ],
+      "reference": "models/weapons2/bfg/bfg_hand.md3"
     },
     {
       "constructedFrom": "models/weapons2/gauntlet/gauntlet.md3",
@@ -310,6 +368,22 @@
         "models/weapons2/rocketl/rocketl_flash.md3"
       ],
       "reference": "models/weapons2/rocketl/rocketl_flash.md3"
+    },
+    {
+      "constructedFrom": "models/weapons2/rocketl/rocketl.md3",
+      "construction": {
+        "appends": "_hand.md3",
+        "file": "code/cgame/cg_weapons.c",
+        "lines": [
+          666,
+          668
+        ]
+      },
+      "kind": "model",
+      "members": [
+        "models/weapons2/rocketl/rocketl_hand.md3"
+      ],
+      "reference": "models/weapons2/rocketl/rocketl_hand.md3"
     },
     {
       "constructedFrom": "models/weapons2/shotgun/shotgun.md3",

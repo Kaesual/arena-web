@@ -40,7 +40,12 @@ from metadata import (
     validate_artifact_manifest,
     validate_baseline,
 )
-from qvm_references import baseq3_references
+from qvm_references import (
+    _reachable_headers,
+    baseq3_references,
+    baseq3_translation_units,
+    select_compiled_lines,
+)
 
 PRODUCER_NAME = "arena-web scripts/build-content-pack.sh"
 
@@ -61,6 +66,24 @@ _DERIVED_ENTRY_BASE_FIELDS = frozenset(
     {"constructedFrom", "construction", "kind", "reference"}
 )
 _DERIVED_CONSTRUCTION_FIELDS = frozenset({"appends", "file", "lines"})
+
+# A construction site is a few adjacent lines: strip, append, register. A
+# larger cited range could contain several sites at once, and an entry citing
+# it would validate against whichever suffix it happened to contain.
+_CONSTRUCTION_SITE_MAX_SPAN = 4
+
+# The registration trap through which every derived weapon-model name reaches
+# the renderer. A cited construction site must contain it, or the cited lines
+# are not the place the constructed name is used.
+_DERIVED_REGISTRATION_TRAP = "trap_R_RegisterModel"
+
+# A derived-name suffix as the pinned sources spell it. Scanning the compiled
+# translation units for this literal is what makes the construction-site
+# record two-way: a site the recipe does not declare fails the build.
+_SUFFIX_LITERAL_RE = re.compile(r'"(_[A-Za-z0-9]+\.md3)"')
+
+# One bg_itemlist weapon entry: classname, pickup sound, then world_model[0].
+_WEAPON_ITEM_RE = re.compile(r'"(weapon_\w+)"\s*,\s*"[^"]*"\s*,\s*\{\s*"([^"]+)"')
 
 
 def _encode(value: Any) -> str:
@@ -124,36 +147,8 @@ def _reconcile_templates(
     return declared
 
 
-def _check_derived_references(
-    references: dict[str, Any], recipe: dict[str, Any], engine_root: Path
-) -> list[dict[str, Any]]:
-    """Check the recipe's derived references against the pinned gamecode.
-
-    A derived reference is a name the gamecode *constructs* at runtime by
-    string surgery on a name it holds statically — `cg_weapons.c` strips the
-    world model's extension and appends `_flash.md3`, `_barrel.md3` or
-    `_hand.md3` — so neither of the two static readings can extract it: the
-    only literal in the constructing code is the suffix. Each recipe entry
-    therefore names the constructing code, and this check refuses an entry the
-    pinned tree does not back:
-
-    - the constructing lines must exist in the named engine source and contain
-      both `COM_StripExtension` and the quoted suffix the entry declares;
-    - the reference must equal the declared base name with its extension
-      stripped and the suffix appended — the derivation is recomputed, not
-      trusted;
-    - the base name must be one of the references the static readings extract,
-      because the gamecode can only construct from a name it actually holds;
-    - the derived reference must *not* be statically extracted, or it does not
-      belong in this category at all (the fallback literal
-      `models/weapons2/shotgun/shotgun_hand.md3` is the live example);
-    - an entry either resolves to declared members or states why it is
-      excluded, never both and never neither.
-
-    Runs before any archive byte is read, like the template reconciliation.
-    Returns the included entries; `_check_derived_members` verifies their
-    declared members after the closure is built.
-    """
+def _static_reference_paths(references: dict[str, Any]) -> set[str]:
+    """The normalised set of references the two static readings extract."""
     static_references: set[str] = set()
     for module_references in references.values():
         static_references |= {
@@ -162,10 +157,197 @@ def _check_derived_references(
         static_references |= {
             _game_path(name) for _kind, name in module_references.registrations
         }
+    return static_references
 
-    included: list[dict[str, Any]] = []
+
+def _weapon_world_models(engine_root: Path) -> list[str]:
+    """Parse the weapon items' `world_model[0]` out of the pinned bg_itemlist.
+
+    These are the bases every derived-name construction site applies to:
+    both `cg_weapons.c` and `q3_ui/ui_players.c` walk `bg_itemlist` for an
+    `IT_WEAPON` item and perform their string surgery on its first world
+    model. `MISSIONPACK` entries are dropped the same way the reference
+    extraction drops them, because the `baseq3` QVMs are not built with them.
+    """
+    path = engine_root / "code" / "game" / "bg_misc.c"
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as error:
+        raise ContentError(f"cannot read the pinned item list {path}: {error}") from error
+    compiled = "\n".join(select_compiled_lines(text, frozenset(), origin=str(path)))
+    models: set[str] = set()
+    for classname, model in _WEAPON_ITEM_RE.findall(compiled):
+        if not model.lower().endswith(".md3"):
+            raise ContentError(
+                f"weapon item {classname!r} has a world model {model!r} this "
+                "parser does not understand"
+            )
+        models.add(model)
+    if not models:
+        raise ContentError(
+            "no weapon item parsed out of the pinned bg_itemlist; the derived "
+            "reference machinery cannot enumerate its derivation space"
+        )
+    return sorted(models)
+
+
+def _scan_derived_suffix_sites(engine_root: Path) -> set[tuple[str, str]]:
+    """Every `(file, suffix)` at which a compiled `baseq3` source holds a
+    derived-name suffix literal such as ``"_flash.md3"``.
+
+    The scan runs over the exact translation units `cmake/basegame.cmake`
+    compiles plus their reachable headers — the same file population the
+    reference extraction reads — so a construction site in a source the QVMs
+    do not contain (the missionpack `code/ui/ui_players.c`, for example) does
+    not demand a declaration, while a new site added to a compiled source
+    fails the build until the recipe declares it.
+    """
+    units = baseq3_translation_units(engine_root)
+    files: set[Path] = set()
+    for module_sources in units.values():
+        files |= set(module_sources)
+    files |= set(_reachable_headers(sorted(files), engine_root))
+    root = engine_root.resolve()
+    found: set[tuple[str, str]] = set()
+    for path in sorted(files):
+        text = path.read_text(encoding="utf-8", errors="replace")
+        for match in _SUFFIX_LITERAL_RE.finditer(text):
+            found.add((path.resolve().relative_to(root).as_posix(), match.group(1)))
+    return found
+
+
+def _reconcile_construction_sites(
+    recipe: dict[str, Any], engine_root: Path
+) -> list[dict[str, Any]]:
+    """Two-way check of the declared construction sites against the pinned tree.
+
+    Forward: every declared site must exist — the cited lines must be a small
+    adjacent range containing `COM_StripExtension`, the quoted suffix and the
+    registration trap. Reverse: every suffix literal the compiled sources hold
+    must belong to a declared site, so the recipe's account of *where* derived
+    names come from cannot silently omit a site — the discipline
+    `_reconcile_templates` applies to templates, applied to construction sites.
+    """
+    validated: list[dict[str, Any]] = []
     seen: set[tuple[str, str]] = set()
-    for entry in recipe.get("derivedReferences", []):
+    for site in recipe.get("derivedConstructionSites", []):
+        if not isinstance(site, dict) or set(site) != _DERIVED_CONSTRUCTION_FIELDS:
+            raise ContentError(
+                "a derived construction site must have exactly the fields "
+                f"{sorted(_DERIVED_CONSTRUCTION_FIELDS)}: {site!r}"
+            )
+        file_name = site["file"]
+        lines = site["lines"]
+        appends = site["appends"]
+        if (
+            not isinstance(lines, list)
+            or len(lines) != 2
+            or not all(isinstance(line, int) for line in lines)
+            or not 1 <= lines[0] <= lines[1]
+        ):
+            raise ContentError(
+                f"construction site {file_name}:{lines!r} lines must be "
+                "[first, last] with 1 <= first <= last"
+            )
+        if lines[1] - lines[0] > _CONSTRUCTION_SITE_MAX_SPAN:
+            raise ContentError(
+                f"construction site {file_name}:{lines[0]}-{lines[1]} cites "
+                f"{lines[1] - lines[0] + 1} lines; a site is a few adjacent "
+                "lines, and a wider range could contain several sites at once"
+            )
+        if Path(file_name).is_absolute() or ".." in Path(file_name).parts:
+            raise ContentError(
+                f"construction site names a file outside the engine tree: "
+                f"{file_name!r}"
+            )
+        source_path = engine_root / file_name
+        try:
+            source_lines = source_path.read_text(
+                encoding="utf-8", errors="replace"
+            ).splitlines()
+        except OSError as error:
+            raise ContentError(
+                f"cannot read constructing file {file_name}: {error}"
+            ) from error
+        if lines[1] > len(source_lines):
+            raise ContentError(
+                f"construction site {file_name} has {len(source_lines)} lines, "
+                f"the recipe names {lines}"
+            )
+        snippet = "\n".join(source_lines[lines[0] - 1 : lines[1]])
+        if (
+            "COM_StripExtension" not in snippet
+            or f'"{appends}"' not in snippet
+            or _DERIVED_REGISTRATION_TRAP not in snippet
+        ):
+            raise ContentError(
+                f"construction site {file_name}:{lines[0]}-{lines[1]} does not "
+                f"construct and register a name by appending {appends!r} to a "
+                "stripped base name"
+            )
+        key = (file_name, appends)
+        if key in seen:
+            raise ContentError(
+                f"construction site {file_name} / {appends!r} is declared twice"
+            )
+        seen.add(key)
+        validated.append(site)
+
+    scanned = _scan_derived_suffix_sites(engine_root)
+    undeclared = sorted(scanned - seen)
+    if undeclared:
+        raise ContentError(
+            "the pinned sources construct derived names at sites the recipe "
+            f"does not declare: {undeclared}"
+        )
+    unknown = sorted(seen - scanned)
+    if unknown:
+        raise ContentError(
+            "the recipe declares construction sites the pinned sources do not "
+            f"contain: {unknown}"
+        )
+    return validated
+
+
+def _check_derived_references(
+    recipe: dict[str, Any],
+    sites: list[dict[str, Any]],
+    world_models: list[str],
+    static_references: set[str],
+) -> list[dict[str, Any]]:
+    """Check the recipe's derived references against the pinned gamecode.
+
+    A derived reference is a name the gamecode *constructs* at runtime by
+    string surgery on a weapon world model it holds statically, so neither of
+    the two static readings can extract it: the only literal in the
+    constructing code is the suffix. This check refuses an entry the pinned
+    tree does not back:
+
+    - the entry must cite one of the declared construction sites, which
+      `_reconcile_construction_sites` has already verified against the tree
+      two-way;
+    - the reference must equal the declared base name with its extension
+      stripped and the site's suffix appended — the derivation is recomputed,
+      not trusted;
+    - the base name must be a weapon world model out of the pinned
+      `bg_itemlist` — the only bases the construction sites apply to — and a
+      reference the static readings extract;
+    - the derived reference must *not* be statically extracted, or it does not
+      belong in this category at all (the fallback literal
+      `models/weapons2/shotgun/shotgun_hand.md3` is the live example);
+    - an entry either resolves to declared members or states why it is
+      excluded, never both and never neither.
+
+    Runs before any archive byte is read, like the template reconciliation.
+    Returns the included entries; `_reconcile_derivation_space` covers the
+    reverse direction over the whole derivation space once the sources are
+    open, and `_check_derived_members` verifies the outcome after the closure
+    is built.
+    """
+    world_model_paths = {_game_path(model) for model in world_models}
+    included: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for entry in recipe["derivedReferences"]:
         fields = set(entry)
         if fields == _DERIVED_ENTRY_BASE_FIELDS | {"members"}:
             excluded = False
@@ -183,57 +365,19 @@ def _check_derived_references(
             raise ContentError(
                 f"derived reference {reference!r} has unknown kind {kind!r}"
             )
-        key = (kind, _game_path(reference))
+        key = _game_path(reference)
         if key in seen:
             raise ContentError(f"derived reference {reference!r} is declared twice")
         seen.add(key)
 
         construction = entry["construction"]
-        if set(construction) != _DERIVED_CONSTRUCTION_FIELDS:
+        if construction not in sites:
             raise ContentError(
-                f"derived reference {reference!r} construction must have exactly "
-                f"the fields {sorted(_DERIVED_CONSTRUCTION_FIELDS)}"
+                f"derived reference {reference!r} does not cite a declared "
+                "construction site; its construction must equal one of the "
+                "recipe's derivedConstructionSites records exactly"
             )
-        file_name = construction["file"]
-        lines = construction["lines"]
         appends = construction["appends"]
-        if (
-            not isinstance(lines, list)
-            or len(lines) != 2
-            or not all(isinstance(line, int) for line in lines)
-            or not 1 <= lines[0] <= lines[1]
-        ):
-            raise ContentError(
-                f"derived reference {reference!r} construction lines must be "
-                "[first, last] with 1 <= first <= last"
-            )
-        if Path(file_name).is_absolute() or ".." in Path(file_name).parts:
-            raise ContentError(
-                f"derived reference {reference!r} names a constructing file "
-                f"outside the engine tree: {file_name!r}"
-            )
-        source_path = engine_root / file_name
-        try:
-            source_lines = source_path.read_text(
-                encoding="utf-8", errors="replace"
-            ).splitlines()
-        except OSError as error:
-            raise ContentError(
-                f"derived reference {reference!r}: cannot read constructing "
-                f"file {file_name}: {error}"
-            ) from error
-        if lines[1] > len(source_lines):
-            raise ContentError(
-                f"derived reference {reference!r}: {file_name} has "
-                f"{len(source_lines)} lines, entry names {lines}"
-            )
-        snippet = "\n".join(source_lines[lines[0] - 1 : lines[1]])
-        if "COM_StripExtension" not in snippet or f'"{appends}"' not in snippet:
-            raise ContentError(
-                f"derived reference {reference!r}: {file_name}:{lines[0]}-{lines[1]} "
-                f"does not construct a name by appending {appends!r} to a "
-                "stripped base name"
-            )
 
         constructed_from = entry["constructedFrom"]
         stem = re.sub(r"\.[^./]*$", "", constructed_from)
@@ -241,6 +385,13 @@ def _check_derived_references(
             raise ContentError(
                 f"derived reference {reference!r} is not {constructed_from!r} "
                 f"with its extension replaced by {appends!r}"
+            )
+        if _game_path(constructed_from) not in world_model_paths:
+            raise ContentError(
+                f"derived reference {reference!r} is constructed from "
+                f"{constructed_from!r}, which is not a weapon world model of "
+                "the pinned bg_itemlist, the only bases the construction "
+                "sites apply to"
             )
         if _game_path(constructed_from) not in static_references:
             raise ContentError(
@@ -276,11 +427,70 @@ def _check_derived_references(
     return included
 
 
+def _reconcile_derivation_space(
+    entries: list[dict[str, Any]],
+    sites: list[dict[str, Any]],
+    world_models: list[str],
+    static_references: set[str],
+    sources: SourceSet,
+) -> None:
+    """The reverse direction over the whole derivation space.
+
+    `_check_derived_references` is fail-closed per declared entry; on its own
+    that is fail-open over the space of names the gamecode can construct,
+    which is how a shipped-but-undeclared model would slip through. This check
+    mirrors `_reconcile_templates`' two-way discipline: every weapon world
+    model of the pinned `bg_itemlist` crossed with every suffix the declared
+    construction sites append must be a declared derived reference (included
+    or excluded), a statically extracted reference the ordinary closure
+    already owns, or demonstrably absent from the pinned source set. A name a
+    pinned archive provides that the recipe neither includes nor excludes
+    fails the build, and so does an exclusion whose file no pinned source
+    provides — a stale exclusion is dead text, like a stale acceptance.
+    """
+    declared = {_game_path(entry["reference"]): entry for entry in entries}
+    suffixes = sorted({site["appends"] for site in sites})
+    for base in world_models:
+        stem = re.sub(r"\.[^./]*$", "", base)
+        for suffix in suffixes:
+            name = stem + suffix
+            entry = declared.get(_game_path(name))
+            if entry is not None:
+                if "excludedReason" in entry and name not in sources:
+                    raise ContentError(
+                        f"derived reference {name!r} is excluded, but no pinned "
+                        "source provides it; the exclusion is stale"
+                    )
+                continue
+            if _game_path(name) in static_references:
+                # The ordinary closure owns it — the shotgun_hand fallback
+                # literal is the live example.
+                continue
+            if name in sources:
+                raise ContentError(
+                    f"the pinned gamecode constructs {name!r} and a pinned "
+                    "archive provides it, but the recipe neither includes nor "
+                    "excludes it"
+                )
+
+
 def _check_derived_members(
     entries: list[dict[str, Any]], members: dict[str, Any]
 ) -> None:
-    """Fail if a derived reference did not resolve to its declared members."""
+    """Fail if the finished closure disagrees with the derived declarations.
+
+    Every included entry's declared members must be packaged, and every
+    excluded reference must be absent — the exclusion is a build property, not
+    only a committed-record test.
+    """
     for entry in entries:
+        if "excludedReason" in entry:
+            if _game_path(entry["reference"]) in members:
+                raise ContentError(
+                    f"derived reference {entry['reference']!r} is excluded but "
+                    "was packaged anyway"
+                )
+            continue
         for member in entry["members"]:
             if _game_path(member) not in members:
                 raise ContentError(
@@ -421,9 +631,21 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
     engine_root = root / baseline["engine"]["submodulePath"]
     references = baseq3_references(engine_root)
     declared_templates = _reconcile_templates(references, recipe)
-    derived_references = _check_derived_references(references, recipe, engine_root)
+    static_references = _static_reference_paths(references)
+    construction_sites = _reconcile_construction_sites(recipe, engine_root)
+    weapon_world_models = _weapon_world_models(engine_root)
+    derived_references = _check_derived_references(
+        recipe, construction_sites, weapon_world_models, static_references
+    )
 
     sources = SourceSet(recipe_sources(recipe), arguments.archive_dir)
+    _reconcile_derivation_space(
+        recipe["derivedReferences"],
+        construction_sites,
+        weapon_world_models,
+        static_references,
+        sources,
+    )
     builder = ClosureBuilder(sources, recipe)
     profile = recipe["profile"]
 
@@ -499,7 +721,7 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
         builder.add(notice, "file", "packaged notice")
 
     report = builder.finish()
-    _check_derived_members(derived_references, report.members)
+    _check_derived_members(recipe["derivedReferences"], report.members)
 
     members: dict[str, bytes] = {}
     origins: dict[str, tuple[str, str, str]] = {}

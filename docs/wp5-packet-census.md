@@ -517,6 +517,18 @@ and did not occur; the findings below say why.
   hygiene rather than an obligation — but a census instrument that is not
   reproducible is a poor instrument.
 
+> **Note appended 2026-08-31.** The second bullet's "still equal the
+> committed `provenance/arena-web-server.json`" is scoped to the
+> pre-amendment content pack this image was built and censused with
+> (`sha256:55a1d51f…`, 24,181,175 bytes). WP3's content amendment of
+> 2026-08-31 reissued the pack under a new identity while this record
+> deliberately keeps the image as censused, so a rebuild from the current
+> `build/content-pack` — including `scripts/verify-native-build.sh
+> --target server` — now reports a pack mismatch by design until WP7's
+> mandated server rebuild reissues the record. Everything above stands as
+> the record of the accepted WP5 builds; see the amendment section of
+> [`wp3-content-closure.md`](wp3-content-closure.md) for the disclosure.
+
 ## Standalone operation, observed
 
 WP4 recorded two consequences of running a standalone game directory that WP5

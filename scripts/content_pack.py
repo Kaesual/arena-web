@@ -475,7 +475,17 @@ def load_recipe(path: Path) -> dict[str, Any]:
         _fail(str(path), "must be an object")
     if recipe.get("formatVersion") != 1:
         _fail(str(path), "has an unsupported formatVersion")
-    for key in ("package", "packPath", "profile", "sources", "notices"):
+    # derivedReferences is required, not optional: without it the builder would
+    # silently drop closure root 1b and emit a smaller pack with a clean exit,
+    # which is exactly the fail-open shape the category exists to close.
+    for key in (
+        "package",
+        "packPath",
+        "profile",
+        "sources",
+        "notices",
+        "derivedReferences",
+    ):
         _require(recipe, key, str(path))
     if not recipe["sources"]:
         _fail(f"{path}.sources", "must not be empty")

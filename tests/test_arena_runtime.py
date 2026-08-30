@@ -864,7 +864,7 @@ class CommittedProfileTest(unittest.TestCase):
         files = served_files(ROOT, self.profile)
         self.assertEqual(
             files["content/baseq3/arena-web-ffa.pk3"]["sha256"],
-            "f3d19e9b3f0ed10258212542e2555246f796c54120e113785eae8a19bf9f0ed2",
+            "ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664",
         )
 
     def test_the_loader_page_and_script_are_the_only_product_code_served(self) -> None:

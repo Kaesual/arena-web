@@ -27,6 +27,7 @@ from content_pack import (  # noqa: E402
     ContentError,
     SourceSet,
     build_provenance,
+    file_sha256,
     iter_forbidden,
     load_recipe,
     provenance_sources,
@@ -762,11 +763,23 @@ class BuildGateTests(unittest.TestCase):
         self,
     ) -> None:
         references = baseq3_references(ROOT / "ioq3")
-        included = self.module._check_derived_references(
-            references, self.recipe, ROOT / "ioq3"
+        static = self.module._static_reference_paths(references)
+        sites = self.module._reconcile_construction_sites(self.recipe, ROOT / "ioq3")
+        models = self.module._weapon_world_models(ROOT / "ioq3")
+        self.assertEqual(len(sites), 5)
+        self.assertIn(
+            ("code/q3_ui/ui_players.c", "_flash.md3"),
+            {(site["file"], site["appends"]) for site in sites},
         )
-        self.assertEqual(len(included), 11)
+        self.assertEqual(len(models), 10)
+        self.assertIn("models/weapons2/grapple/grapple.md3", models)
+        included = self.module._check_derived_references(
+            self.recipe, sites, models, static
+        )
+        self.assertEqual(len(included), 13)
         included_references = {entry["reference"] for entry in included}
+        self.assertIn("models/weapons2/rocketl/rocketl_hand.md3", included_references)
+        self.assertIn("models/weapons2/bfg/bfg_hand.md3", included_references)
         self.assertNotIn(
             "models/weapons2/grapple/grapple_barrel.md3", included_references
         )
@@ -774,25 +787,88 @@ class BuildGateTests(unittest.TestCase):
             "models/weapons2/machinegun/machinegun_hand.md3", included_references
         )
 
-    def test_a_derived_reference_with_an_unknown_constructing_site_stops_the_build(
+    def test_the_suffix_scan_is_bounded_to_the_compiled_translation_units(
         self,
     ) -> None:
+        scanned = self.module._scan_derived_suffix_sites(ROOT / "ioq3")
+        self.assertEqual(
+            scanned,
+            {
+                ("code/cgame/cg_weapons.c", "_flash.md3"),
+                ("code/cgame/cg_weapons.c", "_barrel.md3"),
+                ("code/cgame/cg_weapons.c", "_hand.md3"),
+                ("code/q3_ui/ui_players.c", "_barrel.md3"),
+                ("code/q3_ui/ui_players.c", "_flash.md3"),
+            },
+        )
+        # The missionpack UI performs the same surgery but is not compiled
+        # into the baseq3 QVMs, so it must not appear.
+        self.assertNotIn(
+            ("code/ui/ui_players.c", "_flash.md3"),
+            scanned,
+        )
+
+    def test_an_invalid_construction_site_stops_the_build(self) -> None:
         cases = (
             ({"lines": [1, 3]}, "does not construct"),
             ({"file": "code/cgame/cg_invented.c"}, "cannot read constructing"),
-            ({"lines": [400000, 400002]}, "entry names"),
+            ({"lines": [400000, 400002]}, "the recipe names"),
             ({"file": "../outside.c"}, "outside the engine tree"),
+            # The overlapping-range attack: cg_weapons.c:658-668 contains all
+            # three suffixes, so a range that wide must be refused outright.
+            ({"lines": [658, 668]}, "cites 11 lines"),
         )
         for override, message in cases:
             recipe = json.loads(json.dumps(self.recipe))
-            entry = self._derived_entry(
-                recipe, "models/weapons2/lightning/lightning_flash.md3"
-            )
-            entry["construction"].update(override)
+            recipe["derivedConstructionSites"][0].update(override)
             with tempfile.TemporaryDirectory() as raw:
                 output = Path(raw)
                 with self.assertRaisesRegex(ContentError, message):
                     self._build(recipe, output, output)
+
+    def test_an_undeclared_or_invented_construction_site_stops_the_build(
+        self,
+    ) -> None:
+        # Dropping a site the pinned sources contain fails the reverse
+        # direction of the site reconciliation.
+        recipe = json.loads(json.dumps(self.recipe))
+        recipe["derivedConstructionSites"] = [
+            site
+            for site in recipe["derivedConstructionSites"]
+            if site["file"] != "code/q3_ui/ui_players.c"
+        ]
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "does not declare"):
+                self._build(recipe, output, output)
+        # Declaring real constructing code in a file the baseq3 QVMs do not
+        # compile fails the forward direction: the missionpack ui_players.c
+        # carries the same surgery, but it is outside the compiled set.
+        recipe = json.loads(json.dumps(self.recipe))
+        recipe["derivedConstructionSites"].append(
+            {
+                "appends": "_flash.md3",
+                "file": "code/ui/ui_players.c",
+                "lines": [97, 99],
+            }
+        )
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "do not contain"):
+                self._build(recipe, output, output)
+
+    def test_an_entry_citing_an_undeclared_construction_stops_the_build(
+        self,
+    ) -> None:
+        recipe = json.loads(json.dumps(self.recipe))
+        entry = self._derived_entry(
+            recipe, "models/weapons2/lightning/lightning_flash.md3"
+        )
+        entry["construction"]["lines"] = [657, 660]
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "declared construction site"):
+                self._build(recipe, output, output)
 
     def test_a_derived_reference_must_be_derivable_from_its_base(self) -> None:
         recipe = json.loads(json.dumps(self.recipe))
@@ -805,7 +881,7 @@ class BuildGateTests(unittest.TestCase):
             with self.assertRaisesRegex(ContentError, "extension replaced"):
                 self._build(recipe, output, output)
 
-    def test_a_derived_base_the_sources_do_not_hold_stops_the_build(self) -> None:
+    def test_a_derived_base_outside_the_weapon_items_stops_the_build(self) -> None:
         recipe = json.loads(json.dumps(self.recipe))
         entry = self._derived_entry(
             recipe, "models/weapons2/lightning/lightning_flash.md3"
@@ -815,8 +891,42 @@ class BuildGateTests(unittest.TestCase):
         entry["members"] = [entry["reference"]]
         with tempfile.TemporaryDirectory() as raw:
             output = Path(raw)
-            with self.assertRaisesRegex(ContentError, "static readings"):
+            with self.assertRaisesRegex(ContentError, "not a weapon world model"):
                 self._build(recipe, output, output)
+
+    def test_a_recipe_without_the_derived_category_is_rejected(self) -> None:
+        recipe = json.loads(json.dumps(self.recipe))
+        del recipe["derivedReferences"]
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(MetadataError, "derivedReferences"):
+                self._build(recipe, output, output)
+
+    def test_the_reverse_reconciliation_covers_the_derivation_space(self) -> None:
+        class Sources:
+            def __init__(self, paths: set[str]) -> None:
+                self._paths = {path.lower() for path in paths}
+
+            def __contains__(self, path: str) -> bool:
+                return path.lower() in self._paths
+
+        sites = [{"appends": "_hand.md3", "file": "f.c", "lines": [1, 3]}]
+        models = ["models/weapons2/rocketl/rocketl.md3"]
+        name = "models/weapons2/rocketl/rocketl_hand.md3"
+        reconcile = self.module._reconcile_derivation_space
+        # A constructible name a pinned archive provides, with no entry: fail.
+        with self.assertRaisesRegex(ContentError, "neither includes nor excludes"):
+            reconcile([], sites, models, set(), Sources({name}))
+        # Absent upstream: nothing to declare.
+        reconcile([], sites, models, set(), Sources(set()))
+        # Statically extracted: the ordinary closure owns it.
+        reconcile([], sites, models, {name}, Sources({name}))
+        # An exclusion satisfies the space...
+        excluded = [{"reference": name, "excludedReason": "outside the profile"}]
+        reconcile(excluded, sites, models, set(), Sources({name}))
+        # ...but a stale exclusion of a file no source provides fails.
+        with self.assertRaisesRegex(ContentError, "stale"):
+            reconcile(excluded, sites, models, set(), Sources(set()))
 
     def test_a_statically_visible_name_is_refused_in_the_derived_category(
         self,
@@ -870,6 +980,16 @@ class BuildGateTests(unittest.TestCase):
             output = Path(raw)
             with self.assertRaisesRegex(ContentError, "declared twice"):
                 self._build(recipe, output, output)
+        # Duplicate detection keys on the reference alone, so the same
+        # reference under a second kind is still a duplicate.
+        recipe = json.loads(json.dumps(self.recipe))
+        duplicate = json.loads(json.dumps(base))
+        duplicate["kind"] = "file"
+        recipe["derivedReferences"].append(duplicate)
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "declared twice"):
+                self._build(recipe, output, output)
         recipe = json.loads(json.dumps(self.recipe))
         entry = self._derived_entry(
             recipe, "models/weapons2/grapple/grapple_barrel.md3"
@@ -894,6 +1014,22 @@ class BuildGateTests(unittest.TestCase):
         self.module._check_derived_members(
             entries, {"models/weapons2/x/x_flash.md3": object()}
         )
+
+    def test_a_packaged_excluded_reference_stops_the_build(self) -> None:
+        # The exclusion is a build property: an excluded reference that ends
+        # up in the closure anyway is refused, not merely caught by the
+        # committed-record tests.
+        entries = [
+            {
+                "reference": "models/weapons2/x/x_hand.md3",
+                "excludedReason": "outside the profile",
+            }
+        ]
+        self.module._check_derived_members(entries, {})
+        with self.assertRaisesRegex(ContentError, "packaged anyway"):
+            self.module._check_derived_members(
+                entries, {"models/weapons2/x/x_hand.md3": object()}
+            )
 
     def test_generated_metadata_must_agree_with_the_members(self) -> None:
         recipe = {
@@ -988,7 +1124,7 @@ class CommittedRecipeTests(unittest.TestCase):
         self,
     ) -> None:
         entries = self.recipe["derivedReferences"]
-        self.assertEqual(len(entries), 13)
+        self.assertEqual(len(entries), 15)
         for entry in entries:
             if "excludedReason" in entry:
                 self.assertGreater(len(entry["excludedReason"]), 30, entry["reference"])
@@ -1007,7 +1143,20 @@ class CommittedRecipeTests(unittest.TestCase):
 
     def test_the_committed_provenance_has_the_amended_member_count(self) -> None:
         provenance = _load_json(ROOT / "provenance" / "arena-web-ffa-content.json")
-        self.assertEqual(len(provenance["members"]), 696)
+        self.assertEqual(len(provenance["members"]), 698)
+
+    def test_the_committed_manifest_binds_the_recipe_by_digest(self) -> None:
+        # The committed manifest's arena-web input identity is the recipe's
+        # own SHA-256, so the committed records provably belong to the
+        # committed recipe without running the containerized verification.
+        manifest = _load_json(
+            ROOT / "provenance" / "arena-web-ffa-content-manifest.json"
+        )
+        identities = {item["id"]: item["identity"] for item in manifest["inputs"]}
+        generated_id = self.recipe["generatedSource"]["id"]
+        self.assertEqual(
+            identities[generated_id], f"sha256:{file_sha256(RECIPE_PATH)}"
+        )
 
     def test_generated_members_are_declared_as_such(self) -> None:
         self.assertIn(self.recipe["noticeFile"], self.recipe["generatedMembers"])
