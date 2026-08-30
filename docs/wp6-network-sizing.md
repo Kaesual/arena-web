@@ -21,12 +21,16 @@ server-emitted, and the consequences of every player sharing one server-visible
 address. All are addressed here and in the WP7/WP8 contracts. **No sizing was
 rederived and no decided value moved.**
 
-**Still open:** three items marked **[operator confirmation pending]** below
-extend or refine what the operator settled on 2026-08-30 — `+set cl_motd 0`, the
-accepted shared rate-limit bucket, and splitting the oversize-refusal counter so
-the frozen zero threshold applies to client-originated refusals. WP6 closes when
-those are confirmed and the review re-verifies these fixes; WP7 stays blocked
-until then.
+**The three extensions the review produced are also settled** (operator,
+2026-08-30). `+set cl_motd 0` as defence in depth behind the address rule; the
+oversize-refusal counter split, so the frozen zero threshold applies to
+client-originated refusals while elicited ones are informational; and — chosen
+over the accepted-gap draft this document previously carried — a cvar-gated
+port-aware rate-limit bucket added to WP7's scope, defaulting to exact upstream
+behaviour and enabled in the managed profile. **No open decisions remain.**
+
+**Still open:** the independent review re-verifying these fixes. WP6 closes when
+it passes; WP7 stays blocked until then.
 
 WP2 measured what a browser can push through the relay. WP5 measured what the
 game actually puts on the wire. This document puts the two together, adds the
@@ -600,12 +604,11 @@ answered no. There are three kinds:
 5. **`getmotd` and `getKeyAuthorize` — refused by destination.** Covered in full
    above. The structural bound is WP7's address rule: a send to anything but the
    pinned virtual destination is refused and counted, never re-addressed.
-   **[operator confirmation pending]** `+set cl_motd 0` on the client as defence
-   in depth. It is flagged for confirmation because it extends the profile
-   bounds the operator decided on 2026-08-30, and because it deserves an honest
-   caveat: `cl_motd` is registered with flags `0` (`cl_main.c:3562`), so unlike
-   `com_legacyprotocol` it can be changed after start. It cannot carry this
-   bound on its own, and is not asked to.
+   **Decided:** `+set cl_motd 0` on the client as defence in depth. It carries
+   an honest caveat rather than a claim: `cl_motd` is registered with flags `0`
+   (`cl_main.c:3562`), so unlike `com_legacyprotocol` it can be changed after
+   start. It cannot carry this bound on its own, and is not asked to — the
+   address rule is the primary mechanism and this sits behind it.
 
 6. **The legacy protocol path — refused.** Not a size problem: a compat
    connection only makes datagrams smaller. But the pinned server accepts
@@ -712,14 +715,59 @@ non-legacy path. **Decided:** WP7's browser `Sys_RandomBytes` is a real CSPRNG
 (`crypto.getRandomValues`), and WP8's evidence shows the two clients' qports
 differ.
 
-**The shared bucket itself is an accepted gap.**
-**[operator confirmation pending]** The rate-limit sharing is recorded as an
-explicitly accepted inherited limitation rather than fixed: scoping the buckets
-per source port would be a server-side engine change this decision did not
-authorize, and the two-player prototype does not reconnect in a loop. It is
-flagged for confirmation because the denial scenario above can violate a
-threshold the operator has already frozen, and that trade is his to accept. If
-WP8 observes it, the answer is to scope the buckets, not to relax the threshold.
+**The shared bucket is fixed, not accepted.** An earlier draft recorded the
+rate-limit sharing as an accepted inherited gap on the grounds that scoping the
+buckets was engine work this decision had not authorized. **Decided by the
+operator on 2026-08-30:** extend WP7's scope with the engine change instead.
+
+The reasoning is about scale rather than about the acceptance run. The two-player
+WP8 topology would rarely trip a burst of 10 per second, so as an acceptance
+risk this is marginal — but the product's real shape is 5 to 10 players behind
+one relay, and at that size a single client reconnecting in a loop stalls
+*every* other player's connect and reconnect. That is a product defect wearing
+an acceptance-threshold costume, and fixing the mechanism is worth more than
+accepting it and hoping WP8 does not see it.
+
+The change is deliberately small and off by default:
+
+- `SVC_HashForAddress` (`sv_main.c:376-396`) mixes the source port into the hash,
+  and `SVC_BucketForAddress` (`:405-427`) compares it as well as the address
+  bytes, which means `leakyBucket_s` (`server.h:313-328`) gains a port field and
+  stores it when a bucket is created.
+- All of it sits behind **one new cvar, defaulting to off — that is, to exact
+  upstream behaviour** — and the managed launch profile turns it on with `+set`.
+  A sensible name is `sv_rateLimitPerPort`; WP7 finalizes the exact spelling.
+- Only the per-address limiter is affected: `SVC_RateLimitAddress`
+  (`sv_main.c:518-521`), reached by `getchallenge` (`sv_client.c:71`),
+  `getstatus` (`:549`), `getinfo` (`:612`) and `rcon` (`:719`). The global
+  `outboundLeakyBucket` is not per-address and does not change.
+
+**Why the default stays upstream, and why turning it on here is safe.** On the
+open internet, keying rate limits by source port is a mistake: an attacker
+simply varies the port and evades the limit entirely. That objection is exactly
+why upstream keys on the address, and why this must not become the default for
+anyone building on this engine. It does not apply to this deployment, because
+the game server is reachable **only** from the relay — every packet it sees has
+already been authorized and forwarded, so the source port is assigned by the
+relay rather than chosen by an attacker. A cvar defaulting to upstream behaviour
+keeps that reasoning local to the environment where it holds.
+
+**The long-term direction, unscheduled and deliberately not coupled to WP7.**
+The cleaner fix is topological rather than engine-side: give the relay's
+server-facing leg a **per-player virtual IPv6 source address** — the same
+address model the wider stack already uses — so each player reaches the game
+server from a distinct address. That would restore per-address bucketing exactly
+as upstream designed it, making the cvar unnecessary, and it would dissolve the
+qport-only demultiplexing below as well, since `SV_PacketEvent` would once again
+have distinct base addresses to separate clients by. It is a relay and topology
+change outside this repository and outside WP7, recorded here as the direction
+of travel and not scheduled.
+
+**The qport collision hazard is not fixed by any of this.** The bucket change
+touches rate limiting only; the demultiplexing and the port rewrite are
+untouched, so the hazard above remains a documented residual gap mitigated by
+requiring a real CSPRNG for `qport`. Only the IPv6 leg would remove it. WP8's
+distinct-qports evidence requirement therefore stands.
 
 ## Strategy 3 — bounded engine-pair tunnel fragmentation
 
@@ -851,16 +899,17 @@ belong in WP7's implementation:
   count the event rather than see an unexplained disconnect.
 - **Every oversize refusal is counted and surfaced**, per direction and per
   class, because WP8's packet-failure threshold is meaningless if refusals are
-  invisible. **[operator confirmation pending]** the counters are split in two:
-  **client-originated** refusals and **elicited** refusals (`echo`). This
-  refines the definition of a threshold the operator has already frozen, which
-  is why it is flagged rather than simply applied. The reason it is needed: the
+  invisible. **Decided by the operator on 2026-08-30**, as an explicit
+  refinement of the frozen packet-send-failure threshold: the counters are split
+  in two, **client-originated** refusals and **elicited** refusals (`echo`). The
+  reason it is needed: the
   decided `echo` treatment is to refuse an oversize reply and count it, but WP8
   freezes "**0** oversize refusals — one refusal means a class was missed". As
   written, the one mechanism installed deliberately for `echo` would fail WP8
   with entirely the wrong diagnosis the first time it worked as intended. The
-  zero threshold belongs on the client-originated counter; an elicited refusal
-  is the system behaving correctly and is reported, not failed.
+  frozen zero threshold therefore applies to the **client-originated** counter;
+  an elicited refusal is the system behaving correctly, and is counted and
+  reported as information rather than as a failure.
 - **The emitted `connect` datagram is size-checked after compression**, not
   before. This is the one place where the pre-compression bound is not a bound.
 
@@ -914,7 +963,7 @@ disconnect/reconnect exercises for each.
 
 | Metric | Threshold | Rationale |
 | --- | --- | --- |
-| Connection success | 100% of connect attempts within 3 attempts; ≥ 90% on the first attempt | The gamestate is the first large transfer; a sizing error shows up as a *deterministic* connect failure, so anything below this is a sizing bug rather than flakiness. |
+| Connection success | 100% of connect attempts within 3 attempts; ≥ 90% on the first attempt | The gamestate is the first large transfer; a sizing error shows up as a *deterministic* connect failure, so anything below this is a sizing bug rather than flakiness. With the port-aware rate-limit bucket enabled in the managed profile, the shared-address caveat that would otherwise have applied to this row is gone for the acceptance topology. |
 | Unexpected disconnects | **0** per client per 15-minute session | With a fixed profile and a bounded queue there is no benign cause; one is a defect to explain, not a rate to tolerate. |
 | Planned reconnects | 100% success, each within 10 s to in-game | The census's own reconnect completed; the budget here is the fresh authorization plus a second gamestate. |
 | Packet send failures | **0** oversize refusals; ≤ 0.1% write failures | Zero oversize is the direct test of this decision — one refusal means a class was missed. Write failures are a transport property WP2 never observed, so a small non-zero allowance is honest. |
@@ -968,9 +1017,14 @@ Recorded so they are not rediscovered as surprises:
   header widths the re-census measures. The residual risk is only that a
   deployment omits the argument at launch, which the re-census detects; it is
   not a bound that can decay at runtime. See the profile bounds above.
-- **The shared per-address rate-limit bucket.** Accepted rather than fixed, and
-  flagged for the operator's confirmation; see the shared-address section. It
-  can violate a frozen WP8 threshold through no fault of either client.
+- ~~**The shared per-address rate-limit bucket.**~~ **Closed by decision, not
+  accepted.** The operator extended WP7's scope on 2026-08-30 with a cvar-gated
+  port-aware bucket rather than accepting the gap; see the shared-address
+  section. The entry is kept struck through rather than deleted because the
+  reasoning for the default remaining upstream — port-keyed buckets are evadable
+  on the open internet and are only safe here because the server is reachable
+  solely from the relay — is a constraint anyone reusing this engine change
+  needs to inherit with it.
 - **The qport collision hazard.** The server rewrites a client's stored remote
   port before validating the netchan checksum, so a collision on a shared
   address re-homes the victim's netchan even though the spoofed content is then
