@@ -610,15 +610,20 @@ roughly two in three; all 115 GLSL programs still compiling; and both WebGL 1
 and WebGL 2 fixed.
 
 After the rebuild, with the `r_vertexLight` workaround removed from
-`arena/game-profile.json`, `scripts/run-arena-acceptance.sh` was run three
-times — six sessions, eighteen in-game screenshots — and every check passed in
-every round. Near-white fractions per round, in capture order:
+`arena/game-profile.json`, `scripts/run-arena-acceptance.sh` was run four
+times — eight sessions, twenty-four in-game screenshots — and every check passed
+in every round. Near-white fractions per round, in capture order:
 
 | Round | In-game near-white fractions |
 | --- | --- |
 | 1 | 0.0092, 0.0065, 0.0036, 0.0064, 0.0052, 0.0059 |
 | 2 | 0.0064, 0.0252, 0.0024, 0.0050, 0.0048, 0.0054 |
 | 3 | 0.0081, 0.0063, 0.0069, 0.0069, 0.0023, 0.0022 |
+| 4 | 0.0091, 0.0056, 0.0021, 0.0051, 0.0053, 0.0058 |
+
+Rounds 1 to 3 ran against the rebuilt client; round 4 repeated it at the final
+commit, after the upstream-base URL correction and the image build-cache fix, to
+confirm neither disturbed the client.
 
 The `canvas-no-white-surface-regression` gate is unchanged at 5%, and it now
 guards the real fix rather than a workaround. The one 2.5% frame is a view with
