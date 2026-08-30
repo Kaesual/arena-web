@@ -505,6 +505,21 @@ class CommittedCensusRecordTests(unittest.TestCase):
                 baseline["engine"]["upstreamBase"]["commit"],
             ),
         )
+        if session["engineCommit"] != baseline["engine"]["commit"]:
+            # The prose above is also enforced: a base-commit census stays
+            # admissible only while every enumerated patch is confined to
+            # renderer code the dedicated server and the datagram path do not
+            # compile. A future patch outside that prefix forces a re-run of
+            # the census (or a reviewed widening here) instead of silently
+            # inheriting a stale measurement.
+            for patch in baseline["engine"]["appliedPatches"]:
+                for path in patch["paths"]:
+                    self.assertTrue(
+                        path.startswith("code/renderergl2/"),
+                        f"patch {patch['id']} touches {path}, which the census "
+                        "session's server may compile; the census must be "
+                        "re-measured at the pinned commit",
+                    )
         profile = json.loads(
             (ROOT / "native" / "server-profile.json").read_text(encoding="utf-8")
         )

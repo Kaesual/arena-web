@@ -131,3 +131,17 @@ the browser.
   `build/witness-client/` directory.
 - No packet-census record or existing project document was overwritten during
   the round.
+
+---
+
+**Editorial note, added 2026-08-30 (after the record above was written).** The
+"Evidence images" section describes distant items and player models as "the
+exact cases that misrender in the browser". The root-cause investigation later
+the same day reclassified that symptom: the native client renders those items
+identically at the same camera positions, so their distant look is
+renderergl2's normal shading for these OpenArena item shaders, not a browser
+defect. The genuine browser defect the images helped diagnose — white
+lightmapped world surfaces from a GLSL ES `mediump` precision default — was
+root-caused and fixed in the engine. See the resolution section of
+[`wp4-vertical-slice.md`](wp4-vertical-slice.md). The witnessed record above is
+unchanged.

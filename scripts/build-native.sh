@@ -1,8 +1,12 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# One accepted native build of the pinned, unmodified ioquake3 tree, inside the
-# WP5 native toolchain image, from a deleted build tree, offline.
+# One accepted native build of the pinned ioquake3 tree, inside the WP5 native
+# toolchain image, from a deleted build tree, offline.
+#
+# The pin is the fork's `web` branch: the upstream base the lock names, plus
+# the patch series it enumerates beside it. The build target itself is still
+# upstream's, unchanged.
 #
 #   --target server   the dedicated server that the server image carries
 #   --target client   the native test client that drives the packet census

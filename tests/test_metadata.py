@@ -1515,6 +1515,17 @@ class BrowserBuildManifestTests(unittest.TestCase):
                     f"{name} must read the epoch from the upstream base commit",
                 )
 
+    def test_server_image_build_disables_the_layer_cache(self) -> None:
+        # The layer cache was observed matching the LABEL step on its
+        # unexpanded instruction text, producing an image whose id and labels
+        # described the previous baseline — and the two-image reproducibility
+        # check then compared that cache hit with itself. --no-cache is the
+        # fix for a check that cannot report its own failure; this pins it.
+        script = (ROOT / "scripts" / "build-server-image.sh").read_text(
+            encoding="utf-8"
+        )
+        self.assertIn("--no-cache", script)
+
     def test_port_archive_pin_matches_the_committed_manifest(self) -> None:
         script = (ROOT / "scripts" / "fetch-emscripten-ports.sh").read_text(
             encoding="utf-8"

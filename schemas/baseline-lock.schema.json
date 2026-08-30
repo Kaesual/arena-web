@@ -97,7 +97,7 @@
       "type": "object"
     },
     "enginePatch": {
-      "$comment": "One enumerated, upstream-mergeable change the pinned engine commit carries on top of engine.upstreamBase. 'paths' is the exact set of tree paths the patch touches, and the offline validator compares the union of every record's paths with the real diff between the two commits.",
+      "$comment": "One enumerated, upstream-mergeable change the pinned engine commit carries on top of engine.upstreamBase. 'paths' is the exact set of tree paths the patch touches, and the offline validator compares the union of every record's paths with the real diff between the two commits. The presence rule — appliedPatches present exactly when engine.commit differs from engine.upstreamBase.commit — is enforced by this repository's validator, not by this published schema, so generic schema validation alone yields a materially weaker check.",
       "additionalProperties": false,
       "properties": {
         "id": {

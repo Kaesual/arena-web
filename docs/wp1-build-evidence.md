@@ -456,8 +456,9 @@ network sources compile but no multiplayer path is exercised here.
 
 ## Amendment of 2026-08-30: the pin carries a patch series
 
-WP1 closed on a contract that is written into its own title: a **reproducible
-unmodified ioq3 browser build**. That contract is deliberately amended here. It
+WP1 closed on the contract this document itself stated: a reproducible browser
+build of the pinned, **unmodified** ioq3 tree, with no engine change and no
+`web` branch. That contract is deliberately amended here. It
 did not survive contact with WP4's witnessed round, which found that the browser
 client renders a third of the lightmapped world white — and the cause turned out
 to be in the engine, where this repository could not reach it.
@@ -537,7 +538,10 @@ so both `qagame` QVMs and the dedicated server binary changed too — at identic
 sizes, for a renderer patch that touches neither.
 
 The epoch is therefore taken from `engine.upstreamBase.commit`, through a
-`scripts/baseline-inputs.py` field rather than a literal repeated in a script.
+`scripts/baseline-inputs.py` field rather than a value the build reads from the
+moment it runs; the `expected_source_date_epoch` literal both build scripts
+carry is an assertion against that derived value, not its source, and a test
+binds it to the base commit's real committer timestamp.
 `PRODUCT_DATE` is ioquake3's own product version string and this fork's patch
 series does not make the engine a newer ioquake3 release; what identifies an
 accepted build is the commits and digests the lock and the manifests carry. The
