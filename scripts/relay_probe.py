@@ -2,9 +2,10 @@
 """The routed datagram contract and the measurement logic built on it.
 
 This module is the normative implementation of
-`docs/relay-datagram-contract.md`: the frame grammar, the payload tag, the
-measurement plan derived from `locks/relay-measurement-vector.json`, the session
-driver that runs that plan, and the validator for the report it produces.
+`docs/relay-datagram-contract.md`: the datagram types, the in-band session
+setup, the relay header, the frame grammar, the payload tag, the measurement
+plan derived from `locks/relay-measurement-vector.json`, the session driver that
+runs that plan, and the validator for the report it produces.
 
 Nothing here reads the network, the filesystem or the clock. Frames arrive as
 bytes, time arrives as a number the caller supplies, and the transport is an
@@ -32,6 +33,56 @@ RELAY_HEADER_BYTES = 40
 LENGTH_PREFIX_BYTES = 2
 SINGLE_DATAGRAM_OVERHEAD_BYTES = 42
 
+# docs/relay-datagram-contract.md, "Datagram types". Every datagram of this
+# profile opens with a 4-byte big-endian type. The 2026-08-30 amendment replaced
+# the URL-carried authorization and the opaque routing prefix with this in-band
+# session profile.
+DATAGRAM_TYPE_BYTES = 4
+TYPE_REQUEST_ADDRESS = 0x00000001
+TYPE_ADDRESS_ASSIGNED = 0x00000002
+TYPE_RELAY_PACKET = 0x00000003
+TYPE_ERROR = 0x00000004
+TYPE_KEEP_ALIVE = 0x00000005
+DATAGRAM_TYPES = (
+    TYPE_REQUEST_ADDRESS,
+    TYPE_ADDRESS_ASSIGNED,
+    TYPE_RELAY_PACKET,
+    TYPE_ERROR,
+    TYPE_KEEP_ALIVE,
+)
+
+VIRTUAL_ADDRESS_BYTES = 16
+PORT_BYTES = 2
+# 4 + 16 + 2 + 16 + 2. The relay header did not change size when it stopped
+# being opaque, which is why the committed measurement vector is untouched.
+assert (
+    DATAGRAM_TYPE_BYTES
+    + VIRTUAL_ADDRESS_BYTES
+    + PORT_BYTES
+    + VIRTUAL_ADDRESS_BYTES
+    + PORT_BYTES
+    == RELAY_HEADER_BYTES
+)
+ADDRESS_ASSIGNED_BYTES = DATAGRAM_TYPE_BYTES + VIRTUAL_ADDRESS_BYTES
+ERROR_CODE_BYTES = 4
+ERROR_MESSAGE_LENGTH_BYTES = 2
+ERROR_PREAMBLE_BYTES = (
+    DATAGRAM_TYPE_BYTES + ERROR_CODE_BYTES + ERROR_MESSAGE_LENGTH_BYTES
+)
+
+# The two error codes this subset has to recognise. An invalid or refused
+# authorization is terminal; an unknown and an unauthorized destination are
+# deliberately the same answer, so a client can never tell them apart.
+ERROR_INVALID_AUTHORIZATION = 0x00000002
+ERROR_DESTINATION_UNAVAILABLE = 0x00000003
+
+MAX_PORT = 65535
+# Neutral and synthetic. The relay stores this value and echoes it back as the
+# return header's destination port; nothing else depends on it, so the default
+# is the first port of the IANA dynamic range rather than anything environmental.
+DEFAULT_CLIENT_SOURCE_PORT = 49152
+UNSPECIFIED_ADDRESS = bytes(VIRTUAL_ADDRESS_BYTES)
+
 # "Payload identification". The vector fixes the 16-byte prefix placement; this
 # contract fixes its interior as a session nonce plus a per-datagram ordinal.
 NONCE_BYTES = 16
@@ -52,7 +103,12 @@ SERVER_TO_BROWSER = "serverToBrowser"
 DIRECTIONS = (BROWSER_TO_SERVER, SERVER_TO_BROWSER)
 
 REPORT_KIND = "arena-web-routed-datagram-measurement"
-REPORT_FORMAT_VERSION = 1
+# Version 2 is the 2026-08-30 in-band session profile. It renamed the opaque
+# prefix-mismatch counter to a header-mismatch counter and added the control
+# datagram counters, so a version 1 record cannot be read as a version 2 one.
+# No routed report of either version exists; the bump exists so that none can be
+# misread if one ever turns up.
+REPORT_FORMAT_VERSION = 2
 
 CASE_SINGLE = "single"
 CASE_PACKED = "packed"
@@ -90,6 +146,23 @@ class MeasurementPlanError(RelayProbeError):
 
 class ProbeConfigError(RelayProbeError):
     """Raised when the runtime configuration is missing or malformed."""
+
+
+class RelaySessionError(RelayProbeError):
+    """Raised when the relay's session setup does not conform to the profile."""
+
+
+class RelayRefusedError(RelaySessionError):
+    """Raised when the relay answered the authorization with an in-band error.
+
+    Only the error code travels in the message. The authorization, the endpoint
+    and the relay's own error text must never reach a log or a report, so the
+    text is deliberately dropped rather than quoted here.
+    """
+
+    def __init__(self, code: int) -> None:
+        super().__init__(f"the relay refused the session with error code {code:#010x}")
+        self.code = code
 
 
 class MeasurementReportError(RelayProbeError):
@@ -203,6 +276,212 @@ def decode_frame(
             bytes(frame[start : start + length]) for start, length in spans
         ),
     )
+
+
+# --------------------------------------------------------------------------
+# Relay header
+# --------------------------------------------------------------------------
+
+
+@dataclass(frozen=True)
+class RelayHeader:
+    """The 40 header bytes of a RELAY_PACKET, as fields rather than a blob."""
+
+    destination_address: bytes
+    destination_port: int
+    source_address: bytes
+    source_port: int
+
+
+def _check_address(address: bytes, name: str) -> bytes:
+    address = bytes(address)
+    if len(address) != VIRTUAL_ADDRESS_BYTES:
+        raise RelayFrameError(
+            f"{name} is {len(address)} bytes, not {VIRTUAL_ADDRESS_BYTES}"
+        )
+    return address
+
+
+def _check_port(port: int, name: str) -> int:
+    if not isinstance(port, int) or isinstance(port, bool):
+        raise RelayFrameError(f"{name} is not an integer")
+    if not 0 <= port <= MAX_PORT:
+        raise RelayFrameError(f"{name} {port} is out of range")
+    return port
+
+
+def encode_relay_header(header: RelayHeader) -> bytes:
+    """Return the 40 bytes that introduce one relay frame."""
+    return b"".join(
+        (
+            struct.pack(">I", TYPE_RELAY_PACKET),
+            _check_address(header.destination_address, "destination address"),
+            struct.pack(">H", _check_port(header.destination_port, "destination port")),
+            _check_address(header.source_address, "source address"),
+            struct.pack(">H", _check_port(header.source_port, "source port")),
+        )
+    )
+
+
+def decode_relay_header(header: bytes) -> RelayHeader:
+    """Return the fields of a 40-byte relay header, or reject the bytes."""
+    if len(header) != RELAY_HEADER_BYTES:
+        raise RelayFrameError(
+            f"a relay header is {RELAY_HEADER_BYTES} bytes, not {len(header)}"
+        )
+    (kind,) = struct.unpack_from(">I", header, 0)
+    if kind != TYPE_RELAY_PACKET:
+        raise RelayFrameError(f"datagram type {kind:#010x} is not a relay packet")
+    return RelayHeader(
+        destination_address=bytes(header[4:20]),
+        destination_port=struct.unpack_from(">H", header, 20)[0],
+        source_address=bytes(header[22:38]),
+        source_port=struct.unpack_from(">H", header, 38)[0],
+    )
+
+
+@dataclass(frozen=True)
+class RoutingContext:
+    """Everything a session needs in order to address one game destination.
+
+    The client address is not configuration: it is what the relay assigned in
+    the session's first exchange. The destination address and port are runtime
+    configuration, and the client source port is a correlation value the relay
+    stores and returns as the return header's destination port.
+    """
+
+    client_address: bytes
+    client_port: int
+    destination_address: bytes
+    destination_port: int
+
+    def outbound_header(self) -> bytes:
+        """Return the 40 header bytes every frame of this session carries."""
+        return encode_relay_header(
+            RelayHeader(
+                destination_address=self.destination_address,
+                destination_port=self.destination_port,
+                source_address=self.client_address,
+                source_port=self.client_port,
+            )
+        )
+
+    def accepts_return(self, header: RelayHeader) -> bool:
+        """Report whether a return header belongs to this session.
+
+        Three of the four fields are known in advance. The fourth, the return
+        header's *source port*, is the destination's own reply port, which need
+        not equal the virtual destination port a client addressed; it is
+        therefore reported by the relay rather than predicted, and is not
+        checked. See `docs/relay-datagram-contract.md`, "Addressing".
+        """
+        return (
+            header.destination_address == self.client_address
+            and header.destination_port == self.client_port
+            and header.source_address == self.destination_address
+        )
+
+
+# --------------------------------------------------------------------------
+# Control datagrams
+# --------------------------------------------------------------------------
+
+
+def datagram_type(datagram: bytes) -> int:
+    """Return the 4-byte big-endian type a datagram opens with."""
+    if len(datagram) < DATAGRAM_TYPE_BYTES:
+        raise RelayFrameError(
+            f"datagram of {len(datagram)} bytes is shorter than its "
+            f"{DATAGRAM_TYPE_BYTES} byte type"
+        )
+    (kind,) = struct.unpack_from(">I", datagram, 0)
+    return kind
+
+
+def encode_address_request(authorization: str) -> bytes:
+    """Return the REQUEST_ADDRESS datagram carrying one authorization.
+
+    The authorization is opaque runtime input. It is placed in the datagram
+    verbatim as UTF-8; this repository does not parse it, does not know how it
+    is issued and never stores or reports it.
+    """
+    if not isinstance(authorization, str) or not authorization:
+        raise RelaySessionError("an address request carries a non-empty authorization")
+    return struct.pack(">I", TYPE_REQUEST_ADDRESS) + authorization.encode("utf-8")
+
+
+def encode_address_assignment(address: bytes) -> bytes:
+    """Return the 20-byte ADDRESS_ASSIGNED datagram for one virtual address."""
+    return struct.pack(">I", TYPE_ADDRESS_ASSIGNED) + _check_address(
+        address, "assigned address"
+    )
+
+
+def decode_address_assignment(datagram: bytes) -> bytes:
+    """Return the assigned 16-byte virtual client address, or reject the bytes."""
+    if datagram_type(datagram) != TYPE_ADDRESS_ASSIGNED:
+        raise RelaySessionError("datagram is not an address assignment")
+    if len(datagram) != ADDRESS_ASSIGNED_BYTES:
+        raise RelaySessionError(
+            f"an address assignment is {ADDRESS_ASSIGNED_BYTES} bytes, "
+            f"not {len(datagram)}"
+        )
+    address = bytes(datagram[DATAGRAM_TYPE_BYTES:])
+    if address == UNSPECIFIED_ADDRESS:
+        raise RelaySessionError("the relay assigned the unspecified address")
+    return address
+
+
+@dataclass(frozen=True)
+class ErrorDatagram:
+    code: int
+    message: str
+
+
+def encode_error(code: int, message: str) -> bytes:
+    """Return an ERROR datagram. Used by the in-memory relay and the vectors."""
+    if not 0 <= code <= 0xFFFFFFFF:
+        raise RelaySessionError(f"error code {code} is out of range")
+    text = message.encode("utf-8")
+    if len(text) > MAX_LENGTH_PREFIX_VALUE:
+        raise RelaySessionError("error message is too long to describe")
+    return (
+        struct.pack(">I", TYPE_ERROR)
+        + struct.pack(">I", code)
+        + struct.pack(">H", len(text))
+        + text
+    )
+
+
+def decode_error(datagram: bytes) -> ErrorDatagram:
+    """Return the code and message of an ERROR datagram, or reject the bytes.
+
+    The message is decoded so that the grammar can be checked exactly, and is
+    then the caller's problem: a conforming client never logs or reports it,
+    because it is text the relay chose and may describe its environment.
+    """
+    if datagram_type(datagram) != TYPE_ERROR:
+        raise RelaySessionError("datagram is not an error")
+    if len(datagram) < ERROR_PREAMBLE_BYTES:
+        raise RelaySessionError("error datagram is shorter than its own preamble")
+    (code,) = struct.unpack_from(">I", datagram, DATAGRAM_TYPE_BYTES)
+    (length,) = struct.unpack_from(
+        ">H", datagram, DATAGRAM_TYPE_BYTES + ERROR_CODE_BYTES
+    )
+    if len(datagram) - ERROR_PREAMBLE_BYTES != length:
+        raise RelaySessionError(
+            "the error message length does not describe the remaining bytes"
+        )
+    try:
+        message = datagram[ERROR_PREAMBLE_BYTES:].decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise RelaySessionError("the error message is not valid UTF-8") from error
+    return ErrorDatagram(code=code, message=message)
+
+
+def encode_keep_alive(padding: bytes = b"") -> bytes:
+    """Return a KEEP_ALIVE datagram. Its padding carries no meaning."""
+    return struct.pack(">I", TYPE_KEEP_ALIVE) + bytes(padding)
 
 
 # --------------------------------------------------------------------------
@@ -437,7 +716,10 @@ class MeasurementPlan:
 # Runtime configuration
 # --------------------------------------------------------------------------
 
-AUTHORIZATION_PLACEHOLDER = "{authorization}"
+# The withdrawn profile substituted the authorization into the endpoint URL.
+# The value is kept only so that an endpoint carrying it can be refused with an
+# explanation instead of being opened with a literal brace in the path.
+WITHDRAWN_AUTHORIZATION_PLACEHOLDER = "{authorization}"
 
 # bytes.fromhex() skips ASCII whitespace, so a value of the right character
 # length can decode short. Every hex field is matched explicitly instead.
@@ -445,39 +727,50 @@ _HEX_DIGITS = re.compile(r"[0-9a-fA-F]+")
 _SHA256_LOWER_HEX = re.compile(r"[0-9a-f]{64}")
 
 _CONFIG_FIELDS = (
+    "assignmentTimeoutMilliseconds",
     "authorization",
     "caseTimeoutMilliseconds",
     "certificateHashes",
-    "destinationPortMatchesProjection",
-    "endpointTemplate",
-    "expectedReturnPrefixHex",
+    "clientSourcePort",
+    "destinationAddressHex",
+    "destinationPort",
+    "endpointUrl",
     "maxInFlightDatagrams",
     "pathNotes",
-    "routingPrefixHex",
 )
 
 _REQUIRED_CONFIG_FIELDS = (
     "authorization",
-    "destinationPortMatchesProjection",
-    "endpointTemplate",
-    "routingPrefixHex",
+    "destinationAddressHex",
+    "destinationPort",
+    "endpointUrl",
 )
 
 _CONFIG_DEFAULTS = {
+    "assignmentTimeoutMilliseconds": 5000,
     "caseTimeoutMilliseconds": 2000,
     "certificateHashes": (),
-    "expectedReturnPrefixHex": "",
+    "clientSourcePort": DEFAULT_CLIENT_SOURCE_PORT,
     "maxInFlightDatagrams": DEFAULT_MAX_IN_FLIGHT_DATAGRAMS,
     "pathNotes": "",
 }
 
 
 def _positive_int(mapping, name: str, minimum: int) -> int:
-    value = mapping.get(name, _CONFIG_DEFAULTS[name])
+    # A required field has no default, and looking one up eagerly would raise
+    # a KeyError instead of a ProbeConfigError.
+    value = mapping.get(name, _CONFIG_DEFAULTS.get(name))
     if not isinstance(value, int) or isinstance(value, bool):
         raise ProbeConfigError(f"{name} is not an integer")
     if value < minimum:
         raise ProbeConfigError(f"{name} must be at least {minimum}")
+    return value
+
+
+def _port(mapping, name: str) -> int:
+    value = _positive_int(mapping, name, 1)
+    if value > MAX_PORT:
+        raise ProbeConfigError(f"{name} must be at most {MAX_PORT}")
     return value
 
 
@@ -501,18 +794,32 @@ class ProbeConfig:
     """The runtime values a probe session needs, none of which are committed."""
 
     authorization: str = field(repr=False)
-    endpoint_template: str
-    routing_prefix: bytes
-    expected_return_prefix: bytes = b""
+    endpoint_url: str
+    destination_address: bytes
+    destination_port: int
+    client_source_port: int = DEFAULT_CLIENT_SOURCE_PORT
     certificate_hashes: tuple[str, ...] = ()
+    assignment_timeout_ms: int = 5000
     case_timeout_ms: int = 2000
     max_in_flight_datagrams: int = DEFAULT_MAX_IN_FLIGHT_DATAGRAMS
     path_notes: str = ""
 
-    def endpoint_url(self) -> str:
-        """Return the connect URL. Never store or log the result."""
-        return self.endpoint_template.replace(
-            AUTHORIZATION_PLACEHOLDER, self.authorization
+    def routing_context(self, client_address: bytes) -> RoutingContext:
+        """Complete the routing context with the address the relay assigned."""
+        address = _check_address(client_address, "assigned client address")
+        if address == UNSPECIFIED_ADDRESS:
+            raise RelaySessionError("the assigned client address is unspecified")
+        if address == self.destination_address:
+            # A session that addressed itself would measure nothing, and no
+            # relay can assign a client the destination's own address.
+            raise RelaySessionError(
+                "the assigned client address equals the destination address"
+            )
+        return RoutingContext(
+            client_address=address,
+            client_port=self.client_source_port,
+            destination_address=self.destination_address,
+            destination_port=self.destination_port,
         )
 
 
@@ -527,29 +834,28 @@ def parse_probe_config(mapping) -> ProbeConfig:
         if name not in mapping:
             raise ProbeConfigError(f"{name} is required")
 
-    template = mapping["endpointTemplate"]
-    if not isinstance(template, str) or not template.strip():
-        raise ProbeConfigError("endpointTemplate is empty")
-    if not template.startswith("https://"):
-        raise ProbeConfigError("endpointTemplate must be an https URL")
-    if template.count(AUTHORIZATION_PLACEHOLDER) != 1:
+    endpoint = mapping["endpointUrl"]
+    if not isinstance(endpoint, str) or not endpoint.strip():
+        raise ProbeConfigError("endpointUrl is empty")
+    if not endpoint.startswith("https://"):
+        raise ProbeConfigError("endpointUrl must be an https URL")
+    if WITHDRAWN_AUTHORIZATION_PLACEHOLDER in endpoint:
+        # The 2026-08-30 amendment moved the authorization out of the URL. An
+        # endpoint still carrying the withdrawn placeholder would otherwise be
+        # opened with a literal brace in its path.
         raise ProbeConfigError(
-            f"endpointTemplate must contain exactly one "
-            f"{AUTHORIZATION_PLACEHOLDER} placeholder"
+            "endpointUrl carries the withdrawn "
+            f"{WITHDRAWN_AUTHORIZATION_PLACEHOLDER} placeholder; the "
+            "authorization now travels in the session's first datagram"
         )
+    if "#" in endpoint:
+        # WebTransport refuses a URL with a fragment, and the platform error
+        # quotes the URL it failed on.
+        raise ProbeConfigError("endpointUrl must not contain a fragment")
 
     authorization = mapping["authorization"]
     if not isinstance(authorization, str) or not authorization.strip():
         raise ProbeConfigError("authorization is empty")
-
-    if mapping["destinationPortMatchesProjection"] is not True:
-        # The routing prefix is opaque to this contract, so the probe cannot
-        # read the destination port out of it. The port equality the contract
-        # requires is therefore an explicit operator acknowledgement, and the
-        # probe refuses to run without it.
-        raise ProbeConfigError(
-            "destinationPortMatchesProjection must be acknowledged as true"
-        )
 
     hashes = mapping.get("certificateHashes", _CONFIG_DEFAULTS["certificateHashes"])
     if not isinstance(hashes, (list, tuple)):
@@ -557,16 +863,11 @@ def parse_probe_config(mapping) -> ProbeConfig:
     for entry in hashes:
         _hex_bytes(entry, "certificateHashes entry", 32)
 
-    expected_hex = mapping.get(
-        "expectedReturnPrefixHex", _CONFIG_DEFAULTS["expectedReturnPrefixHex"]
+    destination = _hex_bytes(
+        mapping["destinationAddressHex"], "destinationAddressHex", VIRTUAL_ADDRESS_BYTES
     )
-    if not isinstance(expected_hex, str):
-        raise ProbeConfigError("expectedReturnPrefixHex is not a string")
-    expected_prefix = (
-        _hex_bytes(expected_hex, "expectedReturnPrefixHex", RELAY_HEADER_BYTES)
-        if expected_hex
-        else b""
-    )
+    if destination == UNSPECIFIED_ADDRESS:
+        raise ProbeConfigError("destinationAddressHex is the unspecified address")
 
     notes = mapping.get("pathNotes", _CONFIG_DEFAULTS["pathNotes"])
     if not isinstance(notes, str):
@@ -574,16 +875,89 @@ def parse_probe_config(mapping) -> ProbeConfig:
 
     return ProbeConfig(
         authorization=authorization,
-        endpoint_template=template,
-        routing_prefix=_hex_bytes(
-            mapping["routingPrefixHex"], "routingPrefixHex", RELAY_HEADER_BYTES
-        ),
-        expected_return_prefix=expected_prefix,
+        endpoint_url=endpoint,
+        destination_address=destination,
+        destination_port=_port(mapping, "destinationPort"),
+        client_source_port=_port(mapping, "clientSourcePort"),
         certificate_hashes=tuple(hashes),
+        assignment_timeout_ms=_positive_int(mapping, "assignmentTimeoutMilliseconds", 1),
         case_timeout_ms=_positive_int(mapping, "caseTimeoutMilliseconds", 1),
         max_in_flight_datagrams=_positive_int(mapping, "maxInFlightDatagrams", 1),
         path_notes=notes,
     )
+
+
+# --------------------------------------------------------------------------
+# Session establishment
+# --------------------------------------------------------------------------
+
+
+class SessionHandshake:
+    """The in-band exchange that opens one measured session.
+
+    A session starts with REQUEST_ADDRESS carrying the one-time authorization
+    and is not usable until ADDRESS_ASSIGNED names the virtual client address.
+    An invalid or refused authorization is answered in band with
+    `ERROR_INVALID_AUTHORIZATION` and the relay then closes the session.
+
+    The authorization is single-use, and that is enforced by construction: the
+    handshake holds the only copy, drops it the moment the request datagram is
+    built, and refuses to build a second one. Nothing here logs, stores or
+    returns the value.
+    """
+
+    def __init__(self, config: ProbeConfig) -> None:
+        self._config = config
+        self._authorization = config.authorization
+        self.client_address: bytes = b""
+
+    @property
+    def spent(self) -> bool:
+        return self._authorization is None
+
+    @property
+    def completed(self) -> bool:
+        return bool(self.client_address)
+
+    def request_datagram(self) -> bytes:
+        """Return the REQUEST_ADDRESS datagram, spending the authorization."""
+        if self._authorization is None:
+            raise RelaySessionError("the authorization was already spent")
+        datagram = encode_address_request(self._authorization)
+        self._authorization = None
+        return datagram
+
+    def accept(self, datagram: bytes):
+        """Consume one datagram of the setup exchange.
+
+        Returns the assigned 16-byte client address once the assignment
+        arrives, and `None` for a datagram that is legal but not part of the
+        exchange, so the caller keeps waiting. Anything else is fatal: an
+        in-band refusal raises `RelayRefusedError`, and a datagram that does not
+        conform raises `RelaySessionError`.
+        """
+        if self._authorization is not None:
+            raise RelaySessionError("no address was requested yet")
+        try:
+            kind = datagram_type(datagram)
+        except RelayFrameError as error:
+            raise RelaySessionError("the relay sent a datagram without a type") from error
+        if kind == TYPE_KEEP_ALIVE:
+            return None
+        if kind == TYPE_ERROR:
+            raise RelayRefusedError(decode_error(datagram).code)
+        if kind != TYPE_ADDRESS_ASSIGNED:
+            raise RelaySessionError(
+                f"datagram type {kind:#010x} is not part of session setup"
+            )
+        self.client_address = decode_address_assignment(datagram)
+        return self.client_address
+
+    def routing_context(self) -> RoutingContext:
+        """Return the completed routing context for the measured session."""
+        if not self.completed:
+            raise RelaySessionError("no address has been assigned")
+        return self._config.routing_context(self.client_address)
 
 
 # --------------------------------------------------------------------------
@@ -614,6 +988,7 @@ class SessionDriver:
         adapter,
         session_nonce: bytes,
         config: ProbeConfig,
+        routing: RoutingContext,
         session_index: int = 0,
     ) -> None:
         if len(session_nonce) != SESSION_NONCE_BYTES:
@@ -621,6 +996,8 @@ class SessionDriver:
                 f"session nonce is {len(session_nonce)} bytes, "
                 f"not {SESSION_NONCE_BYTES}"
             )
+        if not isinstance(routing, RoutingContext):
+            raise RelayProbeError("a session driver needs an assigned routing context")
         for case in plan.cases:
             if len(case.datagrams) > config.max_in_flight_datagrams:
                 raise RelayProbeError(
@@ -632,14 +1009,18 @@ class SessionDriver:
         self.adapter = adapter
         self.session_nonce = bytes(session_nonce)
         self.config = config
+        self.routing = routing
         self.session_index = session_index
         self._pending = deque(plan.cases)
         self._states = {case.index: _CaseState() for case in plan.cases}
         self._inflight: dict[int, tuple[int, bytes]] = {}
-        self._return_prefix = config.expected_return_prefix or b""
+        self._outbound_header = routing.outbound_header()
+        self.error_datagrams = 0
         self.foreign_frames = 0
+        self.header_mismatch_frames = 0
+        self.keep_alive_datagrams = 0
         self.malformed_frames = 0
-        self.prefix_mismatch_frames = 0
+        self.unexpected_control_datagrams = 0
         self.unmatched_frames = 0
 
     # -- state ---------------------------------------------------------------
@@ -700,7 +1081,7 @@ class SessionDriver:
         state = self._states[case.index]
         payloads = [self._payload(datagram) for datagram in case.datagrams]
         frame = encode_frame(
-            self.config.routing_prefix,
+            self._outbound_header,
             payloads,
             BROWSER_TO_SERVER,
             self.plan.max_inner_datagram_bytes,
@@ -721,18 +1102,51 @@ class SessionDriver:
     # -- receiving -----------------------------------------------------------
 
     def receive(self, frame: bytes, now: float) -> None:
-        """Attribute one inbound frame, or account for why it was refused."""
+        """Attribute one inbound datagram, or account for why it was refused.
+
+        Every datagram of the session arrives here, not only relay frames: the
+        relay answers a keep-alive with a keep-alive and reports an unknown or
+        unauthorized destination in band. Those are recognised, counted and
+        ignored rather than being mistaken for malformed frames, and neither can
+        complete a measurement case.
+        """
+        try:
+            kind = datagram_type(frame)
+        except RelayFrameError:
+            self.malformed_frames += 1
+            return
+        if kind == TYPE_KEEP_ALIVE:
+            self.keep_alive_datagrams += 1
+            return
+        if kind == TYPE_ERROR:
+            try:
+                decode_error(frame)
+            except RelaySessionError:
+                self.malformed_frames += 1
+                return
+            # The code is not read and the message is never surfaced: after
+            # assignment the only errors this profile defines are destination
+            # refusals, and a refused case must show as a timeout, not as a
+            # different kind of measurement.
+            self.error_datagrams += 1
+            return
+        if kind == TYPE_ADDRESS_ASSIGNED:
+            # A second assignment is not part of a measured session.
+            self.unexpected_control_datagrams += 1
+            return
+        if kind != TYPE_RELAY_PACKET:
+            self.malformed_frames += 1
+            return
         try:
             decoded = decode_frame(
                 frame, SERVER_TO_BROWSER, self.plan.max_inner_datagram_bytes
             )
+            header = decode_relay_header(decoded.prefix)
         except RelayFrameError:
             self.malformed_frames += 1
             return
-        if not self._return_prefix:
-            self._return_prefix = decoded.prefix
-        elif decoded.prefix != self._return_prefix:
-            self.prefix_mismatch_frames += 1
+        if not self.routing.accepts_return(header):
+            self.header_mismatch_frames += 1
             return
         payload = decoded.datagrams[0]
         tag = read_tag(payload)
@@ -827,12 +1241,15 @@ class SessionDriver:
         return {
             "caseTimeoutMilliseconds": self.config.case_timeout_ms,
             "cases": cases,
+            "errorDatagrams": self.error_datagrams,
             "foreignFrames": self.foreign_frames,
+            "headerMismatchFrames": self.header_mismatch_frames,
+            "keepAliveDatagrams": self.keep_alive_datagrams,
             "malformedFrames": self.malformed_frames,
             "maxDatagramSizeBytes": self.adapter.max_datagram_size_bytes,
             "maxInFlightDatagrams": self.config.max_in_flight_datagrams,
-            "prefixMismatchFrames": self.prefix_mismatch_frames,
             "sessionIndex": self.session_index,
+            "unexpectedControlDatagrams": self.unexpected_control_datagrams,
             "unmatchedFrames": self.unmatched_frames,
             # Reported by the transport, not the driver: a datagram write can
             # fail after the driver has handed the frame over.
@@ -919,12 +1336,15 @@ _REPORT_FIELDS = (
 _SESSION_FIELDS = (
     "caseTimeoutMilliseconds",
     "cases",
+    "errorDatagrams",
     "foreignFrames",
+    "headerMismatchFrames",
+    "keepAliveDatagrams",
     "malformedFrames",
     "maxDatagramSizeBytes",
     "maxInFlightDatagrams",
-    "prefixMismatchFrames",
     "sessionIndex",
+    "unexpectedControlDatagrams",
     "unmatchedFrames",
     "writeFailures",
 )
@@ -939,9 +1359,12 @@ _CASE_FIELDS = (
     "sentInnerBytes",
 )
 _SESSION_COUNTERS = (
+    "errorDatagrams",
     "foreignFrames",
+    "headerMismatchFrames",
+    "keepAliveDatagrams",
     "malformedFrames",
-    "prefixMismatchFrames",
+    "unexpectedControlDatagrams",
     "unmatchedFrames",
     "writeFailures",
 )

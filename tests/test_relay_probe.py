@@ -19,24 +19,39 @@ from relay_loopback import (  # noqa: E402
     FAULT_CORRUPT_PAYLOAD,
     FAULT_NONE,
     FAULT_DECLARED_OVERSIZE,
-    FAULT_FOREIGN_PREFIX,
+    FAULT_DROP_ZERO_LENGTH,
+    FAULT_FOREIGN_HEADER,
     FAULT_HEADER_ONLY_RETURN,
     FAULT_PACKED_RETURN,
     FAULT_TRUNCATED_RETURN,
+    SYNTHETIC_AUTHORIZATION,
+    SYNTHETIC_CLIENT_ADDRESS,
+    SYNTHETIC_CLIENT_PORT,
+    SYNTHETIC_DESTINATION_ADDRESS,
+    SYNTHETIC_DESTINATION_PORT,
+    SYNTHETIC_FOREIGN_ADDRESS,
+    SYNTHETIC_OTHER_CLIENT_ADDRESS,
     SYNTHETIC_PREFIX,
     SYNTHETIC_RETURN_PREFIX,
     LoopbackRelay,
+    open_session,
     run_session,
     run_sessions,
 )
 from relay_probe import (  # noqa: E402
+    ADDRESS_ASSIGNED_BYTES,
     BROWSER_TO_SERVER,
     CASE_PACKED,
     CASE_SINGLE,
+    DATAGRAM_TYPE_BYTES,
+    ERROR_DESTINATION_UNAVAILABLE,
+    ERROR_INVALID_AUTHORIZATION,
+    ERROR_PREAMBLE_BYTES,
     LENGTH_PREFIX_BYTES,
     MAX_LENGTH_PREFIX_VALUE,
     MINIMUM_TAGGED_INNER_BYTES,
     NONCE_BYTES,
+    DEFAULT_CLIENT_SOURCE_PORT,
     DEFAULT_MAX_IN_FLIGHT_DATAGRAMS,
     OUTCOME_ECHOED,
     OUTCOME_NOT_RUN,
@@ -46,21 +61,43 @@ from relay_probe import (  # noqa: E402
     OUTCOMES,
     OUTCOME_TIMED_OUT,
     RELAY_HEADER_BYTES,
+    REPORT_FORMAT_VERSION,
     SERVER_TO_BROWSER,
     SESSION_NONCE_BYTES,
     SINGLE_DATAGRAM_OVERHEAD_BYTES,
+    TYPE_ADDRESS_ASSIGNED,
+    TYPE_ERROR,
+    TYPE_KEEP_ALIVE,
+    TYPE_RELAY_PACKET,
+    TYPE_REQUEST_ADDRESS,
+    VIRTUAL_ADDRESS_BYTES,
     MeasurementPlan,
     MeasurementPlanError,
     MeasurementReportError,
     ProbeConfigError,
     RelayFrameError,
+    RelayHeader,
     RelayProbeError,
+    RelayRefusedError,
+    RelaySessionError,
+    RoutingContext,
+    AdapterSendError,
     SessionDriver,
+    SessionHandshake,
     build_payload,
     build_report,
     datagram_tag,
+    datagram_type,
+    decode_address_assignment,
+    decode_error,
     decode_frame,
+    decode_relay_header,
+    encode_address_assignment,
+    encode_address_request,
+    encode_error,
     encode_frame,
+    encode_keep_alive,
+    encode_relay_header,
     frame_bytes_for_sizes,
     merge_reports,
     parse_probe_config,
@@ -69,6 +106,7 @@ from relay_probe import (  # noqa: E402
     validate_report,
 )
 from relay_vectors import (  # noqa: E402
+    VECTOR_AUTHORIZATIONS,
     build_conformance_vectors,
     encode_conformance_vectors,
 )
@@ -83,9 +121,10 @@ COMMITTED_CONFORMANCE = json.loads(
 NONCE = bytes(range(SESSION_NONCE_BYTES))
 OTHER_NONCE = bytes(range(100, 100 + SESSION_NONCE_BYTES))
 
-# Synthetic values, not credentials. Each one is a replacement pattern that
-# JavaScript's String.replace() would expand rather than insert literally.
-DOLLAR_AUTHORIZATIONS = (
+# Synthetic values, not credentials. The `$`-patterns and the non-ASCII value
+# are there because the authorization now travels as UTF-8 in a datagram: two
+# implementations must agree on the bytes, not on a URL substitution.
+HARNESS_AUTHORIZATIONS = (
     "plain-value",
     "$&",
     "$`",
@@ -94,20 +133,50 @@ DOLLAR_AUTHORIZATIONS = (
     "$1",
     "before$&after",
     "$$$&$1",
+    "tökén-ünïcøde",
 )
 
 BASE_CONFIG = {
-    "authorization": "one-time-value",
-    "destinationPortMatchesProjection": True,
-    "endpointTemplate": "https://relay.invalid/probe?a={authorization}",
-    "routingPrefixHex": SYNTHETIC_PREFIX.hex(),
+    "authorization": SYNTHETIC_AUTHORIZATION,
+    "destinationAddressHex": SYNTHETIC_DESTINATION_ADDRESS.hex(),
+    "destinationPort": SYNTHETIC_DESTINATION_PORT,
+    "endpointUrl": "https://relay.invalid/probe",
 }
+
+ROUTING = RoutingContext(
+    client_address=SYNTHETIC_CLIENT_ADDRESS,
+    client_port=SYNTHETIC_CLIENT_PORT,
+    destination_address=SYNTHETIC_DESTINATION_ADDRESS,
+    destination_port=SYNTHETIC_DESTINATION_PORT,
+)
+
+# The header the in-memory relay puts on a return frame: addressed to the
+# client, from the destination, and from the destination's own reply port.
+RETURN_HEADER = encode_relay_header(
+    RelayHeader(
+        destination_address=SYNTHETIC_CLIENT_ADDRESS,
+        destination_port=SYNTHETIC_CLIENT_PORT,
+        source_address=SYNTHETIC_DESTINATION_ADDRESS,
+        source_port=SYNTHETIC_DESTINATION_PORT + 1,
+    )
+)
 
 
 def make_config(**overrides):
     mapping = dict(BASE_CONFIG)
     mapping.update(overrides)
     return parse_probe_config(mapping)
+
+
+def make_driver(plan, adapter, nonce=NONCE, config=None, routing=None, index=0):
+    """Build a driver directly, skipping the setup exchange.
+
+    Tests that drive the relay end to end use `open_session`; this exists for
+    the ones that need to control the clock datagram by datagram.
+    """
+    return SessionDriver(
+        plan, adapter, nonce, config or make_config(), routing or ROUTING, index
+    )
 
 
 def make_vector(sizes, packed=((16, 17),), boundaries=(17,)):
@@ -139,9 +208,9 @@ def make_vector(sizes, packed=((16, 17),), boundaries=(17,)):
 
 
 def run_plan(plan, relay=None, config=None, nonce=NONCE):
+    """Open a session through the real in-band exchange and drive it."""
     relay = relay or LoopbackRelay(max_datagram_size_bytes=20000)
-    adapter = relay.attach()
-    driver = SessionDriver(plan, adapter, nonce, config or make_config())
+    driver, adapter = open_session(relay, plan, config or make_config(), nonce)
     run_session(driver, adapter)
     return driver, relay
 
@@ -268,6 +337,236 @@ class FrameGrammarTests(unittest.TestCase):
             encode_frame(SYNTHETIC_PREFIX, (b"",), "sideways")
         with self.assertRaises(RelayFrameError):
             decode_frame(SYNTHETIC_PREFIX + b"\x00\x00", "sideways")
+
+
+class RelayHeaderTests(unittest.TestCase):
+    """The 40 header bytes are a public, self-contained profile since the
+    2026-08-30 amendment: the probe builds them and validates the return."""
+
+    def test_the_header_is_the_type_two_addresses_and_two_ports(self) -> None:
+        header = ROUTING.outbound_header()
+        self.assertEqual(len(header), RELAY_HEADER_BYTES)
+        self.assertEqual(header[:4], b"\x00\x00\x00\x03")
+        self.assertEqual(header[4:20], SYNTHETIC_DESTINATION_ADDRESS)
+        self.assertEqual(header[20:22], SYNTHETIC_DESTINATION_PORT.to_bytes(2, "big"))
+        self.assertEqual(header[22:38], SYNTHETIC_CLIENT_ADDRESS)
+        self.assertEqual(header[38:40], SYNTHETIC_CLIENT_PORT.to_bytes(2, "big"))
+
+    def test_the_header_round_trips_through_its_fields(self) -> None:
+        decoded = decode_relay_header(ROUTING.outbound_header())
+        self.assertEqual(decoded.destination_address, SYNTHETIC_DESTINATION_ADDRESS)
+        self.assertEqual(decoded.destination_port, SYNTHETIC_DESTINATION_PORT)
+        self.assertEqual(decoded.source_address, SYNTHETIC_CLIENT_ADDRESS)
+        self.assertEqual(decoded.source_port, SYNTHETIC_CLIENT_PORT)
+
+    def test_a_header_of_the_wrong_length_or_type_is_rejected(self) -> None:
+        header = ROUTING.outbound_header()
+        for value in (header[:-1], header + b"\x00", b""):
+            with self.assertRaises(RelayFrameError):
+                decode_relay_header(value)
+        with self.assertRaises(RelayFrameError):
+            decode_relay_header(b"\x00\x00\x00\x05" + header[4:])
+
+    def test_header_fields_are_range_checked(self) -> None:
+        for overrides in (
+            {"destination_address": SYNTHETIC_DESTINATION_ADDRESS[:-1]},
+            {"source_address": b""},
+            {"destination_port": 65536},
+            {"source_port": -1},
+            {"source_port": "40000"},
+        ):
+            fields = {
+                "destination_address": SYNTHETIC_DESTINATION_ADDRESS,
+                "destination_port": SYNTHETIC_DESTINATION_PORT,
+                "source_address": SYNTHETIC_CLIENT_ADDRESS,
+                "source_port": SYNTHETIC_CLIENT_PORT,
+            }
+            fields.update(overrides)
+            with self.assertRaises(RelayFrameError, msg=repr(overrides)):
+                encode_relay_header(RelayHeader(**fields))
+
+    def test_a_return_header_is_accepted_on_three_fields_not_four(self) -> None:
+        def header(**overrides):
+            fields = {
+                "destination_address": SYNTHETIC_CLIENT_ADDRESS,
+                "destination_port": SYNTHETIC_CLIENT_PORT,
+                "source_address": SYNTHETIC_DESTINATION_ADDRESS,
+                "source_port": SYNTHETIC_DESTINATION_PORT,
+            }
+            fields.update(overrides)
+            return RelayHeader(**fields)
+
+        self.assertTrue(ROUTING.accepts_return(header()))
+        # The destination answers from its own reply port, which a client
+        # cannot predict from the virtual port it addressed.
+        self.assertTrue(ROUTING.accepts_return(header(source_port=1)))
+        self.assertTrue(ROUTING.accepts_return(header(source_port=65535)))
+        for overrides in (
+            {"destination_address": SYNTHETIC_OTHER_CLIENT_ADDRESS},
+            {"destination_port": SYNTHETIC_CLIENT_PORT + 1},
+            {"source_address": SYNTHETIC_FOREIGN_ADDRESS},
+        ):
+            self.assertFalse(
+                ROUTING.accepts_return(header(**overrides)), repr(overrides)
+            )
+
+
+class ControlDatagramTests(unittest.TestCase):
+    def test_every_datagram_opens_with_a_four_byte_big_endian_type(self) -> None:
+        self.assertEqual(datagram_type(encode_address_request("x")), TYPE_REQUEST_ADDRESS)
+        self.assertEqual(
+            datagram_type(encode_address_assignment(SYNTHETIC_CLIENT_ADDRESS)),
+            TYPE_ADDRESS_ASSIGNED,
+        )
+        self.assertEqual(datagram_type(ROUTING.outbound_header()), TYPE_RELAY_PACKET)
+        self.assertEqual(datagram_type(encode_error(1, "x")), TYPE_ERROR)
+        self.assertEqual(datagram_type(encode_keep_alive()), TYPE_KEEP_ALIVE)
+        for length in (0, 1, DATAGRAM_TYPE_BYTES - 1):
+            with self.assertRaises(RelayFrameError):
+                datagram_type(bytes(length))
+
+    def test_an_address_request_carries_the_authorization_as_utf8(self) -> None:
+        datagram = encode_address_request("tökén")
+        self.assertEqual(datagram[:4], b"\x00\x00\x00\x01")
+        self.assertEqual(datagram[4:], "tökén".encode("utf-8"))
+        for value in ("", None, b"bytes"):
+            with self.assertRaises(RelaySessionError):
+                encode_address_request(value)
+
+    def test_an_assignment_is_exactly_twenty_bytes(self) -> None:
+        datagram = encode_address_assignment(SYNTHETIC_CLIENT_ADDRESS)
+        self.assertEqual(len(datagram), ADDRESS_ASSIGNED_BYTES)
+        self.assertEqual(decode_address_assignment(datagram), SYNTHETIC_CLIENT_ADDRESS)
+        for value in (
+            datagram[:-1],
+            datagram + b"\x00",
+            b"\x00\x00\x00\x05" + datagram[4:],
+            datagram[:4] + bytes(VIRTUAL_ADDRESS_BYTES),
+        ):
+            with self.assertRaises(RelaySessionError):
+                decode_address_assignment(value)
+
+    def test_an_error_declares_its_message_length_exactly(self) -> None:
+        datagram = encode_error(ERROR_INVALID_AUTHORIZATION, "Invalid or expired token")
+        decoded = decode_error(datagram)
+        self.assertEqual(decoded.code, ERROR_INVALID_AUTHORIZATION)
+        self.assertEqual(decoded.message, "Invalid or expired token")
+        self.assertEqual(decode_error(encode_error(3, "")).message, "")
+        for value in (
+            datagram + b"\x00",
+            datagram[:-1],
+            datagram[: ERROR_PREAMBLE_BYTES - 1],
+            datagram[: ERROR_PREAMBLE_BYTES - 2] + b"\x00\x01" + b"\xff",
+            encode_keep_alive(),
+        ):
+            with self.assertRaises(RelaySessionError):
+                decode_error(value)
+
+    def test_the_two_error_codes_this_subset_recognises_are_distinct(self) -> None:
+        self.assertEqual(ERROR_INVALID_AUTHORIZATION, 0x00000002)
+        self.assertEqual(ERROR_DESTINATION_UNAVAILABLE, 0x00000003)
+
+    def test_a_keep_alive_is_a_type_and_arbitrary_padding(self) -> None:
+        self.assertEqual(encode_keep_alive(), b"\x00\x00\x00\x05")
+        self.assertEqual(len(encode_keep_alive(bytes(956))), 960)
+
+
+class SessionSetupTests(unittest.TestCase):
+    """The in-band exchange that replaced the URL-carried authorization."""
+
+    def test_the_authorization_is_single_use_by_construction(self) -> None:
+        handshake = SessionHandshake(make_config())
+        self.assertFalse(handshake.spent)
+        datagram = handshake.request_datagram()
+        self.assertTrue(handshake.spent)
+        self.assertEqual(
+            datagram[DATAGRAM_TYPE_BYTES:], SYNTHETIC_AUTHORIZATION.encode("utf-8")
+        )
+        with self.assertRaises(RelaySessionError):
+            handshake.request_datagram()
+
+    def test_no_datagram_is_accepted_before_the_request_was_built(self) -> None:
+        handshake = SessionHandshake(make_config())
+        with self.assertRaises(RelaySessionError):
+            handshake.accept(encode_address_assignment(SYNTHETIC_CLIENT_ADDRESS))
+
+    def test_the_assignment_completes_the_routing_context(self) -> None:
+        handshake = SessionHandshake(make_config())
+        handshake.request_datagram()
+        with self.assertRaises(RelaySessionError):
+            handshake.routing_context()
+        address = handshake.accept(
+            encode_address_assignment(SYNTHETIC_CLIENT_ADDRESS)
+        )
+        self.assertEqual(address, SYNTHETIC_CLIENT_ADDRESS)
+        self.assertTrue(handshake.completed)
+        self.assertEqual(handshake.routing_context(), ROUTING)
+
+    def test_a_keep_alive_during_setup_is_ignored_rather_than_fatal(self) -> None:
+        handshake = SessionHandshake(make_config())
+        handshake.request_datagram()
+        self.assertIsNone(handshake.accept(encode_keep_alive(bytes(8))))
+        self.assertFalse(handshake.completed)
+
+    def test_an_in_band_refusal_is_terminal_and_names_only_its_code(self) -> None:
+        handshake = SessionHandshake(make_config())
+        handshake.request_datagram()
+        with self.assertRaises(RelayRefusedError) as caught:
+            handshake.accept(
+                encode_error(ERROR_INVALID_AUTHORIZATION, "Invalid or expired token")
+            )
+        self.assertEqual(caught.exception.code, ERROR_INVALID_AUTHORIZATION)
+        # Neither the relay's own text nor the authorization may travel out.
+        self.assertNotIn("Invalid or expired token", str(caught.exception))
+        self.assertNotIn(SYNTHETIC_AUTHORIZATION, str(caught.exception))
+        self.assertFalse(handshake.completed)
+
+    def test_a_datagram_outside_the_exchange_is_refused(self) -> None:
+        handshake = SessionHandshake(make_config())
+        handshake.request_datagram()
+        for datagram in (ROUTING.outbound_header(), b"\x00", encode_address_request("x")):
+            with self.assertRaises(RelaySessionError):
+                handshake.accept(datagram)
+
+    def test_the_relay_refuses_an_authorization_it_does_not_know(self) -> None:
+        relay = LoopbackRelay(max_datagram_size_bytes=20000)
+        plan = MeasurementPlan.from_vector(make_vector([16, 17, 18]))
+        with self.assertRaises(RelayRefusedError) as caught:
+            open_session(relay, plan, make_config(authorization="wrong"), NONCE)
+        self.assertEqual(caught.exception.code, ERROR_INVALID_AUTHORIZATION)
+        self.assertEqual(relay.refused_authorizations, 1)
+
+    def test_a_refused_session_is_closed_and_carries_nothing_further(self) -> None:
+        relay = LoopbackRelay(max_datagram_size_bytes=20000, refuse_authorization=True)
+        adapter = relay.attach()
+        handshake = SessionHandshake(make_config())
+        adapter.send(handshake.request_datagram())
+        answers = adapter.drain()
+        self.assertEqual(len(answers), 1)
+        self.assertEqual(datagram_type(answers[0]), TYPE_ERROR)
+        with self.assertRaises(RelayRefusedError):
+            handshake.accept(answers[0])
+        # The relay closed the session: nothing more is accepted from it.
+        self.assertTrue(adapter.terminated)
+        with self.assertRaises(AdapterSendError):
+            adapter.send(encode_keep_alive())
+
+    def test_relay_traffic_before_assignment_is_never_answered(self) -> None:
+        plan = MeasurementPlan.from_vector(make_vector([16, 17, 18]))
+        relay = LoopbackRelay(max_datagram_size_bytes=20000)
+        adapter = relay.attach()
+        driver = make_driver(plan, adapter)
+        run_session(driver, adapter)
+        record = driver.session_record()
+        self.assertEqual(set(outcomes(record)), {OUTCOME_TIMED_OUT})
+        self.assertEqual(relay.dropped_before_assignment, len(plan.cases))
+        self.assertEqual(relay.received_datagrams, 0)
+
+    def test_a_driver_without_a_routing_context_is_refused(self) -> None:
+        plan = MeasurementPlan.from_vector(make_vector([16, 17, 18]))
+        adapter = LoopbackRelay().attach()
+        with self.assertRaises(RelayProbeError):
+            SessionDriver(plan, adapter, NONCE, make_config(), None)
 
 
 class PayloadTagTests(unittest.TestCase):
@@ -439,59 +738,83 @@ class ProbeConfigTests(unittest.TestCase):
         with self.assertRaises(ProbeConfigError):
             parse_probe_config(["endpoint"])
 
-    def test_endpoint_template_must_be_https_with_one_placeholder(self) -> None:
-        for template in (
+    def test_endpoint_must_be_a_plain_https_url(self) -> None:
+        for endpoint in (
             "",
             "   ",
-            "http://relay.invalid/probe?a={authorization}",
-            "https://relay.invalid/probe",
-            "https://relay.invalid/probe?a={authorization}&b={authorization}",
+            "http://relay.invalid/probe",
+            "https://relay.invalid/probe#fragment",
         ):
             with self.assertRaises(ProbeConfigError):
-                parse_probe_config(dict(BASE_CONFIG, endpointTemplate=template))
+                parse_probe_config(dict(BASE_CONFIG, endpointUrl=endpoint))
+        self.assertEqual(make_config().endpoint_url, "https://relay.invalid/probe")
 
-    def test_authorization_must_be_present_and_is_only_substituted_at_connect(
-        self,
-    ) -> None:
+    def test_the_withdrawn_url_placeholder_is_refused_with_an_explanation(self) -> None:
+        # The 2026-08-30 amendment moved the authorization out of the URL. An
+        # endpoint still carrying the placeholder would otherwise be opened with
+        # a literal brace in its path.
+        with self.assertRaises(ProbeConfigError) as caught:
+            parse_probe_config(
+                dict(
+                    BASE_CONFIG,
+                    endpointUrl="https://relay.invalid/probe?a={authorization}",
+                )
+            )
+        self.assertIn("first datagram", str(caught.exception))
+
+    def test_authorization_must_be_present_and_never_reaches_the_endpoint(self) -> None:
         for value in ("", "   ", None, 7):
             with self.assertRaises(ProbeConfigError):
                 parse_probe_config(dict(BASE_CONFIG, authorization=value))
         config = make_config()
-        self.assertNotIn("one-time-value", config.endpoint_template)
-        self.assertEqual(
-            config.endpoint_url(),
-            "https://relay.invalid/probe?a=one-time-value",
-        )
+        self.assertNotIn(SYNTHETIC_AUTHORIZATION, config.endpoint_url)
 
-    def test_substitution_is_literal_for_a_dollar_pattern_authorization(self) -> None:
-        # Only the literal value may reach the wire. A naive JavaScript
-        # String.replace() would expand these into the surrounding match.
-        for value in DOLLAR_AUTHORIZATIONS:
-            config = make_config(authorization=value)
+    def test_the_authorization_reaches_the_wire_byte_for_byte(self) -> None:
+        # Only the literal value may reach the wire, whatever it contains.
+        for value in HARNESS_AUTHORIZATIONS:
+            datagram = SessionHandshake(
+                make_config(authorization=value)
+            ).request_datagram()
+            self.assertEqual(datagram_type(datagram), TYPE_REQUEST_ADDRESS)
             self.assertEqual(
-                config.endpoint_url(),
-                f"https://relay.invalid/probe?a={value}",
+                datagram[DATAGRAM_TYPE_BYTES:], value.encode("utf-8"), value
             )
 
-    def test_destination_port_agreement_must_be_acknowledged(self) -> None:
-        for value in (False, "true", 1, None):
+    def test_destination_address_must_be_sixteen_hexadecimal_bytes(self) -> None:
+        for value in (
+            "",
+            SYNTHETIC_DESTINATION_ADDRESS.hex()[:-2],
+            "zz" * 16,
+            16,
+            "00" * 16,
+        ):
             with self.assertRaises(ProbeConfigError):
-                parse_probe_config(
-                    dict(BASE_CONFIG, destinationPortMatchesProjection=value)
-                )
+                parse_probe_config(dict(BASE_CONFIG, destinationAddressHex=value))
+        self.assertEqual(
+            make_config().destination_address, SYNTHETIC_DESTINATION_ADDRESS
+        )
 
-    def test_routing_prefix_must_be_forty_hexadecimal_bytes(self) -> None:
-        for value in ("", SYNTHETIC_PREFIX.hex()[:-2], "zz" * 40, 40):
-            with self.assertRaises(ProbeConfigError):
-                parse_probe_config(dict(BASE_CONFIG, routingPrefixHex=value))
-        self.assertEqual(make_config().routing_prefix, SYNTHETIC_PREFIX)
+    def test_ports_are_bounded_and_the_source_port_defaults(self) -> None:
+        config = make_config()
+        self.assertEqual(config.destination_port, SYNTHETIC_DESTINATION_PORT)
+        self.assertEqual(config.client_source_port, DEFAULT_CLIENT_SOURCE_PORT)
+        for field in ("destinationPort", "clientSourcePort"):
+            for value in (0, 65536, -1, "40000", True):
+                with self.assertRaises(ProbeConfigError, msg=f"{field}={value!r}"):
+                    parse_probe_config(dict(BASE_CONFIG, **{field: value}))
+        self.assertEqual(make_config(clientSourcePort=65535).client_source_port, 65535)
 
-    def test_expected_return_prefix_is_optional_but_checked(self) -> None:
-        self.assertEqual(make_config().expected_return_prefix, b"")
-        config = make_config(expectedReturnPrefixHex=SYNTHETIC_RETURN_PREFIX.hex())
-        self.assertEqual(config.expected_return_prefix, SYNTHETIC_RETURN_PREFIX)
-        with self.assertRaises(ProbeConfigError):
-            parse_probe_config(dict(BASE_CONFIG, expectedReturnPrefixHex="00"))
+    def test_the_routing_context_is_completed_by_the_assignment(self) -> None:
+        routing = make_config().routing_context(SYNTHETIC_CLIENT_ADDRESS)
+        self.assertEqual(routing.client_address, SYNTHETIC_CLIENT_ADDRESS)
+        self.assertEqual(routing.client_port, DEFAULT_CLIENT_SOURCE_PORT)
+        self.assertEqual(routing.destination_address, SYNTHETIC_DESTINATION_ADDRESS)
+        # An unusable assignment is refused rather than measured against.
+        for address in (bytes(VIRTUAL_ADDRESS_BYTES), SYNTHETIC_DESTINATION_ADDRESS):
+            with self.assertRaises(RelaySessionError):
+                make_config().routing_context(address)
+        with self.assertRaises(RelayFrameError):
+            make_config().routing_context(SYNTHETIC_CLIENT_ADDRESS[:-1])
 
     def test_certificate_hashes_must_be_sha256_digests(self) -> None:
         make_config(certificateHashes=["ab" * 32])
@@ -501,6 +824,7 @@ class ProbeConfigTests(unittest.TestCase):
 
     def test_numeric_bounds_are_enforced(self) -> None:
         for field, bad in (
+            ("assignmentTimeoutMilliseconds", 0),
             ("caseTimeoutMilliseconds", 0),
             ("maxInFlightDatagrams", 0),
         ):
@@ -516,28 +840,28 @@ class ProbeConfigTests(unittest.TestCase):
 
 class ConfigHexStrictnessTests(unittest.TestCase):
     """`bytes.fromhex` skips whitespace, so a value of the right length can
-    decode short. A 20-byte routing prefix would then fail deep inside the run,
-    and a short expected return prefix would silently reject every frame."""
+    decode short. A 15-byte destination address would then address something
+    else, or fail deep inside the run."""
 
     def test_whitespace_inside_a_hex_field_is_refused(self) -> None:
-        spaced = "  " + SYNTHETIC_PREFIX.hex()[2:]
-        self.assertEqual(len(spaced), RELAY_HEADER_BYTES * 2)
-        self.assertEqual(len(bytes.fromhex(spaced)), RELAY_HEADER_BYTES - 1)
+        spaced = "  " + SYNTHETIC_DESTINATION_ADDRESS.hex()[2:]
+        self.assertEqual(len(spaced), VIRTUAL_ADDRESS_BYTES * 2)
+        self.assertEqual(len(bytes.fromhex(spaced)), VIRTUAL_ADDRESS_BYTES - 1)
         with self.assertRaises(ProbeConfigError):
-            parse_probe_config(dict(BASE_CONFIG, routingPrefixHex=spaced))
-        with self.assertRaises(ProbeConfigError):
-            parse_probe_config(dict(BASE_CONFIG, expectedReturnPrefixHex=spaced))
+            parse_probe_config(dict(BASE_CONFIG, destinationAddressHex=spaced))
         with self.assertRaises(ProbeConfigError):
             parse_probe_config(
                 dict(BASE_CONFIG, certificateHashes=["  " + "ab" * 32][:1])
             )
 
     def test_uppercase_hex_is_accepted_for_configuration(self) -> None:
-        config = make_config(routingPrefixHex=SYNTHETIC_PREFIX.hex().upper())
-        self.assertEqual(config.routing_prefix, SYNTHETIC_PREFIX)
+        config = make_config(
+            destinationAddressHex=SYNTHETIC_DESTINATION_ADDRESS.hex().upper()
+        )
+        self.assertEqual(config.destination_address, SYNTHETIC_DESTINATION_ADDRESS)
 
     def test_the_authorization_stays_out_of_the_generated_repr(self) -> None:
-        self.assertNotIn("one-time-value", repr(make_config()))
+        self.assertNotIn(SYNTHETIC_AUTHORIZATION, repr(make_config()))
 
 
 class ReportDigestStrictnessTests(unittest.TestCase):
@@ -601,17 +925,67 @@ class SessionTests(unittest.TestCase):
 
     def test_empty_datagram_is_measured_rather_than_refused(self) -> None:
         plan = MeasurementPlan.from_vector(make_vector([0, 16, 17, 18]))
-        driver, _ = run_plan(plan)
+        driver, relay = run_plan(plan)
         record = driver.session_record()
         empty = [case for case in record["cases"] if case["sentInnerBytes"] == [0]][0]
         self.assertEqual(empty["outcome"], OUTCOME_ECHOED)
+        # 40 header bytes plus a 0x0000 length and nothing else, in each
+        # direction. The relay saw the zero-length inner datagram rather than
+        # the frame merely being well formed.
         self.assertEqual(empty["sentFrameBytes"], SINGLE_DATAGRAM_OVERHEAD_BYTES)
+        self.assertEqual(
+            empty["receivedFrames"],
+            [{"frameBytes": SINGLE_DATAGRAM_OVERHEAD_BYTES, "innerBytes": 0}],
+        )
+        self.assertIn(0, relay.received_inner_sizes)
+
+    def test_a_zero_length_inner_datagram_is_carried_in_both_directions(self) -> None:
+        # The committed vector requires the 0-byte case, and the relay now
+        # preserves it on the game path. Both halves are asserted on the wire:
+        # the frame that leaves and the frame that comes back.
+        relay = LoopbackRelay(max_datagram_size_bytes=20000)
+        plan = MeasurementPlan.from_vector(make_vector([0, 16, 17, 18]))
+        driver, adapter = open_session(relay, plan, make_config(), NONCE)
+        driver.pump(0)
+        outbound = encode_frame(ROUTING.outbound_header(), (b"",), BROWSER_TO_SERVER)
+        self.assertEqual(len(outbound), SINGLE_DATAGRAM_OVERHEAD_BYTES)
+        self.assertEqual(outbound[RELAY_HEADER_BYTES:], b"\x00\x00")
+        returned = adapter.drain()[0]
+        self.assertEqual(len(returned), SINGLE_DATAGRAM_OVERHEAD_BYTES)
+        self.assertEqual(returned[RELAY_HEADER_BYTES:], b"\x00\x00")
+        self.assertEqual(
+            decode_frame(returned, SERVER_TO_BROWSER).datagrams, (b"",)
+        )
+        driver.receive(returned, 1)
+        self.assertEqual(
+            driver.session_record()["cases"][0]["outcome"], OUTCOME_ECHOED
+        )
+
+    def test_a_relay_that_drops_the_zero_byte_case_cannot_pass_it(self) -> None:
+        # The behaviour the 2026-08-30 amendment removed. Recording the case as
+        # anything but unanswered would be a conformance failure hidden in a
+        # measurement, so this pins it from the failing side.
+        plan = MeasurementPlan.from_vector(make_vector([0, 16, 17, 18]))
+        relay = LoopbackRelay(
+            max_datagram_size_bytes=20000, fault=FAULT_DROP_ZERO_LENGTH
+        )
+        driver, _ = run_plan(plan, relay=relay)
+        record = driver.session_record()
+        by_size = {
+            case["sentInnerBytes"][0]: case
+            for case in record["cases"]
+            if case["kind"] == CASE_SINGLE
+        }
+        self.assertEqual(by_size[0]["outcome"], OUTCOME_TIMED_OUT)
+        self.assertEqual(by_size[0]["receivedFrames"], [])
+        self.assertEqual(relay.dropped_zero_length, 1)
+        for size in (16, 17, 18):
+            self.assertEqual(by_size[size]["outcome"], OUTCOME_ECHOED)
 
     def test_untagged_cases_run_one_at_a_time(self) -> None:
         plan = MeasurementPlan.from_vector(make_vector([0, 1, 16, 17, 18]))
         relay = LoopbackRelay(max_datagram_size_bytes=20000, echo=False)
-        adapter = relay.attach()
-        driver = SessionDriver(plan, adapter, NONCE, make_config())
+        driver, adapter = open_session(relay, plan, make_config(), NONCE)
         driver.pump(0)
         self.assertEqual(relay.received_datagrams, 1)
         driver.pump(1999)
@@ -622,9 +996,8 @@ class SessionTests(unittest.TestCase):
     def test_outstanding_tagged_datagrams_are_bounded(self) -> None:
         plan = MeasurementPlan.from_vector(make_vector(range(16, 30)))
         relay = LoopbackRelay(max_datagram_size_bytes=20000, echo=False)
-        adapter = relay.attach()
-        driver = SessionDriver(
-            plan, adapter, NONCE, make_config(maxInFlightDatagrams=4)
+        driver, adapter = open_session(
+            relay, plan, make_config(maxInFlightDatagrams=4), NONCE
         )
         driver.pump(0)
         self.assertEqual(relay.received_datagrams, 4)
@@ -685,26 +1058,84 @@ class SessionTests(unittest.TestCase):
             )
             self.assertGreater(record["malformedFrames"], 0, f"fault {fault}")
 
-    def test_an_unexpected_return_prefix_is_refused(self) -> None:
+    def test_a_return_header_from_elsewhere_is_refused(self) -> None:
+        # No operator acknowledgement and no first-frame pin: the session knows
+        # the three fields a return header must carry and checks them.
         plan = MeasurementPlan.from_vector(make_vector([16, 17, 18]))
-        relay = LoopbackRelay(max_datagram_size_bytes=20000, fault=FAULT_FOREIGN_PREFIX)
-        config = make_config(expectedReturnPrefixHex=SYNTHETIC_RETURN_PREFIX.hex())
-        driver, _ = run_plan(plan, relay=relay, config=config)
+        relay = LoopbackRelay(max_datagram_size_bytes=20000, fault=FAULT_FOREIGN_HEADER)
+        driver, _ = run_plan(plan, relay=relay)
         record = driver.session_record()
         self.assertEqual(set(outcomes(record)), {OUTCOME_TIMED_OUT})
-        self.assertGreater(record["prefixMismatchFrames"], 0)
+        self.assertGreater(record["headerMismatchFrames"], 0)
 
-    def test_the_first_return_prefix_is_pinned_for_the_session(self) -> None:
+    def test_a_return_header_is_checked_field_by_field(self) -> None:
         plan = MeasurementPlan.from_vector(make_vector([16, 17, 18]))
         relay = LoopbackRelay(max_datagram_size_bytes=20000)
-        adapter = relay.attach()
-        driver = SessionDriver(plan, adapter, NONCE, make_config())
+        driver, adapter = open_session(relay, plan, make_config(), NONCE)
         driver.pump(0)
         first = adapter.drain()[0]
-        driver.receive(first, 1)
-        drifted = bytes(RELAY_HEADER_BYTES) + first[RELAY_HEADER_BYTES:]
-        driver.receive(drifted, 2)
-        self.assertEqual(driver.prefix_mismatch_frames, 1)
+        payload = first[RELAY_HEADER_BYTES:]
+        for overrides in (
+            {"destination_address": SYNTHETIC_OTHER_CLIENT_ADDRESS},
+            {"destination_port": SYNTHETIC_CLIENT_PORT + 1},
+            {"source_address": SYNTHETIC_FOREIGN_ADDRESS},
+        ):
+            fields = {
+                "destination_address": SYNTHETIC_CLIENT_ADDRESS,
+                "destination_port": SYNTHETIC_CLIENT_PORT,
+                "source_address": SYNTHETIC_DESTINATION_ADDRESS,
+                "source_port": SYNTHETIC_DESTINATION_PORT + 1,
+            }
+            fields.update(overrides)
+            driver.receive(encode_relay_header(RelayHeader(**fields)) + payload, 1)
+        self.assertEqual(driver.header_mismatch_frames, 3)
+        self.assertNotEqual(
+            driver.session_record()["cases"][0]["outcome"], OUTCOME_ECHOED
+        )
+        # The relay's own return header still completes the case.
+        driver.receive(first, 2)
+        self.assertEqual(
+            driver.session_record()["cases"][0]["outcome"], OUTCOME_ECHOED
+        )
+
+    def test_control_datagrams_are_recognised_and_complete_nothing(self) -> None:
+        plan = MeasurementPlan.from_vector(make_vector([16, 17, 18]))
+        relay = LoopbackRelay(max_datagram_size_bytes=20000, echo=False)
+        driver, adapter = open_session(relay, plan, make_config(), NONCE)
+        driver.pump(0)
+        adapter.drain()
+        adapter.send(encode_keep_alive(bytes(8)))
+        for datagram in adapter.drain():
+            driver.receive(datagram, 1)
+        driver.receive(encode_address_assignment(SYNTHETIC_CLIENT_ADDRESS), 2)
+        driver.receive(
+            encode_error(ERROR_DESTINATION_UNAVAILABLE, "Destination not connected"), 3
+        )
+        driver.receive(b"\x00\x00\x00\x09\x01\x02", 4)
+        driver.receive(b"\x00\x00\x00", 5)
+        record = driver.session_record()
+        self.assertEqual(record["keepAliveDatagrams"], 1)
+        self.assertEqual(record["unexpectedControlDatagrams"], 1)
+        self.assertEqual(record["errorDatagrams"], 1)
+        self.assertEqual(record["malformedFrames"], 2)
+        self.assertEqual(record["unmatchedFrames"], 0)
+        self.assertNotIn(
+            OUTCOME_ECHOED, [case["outcome"] for case in record["cases"]]
+        )
+
+    def test_an_unauthorized_destination_is_answered_in_band(self) -> None:
+        # Unknown and unauthorized are the same answer, so a case can only time
+        # out; the error counter is what tells a reader the path answered at all.
+        plan = MeasurementPlan.from_vector(make_vector([16, 17, 18]))
+        relay = LoopbackRelay(
+            max_datagram_size_bytes=20000,
+            destination_address=SYNTHETIC_FOREIGN_ADDRESS,
+        )
+        driver, _ = run_plan(plan, relay=relay)
+        record = driver.session_record()
+        self.assertEqual(set(outcomes(record)), {OUTCOME_TIMED_OUT})
+        self.assertEqual(record["errorDatagrams"], relay.refused_destinations)
+        self.assertGreater(record["errorDatagrams"], 0)
 
     def test_two_sessions_receive_only_their_own_tagged_traffic(self) -> None:
         """Isolation holds for nonce-tagged cases, which is the whole claim.
@@ -720,16 +1151,18 @@ class SessionTests(unittest.TestCase):
         relay = LoopbackRelay(max_datagram_size_bytes=20000, crosstalk=True)
         pairs = []
         plans = []
-        for index, nonce in enumerate((NONCE, OTHER_NONCE)):
-            adapter = relay.attach()
+        addresses = (SYNTHETIC_CLIENT_ADDRESS, SYNTHETIC_OTHER_CLIENT_ADDRESS)
+        for index, (nonce, address) in enumerate(zip((NONCE, OTHER_NONCE), addresses)):
             plan = MeasurementPlan.from_vector(make_vector([0, 1, 16, 17, 18]))
             plans.append(plan)
             pairs.append(
-                (
-                    SessionDriver(
-                        plan, adapter, nonce, make_config(), session_index=index
-                    ),
-                    adapter,
+                open_session(
+                    relay,
+                    plan,
+                    make_config(),
+                    nonce,
+                    session_index=index,
+                    adapter=relay.attach(client_address=address),
                 )
             )
         run_sessions(pairs)
@@ -751,14 +1184,13 @@ class SessionTests(unittest.TestCase):
         # against a case that did nothing wrong.
         plan = MeasurementPlan.from_vector(make_vector([0, 1, 16, 17, 18]))
         relay = LoopbackRelay(max_datagram_size_bytes=20000, echo=False)
-        adapter = relay.attach()
-        driver = SessionDriver(plan, adapter, NONCE, make_config())
+        driver, adapter = open_session(relay, plan, make_config(), NONCE)
         driver.pump(0)
         adapter.drain()
         driver.pump(2000)
         self.assertEqual(relay.received_datagrams, 2)
         adapter.drain()
-        late = encode_frame(SYNTHETIC_RETURN_PREFIX, (b"",), SERVER_TO_BROWSER)
+        late = encode_frame(RETURN_HEADER, (b"",), SERVER_TO_BROWSER)
         driver.receive(late, 2001)
         self.assertEqual(driver.unmatched_frames, 1)
         record_before = {
@@ -769,7 +1201,7 @@ class SessionTests(unittest.TestCase):
         self.assertNotEqual(record_before[1], OUTCOME_PAYLOAD_MISMATCH)
         # The correctly sized echo still completes its own case.
         driver.receive(
-            encode_frame(SYNTHETIC_RETURN_PREFIX, (b"\x00",), SERVER_TO_BROWSER),
+            encode_frame(RETURN_HEADER, (b"\x00",), SERVER_TO_BROWSER),
             2002,
         )
         self.assertEqual(driver.session_record()["cases"][1]["outcome"], OUTCOME_ECHOED)
@@ -782,16 +1214,15 @@ class SessionTests(unittest.TestCase):
         )
         adapter = LoopbackRelay().attach()
         with self.assertRaises(RelayProbeError):
-            SessionDriver(plan, adapter, NONCE, make_config(maxInFlightDatagrams=2))
+            make_driver(plan, adapter, config=make_config(maxInFlightDatagrams=2))
 
     def test_a_case_never_reached_is_not_reported_as_a_timeout(self) -> None:
         # A case that was never sent is an absence of evidence. Recording it as
         # a timeout would fold it into the accepted range WP6 reads.
         plan = MeasurementPlan.from_vector(make_vector([16, 17, 18]))
         relay = LoopbackRelay(max_datagram_size_bytes=20000, echo=False)
-        adapter = relay.attach()
-        driver = SessionDriver(
-            plan, adapter, NONCE, make_config(maxInFlightDatagrams=2)
+        driver, adapter = open_session(
+            relay, plan, make_config(maxInFlightDatagrams=2), NONCE
         )
         driver.pump(0)
         outcomes_by_index = {
@@ -812,7 +1243,7 @@ class SessionTests(unittest.TestCase):
         plan = MeasurementPlan.from_vector(make_vector([16, 17, 18]))
         adapter = LoopbackRelay().attach()
         with self.assertRaises(RelayProbeError):
-            SessionDriver(plan, adapter, b"short", make_config())
+            make_driver(plan, adapter, nonce=b"short")
 
 
 class ReportValidationTests(unittest.TestCase):
@@ -849,9 +1280,13 @@ class ReportValidationTests(unittest.TestCase):
         self.assert_rejected(report)
 
     def test_kind_version_and_framing_are_fixed(self) -> None:
+        self.assertEqual(REPORT_FORMAT_VERSION, 2)
         for field, value in (
             ("kind", "something-else"),
-            ("formatVersion", 2),
+            # Version 1 is the withdrawn URL-authorization profile, whose
+            # session records have different counters; it is not readable here.
+            ("formatVersion", 1),
+            ("formatVersion", 3),
             ("framing", {"relayHeaderBytes": 40}),
         ):
             report = self.valid()
@@ -1213,6 +1648,104 @@ class ConformanceVectorTests(unittest.TestCase):
             self.assertIn(case["prefixHex"], allowed)
             self.assertTrue(case["frameHex"].startswith(case["prefixHex"]))
 
+    def test_the_session_vectors_carry_only_documentation_values(self) -> None:
+        """A committed vector must never carry a real address or authorization.
+
+        Every address in the session and header vectors comes from the IPv6
+        documentation prefix 2001:db8::/32 (RFC 3849), which is reserved for
+        examples and is never routable, and every authorization is one of the
+        fixed synthetic strings the emitter declares.
+        """
+        addresses = COMMITTED_CONFORMANCE["syntheticAddresses"]
+        declared = {
+            value for name, value in addresses.items() if name.endswith("Hex")
+        }
+        self.assertTrue(declared)
+        for value in declared:
+            self.assertTrue(value.startswith("20010db8"), value)
+            self.assertEqual(len(value), VIRTUAL_ADDRESS_BYTES * 2, value)
+        self.assertEqual(
+            {case["authorization"] for case in COMMITTED_CONFORMANCE["addressRequestCases"]},
+            {value for _, value in VECTOR_AUTHORIZATIONS},
+        )
+        for case in COMMITTED_CONFORMANCE["addressAssignmentCases"]:
+            self.assertIn(case["addressHex"], declared)
+        for name in ("headerCases", "returnHeaderAcceptances", "returnHeaderRejections"):
+            for case in COMMITTED_CONFORMANCE[name]:
+                self.assertIn(case["clientAddressHex"], declared, case["name"])
+                self.assertIn(case["destinationAddressHex"], declared, case["name"])
+
+    def test_the_control_and_header_vectors_reproduce(self) -> None:
+        for case in COMMITTED_CONFORMANCE["addressRequestCases"]:
+            self.assertEqual(
+                encode_address_request(case["authorization"]).hex(),
+                case["datagramHex"],
+                case["name"],
+            )
+        for case in COMMITTED_CONFORMANCE["addressAssignmentCases"]:
+            datagram = bytes.fromhex(case["datagramHex"])
+            self.assertEqual(
+                encode_address_assignment(bytes.fromhex(case["addressHex"])),
+                datagram,
+                case["name"],
+            )
+            self.assertEqual(
+                decode_address_assignment(datagram).hex(), case["addressHex"]
+            )
+        for case in COMMITTED_CONFORMANCE["errorCases"]:
+            datagram = bytes.fromhex(case["datagramHex"])
+            self.assertEqual(
+                encode_error(case["code"], case["message"]), datagram, case["name"]
+            )
+            decoded = decode_error(datagram)
+            self.assertEqual((decoded.code, decoded.message), (case["code"], case["message"]))
+        for case in COMMITTED_CONFORMANCE["keepAliveCases"]:
+            self.assertEqual(
+                encode_keep_alive(bytes.fromhex(case["paddingHex"])).hex(),
+                case["datagramHex"],
+                case["name"],
+            )
+        for case in COMMITTED_CONFORMANCE["sessionRejections"]:
+            decode = (
+                decode_error
+                if case["decoder"] == "error"
+                else decode_address_assignment
+            )
+            with self.assertRaises(RelaySessionError, msg=case["name"]):
+                decode(bytes.fromhex(case["datagramHex"]))
+        for case in COMMITTED_CONFORMANCE["headerCases"]:
+            self.assertEqual(
+                self.context(case).outbound_header().hex(),
+                case["headerHex"],
+                case["name"],
+            )
+        for case in COMMITTED_CONFORMANCE["headerRejections"]:
+            with self.assertRaises(RelayFrameError, msg=case["name"]):
+                decode_relay_header(bytes.fromhex(case["headerHex"]))
+        for case in COMMITTED_CONFORMANCE["returnHeaderAcceptances"]:
+            self.assertTrue(
+                self.context(case).accepts_return(
+                    decode_relay_header(bytes.fromhex(case["returnHeaderHex"]))
+                ),
+                case["name"],
+            )
+        for case in COMMITTED_CONFORMANCE["returnHeaderRejections"]:
+            self.assertFalse(
+                self.context(case).accepts_return(
+                    decode_relay_header(bytes.fromhex(case["returnHeaderHex"]))
+                ),
+                case["name"],
+            )
+
+    @staticmethod
+    def context(case) -> RoutingContext:
+        return RoutingContext(
+            client_address=bytes.fromhex(case["clientAddressHex"]),
+            client_port=case["clientPort"],
+            destination_address=bytes.fromhex(case["destinationAddressHex"]),
+            destination_port=case["destinationPort"],
+        )
+
     def test_every_encode_case_reproduces_and_decodes(self) -> None:
         for case in COMMITTED_CONFORMANCE["encodeCases"]:
             payloads = [bytes.fromhex(value) for value in case["payloadHexes"]]
@@ -1316,7 +1849,7 @@ class BrowserImplementationTests(unittest.TestCase):
             text=True,
             env={
                 **os.environ,
-                "HARNESS_AUTHORIZATIONS": json.dumps(list(DOLLAR_AUTHORIZATIONS)),
+                "HARNESS_AUTHORIZATIONS": json.dumps(list(HARNESS_AUTHORIZATIONS)),
                 "HARNESS_LIMITS": json.dumps(list(cls.limits)),
                 "HARNESS_MAX_IN_FLIGHT": str(DEFAULT_MAX_IN_FLIGHT_DATAGRAMS),
             },
@@ -1329,9 +1862,8 @@ class BrowserImplementationTests(unittest.TestCase):
 
     def python_record(self, limit):
         relay = LoopbackRelay(max_datagram_size_bytes=limit)
-        adapter = relay.attach()
-        driver = SessionDriver(
-            self.plan, adapter, bytes(SESSION_NONCE_BYTES), make_config()
+        driver, adapter = open_session(
+            relay, self.plan, make_config(), bytes(SESSION_NONCE_BYTES)
         )
         run_session(driver, adapter)
         return driver.session_record()
@@ -1340,11 +1872,20 @@ class BrowserImplementationTests(unittest.TestCase):
         expected = sum(
             len(COMMITTED_CONFORMANCE[name])
             for name in (
+                "addressAssignmentCases",
+                "addressRequestCases",
                 "decodeAcceptances",
                 "decodeRejections",
                 "encodeCases",
                 "encodeRejections",
+                "errorCases",
+                "headerCases",
+                "headerRejections",
+                "keepAliveCases",
                 "payloadCases",
+                "returnHeaderAcceptances",
+                "returnHeaderRejections",
+                "sessionRejections",
                 "tagCases",
             )
         )
@@ -1364,33 +1905,85 @@ class BrowserImplementationTests(unittest.TestCase):
                 observed, self.python_record(limit), f"transport limit {limit}"
             )
 
-    def test_browser_substitutes_a_dollar_pattern_authorization_literally(
-        self,
-    ) -> None:
-        for value in DOLLAR_AUTHORIZATIONS:
-            expected = parse_probe_config(
-                {
-                    "authorization": value,
-                    "destinationPortMatchesProjection": True,
-                    "endpointTemplate": "https://harness.invalid/p?a={authorization}&b=x",
-                    "routingPrefixHex": SYNTHETIC_PREFIX.hex(),
-                }
-            ).endpoint_url()
-            self.assertEqual(self.observed["endpointUrls"][value], expected, value)
-            self.assertIn(value, expected)
+    def test_browser_puts_the_same_authorization_bytes_on_the_wire(self) -> None:
+        """The authorization is UTF-8 in a datagram, not a URL substitution.
+
+        The two implementations therefore have to agree on TextEncoder versus
+        str.encode, which the `$`-patterns and the non-ASCII value make visible.
+        """
+        for value in HARNESS_AUTHORIZATIONS:
+            expected = SessionHandshake(
+                make_config(authorization=value)
+            ).request_datagram()
+            self.assertEqual(self.observed["addressRequests"][value], expected.hex(), value)
+            self.assertIn(value.encode("utf-8").hex(), expected.hex())
+
+    def test_browser_spends_the_authorization_exactly_once(self) -> None:
+        handshake = SessionHandshake(make_config())
+        self.assertFalse(handshake.spent)
+        handshake.request_datagram()
+        self.assertTrue(handshake.spent)
+        with self.assertRaises(RelaySessionError):
+            handshake.request_datagram()
+        self.assertEqual(
+            self.observed["singleUseAuthorization"],
+            {"secondRequest": "refused", "spentAfter": True, "spentBefore": False},
+        )
+
+    def test_browser_refuses_an_authorization_in_band_like_the_reference(self) -> None:
+        relay = LoopbackRelay(max_datagram_size_bytes=20000, refuse_authorization=True)
+        adapter = relay.attach()
+        handshake = SessionHandshake(make_config())
+        adapter.send(handshake.request_datagram())
+        code = None
+        for datagram in adapter.drain():
+            with self.assertRaises(RelayRefusedError) as caught:
+                handshake.accept(datagram)
+            code = caught.exception.code
+        with self.assertRaises(AdapterSendError):
+            adapter.send(encode_keep_alive())
+        self.assertEqual(
+            self.observed["authorizationRefusal"],
+            {
+                "code": code,
+                "completed": handshake.completed,
+                "kind": "refused",
+                "sentAfterRefusal": "refused",
+                "spent": handshake.spent,
+            },
+        )
+        self.assertEqual(code, ERROR_INVALID_AUTHORIZATION)
+
+    def test_browser_carries_the_zero_byte_case_like_the_reference(self) -> None:
+        plan = self.zero_plan()
+        relay = LoopbackRelay(max_datagram_size_bytes=20000)
+        driver, adapter = open_session(
+            relay, plan, make_config(), bytes(SESSION_NONCE_BYTES)
+        )
+        run_session(driver, adapter)
+        record = driver.session_record()
+        expected = {
+            "innerSizesSeenByRelay": sorted(relay.received_inner_sizes),
+            "outcomes": [item["outcome"] for item in record["cases"]],
+            "sentFrameBytes": record["cases"][0]["sentFrameBytes"],
+            "returnedFrameBytes": record["cases"][0]["receivedFrames"][0]["frameBytes"],
+        }
+        self.assertEqual(self.observed["zeroLengthBoundary"], expected)
+        self.assertEqual(expected["sentFrameBytes"], SINGLE_DATAGRAM_OVERHEAD_BYTES)
+        self.assertEqual(expected["returnedFrameBytes"], SINGLE_DATAGRAM_OVERHEAD_BYTES)
+        self.assertIn(0, expected["innerSizesSeenByRelay"])
 
     def test_browser_refuses_a_late_untagged_echo_like_the_reference(self) -> None:
         relay = LoopbackRelay(max_datagram_size_bytes=20000)
-        adapter = relay.attach()
-        driver = SessionDriver(
-            self.plan, adapter, bytes(SESSION_NONCE_BYTES), make_config()
+        driver, adapter = open_session(
+            relay, self.plan, make_config(), bytes(SESSION_NONCE_BYTES)
         )
         driver.pump(0)
         adapter.drain()
         driver.pump(2000)
         adapter.drain()
         driver.receive(
-            encode_frame(SYNTHETIC_RETURN_PREFIX, (b"",), SERVER_TO_BROWSER), 2001
+            encode_frame(RETURN_HEADER, (b"",), SERVER_TO_BROWSER), 2001
         )
         expected = {
             "unmatchedFrames": driver.unmatched_frames,
@@ -1403,6 +1996,7 @@ class BrowserImplementationTests(unittest.TestCase):
         self.assertNotIn(OUTCOME_PAYLOAD_MISMATCH, expected["outcomes"])
 
     FAULT_PLAN_SIZES = [16, 17, 18]
+    ZERO_PLAN_SIZES = [0, 1, 16, 17, 18]
 
     def fault_plan(self):
         return MeasurementPlan.from_vector(
@@ -1410,75 +2004,90 @@ class BrowserImplementationTests(unittest.TestCase):
             max_in_flight_datagrams=DEFAULT_MAX_IN_FLIGHT_DATAGRAMS,
         )
 
-    def reference_fault_run(self, relay, config=None):
-        plan = self.fault_plan()
-        adapter = relay.attach()
-        driver = SessionDriver(
-            plan, adapter, bytes(SESSION_NONCE_BYTES), config or make_config()
+    def zero_plan(self):
+        return MeasurementPlan.from_vector(
+            make_vector(self.ZERO_PLAN_SIZES),
+            max_in_flight_datagrams=DEFAULT_MAX_IN_FLIGHT_DATAGRAMS,
+        )
+
+    ACCOUNTING_COUNTERS = (
+        "errorDatagrams",
+        "foreignFrames",
+        "headerMismatchFrames",
+        "keepAliveDatagrams",
+        "malformedFrames",
+        "unexpectedControlDatagrams",
+        "unmatchedFrames",
+        "writeFailures",
+    )
+
+    def accounting(self, driver):
+        record = driver.session_record()
+        result = {name: record[name] for name in self.ACCOUNTING_COUNTERS}
+        result["outcomes"] = [item["outcome"] for item in record["cases"]]
+        return result
+
+    def reference_fault_run(self, relay, config=None, plan=None):
+        driver, adapter = open_session(
+            relay,
+            plan or self.fault_plan(),
+            config or make_config(),
+            bytes(SESSION_NONCE_BYTES),
         )
         run_session(driver, adapter)
-        record = driver.session_record()
-        return {
-            "foreignFrames": record["foreignFrames"],
-            "malformedFrames": record["malformedFrames"],
-            "outcomes": [item["outcome"] for item in record["cases"]],
-            "prefixMismatchFrames": record["prefixMismatchFrames"],
-            "unmatchedFrames": record["unmatchedFrames"],
-            "writeFailures": record["writeFailures"],
-        }
+        return self.accounting(driver)
 
     def test_browser_accounting_matches_the_reference_under_every_fault(self) -> None:
         """The browser is what takes the routed measurement, and its counters
         are the concurrent-session evidence. Every rejection path it owns is
         driven here and compared with the reference implementation."""
-        cases = {
-            "clean": LoopbackRelay(max_datagram_size_bytes=20000),
-            "truncatedReturn": LoopbackRelay(
-                max_datagram_size_bytes=20000, fault=FAULT_TRUNCATED_RETURN
-            ),
-            "packedReturn": LoopbackRelay(
-                max_datagram_size_bytes=20000, fault=FAULT_PACKED_RETURN
-            ),
-            "headerOnlyReturn": LoopbackRelay(
-                max_datagram_size_bytes=20000, fault=FAULT_HEADER_ONLY_RETURN
-            ),
-            "declaredOversize": LoopbackRelay(
-                max_datagram_size_bytes=20000, fault=FAULT_DECLARED_OVERSIZE
-            ),
-            "corruptPayload": LoopbackRelay(
-                max_datagram_size_bytes=20000, fault=FAULT_CORRUPT_PAYLOAD
-            ),
-            "dropped": LoopbackRelay(
-                max_datagram_size_bytes=20000, drop_inner_sizes=(17,)
-            ),
-            "refused": LoopbackRelay(max_datagram_size_bytes=20000, refuse_send=True),
+        faults = {
+            "clean": {},
+            "truncatedReturn": {"fault": FAULT_TRUNCATED_RETURN},
+            "packedReturn": {"fault": FAULT_PACKED_RETURN},
+            "headerOnlyReturn": {"fault": FAULT_HEADER_ONLY_RETURN},
+            "declaredOversize": {"fault": FAULT_DECLARED_OVERSIZE},
+            "corruptPayload": {"fault": FAULT_CORRUPT_PAYLOAD},
+            "foreignHeader": {"fault": FAULT_FOREIGN_HEADER},
+            "dropped": {"drop_inner_sizes": (17,)},
+            "refused": {"refuse_send": True},
+            "refusedDestination": {"destination_address": SYNTHETIC_FOREIGN_ADDRESS},
         }
-        for name, relay in cases.items():
+        for name, options in faults.items():
             self.assertEqual(
                 self.observed["faultRuns"][name],
-                self.reference_fault_run(relay),
+                self.reference_fault_run(
+                    LoopbackRelay(max_datagram_size_bytes=20000, **options)
+                ),
+                f"fault {name}",
+            )
+        # The zero-byte boundary, preserved and dropped, over a plan that has it.
+        for name, options in (
+            ("zeroLengthPreserved", {}),
+            ("zeroLengthDropped", {"fault": FAULT_DROP_ZERO_LENGTH}),
+        ):
+            self.assertEqual(
+                self.observed["faultRuns"][name],
+                self.reference_fault_run(
+                    LoopbackRelay(max_datagram_size_bytes=20000, **options),
+                    plan=self.zero_plan(),
+                ),
                 f"fault {name}",
             )
         self.assertEqual(
-            self.observed["faultRuns"]["foreignPrefix"],
-            self.reference_fault_run(
-                LoopbackRelay(
-                    max_datagram_size_bytes=20000, fault=FAULT_FOREIGN_PREFIX
-                ),
-                make_config(expectedReturnPrefixHex=SYNTHETIC_RETURN_PREFIX.hex()),
-            ),
+            self.observed["faultRuns"]["zeroLengthDropped"]["outcomes"][0],
+            OUTCOME_TIMED_OUT,
+        )
+        self.assertEqual(
+            self.observed["faultRuns"]["zeroLengthPreserved"]["outcomes"][0],
+            OUTCOME_ECHOED,
         )
         # Every counter the browser owns is actually reached by this set.
         reached = set()
         for run in self.observed["faultRuns"].values():
             reached.update(name for name, value in run.items() if value)
             reached.update(run["outcomes"])
-        for name in (
-            "foreignFrames",
-            "malformedFrames",
-            "prefixMismatchFrames",
-            "unmatchedFrames",
-            "writeFailures",
+        for name in self.ACCOUNTING_COUNTERS + (
             OUTCOME_ECHOED,
             OUTCOME_PAYLOAD_MISMATCH,
             OUTCOME_SEND_FAILED,
@@ -1489,48 +2098,75 @@ class BrowserImplementationTests(unittest.TestCase):
     def test_browser_counts_a_foreign_nonce_like_the_reference(self) -> None:
         plan = self.fault_plan()
         relay = LoopbackRelay(max_datagram_size_bytes=20000, echo=False)
-        adapter = relay.attach()
-        driver = SessionDriver(plan, adapter, bytes(SESSION_NONCE_BYTES), make_config())
+        driver, _ = open_session(relay, plan, make_config(), bytes(SESSION_NONCE_BYTES))
         driver.pump(0)
         driver.receive(
             encode_frame(
-                SYNTHETIC_RETURN_PREFIX,
+                RETURN_HEADER,
                 (build_payload(bytes([9] * SESSION_NONCE_BYTES), 0, 16),),
                 SERVER_TO_BROWSER,
             ),
             1,
         )
-        record = driver.session_record()
         self.assertEqual(
-            self.observed["faultRuns"]["foreignNonce"],
-            {
-                "foreignFrames": record["foreignFrames"],
-                "malformedFrames": record["malformedFrames"],
-                "outcomes": [item["outcome"] for item in record["cases"]],
-                "prefixMismatchFrames": record["prefixMismatchFrames"],
-                "unmatchedFrames": record["unmatchedFrames"],
-                "writeFailures": record["writeFailures"],
-            },
+            self.observed["faultRuns"]["foreignNonce"], self.accounting(driver)
         )
-        self.assertEqual(record["foreignFrames"], 1)
+        self.assertEqual(driver.foreign_frames, 1)
+
+    def test_browser_handles_control_datagrams_like_the_reference(self) -> None:
+        plan = self.fault_plan()
+        relay = LoopbackRelay(max_datagram_size_bytes=20000, echo=False)
+        driver, adapter = open_session(
+            relay, plan, make_config(), bytes(SESSION_NONCE_BYTES)
+        )
+        driver.pump(0)
+        adapter.drain()
+        adapter.send(encode_keep_alive(bytes(8)))
+        for datagram in adapter.drain():
+            driver.receive(datagram, 1)
+        driver.receive(encode_address_assignment(SYNTHETIC_CLIENT_ADDRESS), 2)
+        driver.receive(bytes([0, 0, 0, 9, 1, 2, 3]), 3)
+        driver.receive(bytes([0, 0, 0]), 4)
+        expected = self.accounting(driver)
+        self.assertEqual(self.observed["faultRuns"]["controlDatagrams"], expected)
+        self.assertEqual(expected["keepAliveDatagrams"], 1)
+        self.assertEqual(expected["unexpectedControlDatagrams"], 1)
+        self.assertEqual(expected["malformedFrames"], 2)
 
     def test_browser_refuses_the_same_configurations_as_the_reference(self) -> None:
-        spaced = "  " + SYNTHETIC_PREFIX.hex()[2:]
+        destination = SYNTHETIC_DESTINATION_ADDRESS.hex()
+        spaced = "  " + destination[2:]
         reference = {
-            "spacedRoutingPrefix": dict(BASE_CONFIG, routingPrefixHex=spaced),
-            "spacedReturnPrefix": dict(BASE_CONFIG, expectedReturnPrefixHex=spaced),
-            "shortRoutingPrefix": dict(
-                BASE_CONFIG, routingPrefixHex=SYNTHETIC_PREFIX.hex()[2:]
+            "spacedDestinationAddress": dict(
+                BASE_CONFIG, destinationAddressHex=spaced
             ),
-            "nonHexRoutingPrefix": dict(BASE_CONFIG, routingPrefixHex="zz" * 40),
-            "unacknowledgedPort": dict(
-                BASE_CONFIG, destinationPortMatchesProjection=False
+            "shortDestinationAddress": dict(
+                BASE_CONFIG, destinationAddressHex=destination[2:]
             ),
+            "nonHexDestinationAddress": dict(
+                BASE_CONFIG, destinationAddressHex="zz" * 16
+            ),
+            "unspecifiedDestinationAddress": dict(
+                BASE_CONFIG, destinationAddressHex="00" * 16
+            ),
+            "destinationPortZero": dict(BASE_CONFIG, destinationPort=0),
+            "destinationPortAboveRange": dict(BASE_CONFIG, destinationPort=65536),
+            "clientSourcePortZero": dict(BASE_CONFIG, clientSourcePort=0),
             "emptyAuthorization": dict(BASE_CONFIG, authorization=""),
-            "templateWithoutPlaceholder": dict(
-                BASE_CONFIG, endpointTemplate="https://relay.invalid/none"
+            "endpointWithWithdrawnPlaceholder": dict(
+                BASE_CONFIG,
+                endpointUrl="https://harness.invalid/p?a={authorization}",
+            ),
+            "endpointWithFragment": dict(
+                BASE_CONFIG, endpointUrl="https://harness.invalid/p#fragment"
+            ),
+            "endpointNotHttps": dict(
+                BASE_CONFIG, endpointUrl="http://harness.invalid/p"
             ),
             "boundBelowOne": dict(BASE_CONFIG, maxInFlightDatagrams=0),
+            "assignmentTimeoutBelowOne": dict(
+                BASE_CONFIG, assignmentTimeoutMilliseconds=0
+            ),
         }
         for name, mapping in reference.items():
             with self.assertRaises(ProbeConfigError, msg=name):
@@ -1546,12 +2182,11 @@ class BrowserImplementationTests(unittest.TestCase):
         answers everything, so nothing is ever left unstarted."""
         plan = self.fault_plan()
         relay = LoopbackRelay(max_datagram_size_bytes=20000, echo=False)
-        adapter = relay.attach()
-        driver = SessionDriver(
+        driver, _ = open_session(
+            relay,
             plan,
-            adapter,
-            bytes(SESSION_NONCE_BYTES),
             make_config(maxInFlightDatagrams=2),
+            bytes(SESSION_NONCE_BYTES),
         )
         driver.pump(0)
         expected = {
@@ -1610,8 +2245,12 @@ class BrowserImplementationTests(unittest.TestCase):
                 "sentFrameBytes", r["sessions"][0]["cases"][0]["sentFrameBytes"] + 1
             ),
             "missingField": lambda r: r.pop("framing"),
+            "badFormatVersion": lambda r: r.__setitem__("formatVersion", 1),
+            "missingSessionCounter": lambda r: r["sessions"][0].pop(
+                "keepAliveDatagrams"
+            ),
             "negativeCounter": lambda r: r["sessions"][0].__setitem__(
-                "foreignFrames", -1
+                "headerMismatchFrames", -1
             ),
             "notRunWithFrames": lambda r: unrun(r, OUTCOME_NOT_RUN),
             "overheadArithmetic": lambda r: with_frames(r)["receivedFrames"][

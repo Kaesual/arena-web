@@ -4,20 +4,31 @@
 // one measured session per one-time authorization, accumulate a report.
 //
 // Every environment-specific value lives in the form and in memory only. The
-// endpoint URL is composed inside the transport adapter at connect time; the
-// log, the report and the page never contain the endpoint, the authorization,
-// a certificate hash or the routing prefix.
+// authorization is placed in the session's first datagram once and the field is
+// cleared afterwards; the log, the report and the page never contain the
+// endpoint, the authorization, a certificate hash, the destination address or
+// the virtual client address the relay assigned.
 
 import {
   bytesToHex,
   frameBytesForSizes,
   buildPayload,
   datagramTag,
+  decodeAddressAssignment,
+  decodeError,
   decodeFrame,
+  decodeRelayHeader,
+  encodeAddressAssignment,
+  encodeAddressRequest,
+  encodeError,
   encodeFrame,
+  encodeKeepAlive,
   hexToBytes,
+  routingContext,
   RelayFrameError,
   RelayProbeError,
+  RelayRefusedError,
+  RelaySessionError,
 } from "./relay-framing.js";
 import {
   AdapterSendError,
@@ -33,14 +44,15 @@ import {
 } from "./measurement.js";
 import {
   LoopbackAdapter,
+  SYNTHETIC_AUTHORIZATION,
+  SYNTHETIC_CLIENT_ADDRESS,
+  SYNTHETIC_DESTINATION_ADDRESS,
+  SYNTHETIC_DESTINATION_PORT,
   WebTransportAdapter,
+  establishSession,
+  openLoopbackSession,
   runLoopbackSession,
 } from "./adapters.js";
-
-const SELF_TEST_PREFIX = new Uint8Array(40).map((_value, index) => index);
-const SELF_TEST_RETURN_PREFIX = new Uint8Array(40).map(
-  (_value, index) => (index + 0x80) & 0xff,
-);
 
 // Only this project's own error classes carry messages that are known not to
 // contain runtime configuration. Anything else — a platform error above all —
@@ -53,6 +65,8 @@ const OWN_ERRORS = [
   ProbeConfigError,
   RelayFrameError,
   RelayProbeError,
+  RelayRefusedError,
+  RelaySessionError,
 ];
 
 function describeError(error) {
@@ -184,28 +198,130 @@ function checkConformanceVectors(vectors) {
       );
     }
   }
+  checkSessionVectors(vectors);
   return (
     vectors.encodeCases.length +
     vectors.decodeAcceptances.length +
     vectors.decodeRejections.length +
     vectors.encodeRejections.length +
     vectors.tagCases.length +
-    vectors.payloadCases.length
+    vectors.payloadCases.length +
+    vectors.addressRequestCases.length +
+    vectors.addressAssignmentCases.length +
+    vectors.errorCases.length +
+    vectors.keepAliveCases.length +
+    vectors.sessionRejections.length +
+    vectors.headerCases.length +
+    vectors.headerRejections.length +
+    vectors.returnHeaderAcceptances.length +
+    vectors.returnHeaderRejections.length
   );
 }
 
-// A whole plan over the in-memory relay, so the driver itself is proven before
-// the network is involved.
+function contextOf(item) {
+  return routingContext(
+    hexToBytes(item.clientAddressHex),
+    item.clientPort,
+    hexToBytes(item.destinationAddressHex),
+    item.destinationPort,
+  );
+}
+
+// The 2026-08-30 session and header profile, checked from the same file the
+// reference implementation is checked against.
+function checkSessionVectors(vectors) {
+  for (const item of vectors.addressRequestCases) {
+    if (bytesToHex(encodeAddressRequest(item.authorization)) !== item.datagramHex) {
+      throw new RelayProbeError(`${item.name} produced other bytes`);
+    }
+  }
+  for (const item of vectors.addressAssignmentCases) {
+    const datagram = hexToBytes(item.datagramHex);
+    if (bytesToHex(encodeAddressAssignment(hexToBytes(item.addressHex))) !== item.datagramHex) {
+      throw new RelayProbeError(`${item.name} produced other bytes`);
+    }
+    if (bytesToHex(decodeAddressAssignment(datagram)) !== item.addressHex) {
+      throw new RelayProbeError(`${item.name} decoded another address`);
+    }
+  }
+  for (const item of vectors.errorCases) {
+    if (bytesToHex(encodeError(item.code, item.message)) !== item.datagramHex) {
+      throw new RelayProbeError(`${item.name} produced other bytes`);
+    }
+    const decoded = decodeError(hexToBytes(item.datagramHex));
+    if (decoded.code !== item.code || decoded.message !== item.message) {
+      throw new RelayProbeError(`${item.name} decoded another error`);
+    }
+  }
+  for (const item of vectors.keepAliveCases) {
+    if (bytesToHex(encodeKeepAlive(hexToBytes(item.paddingHex))) !== item.datagramHex) {
+      throw new RelayProbeError(`${item.name} produced other bytes`);
+    }
+  }
+  for (const item of vectors.sessionRejections) {
+    const decode =
+      item.decoder === "error" ? decodeError : decodeAddressAssignment;
+    let rejected = false;
+    try {
+      decode(hexToBytes(item.datagramHex));
+    } catch (error) {
+      rejected = error instanceof RelaySessionError;
+    }
+    if (!rejected) {
+      throw new RelayProbeError(`session rejection ${item.name} was accepted`);
+    }
+  }
+  for (const item of vectors.headerCases) {
+    if (bytesToHex(contextOf(item).outboundHeader()) !== item.headerHex) {
+      throw new RelayProbeError(`header case ${item.name} produced other bytes`);
+    }
+    const decoded = decodeRelayHeader(hexToBytes(item.headerHex));
+    if (
+      bytesToHex(decoded.destinationAddress) !== item.destinationAddressHex ||
+      decoded.destinationPort !== item.destinationPort ||
+      bytesToHex(decoded.sourceAddress) !== item.clientAddressHex ||
+      decoded.sourcePort !== item.clientPort
+    ) {
+      throw new RelayProbeError(`header case ${item.name} decoded other fields`);
+    }
+  }
+  for (const item of vectors.headerRejections) {
+    let rejected = false;
+    try {
+      decodeRelayHeader(hexToBytes(item.headerHex));
+    } catch (error) {
+      rejected = error instanceof RelayFrameError;
+    }
+    if (!rejected) {
+      throw new RelayProbeError(`header rejection ${item.name} was accepted`);
+    }
+  }
+  for (const item of vectors.returnHeaderAcceptances) {
+    const header = decodeRelayHeader(hexToBytes(item.returnHeaderHex));
+    if (!contextOf(item).acceptsReturn(header)) {
+      throw new RelayProbeError(`return header ${item.name} was refused`);
+    }
+  }
+  for (const item of vectors.returnHeaderRejections) {
+    const header = decodeRelayHeader(hexToBytes(item.returnHeaderHex));
+    if (contextOf(item).acceptsReturn(header)) {
+      throw new RelayProbeError(`return header ${item.name} was accepted`);
+    }
+  }
+}
+
+// A whole plan over the in-memory relay, including the in-band setup exchange,
+// so the session and the driver are both proven before the network is involved.
 function checkDriverAgainstLoopback() {
   const limit = frameBytesForSizes([plan.maxInnerDatagramBytes]);
-  const adapter = new LoopbackAdapter(limit, SELF_TEST_RETURN_PREFIX);
+  const adapter = new LoopbackAdapter(limit);
   const config = parseConfig({
-    authorization: "self-test",
-    destinationPortMatchesProjection: true,
-    endpointTemplate: "https://self.test/{authorization}",
-    routingPrefixHex: bytesToHex(SELF_TEST_PREFIX),
+    authorization: SYNTHETIC_AUTHORIZATION,
+    destinationAddressHex: bytesToHex(SYNTHETIC_DESTINATION_ADDRESS),
+    destinationPort: SYNTHETIC_DESTINATION_PORT,
+    endpointUrl: "https://self.test/probe",
   });
-  const driver = new SessionDriver(plan, adapter, new Uint8Array(12), config);
+  const driver = openLoopbackSession(adapter, plan, config, new Uint8Array(12));
   runLoopbackSession(driver, adapter);
   const record = driver.sessionRecord();
   const unexpected = record.cases.filter(
@@ -216,9 +332,23 @@ function checkDriverAgainstLoopback() {
       `the loopback self-test did not complete case ${unexpected[0].caseIndex}`,
     );
   }
-  if (record.unmatchedFrames || record.malformedFrames || record.foreignFrames) {
+  if (
+    record.unmatchedFrames ||
+    record.malformedFrames ||
+    record.foreignFrames ||
+    record.headerMismatchFrames ||
+    record.errorDatagrams ||
+    record.unexpectedControlDatagrams
+  ) {
     throw new RelayProbeError(
       "the loopback self-test produced unattributed frames",
+    );
+  }
+  // The committed vector's 0-byte case has to reach the destination and come
+  // back; a relay that dropped it would leave the case unanswered instead.
+  if (!adapter.receivedInnerSizes.includes(0)) {
+    throw new RelayProbeError(
+      "the loopback self-test never carried a zero-length inner datagram",
     );
   }
   return record.cases.length;
@@ -230,15 +360,16 @@ function readConfig() {
     .map((value) => value.trim())
     .filter((value) => value.length > 0);
   return parseConfig({
+    assignmentTimeoutMilliseconds: Number(elements.assignmentTimeout.value),
     authorization: elements.authorization.value,
     caseTimeoutMilliseconds: Number(elements.caseTimeout.value),
     certificateHashes: hashes,
-    destinationPortMatchesProjection: elements.portAcknowledged.checked,
-    endpointTemplate: elements.endpointTemplate.value.trim(),
-    expectedReturnPrefixHex: elements.expectedReturnPrefix.value.trim(),
+    clientSourcePort: Number(elements.clientSourcePort.value),
+    destinationAddressHex: elements.destinationAddress.value.trim(),
+    destinationPort: Number(elements.destinationPort.value),
+    endpointUrl: elements.endpointUrl.value.trim(),
     maxInFlightDatagrams: Number(elements.maxInFlight.value),
     pathNotes: elements.pathNotes.value,
-    routingPrefixHex: elements.routingPrefix.value.trim(),
   });
 }
 
@@ -293,28 +424,53 @@ async function runOneSession() {
   // authorization is spent. The driver's own construction can reject a
   // configuration the form permits — a bound below the widest packed case, for
   // one — and doing that after connecting would burn an allowance and leave a
-  // session open. A placeholder transport carries the plan checks; the real
-  // adapter replaces it once the session exists.
+  // session open. A placeholder transport and a placeholder client address
+  // carry the plan checks; the real adapter and the assigned address replace
+  // them once the session exists.
   new SessionDriver(
     plan,
     { maxDatagramSizeBytes: 1, send: () => {} },
     nonce,
     config,
+    routingContext(
+      SYNTHETIC_CLIENT_ADDRESS,
+      config.clientSourcePort,
+      config.destinationAddress,
+      config.destinationPort,
+    ),
     sessionIndex,
   );
   log(`session ${sessionIndex}: connecting`);
   const adapter = await WebTransportAdapter.connect(config);
   try {
-    await measureOneSession(adapter, config, nonce, sessionIndex);
+    // One REQUEST_ADDRESS, then the assignment. The authorization is spent
+    // here and the assigned address is never logged or reported: it is the
+    // session's virtual client address, which is environment detail.
+    const handshake = await establishSession(adapter, config);
+    log(`session ${sessionIndex}: address assigned`);
+    await measureOneSession(
+      adapter,
+      config,
+      nonce,
+      sessionIndex,
+      handshake.routingContext(),
+    );
   } finally {
     // Whatever happened, the session does not outlive this call.
     await adapter.close();
   }
 }
 
-async function measureOneSession(adapter, config, nonce, sessionIndex) {
+async function measureOneSession(adapter, config, nonce, sessionIndex, routing) {
   log(`session ${sessionIndex}: maxDatagramSize ${adapter.maxDatagramSizeBytes}`);
-  const driver = new SessionDriver(plan, adapter, nonce, config, sessionIndex);
+  const driver = new SessionDriver(
+    plan,
+    adapter,
+    nonce,
+    config,
+    routing,
+    sessionIndex,
+  );
   const started = performance.now();
   const nowMs = () => performance.now() - started;
   let stopped = false;
@@ -360,8 +516,13 @@ async function measureOneSession(adapter, config, nonce, sessionIndex) {
   log(
     `session ${sessionIndex}: foreign ${record.foreignFrames}, ` +
       `malformed ${record.malformedFrames}, ` +
-      `prefix mismatch ${record.prefixMismatchFrames}, ` +
+      `header mismatch ${record.headerMismatchFrames}, ` +
       `unattributed ${record.unmatchedFrames}`,
+  );
+  log(
+    `session ${sessionIndex}: relay errors ${record.errorDatagrams}, ` +
+      `keep-alives ${record.keepAliveDatagrams}, ` +
+      `unexpected control ${record.unexpectedControlDatagrams}`,
   );
   if (adapter.writeFailures > 0) {
     log(`session ${sessionIndex}: ${adapter.writeFailures} datagram writes failed`);
@@ -376,31 +537,34 @@ async function onRun() {
       throw new RelayProbeError("the self-test has not passed");
     }
     await runOneSession();
-    // A single-use allowance is spent. Make that visible rather than letting a
-    // second run silently reuse it.
-    elements.authorization.value = "";
-    log("authorization field cleared; paste a fresh one for the next session");
   } catch (error) {
     log(`refused: ${describeError(error)}`);
   } finally {
+    // A single-use allowance is spent by the attempt, not by its success: a
+    // session refused in band consumed the value just as a completed one did.
+    // Clearing it here rather than on the success path is what keeps a retry
+    // from silently reusing a spent authorization.
+    elements.authorization.value = "";
+    log("authorization field cleared; paste a fresh one for the next session");
     elements.run.disabled = false;
   }
 }
 
 async function start() {
   for (const id of [
+    "assignmentTimeout",
     "authorization",
     "caseTimeout",
     "certificateHashes",
+    "clientSourcePort",
+    "destinationAddress",
+    "destinationPort",
     "download",
-    "endpointTemplate",
-    "expectedReturnPrefix",
+    "endpointUrl",
     "log",
     "maxInFlight",
     "pathNotes",
-    "portAcknowledged",
     "report",
-    "routingPrefix",
     "run",
     "summary",
   ]) {

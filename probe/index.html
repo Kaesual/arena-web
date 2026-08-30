@@ -58,15 +58,6 @@
         padding: 0.35rem 0.45rem;
         width: 100%;
       }
-      .inline {
-        align-items: center;
-        display: flex;
-        gap: 0.5rem;
-      }
-      .inline input {
-        margin: 0;
-        width: auto;
-      }
       button {
         font-size: 1rem;
         margin-top: 1rem;
@@ -107,12 +98,13 @@
     <p class="note">
       Every value below is runtime input, and none of it is committed to the
       repository. The <strong>authorization, endpoint, certificate hashes and
-      routing prefix</strong> are secrets or environment detail: they stay in
-      this page, never reach the report, and never reach the log. The session
+      destination address</strong> are secrets or environment detail: they stay
+      in this page, never reach the report, and never reach the log — and
+      neither does the virtual client address the relay assigns. The session
       settings and the path notes below <em>do</em> travel in the report, which
       is what they are for. Use a short-lived, single-use authorization: the
-      field is cleared after each session so a spent allowance is not reused by
-      accident.
+      field is cleared after every attempt, successful or not, so a spent
+      allowance is not reused by accident.
     </p>
 
     <h2>Runtime configuration</h2>
@@ -120,30 +112,29 @@
     <fieldset>
       <legend>Endpoint and authorization</legend>
       <label>
-        Endpoint template
+        Endpoint URL
         <span
-          >An <code>https</code> WebTransport URL containing exactly one
-          <code>{authorization}</code> placeholder. The browser platform offers no
-          request-header control, so the authorization travels in the URL; the
-          parameter name belongs to your environment.</span
+          >A plain <code>https</code> WebTransport URL. The authorization does
+          <em>not</em> belong in it: since 2026-08-30 this profile presents it in
+          the session's first datagram instead, so a URL still containing a
+          <code>{authorization}</code> placeholder is refused.</span
         >
         <input
           type="text"
-          id="endpointTemplate"
+          id="endpointUrl"
           autocomplete="off"
           spellcheck="false"
-          placeholder="https://…/…?token={authorization}"
+          placeholder="https://…/…"
         />
       </label>
       <label>
         Short-lived authorization
         <span
-          >Single-use. Substituted into the template verbatim at connect time —
-          the page does not percent-encode it, so supply a token that is already
-          safe at its position in the URL. Base64url is; a value containing
-          <code>#</code>, <code>&amp;</code>, <code>?</code>, <code>/</code> or
-          <code>+</code> would change the URL's structure rather than its
-          value.</span
+          >Single-use, and opaque to this page: it is sent verbatim as UTF-8 in
+          one <code>REQUEST_ADDRESS</code> datagram and nothing here parses,
+          stores or reports it. The session is not usable until the relay answers
+          with an address assignment; an invalid value is answered in band and
+          the relay then closes the session.</span
         >
         <input type="password" id="authorization" autocomplete="off" />
       </label>
@@ -167,45 +158,58 @@
     <fieldset>
       <legend>Destination</legend>
       <label>
-        Routing prefix
+        Destination address
         <span
-          >The 40-byte relay header for the pinned virtual destination, as 80
-          hexadecimal characters. This contract treats its interior as opaque and
-          never parses it.</span
+          >The pinned virtual IPv6 destination, as 32 hexadecimal characters —
+          the 16 address bytes, not their text form. The probe builds the 40-byte
+          relay header from this and the port below, and validates every return
+          header against them.</span
         >
         <input
           type="text"
-          id="routingPrefix"
+          id="destinationAddress"
           autocomplete="off"
           spellcheck="false"
         />
       </label>
       <label>
-        Expected return prefix
+        Destination UDP port
         <span
-          >Optional, 80 hexadecimal characters. When empty, the prefix of the
-          first accepted return frame is pinned for the session and any later
-          frame that differs is refused.</span
+          >The port the relay projects for that destination. It is written into
+          every outbound header, so it is no longer an acknowledgement: a wrong
+          port is answered by the relay, not assumed away.</span
         >
         <input
-          type="text"
-          id="expectedReturnPrefix"
-          autocomplete="off"
-          spellcheck="false"
+          type="number"
+          id="destinationPort"
+          min="1"
+          max="65535"
+          placeholder="required"
         />
       </label>
-      <label class="inline">
-        <input type="checkbox" id="portAcknowledged" />
+      <label>
+        Client source port
         <span
-          >The destination UDP port encoded in that prefix matches the projected
-          endpoint exactly. The probe cannot read a port out of an opaque prefix,
-          so it requires this acknowledgement and refuses to run without it.</span
+          >A correlation value only. The relay stores it and returns it as the
+          destination port of every return header, which is one of the three
+          fields the probe checks. Any value works.</span
         >
+        <input
+          type="number"
+          id="clientSourcePort"
+          value="49152"
+          min="1"
+          max="65535"
+        />
       </label>
     </fieldset>
 
     <fieldset>
       <legend>Session behaviour</legend>
+      <label>
+        Address assignment timeout (ms)
+        <input type="number" id="assignmentTimeout" value="5000" min="1" />
+      </label>
       <label>
         Case timeout (ms)
         <input type="number" id="caseTimeout" value="2000" min="1" />

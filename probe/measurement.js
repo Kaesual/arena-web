@@ -13,27 +13,45 @@
 
 import {
   BROWSER_TO_SERVER,
+  DEFAULT_CLIENT_SOURCE_PORT,
   LENGTH_PREFIX_BYTES,
   MAX_LENGTH_PREFIX_VALUE,
+  MAX_PORT,
   MINIMUM_TAGGED_INNER_BYTES,
   NONCE_BYTES,
   RELAY_HEADER_BYTES,
   SERVER_TO_BROWSER,
   SESSION_NONCE_BYTES,
   SINGLE_DATAGRAM_OVERHEAD_BYTES,
+  TYPE_ADDRESS_ASSIGNED,
+  TYPE_ERROR,
+  TYPE_KEEP_ALIVE,
+  TYPE_RELAY_PACKET,
+  VIRTUAL_ADDRESS_BYTES,
   RelayFrameError,
   RelayProbeError,
+  RelayRefusedError,
+  RelaySessionError,
   buildPayload,
   bytesEqual,
+  datagramType,
+  decodeAddressAssignment,
+  decodeError,
   decodeFrame,
+  decodeRelayHeader,
+  encodeAddressRequest,
   encodeFrame,
   frameBytesForSizes,
   hexToBytes,
   readTag,
+  routingContext,
 } from "./relay-framing.js";
 
 export const REPORT_KIND = "arena-web-routed-datagram-measurement";
-export const REPORT_FORMAT_VERSION = 1;
+// Version 2 is the 2026-08-30 in-band session profile: the opaque
+// prefix-mismatch counter became a header-mismatch counter and the control
+// datagram counters were added, so a version 1 record is not a version 2 one.
+export const REPORT_FORMAT_VERSION = 2;
 
 export const CASE_SINGLE = "single";
 export const CASE_PACKED = "packed";
@@ -59,7 +77,10 @@ export const OUTCOMES = [
 // built against the same bound the driver enforces.
 export const DEFAULT_MAX_IN_FLIGHT_DATAGRAMS = 8;
 
-export const AUTHORIZATION_PLACEHOLDER = "{authorization}";
+// The withdrawn profile substituted the authorization into the endpoint URL.
+// The value is kept only so an endpoint still carrying it can be refused with
+// an explanation instead of being opened with a literal brace in its path.
+export const WITHDRAWN_AUTHORIZATION_PLACEHOLDER = "{authorization}";
 
 export class MeasurementPlanError extends Error {}
 export class ProbeConfigError extends Error {}
@@ -218,28 +239,30 @@ function makeCase(index, kind, datagrams) {
 }
 
 const CONFIG_FIELDS = [
+  "assignmentTimeoutMilliseconds",
   "authorization",
   "caseTimeoutMilliseconds",
   "certificateHashes",
-  "destinationPortMatchesProjection",
-  "endpointTemplate",
-  "expectedReturnPrefixHex",
+  "clientSourcePort",
+  "destinationAddressHex",
+  "destinationPort",
+  "endpointUrl",
   "maxInFlightDatagrams",
   "pathNotes",
-  "routingPrefixHex",
 ];
 
 const REQUIRED_CONFIG_FIELDS = [
   "authorization",
-  "destinationPortMatchesProjection",
-  "endpointTemplate",
-  "routingPrefixHex",
+  "destinationAddressHex",
+  "destinationPort",
+  "endpointUrl",
 ];
 
 const CONFIG_DEFAULTS = {
+  assignmentTimeoutMilliseconds: 5000,
   caseTimeoutMilliseconds: 2000,
   certificateHashes: [],
-  expectedReturnPrefixHex: "",
+  clientSourcePort: DEFAULT_CLIENT_SOURCE_PORT,
   maxInFlightDatagrams: DEFAULT_MAX_IN_FLIGHT_DATAGRAMS,
   pathNotes: "",
 };
@@ -251,6 +274,14 @@ function boundedInteger(mapping, name, minimum) {
   }
   if (value < minimum) {
     throw new ProbeConfigError(`${name} must be at least ${minimum}`);
+  }
+  return value;
+}
+
+function portValue(mapping, name) {
+  const value = boundedInteger(mapping, name, 1);
+  if (value > MAX_PORT) {
+    throw new ProbeConfigError(`${name} must be at most ${MAX_PORT}`);
   }
   return value;
 }
@@ -271,8 +302,8 @@ function fixedHex(value, name, expectedBytes) {
   }
 }
 
-// None of these values is committed anywhere. The authorization is substituted
-// into the endpoint only at connect time and is never logged or reported.
+// None of these values is committed anywhere. The authorization is placed in
+// the session's first datagram once and is never logged or reported.
 export function parseConfig(mapping) {
   if (!mapping || typeof mapping !== "object" || Array.isArray(mapping)) {
     throw new ProbeConfigError("runtime configuration is not an object");
@@ -288,28 +319,26 @@ export function parseConfig(mapping) {
     }
   }
 
-  const template = mapping.endpointTemplate;
-  if (typeof template !== "string" || template.trim() === "") {
-    throw new ProbeConfigError("endpointTemplate is empty");
+  const endpointUrl = mapping.endpointUrl;
+  if (typeof endpointUrl !== "string" || endpointUrl.trim() === "") {
+    throw new ProbeConfigError("endpointUrl is empty");
   }
-  if (!template.startsWith("https://")) {
-    throw new ProbeConfigError("endpointTemplate must be an https URL");
+  if (!endpointUrl.startsWith("https://")) {
+    throw new ProbeConfigError("endpointUrl must be an https URL");
   }
-  if (template.split(AUTHORIZATION_PLACEHOLDER).length - 1 !== 1) {
+  if (endpointUrl.includes(WITHDRAWN_AUTHORIZATION_PLACEHOLDER)) {
     throw new ProbeConfigError(
-      `endpointTemplate must contain exactly one ${AUTHORIZATION_PLACEHOLDER} placeholder`,
+      `endpointUrl carries the withdrawn ${WITHDRAWN_AUTHORIZATION_PLACEHOLDER} ` +
+        "placeholder; the authorization now travels in the session's first datagram",
     );
+  }
+  if (endpointUrl.includes("#")) {
+    throw new ProbeConfigError("endpointUrl must not contain a fragment");
   }
 
   const authorization = mapping.authorization;
   if (typeof authorization !== "string" || authorization.trim() === "") {
     throw new ProbeConfigError("authorization is empty");
-  }
-
-  if (mapping.destinationPortMatchesProjection !== true) {
-    throw new ProbeConfigError(
-      "destinationPortMatchesProjection must be acknowledged as true",
-    );
   }
 
   const hashes =
@@ -323,16 +352,14 @@ export function parseConfig(mapping) {
     fixedHex(entry, "certificateHashes entry", 32);
   }
 
-  const expectedHex =
-    "expectedReturnPrefixHex" in mapping
-      ? mapping.expectedReturnPrefixHex
-      : CONFIG_DEFAULTS.expectedReturnPrefixHex;
-  if (typeof expectedHex !== "string") {
-    throw new ProbeConfigError("expectedReturnPrefixHex is not a string");
+  const destinationAddress = fixedHex(
+    mapping.destinationAddressHex,
+    "destinationAddressHex",
+    VIRTUAL_ADDRESS_BYTES,
+  );
+  if (destinationAddress.every((value) => value === 0)) {
+    throw new ProbeConfigError("destinationAddressHex is the unspecified address");
   }
-  const expectedReturnPrefix = expectedHex
-    ? fixedHex(expectedHex, "expectedReturnPrefixHex", RELAY_HEADER_BYTES)
-    : new Uint8Array(0);
 
   const pathNotes =
     "pathNotes" in mapping ? mapping.pathNotes : CONFIG_DEFAULTS.pathNotes;
@@ -340,33 +367,118 @@ export function parseConfig(mapping) {
     throw new ProbeConfigError("pathNotes is not a string");
   }
 
+  const destinationPort = portValue(mapping, "destinationPort");
+  const clientSourcePort = portValue(mapping, "clientSourcePort");
+
   return {
     authorization,
-    endpointTemplate: template,
-    routingPrefix: fixedHex(
-      mapping.routingPrefixHex,
-      "routingPrefixHex",
-      RELAY_HEADER_BYTES,
-    ),
-    expectedReturnPrefix,
+    endpointUrl,
+    destinationAddress,
+    destinationPort,
+    clientSourcePort,
     certificateHashes: hashes.slice(),
+    assignmentTimeoutMilliseconds: boundedInteger(
+      mapping,
+      "assignmentTimeoutMilliseconds",
+      1,
+    ),
     caseTimeoutMilliseconds: boundedInteger(mapping, "caseTimeoutMilliseconds", 1),
     maxInFlightDatagrams: boundedInteger(mapping, "maxInFlightDatagrams", 1),
     pathNotes,
-    // String.replace() interprets $-patterns in the replacement, so an
-    // authorization containing $&, $`, $', $$ or $1 would be rewritten and the
-    // wrong bytes would go on the wire. Split and join instead.
-    endpointUrl() {
-      return template.split(AUTHORIZATION_PLACEHOLDER).join(authorization);
+    // Completed with the address the relay assigned in the first exchange.
+    routingContextFor(clientAddress) {
+      if (!clientAddress || clientAddress.length !== VIRTUAL_ADDRESS_BYTES) {
+        throw new RelaySessionError("the assigned client address is not 16 bytes");
+      }
+      if (clientAddress.every((value) => value === 0)) {
+        throw new RelaySessionError("the assigned client address is unspecified");
+      }
+      if (bytesEqual(clientAddress, destinationAddress)) {
+        throw new RelaySessionError(
+          "the assigned client address equals the destination address",
+        );
+      }
+      return routingContext(
+        clientAddress,
+        clientSourcePort,
+        destinationAddress,
+        destinationPort,
+      );
     },
   };
 }
 
+// The in-band exchange that opens one measured session. The authorization is
+// single-use and that is enforced by construction: the handshake holds the only
+// copy, drops it the moment the request datagram is built and refuses to build
+// a second one. Nothing here logs, stores or returns the value.
+export class SessionHandshake {
+  constructor(config) {
+    this.config = config;
+    this.authorization = config.authorization;
+    this.clientAddress = null;
+  }
+
+  get spent() {
+    return this.authorization === null;
+  }
+
+  get completed() {
+    return this.clientAddress !== null;
+  }
+
+  requestDatagram() {
+    if (this.authorization === null) {
+      throw new RelaySessionError("the authorization was already spent");
+    }
+    const datagram = encodeAddressRequest(this.authorization);
+    this.authorization = null;
+    return datagram;
+  }
+
+  // Returns the assigned address once it arrives, and null for a datagram that
+  // is legal but not part of the exchange, so the caller keeps waiting.
+  accept(datagram) {
+    if (this.authorization !== null) {
+      throw new RelaySessionError("no address was requested yet");
+    }
+    let kind;
+    try {
+      kind = datagramType(datagram);
+    } catch (error) {
+      throw new RelaySessionError("the relay sent a datagram without a type");
+    }
+    if (kind === TYPE_KEEP_ALIVE) {
+      return null;
+    }
+    if (kind === TYPE_ERROR) {
+      throw new RelayRefusedError(decodeError(datagram).code);
+    }
+    if (kind !== TYPE_ADDRESS_ASSIGNED) {
+      throw new RelaySessionError("datagram is not part of session setup");
+    }
+    this.clientAddress = decodeAddressAssignment(datagram);
+    return this.clientAddress;
+  }
+
+  routingContext() {
+    if (!this.completed) {
+      throw new RelaySessionError("no address has been assigned");
+    }
+    return this.config.routingContextFor(this.clientAddress);
+  }
+}
+
 export class SessionDriver {
-  constructor(plan, adapter, sessionNonce, config, sessionIndex = 0) {
+  constructor(plan, adapter, sessionNonce, config, routing, sessionIndex = 0) {
     if (sessionNonce.length !== SESSION_NONCE_BYTES) {
       throw new RelayProbeError(
         `session nonce is ${sessionNonce.length} bytes, not ${SESSION_NONCE_BYTES}`,
+      );
+    }
+    if (!routing || typeof routing.outboundHeader !== "function") {
+      throw new RelayProbeError(
+        "a session driver needs an assigned routing context",
       );
     }
     for (const item of plan.cases) {
@@ -381,6 +493,7 @@ export class SessionDriver {
     this.adapter = adapter;
     this.sessionNonce = sessionNonce;
     this.config = config;
+    this.routing = routing;
     this.sessionIndex = sessionIndex;
     this.pending = plan.cases.slice();
     this.states = new Map();
@@ -394,11 +507,13 @@ export class SessionDriver {
       });
     }
     this.inflight = new Map();
-    this.returnPrefix =
-      config.expectedReturnPrefix.length > 0 ? config.expectedReturnPrefix : null;
+    this.outboundHeader = routing.outboundHeader();
+    this.errorDatagrams = 0;
     this.foreignFrames = 0;
+    this.headerMismatchFrames = 0;
+    this.keepAliveDatagrams = 0;
     this.malformedFrames = 0;
-    this.prefixMismatchFrames = 0;
+    this.unexpectedControlDatagrams = 0;
     this.unmatchedFrames = 0;
   }
 
@@ -474,7 +589,7 @@ export class SessionDriver {
     const state = this.states.get(item.index);
     const payloads = item.datagrams.map((datagram) => this.payloadFor(datagram));
     const frame = encodeFrame(
-      this.config.routingPrefix,
+      this.outboundHeader,
       payloads,
       BROWSER_TO_SERVER,
       this.plan.maxInnerDatagramBytes,
@@ -502,14 +617,14 @@ export class SessionDriver {
     });
   }
 
+  // Every datagram of the session arrives here, not only relay frames: the
+  // relay answers a keep-alive with a keep-alive and reports an unknown or
+  // unauthorized destination in band. Those are recognised, counted and ignored
+  // rather than mistaken for malformed frames, and neither completes a case.
   receive(frame, now) {
-    let decoded;
+    let kind;
     try {
-      decoded = decodeFrame(
-        frame,
-        SERVER_TO_BROWSER,
-        this.plan.maxInnerDatagramBytes,
-      );
+      kind = datagramType(frame);
     } catch (error) {
       if (!(error instanceof RelayFrameError)) {
         throw error;
@@ -517,10 +632,52 @@ export class SessionDriver {
       this.malformedFrames += 1;
       return;
     }
-    if (this.returnPrefix === null) {
-      this.returnPrefix = decoded.prefix.slice();
-    } else if (!bytesEqual(decoded.prefix, this.returnPrefix)) {
-      this.prefixMismatchFrames += 1;
+    if (kind === TYPE_KEEP_ALIVE) {
+      this.keepAliveDatagrams += 1;
+      return;
+    }
+    if (kind === TYPE_ERROR) {
+      try {
+        decodeError(frame);
+      } catch (error) {
+        if (!(error instanceof RelaySessionError)) {
+          throw error;
+        }
+        this.malformedFrames += 1;
+        return;
+      }
+      // The code is not read and the message is never surfaced: after
+      // assignment the only errors this profile defines are destination
+      // refusals, and a refused case must show as a timeout.
+      this.errorDatagrams += 1;
+      return;
+    }
+    if (kind === TYPE_ADDRESS_ASSIGNED) {
+      this.unexpectedControlDatagrams += 1;
+      return;
+    }
+    if (kind !== TYPE_RELAY_PACKET) {
+      this.malformedFrames += 1;
+      return;
+    }
+    let decoded;
+    let header;
+    try {
+      decoded = decodeFrame(
+        frame,
+        SERVER_TO_BROWSER,
+        this.plan.maxInnerDatagramBytes,
+      );
+      header = decodeRelayHeader(decoded.prefix);
+    } catch (error) {
+      if (!(error instanceof RelayFrameError)) {
+        throw error;
+      }
+      this.malformedFrames += 1;
+      return;
+    }
+    if (!this.routing.acceptsReturn(header)) {
+      this.headerMismatchFrames += 1;
       return;
     }
     const payload = decoded.datagrams[0];
@@ -609,12 +766,15 @@ export class SessionDriver {
     return {
       caseTimeoutMilliseconds: this.config.caseTimeoutMilliseconds,
       cases,
+      errorDatagrams: this.errorDatagrams,
       foreignFrames: this.foreignFrames,
+      headerMismatchFrames: this.headerMismatchFrames,
+      keepAliveDatagrams: this.keepAliveDatagrams,
       malformedFrames: this.malformedFrames,
       maxDatagramSizeBytes: this.adapter.maxDatagramSizeBytes,
       maxInFlightDatagrams: this.config.maxInFlightDatagrams,
-      prefixMismatchFrames: this.prefixMismatchFrames,
       sessionIndex: this.sessionIndex,
+      unexpectedControlDatagrams: this.unexpectedControlDatagrams,
       unmatchedFrames: this.unmatchedFrames,
       // Reported by the transport, not the driver: a datagram write can fail
       // after the driver has handed the frame over.
@@ -653,12 +813,15 @@ const REPORT_FIELDS = [
 const SESSION_FIELDS = [
   "caseTimeoutMilliseconds",
   "cases",
+  "errorDatagrams",
   "foreignFrames",
+  "headerMismatchFrames",
+  "keepAliveDatagrams",
   "malformedFrames",
   "maxDatagramSizeBytes",
   "maxInFlightDatagrams",
-  "prefixMismatchFrames",
   "sessionIndex",
+  "unexpectedControlDatagrams",
   "unmatchedFrames",
   "writeFailures",
 ];
@@ -673,9 +836,12 @@ const CASE_FIELDS = [
   "sentInnerBytes",
 ];
 const SESSION_COUNTERS = [
+  "errorDatagrams",
   "foreignFrames",
+  "headerMismatchFrames",
+  "keepAliveDatagrams",
   "malformedFrames",
-  "prefixMismatchFrames",
+  "unexpectedControlDatagrams",
   "unmatchedFrames",
   "writeFailures",
 ];

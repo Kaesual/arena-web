@@ -1,4 +1,40 @@
 {
+  "addressAssignmentCases": [
+    {
+      "addressHex": "20010db8000000000000000000000001",
+      "datagramHex": "0000000220010db8000000000000000000000001",
+      "name": "addressAssignedClient"
+    },
+    {
+      "addressHex": "20010db8000000000000000000000011",
+      "datagramHex": "0000000220010db8000000000000000000000011",
+      "name": "addressAssignedOtherClient"
+    }
+  ],
+  "addressRequestCases": [
+    {
+      "authorization": "vector-one-time-authorization",
+      "datagramHex": "00000001766563746f722d6f6e652d74696d652d617574686f72697a6174696f6e",
+      "name": "addressRequestPlain"
+    },
+    {
+      "authorization": "$&$1$`",
+      "datagramHex": "00000001242624312460",
+      "name": "addressRequestDollarPatterns"
+    },
+    {
+      "authorization": "tökén-ünïcøde",
+      "datagramHex": "0000000174c3b66bc3a96e2dc3bc6ec3af63c3b86465",
+      "name": "addressRequestNonAscii"
+    }
+  ],
+  "datagramTypes": {
+    "addressAssigned": 2,
+    "error": 4,
+    "keepAlive": 5,
+    "relayPacket": 3,
+    "requestAddress": 1
+  },
   "decodeAcceptances": [
     {
       "direction": "serverToBrowser",
@@ -360,12 +396,89 @@
       "rule": "an inner datagram above the accepted ceiling is refused"
     }
   ],
-  "formatVersion": 1,
+  "errorCases": [
+    {
+      "code": 2,
+      "datagramHex": "00000004000000020018496e76616c6964206f72206578706972656420746f6b656e",
+      "message": "Invalid or expired token",
+      "name": "errorInvalidAuthorization"
+    },
+    {
+      "code": 3,
+      "datagramHex": "0000000400000003001944657374696e6174696f6e206e6f7420636f6e6e6563746564",
+      "message": "Destination not connected",
+      "name": "errorDestinationUnavailable"
+    },
+    {
+      "code": 2,
+      "datagramHex": "00000004000000020000",
+      "message": "",
+      "name": "errorWithEmptyMessage"
+    }
+  ],
+  "formatVersion": 2,
   "framing": {
     "datagramLengthPrefixBytes": 2,
+    "datagramTypeBytes": 4,
     "relayHeaderBytes": 40,
-    "singleDatagramOverheadBytes": 42
+    "singleDatagramOverheadBytes": 42,
+    "virtualAddressBytes": 16
   },
+  "headerCases": [
+    {
+      "clientAddressHex": "20010db8000000000000000000000001",
+      "clientPort": 49152,
+      "destinationAddressHex": "20010db8000000000000000000000002",
+      "destinationPort": 40000,
+      "headerHex": "0000000320010db80000000000000000000000029c4020010db8000000000000000000000001c000",
+      "name": "primaryDestination"
+    },
+    {
+      "clientAddressHex": "20010db8000000000000000000000011",
+      "clientPort": 49153,
+      "destinationAddressHex": "20010db8000000000000000000000002",
+      "destinationPort": 40000,
+      "headerHex": "0000000320010db80000000000000000000000029c4020010db8000000000000000000000011c001",
+      "name": "otherClient"
+    },
+    {
+      "clientAddressHex": "20010db8000000000000000000000001",
+      "clientPort": 65535,
+      "destinationAddressHex": "20010db8000000000000000000000002",
+      "destinationPort": 1,
+      "headerHex": "0000000320010db8000000000000000000000002000120010db8000000000000000000000001ffff",
+      "name": "extremePorts"
+    }
+  ],
+  "headerRejections": [
+    {
+      "headerHex": "0000000320010db80000000000000000000000029c4020010db8000000000000000000000001c0",
+      "name": "headerOneByteShort",
+      "rule": "a relay header is exactly 40 bytes"
+    },
+    {
+      "headerHex": "0000000320010db80000000000000000000000029c4020010db8000000000000000000000001c00000",
+      "name": "headerOneByteLong",
+      "rule": "a relay header is exactly 40 bytes"
+    },
+    {
+      "headerHex": "0000000520010db80000000000000000000000029c4020010db8000000000000000000000001c000",
+      "name": "headerWithForeignType",
+      "rule": "a relay header opens with the relay-packet type"
+    }
+  ],
+  "keepAliveCases": [
+    {
+      "datagramHex": "00000005",
+      "name": "keepAliveBare",
+      "paddingHex": ""
+    },
+    {
+      "datagramHex": "00000005000102030405060708090a0b0c0d0e0f",
+      "name": "keepAlivePadded",
+      "paddingHex": "000102030405060708090a0b0c0d0e0f"
+    }
+  ],
   "kind": "arena-web-routed-datagram-conformance-vectors",
   "payloadCases": [
     {
@@ -431,6 +544,105 @@
     "ordinalBytes": 4,
     "placement": "payload-prefix",
     "sessionNonceBytes": 12
+  },
+  "returnHeaderAcceptances": [
+    {
+      "clientAddressHex": "20010db8000000000000000000000001",
+      "clientPort": 49152,
+      "destinationAddressHex": "20010db8000000000000000000000002",
+      "destinationPort": 40000,
+      "name": "matchingReturn",
+      "returnHeaderHex": "0000000320010db8000000000000000000000001c00020010db80000000000000000000000029c40"
+    },
+    {
+      "clientAddressHex": "20010db8000000000000000000000001",
+      "clientPort": 49152,
+      "destinationAddressHex": "20010db8000000000000000000000002",
+      "destinationPort": 40000,
+      "name": "differingSourcePort",
+      "returnHeaderHex": "0000000320010db8000000000000000000000001c00020010db80000000000000000000000029c47"
+    }
+  ],
+  "returnHeaderRejections": [
+    {
+      "clientAddressHex": "20010db8000000000000000000000001",
+      "clientPort": 49152,
+      "destinationAddressHex": "20010db8000000000000000000000002",
+      "destinationPort": 40000,
+      "name": "foreignDestinationAddress",
+      "returnHeaderHex": "0000000320010db8000000000000000000000011c00020010db80000000000000000000000029c40",
+      "rule": "a return header names this session's assigned client address"
+    },
+    {
+      "clientAddressHex": "20010db8000000000000000000000001",
+      "clientPort": 49152,
+      "destinationAddressHex": "20010db8000000000000000000000002",
+      "destinationPort": 40000,
+      "name": "foreignDestinationPort",
+      "returnHeaderHex": "0000000320010db8000000000000000000000001c00120010db80000000000000000000000029c40",
+      "rule": "a return header names the source port this session sends from"
+    },
+    {
+      "clientAddressHex": "20010db8000000000000000000000001",
+      "clientPort": 49152,
+      "destinationAddressHex": "20010db8000000000000000000000002",
+      "destinationPort": 40000,
+      "name": "foreignSourceAddress",
+      "returnHeaderHex": "0000000320010db8000000000000000000000001c00020010db80000000000000000000000039c40",
+      "rule": "a return header names the pinned virtual destination"
+    }
+  ],
+  "sessionRejections": [
+    {
+      "datagramHex": "0000000220010db80000000000000000000000",
+      "decoder": "addressAssignment",
+      "name": "assignmentOneByteShort",
+      "rule": "an address assignment is exactly 20 bytes"
+    },
+    {
+      "datagramHex": "0000000220010db800000000000000000000000100",
+      "decoder": "addressAssignment",
+      "name": "assignmentOneByteLong",
+      "rule": "an address assignment is exactly 20 bytes"
+    },
+    {
+      "datagramHex": "0000000520010db8000000000000000000000001",
+      "decoder": "addressAssignment",
+      "name": "assignmentWithForeignType",
+      "rule": "an address assignment opens with the address-assigned type"
+    },
+    {
+      "datagramHex": "0000000200000000000000000000000000000000",
+      "decoder": "addressAssignment",
+      "name": "assignmentOfUnspecifiedAddress",
+      "rule": "the unspecified address is not an assignment"
+    },
+    {
+      "datagramHex": "000000040000000200",
+      "decoder": "error",
+      "name": "errorShorterThanPreamble",
+      "rule": "an error carries at least 10 bytes"
+    },
+    {
+      "datagramHex": "00000004000000020018496e76616c6964206f72206578706972656420746f6b656e00",
+      "decoder": "error",
+      "name": "errorMessageLengthDisagrees",
+      "rule": "the declared message length describes the remaining bytes exactly"
+    },
+    {
+      "datagramHex": "00000004000000020001ff",
+      "decoder": "error",
+      "name": "errorMessageIsNotUtf8",
+      "rule": "an error message is valid UTF-8"
+    }
+  ],
+  "syntheticAddresses": {
+    "clientAddressHex": "20010db8000000000000000000000001",
+    "clientPort": 49152,
+    "destinationAddressHex": "20010db8000000000000000000000002",
+    "destinationPort": 40000,
+    "foreignAddressHex": "20010db8000000000000000000000003",
+    "otherClientAddressHex": "20010db8000000000000000000000011"
   },
   "syntheticPrefixHex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f2021222324252627",
   "syntheticReturnPrefixHex": "808182838485868788898a8b8c8d8e8f909192939495969798999a9b9c9d9e9fa0a1a2a3a4a5a6a7",
