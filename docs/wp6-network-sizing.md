@@ -8,10 +8,25 @@ the record-backed 768-byte sizing target giving `FRAGMENT_SIZE = 704`, the
 64-byte reserve and alignment, the 512-byte userinfo cap, and all ten WP8
 thresholds frozen. Nothing in the arithmetic changed on selection.
 
-**Still open, and blocking:** the mandatory independent protocol/security review
-of this document has **not** happened. WP6 does not close and WP7 stays blocked
-until it passes. A finding that affects the strategy, the bounds or the census
-reopens WP6, decision or no decision.
+**Independent protocol/security review: fix-first, and the fixes are in.** The
+reviewer recomputed the whole derivation independently and found no arithmetic
+error, endorsed strategy 2 and the 704 selection, and supplied one argument for
+it the analysis had missed (the round-trip point, folded into the rationale
+below). What failed was completeness of the packet-class census and the
+enforceability of two bounds the strategy leans on: an unlisted 1,038-byte
+client-originated class on the connect path, a server-browser exclusion that
+nothing enforced and the acceptance evidence could not detect, fail-closed
+machinery that ran only on the browser while the largest classes are
+server-emitted, and the consequences of every player sharing one server-visible
+address. All are addressed here and in the WP7/WP8 contracts. **No sizing was
+rederived and no decided value moved.**
+
+**Still open:** three items marked **[operator confirmation pending]** below
+extend or refine what the operator settled on 2026-08-30 — `+set cl_motd 0`, the
+accepted shared rate-limit bucket, and splitting the oversize-refusal counter so
+the frozen zero threshold applies to client-originated refusals. WP6 closes when
+those are confirmed and the review re-verifies these fixes; WP7 stays blocked
+until then.
 
 WP2 measured what a browser can push through the relay. WP5 measured what the
 game actually puts on the wire. This document puts the two together, adds the
@@ -214,8 +229,10 @@ FFA map, the committed QVM and content.
 | `statusResponse` | s → c | **1,443** | 1,485 | no | no | **no** |
 | `connect` | c → s | **1,039** | 1,081 | no | no | **no** |
 | `infoResponse` | s → c | 1,040 | 1,082 | no | no | **no** |
+| **`getmotd`** † | **c → s** | **1,038** | **1,080** | **no** | **no** | **no** |
 | `rcon` | c → s | 1,024 | 1,066 | no | no | **no** |
 | **`echo`** | **c → s** | **1,022** | **1,064** | **no** | **no** | **no** |
+| `getKeyAuthorize` † | c → s | 64 | 106 | yes | yes | **no** |
 | `print` (rcon redirect) | s → c | 1,017 | 1,059 | no | no | **no** |
 | `print` (rejection) | s → c | 86 | 128 | yes | yes | **no** |
 | `challengeResponse` | s → c | 57 | 99 | yes | yes | **no** |
@@ -225,6 +242,9 @@ FFA map, the committed QVM and content.
 | `getstatus` | c → s | 13 | 55 | yes | yes | **no** |
 | netchan fragment | c → s | 1,314 | 1,356 | no | no | n/a — it *is* the fragment |
 | netchan fragment | s → c | 1,312 | 1,354 | no | no | n/a |
+
+† Addressed to a **second destination** — see the section below. Their sizes are
+listed for completeness, but size is not what makes them a problem.
 
 `getchallenge` is the one row carrying two numbers, because the two differ for a
 reason worth seeing: 40 bytes is what this profile realizes, with `com_gamename`
@@ -298,6 +318,46 @@ overflow of some check — it is what the code emits, and it already exceeds
 `MAX_PACKETLEN` on a plain UDP path today without anything noticing. Any
 strategy that sizes only `FRAGMENT_SIZE` and stops has not addressed this class.
 
+**Some of this traffic is not addressed to the game server at all.** The relay
+profile has exactly one destination. Two connect-path classes are addressed
+elsewhere, and both were missed by the first version of this analysis because
+the question it asked — "can the client originate it?" — was the wrong one:
+
+| Class | Destination | Bytes | Carries |
+| --- | --- | --- | --- |
+| `getmotd` | update server, `PORT_UPDATE` | 1,038 | challenge, **renderer string**, `com_version` |
+| `getKeyAuthorize` | authorize server, `PORT_AUTHORIZE` | 64 | `cl_anonymous`, the **CD key**'s alphanumerics |
+
+`getmotd` is the sharper case. `CL_Connect_f` calls `CL_RequestMotd`
+unconditionally, before it does anything else (`cl_main.c:1721`), so it is
+client-originated on the connect path with no user action — the exclusion used
+for the server browser is simply unavailable. It is compiled in whenever
+`STANDALONE` is not defined (`UPDATE_SERVER_NAME`, `qcommon.h:255-256`), which
+this document already establishes for both artifacts, and returns early only
+when `cl_motd` is zero. At 1,038 bytes it is over both budgets.
+
+Whether either datagram ever reaches the relay is decided entirely by **how WP7
+maps addresses in the browser**, and that is the point: a backend that maps any
+`netadr_t` onto the pinned virtual destination — the obvious shortcut when there
+is only one — would put a 1,038-byte datagram on the path at every connect *and*
+hand the player's GPU string to the game server. The privacy consequence is
+worse than the sizing one, and neither is visible in the census: that capture
+shares the server container's network namespace and filters `udp port 27960`,
+and neither `PORT_UPDATE` nor `PORT_AUTHORIZE` is 27960.
+
+`getKeyAuthorize` is small and additionally gated on `com_standalone` being zero
+(`CVAR_ROM`, default 0, `common.c:2708`) and on an `NA_IP` server address, which
+a virtual-IPv6 relay destination is not. Those gates are real, but they are
+properties of an address mapping WP7 has not written yet. Its 64 bytes are not
+the reason it is listed; the CD key it carries is.
+
+**The bound is structural, not a size check.** The decision requires WP7 to
+refuse and count any send to an address other than the pinned virtual
+destination, never silently re-address it. That rule bounds both classes
+whatever their size, and it bounds whatever a future engine change adds to this
+list — which a per-class size cap would not. The `cl_motd` setting below is
+defence in depth on top of it, deliberately not the primary mechanism.
+
 **Compression is not a bound.** The `connect` packet is the one out-of-band
 datagram that is Huffman-compressed before it is sent. It usually shrinks, and
 the census saw 263 and 292 bytes. But the coder's bit emitter clamps against the
@@ -316,17 +376,29 @@ asserts.
 
 ## Strategy 1 — intact datagrams, no engine change
 
-**Refuted, by measurement rather than by arithmetic.**
+**Refuted.**
 
 An unchanged engine can emit a 1,314-byte datagram, which needs a 1,356-byte
-frame. The transport reported a 1,024-byte maximum. That alone settles it, but
-the record is stronger than that: the routed round **sent cases at exactly these
-sizes and they were refused**.
+frame. The transport reported a 1,024-byte maximum. That settles it on the
+arithmetic alone, and the record contains the matching attempts:
 
 | Inner bytes | Frame bytes | Outcome in the committed record |
 | --- | --- | --- |
 | 1,312 | 1,354 | `notSentFrameExceedsTransportLimit` |
 | 1,314 | 1,356 | `notSentFrameExceedsTransportLimit` |
+
+**What those outcomes are, precisely.** They are the probe's own pre-send
+comparison against the same 1,024-byte reported maximum — not an observation of
+the path. Nothing was put on the wire at those sizes, so this is the arithmetic
+restated in the record rather than independent corroboration of it, and an
+earlier draft of this document oversold it as the latter.
+
+The conclusion is unaffected, because the refusal happens at the endpoint that
+matters: the pinned browser *will not write the frame*. A datagram the client
+refuses to send is as fatal to strategy 1 as one the path drops, and it fails
+earlier and more deterministically. What the record cannot tell us — whether the
+routed path would also have refused a 1,356-byte frame had the browser offered
+it — the decision does not need and does not claim.
 
 And the failure is not a rare peak. The census's **observed** maximum, 1,312
 bytes, is a gamestate fragment, and the gamestate is the first thing the server
@@ -358,6 +430,20 @@ built from the same engine pin with the same value.
 complete set of places that read it is six lines in one file:
 `net_chan.c:33` (comment), `:52` (definition), `:132`, `:162`, `:187` (send) and
 `:373` (receive).
+
+**Symmetry has to be observed on artifacts, not asserted in source.** Because
+the constant lives in exactly one file, a source-level test that "client and
+server agree" compares the value with itself and passes unconditionally. The
+failure that actually matters — a deployed server binary that did not come from
+the final pin, or a browser artifact built before the change — is invisible to
+it. Two artifact-level observations cover it instead. The re-census pins the
+**server** artifact: the observed fragment geometry (largest fragment datagram =
+`FRAGMENT_SIZE` plus the fragmented header) is a direct measurement of the value
+that binary was built with. WP8's zero-failed-reassembly evidence pins the
+**browser** artifact, because a browser built with a different value cannot
+reassemble the server's gamestate at all. The distinction matters because WP5's
+methodology is native-client-against-native-server, so the re-census on its own
+says nothing about the browser.
 
 ### Invariants a change must preserve
 
@@ -411,18 +497,27 @@ once, during connect** — 108 additional wire bytes on a 2.4 KB transfer.
 
 ### Profile bounds the strategy also needs
 
-A fragment-size change does nothing for out-of-band traffic. **Six classes are
+A fragment-size change does nothing for out-of-band traffic. **Seven classes are
 over budget at both targets** — `statusResponse`, `infoResponse`, `connect`,
-`echo`, `rcon` and the rcon redirect's `print` — and they need four treatments,
-grouped below. A fifth item follows them: the legacy protocol path, which is not
-a sizing problem at all but belongs here because it is the other thing the
-profile has to pin.
+`getmotd`, `rcon`, `echo` and the rcon redirect's `print` — plus
+`getKeyAuthorize`, which fits comfortably and is listed anyway because size is
+not why it matters. They need five treatments, grouped below, and a sixth item
+follows them: the legacy protocol path, which is not a sizing problem at all but
+belongs here because it is the other thing the profile has to pin.
 
-The grouping turns on one distinction. Most of these are excluded because the
-*client* never originates them, which is a statement about the profile. But one
-— `echo` — is triggered by the **destination**, so no statement about what the
-client chooses to send can exclude it, and it is the reason the emitted-size
-check is a requirement rather than a precaution.
+The grouping turns on *why* a class is or is not on the path, and the first
+version of this analysis got that taxonomy wrong in a way worth stating. It
+asked one question — can the client originate it? — and excluded everything that
+answered no. There are three kinds:
+
+- **Client-originated and unavoidable** (`connect`): must be capped.
+- **Triggered by the destination** (`echo`): no statement about what the client
+  chooses to send can exclude it, which is why the emitted-size check is a
+  requirement rather than a precaution.
+- **Addressed somewhere else** (`getmotd`, `getKeyAuthorize`): excluded by
+  destination, not by size or origin — and `getmotd` is *also* client-originated
+  on the connect path, so the first question would have said "yes" and the
+  original analysis still missed it.
 
 1. **`connect` — the one that must be solved.** It is the largest datagram the
    client can originate and the connection cannot happen without it. Its only
@@ -439,15 +534,33 @@ check is a requirement rather than a precaution.
    limit and still far above what the profile uses, and deliberately a number
    that would also have held at the 982-byte budget.
 
-2. **`statusResponse` and `infoResponse` — excluded, not capped.** These are the
-   server browser's answers, and the prototype profile has no server browser:
-   the browser client is launched at one pinned virtual destination and issues
-   no `getstatus` or `getinfo`. They therefore never traverse the relay. That is
-   a property of the profile, not of the transport, so it is recorded as an
-   enforced constraint rather than assumed away — and if a later product wants a
-   server browser through a relay, that reopens this decision. For completeness,
-   if the operator wanted them on the path, `statusResponse` would need the
-   serverinfo capped to 348 bytes at the 768 target and 562 at 982.
+2. **`statusResponse` and `infoResponse` — excluded, and the exclusion has to be
+   made real.** These are the server browser's answers, and the prototype
+   profile has no server browser: the browser client is launched at one pinned
+   virtual destination and has no reason to issue `getstatus` or `getinfo`.
+
+   An earlier version of this document called that "an enforced constraint".
+   It was not one, and the correction matters. Nothing in the engine, the
+   profile or the acceptance evidence enforced it: there is no cvar, no removed
+   command and no test, and the derivation's own
+   `server_browser_queries_on_relay_path=False` is a switch in the analysis, not
+   in the client. Worse, the record this decision sizes against *contains* these
+   classes — the WP5 census deliberately issued both queries, so `getstatus`,
+   `getinfo`, `statusResponse` and `infoResponse` all appear in it. And a size
+   assertion cannot catch a violation: with this profile's short serverinfo and
+   few players the realized `statusResponse` is 465 bytes, comfortably under
+   768, so "no connectionless class over budget" would pass whether or not the
+   browser is issuing queries.
+
+   Until WP7 lands it is therefore an **assumption**, and the decision names the
+   two mechanisms that convert it into a constraint: WP7 neutralizes the
+   client's `ping`, `serverstatus`, `localservers` and `globalservers` command
+   paths in the `web` branch, and the re-census asserts **presence** — that no
+   `getstatus` or `getinfo` datagram appears at all — rather than asserting size.
+
+   For completeness, if the operator ever wanted them on the path,
+   `statusResponse` would need the serverinfo capped to 348 bytes at the 768
+   target and 562 at 982.
 
 3. **`echo` — the one that cannot be excluded.** The client answers an
    out-of-band `echo` from its own server address by sending the argument
@@ -484,7 +597,17 @@ check is a requirement rather than a precaution.
    (`cl_main.c:1890`), so a size check placed at the out-of-band send would not
    see it. A future profile enabling rcon must revisit both.
 
-5. **The legacy protocol path — refused.** Not a size problem: a compat
+5. **`getmotd` and `getKeyAuthorize` — refused by destination.** Covered in full
+   above. The structural bound is WP7's address rule: a send to anything but the
+   pinned virtual destination is refused and counted, never re-addressed.
+   **[operator confirmation pending]** `+set cl_motd 0` on the client as defence
+   in depth. It is flagged for confirmation because it extends the profile
+   bounds the operator decided on 2026-08-30, and because it deserves an honest
+   caveat: `cl_motd` is registered with flags `0` (`cl_main.c:3562`), so unlike
+   `com_legacyprotocol` it can be changed after start. It cannot carry this
+   bound on its own, and is not asked to.
+
+6. **The legacy protocol path — refused.** Not a size problem: a compat
    connection only makes datagrams smaller. But the pinned server accepts
    protocol-68 by default, and doing so bypasses the gamename check and drops
    the challenge-checksum spoofing protection, while also making the header
@@ -493,15 +616,110 @@ check is a requirement rather than a precaution.
    so the legacy path is refused outright and the census's observed geometry is
    the only one the profile can produce.
 
+   This is a stronger bound than a launch flag usually is, and worth saying so
+   plainly, because the difference between a bound and a hope is exactly what
+   this section is about. The cvar is registered `CVAR_INIT` (`common.c:2799`),
+   so it can only be set on the command line and cannot be changed afterwards by
+   console, config file or game module. With it at zero, `SV_DirectConnect`
+   takes the non-compat branch for any declared version (`sv_client.c:354-367`),
+   and the gamename bypass at `sv_client.c:86-92` is itself gated on
+   `com_legacyprotocol` being non-zero, so zero closes that too. It is also
+   observable after the fact — in the `protocol` ROM cvar
+   (`common.c:2802-2806`) and in the header widths the re-census measures.
+
+### The check runs on both endpoints, at one named seam
+
+Two corrections to how the fail-closed machinery was originally specified.
+
+**It is not browser-only.** The first version put the emitted-size check and its
+counters on "the browser's send path". But every class that remains over budget
+in the *other* direction — `statusResponse` at 1,443, `infoResponse` at 1,040,
+the rcon redirect's `print` at 1,017 — is emitted by the **native server**, and
+those are the largest classes in the whole table. Under a browser-only check,
+a wrong assumption there produces a datagram the server emits, the relay or the
+transport drops, and nothing counts. WP8's "zero oversize refusals, one refusal
+means a class was missed" could not detect a missed class in the direction where
+the biggest classes live.
+
+There is a second, sharper reason. The exclusion for `statusResponse` and
+`infoResponse` is that *this client* never asks — but the server answers whoever
+asks (`sv_main.c:802-805`), and on the relayed path it sees one IPv4 endpoint
+with a source port per session. Anything that reaches the server socket bearing
+a session's source port elicits a server-to-client out-of-band datagram into
+that browser's session. That is precisely the reasoning this decision applied to
+`echo`, and it was not applied symmetrically. **The same emitted-size check and
+the same per-class counters therefore run in the native server build**, which is
+being rebuilt from the final pin anyway. A server-side over-budget emission is a
+counted, surfaced event, not a silent drop.
+
+**The seam is `Sys_SendPacket`.** "The send path" was underspecified, and the
+two obvious call sites are each wrong in one direction: `rcon` bypasses
+`NET_OutOfBandPrint` entirely, and the `connect` packet is compressed *inside*
+`NET_OutOfBandData`, so a check at either would miss traffic or measure the
+pre-compression size. `Sys_SendPacket` is the only point below both, and below
+the `cl_packetdelay`/`sv_packetdelay` queue (`net_chan.c:528,550-566`). Putting
+the check there makes "after compression" automatic rather than a rule someone
+has to remember, and it makes the check total: every datagram the engine emits
+passes through it.
+
 ### Where the change lands
 
 | Component | Change |
 | --- | --- |
 | `ioq3` (`web` branch) | `FRAGMENT_SIZE` becomes an explicit constant at the selected value, documented in place with the reason and the symmetry requirement. `MAX_PACKETLEN` unchanged. |
-| `ioq3` (`web` branch) | A fail-closed emitted-size check on the browser's send path (see below), and the userinfo cap. |
-| Profile (launch arguments) | `+set com_legacyprotocol 0` on both server and client. |
+| `ioq3` (`web` branch) | The fail-closed emitted-size check at `Sys_SendPacket`, in **both** builds, with per-class and per-direction counters split into client-originated and elicited. |
+| `ioq3` (`web` branch) | The cap on the formatted `connect` data string, refuse-and-surface rather than truncate. |
+| `ioq3` (`web` branch) | Refuse and count any send to an address other than the pinned virtual destination; never re-address one. |
+| `ioq3` (`web` branch) | Neutralize the `ping`, `serverstatus`, `localservers` and `globalservers` command paths, so the server-browser exclusion becomes structural. |
+| `ioq3` (`web` branch) | Browser `Sys_RandomBytes` backed by `crypto.getRandomValues`, because `qport` quality is what separates two players on the relay's shared address. |
+| Profile (launch arguments) | `+set com_legacyprotocol 0` on both server and client; `+set cl_motd 0` on the client. |
 | This repository | The engine pin, and the WP7 evidence recording the rebuild and re-census. |
 | Native server | Rebuilt from the same final `web` pin — mandatory, because `FRAGMENT_SIZE` is server-side packet logic. |
+
+### What the shared relay address does to the server's per-address logic
+
+The relay collapses every player onto one server-visible IPv4 endpoint, with a
+source port per session. That is the privacy property the whole project exists
+for, and the server was not written for it. Three consequences, none of which
+changes the sizing, all of which touch the frozen WP8 thresholds.
+
+**Rate limits are shared.** `SVC_BucketForAddress` keys its leaky buckets on the
+address bytes and never the port (`sv_main.c:405-427`), so both players share
+**one** bucket. `getchallenge` is limited to burst 10 per 1,000 ms per address
+(`sv_client.c:71-75`), as are `getstatus`, `getinfo` and `rcon`. One session
+reconnecting in a loop can therefore deny `getchallenge` to the other — directly
+against the frozen "100% of connect attempts within 3 attempts" threshold, and
+by a mechanism that has nothing to do with either client misbehaving.
+
+**qport becomes the only discriminator.** `SV_PacketEvent` demultiplexes on
+(base address, qport) alone (`sv_main.c:851-862`). On a shared address a qport
+collision makes one client's datagram match the other's slot — and the server
+then rewrites the stored remote port to the incoming one (`:867-870`)
+**before** the netchan checksum is validated (`net_chan.c:270-278`, via
+`SV_Netchan_Process` at `sv_main.c:873`). The checksum stops the *content* being
+accepted; it does not stop the port rewrite, which has already happened. The
+victim's netchan is re-homed to the wrong relay port and subsequent server
+traffic is delivered into the wrong browser session — which would violate WP7's
+own "no packet is delivered across browser sessions".
+
+**So qport quality is a security property, not a detail.** It comes from
+`Com_RandomBytes` (`common.c:2816-2818`), which falls back to time-seeded
+`rand()` when `Sys_RandomBytes` fails. A browser port must reimplement
+`Sys_RandomBytes`; stubbed or weakly seeded, two clients started in the same
+second get the same qport and correlated `clc.challenge` values — degrading the
+very challenge-checksum protection this document leans on when it pins the
+non-legacy path. **Decided:** WP7's browser `Sys_RandomBytes` is a real CSPRNG
+(`crypto.getRandomValues`), and WP8's evidence shows the two clients' qports
+differ.
+
+**The shared bucket itself is an accepted gap.**
+**[operator confirmation pending]** The rate-limit sharing is recorded as an
+explicitly accepted inherited limitation rather than fixed: scoping the buckets
+per source port would be a server-side engine change this decision did not
+authorize, and the two-player prototype does not reconnect in a loop. It is
+flagged for confirmation because the denial scenario above can violate a
+threshold the operator has already frozen, and that trade is his to accept. If
+WP8 observes it, the answer is to scope the buckets, not to relax the threshold.
 
 ## Strategy 3 — bounded engine-pair tunnel fragmentation
 
@@ -547,6 +765,17 @@ permissive one:
   the round never sent a case in. The WP6 contract's own non-goal — "treating a
   single browser session's reported maximum as a universal constant" — points
   the same way.
+- **768 is demonstrated in both directions; 982 is a send-side property only.**
+  Every measured case was a round trip through an echoing destination, so a
+  768-byte inner datagram is known to have survived browser-to-server *and*
+  server-to-browser. The derived 982 comes from `maxDatagramSize`, which the
+  browser reports about its own transmit path and nothing else. This is the
+  single strongest argument for the conservative target and the analysis had
+  missed it: the round-trip cases are the **only** evidence in the entire record
+  that speaks to the server-to-browser direction at all. It also bears on the
+  mid-session rule below, which re-reads that same send-side property and uses
+  it to bound both directions — conservative here precisely because the floor it
+  is compared against was established both ways.
 - The cost of being wrong is asymmetric. Choosing 704 and being too conservative
   costs two extra datagrams per connect, once. Choosing 896 and being wrong
   means the gamestate does not arrive and no session can start at all.
@@ -604,7 +833,15 @@ belong in WP7's implementation:
   normally. `FRAGMENT_SIZE` is fixed at build time and cannot adapt, so a larger
   budget buys headroom, not larger datagrams.
 - **If the accepted budget falls below the selected floor**, the session cannot
-  carry the engine's traffic. **Fail closed**: refuse to send, surface a
+  carry the engine's traffic. Note what this threshold is: it is the sizing
+  target (768), not the requirement (718, the largest datagram the build can
+  actually emit). A session reporting an 800-byte maximum — budget 758 — is
+  refused even though every datagram this build can produce would have fitted.
+  That is deliberate and it is the conservative direction, but it means **the
+  64-byte reserve is doing double duty**: it is the margin below the budget when
+  choosing `FRAGMENT_SIZE`, and it is also a hard session-refusal margin at
+  runtime. An operator who later wants sessions accepted down to the true
+  requirement is changing the second use, not the first. **Fail closed**: refuse to send, surface a
   distinct, non-retrying error to the loader, and close the session. Do not
   truncate, do not silently drop, and do not fall back to another transport —
   a fallback would be a transport mechanism this decision did not authorize.
@@ -614,7 +851,16 @@ belong in WP7's implementation:
   count the event rather than see an unexplained disconnect.
 - **Every oversize refusal is counted and surfaced**, per direction and per
   class, because WP8's packet-failure threshold is meaningless if refusals are
-  invisible.
+  invisible. **[operator confirmation pending]** the counters are split in two:
+  **client-originated** refusals and **elicited** refusals (`echo`). This
+  refines the definition of a threshold the operator has already frozen, which
+  is why it is flagged rather than simply applied. The reason it is needed: the
+  decided `echo` treatment is to refuse an oversize reply and count it, but WP8
+  freezes "**0** oversize refusals — one refusal means a class was missed". As
+  written, the one mechanism installed deliberately for `echo` would fail WP8
+  with entirely the wrong diagnosis the first time it worked as intended. The
+  zero threshold belongs on the client-originated counter; an elicited refusal
+  is the system behaving correctly and is reported, not failed.
 - **The emitted `connect` datagram is size-checked after compression**, not
   before. This is the one place where the pre-compression bound is not a bound.
 
@@ -644,8 +890,12 @@ Through that path, against a 1,024-byte maximum:
 - at a tighter 810-byte maximum, the 704 worst case is still carried while the
   896 worst case is refused.
 
-That the model and the real path agree at 1,312 and 1,314 is not an assumption:
-the routed record contains those exact refusals.
+The loopback model and the pinned browser refuse the same two sizes for the same
+reason — both compare the frame against the reported maximum before writing it.
+That is agreement between two implementations of the *same rule*, not
+confirmation that the path enforces it; no 1,354- or 1,356-byte frame has been
+put on a wire by anything in this repository. It is worth exactly what it is: a
+check that the model's arithmetic matches the browser's.
 
 **Deferred to WP7 and WP8, on the live path.** Everything the loopback cannot
 speak to: real per-direction behaviour, whether a keep-alive is needed and at
@@ -675,6 +925,17 @@ disconnect/reconnect exercises for each.
 | Reassembly | 0 failed reassemblies; 0 truncated messages | The direct test that both endpoints agree on `FRAGMENT_SIZE`. |
 | Privacy | Both players appear only as the relay's IPv4 endpoint with distinct source ports; neither public address appears in server logs or committed evidence | Unchanged from the WP8 envelope; restated so it is frozen with the rest. |
 
+## Paths that are sizing-neutral
+
+Recorded so a later reviewer does not re-derive them. Downloads, VoIP and demo
+traffic are **not** additional sizing risks, and not because the profile
+excludes them: everything on those paths is written into a message that the
+netchan then fragments, so `FRAGMENT_SIZE` bounds them exactly as it bounds
+gameplay traffic, whether or not they are enabled. (`cl_allowDownload` defaults
+to 0 at `cl_main.c:3606` in any case.) They would change bandwidth and fragment
+counts, never the maximum datagram size, so no bound in this document moves if a
+later profile turns them on.
+
 ## Inherited gaps
 
 Recorded so they are not rediscovered as surprises:
@@ -683,8 +944,8 @@ Recorded so they are not rediscovered as surprises:
   both are held to one budget. Separating them needs a destination that can
   reply at a size other than the one it received, which the contract's echo
   destination is not.
-- **The 769–1,023 range is unmeasured.** If the operator selects the 982 target,
-  that gap is the risk being accepted.
+- **The 769–1,023 range is unmeasured.** The selected target does not rely on
+  it; it would have been the risk accepted by the 896 alternative.
 - **Huffman expansion is derived, not measured.** Hence the requirement to check
   the emitted `connect` size on the wire.
 - **The game module's reject string is engine-unbounded.** The committed QVM's
@@ -699,8 +960,18 @@ Recorded so they are not rediscovered as surprises:
   `usingSocks`, which the browser build has no way to set, and recorded beside
   the loopback path for the same reason: both are places where a size check on
   the out-of-band send would not be the last word.
-- **The legacy protocol path is refused by profile, not by code.** `+set
-  com_legacyprotocol 0` is a launch argument; nothing in the engine prevents a
-  build from accepting protocol-68. WP7 records it as a profile requirement, and
-  a deployment that forgets it gets weaker spoofing protection rather than a
-  sizing failure.
+- **The legacy protocol path is refused by launch argument.** This was
+  previously listed here as a weakness; that undersold it and the entry is
+  corrected rather than removed. `com_legacyprotocol` is `CVAR_INIT`, so once
+  the process starts at zero nothing — console, config or game module — can
+  raise it, and the result is observable in the `protocol` ROM cvar and in the
+  header widths the re-census measures. The residual risk is only that a
+  deployment omits the argument at launch, which the re-census detects; it is
+  not a bound that can decay at runtime. See the profile bounds above.
+- **The shared per-address rate-limit bucket.** Accepted rather than fixed, and
+  flagged for the operator's confirmation; see the shared-address section. It
+  can violate a frozen WP8 threshold through no fault of either client.
+- **The qport collision hazard.** The server rewrites a client's stored remote
+  port before validating the netchan checksum, so a collision on a shared
+  address re-homes the victim's netchan even though the spoofed content is then
+  rejected. Mitigated by requiring a real CSPRNG for qport, not eliminated.

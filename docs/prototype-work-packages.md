@@ -7,9 +7,13 @@
 as a WP1 contract amendment. WP6's decision was made by the operator on
 2026-08-30 — strategy 2, `FRAGMENT_SIZE = 704` at the record-backed 768-byte
 floor, with the profile bounds and all ten WP8 thresholds frozen — every point
-as the analysis proposed, and recomputable from the committed records. WP6 does
-not close and WP7 stays blocked until the mandatory independent
-protocol/security review of that decision passes. WP7 and WP8 carry
+as the analysis proposed, and recomputable from the committed records. The
+mandatory independent protocol/security review returned **fix-first**: the
+arithmetic was confirmed error-free and the strategy endorsed, but the
+packet-class census was incomplete and several bounds were not enforceable. Those
+fixes are made, and three extensions to the decided profile bounds await the
+operator's confirmation. WP6 does not close and WP7 stays blocked until that
+confirmation and the review's re-verification. WP7 and WP8 carry
 implementation-ready contracts with the decided values filled in
 
 This document turns the reviewed direction in
@@ -51,8 +55,8 @@ is a plan change; adding another platform is later scope.
 | WP3 | Audited deterministic minimal-content closure | WP0 | ✅ Complete — two clean assemblies in the pinned builder image produce a byte-identical 668-member `oa_pvomit` FFA pack from six digest-pinned Debian-cleaned OpenArena archives, every member `GPL-2.0-or-later` with resolved notices, and every reference the two static readings of the pinned `baseq3` QVM sources extract either resolves or is a recipe acceptance with a stated reason |
 | WP4 | One-map offline browser arena with bots | WP1, WP3 | ✅ Complete — the witnessed round of 2026-08-30 passed every gameplay, input, focus, audio, console and clean-relaunch check (report in the evidence documents); the known browser-renderer defect class (white lightmapped surfaces mitigated by the reviewed `r_vertexLight` workaround and guarded by a near-white regression check; distance-graded entity shading; frame flicker) is recorded as decided while the timeboxed root-cause hunt continues on scratch builds. Closure accepted the operator-chosen Brave/KDE variation (the pinned Chrome is exercised by the automated harness on every gate run) and recorded one new accepted limitation: runtime resize and fullscreen-after-start do not update the engine resolution. **Post-closure, 2026-08-30:** the defect class is resolved — white lightmapped surfaces root-caused to a GLSL ES `mediump` precision default and fixed in the engine (workaround removed), entity shading reclassified as renderergl2's normal native look rather than a browser defect, and frame flicker confirmed resolved by the operator on the real display, who also confirmed light-strip parity with the native reference images. Two pre-existing content gaps the operator reported at the same time — the machine gun's missing barrel model and the lightning gun's missing beam art — are recorded in the evidence document as an open content follow-up |
 | WP5 | Matching native server and packet census | WP0, WP3 | ✅ Complete — the pinned native toolchain, the reproducible dedicated server, the runtime-base server image and a 41,833-datagram census of a driven session are built, reviewed and green, and the witnessed round of 2026-08-30 closed the one outstanding acceptance word with a player kill against a bot (report and native reference images in the evidence documents) |
-| WP6 | Measured network-sizing decision | WP2, WP5 | Decision made by the operator on 2026-08-30 (strategy 2, `FRAGMENT_SIZE` 704 at the record-backed 768-byte floor, profile bounds, thresholds frozen), every point as proposed; awaiting the mandatory independent protocol/security review, which is the only thing still blocking closure — the routed budget refutes intact datagrams (the record contains the refusals at exactly the 1,312- and 1,314-byte sizes an unchanged engine needs), a symmetric `FRAGMENT_SIZE` reduction carries every netchan case at either candidate (704 at the selected 768-byte floor, 896 at the 982-byte derived budget considered and not selected), and the out-of-band classes the engine never fragments are bounded by the profile plus a fail-closed emitted-size check. Derivation, boundary cases and thresholds in [`wp6-network-sizing.md`](wp6-network-sizing.md), recomputable with `scripts/derive-network-sizing.py` |
-| WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | Contract complete with the decided values filled in; blocked on WP6's independent protocol/security review |
+| WP6 | Measured network-sizing decision | WP2, WP5 | Decision made by the operator on 2026-08-30 (strategy 2, `FRAGMENT_SIZE` 704 at the record-backed 768-byte floor, profile bounds, thresholds frozen), every point as proposed. The independent protocol/security review returned fix-first — the arithmetic was confirmed error-free and the strategy endorsed, but the class census was incomplete (the client-originated 1,038-byte `getmotd`) and the server-browser exclusion, the browser-only fail-closed check and the relay's shared server address needed enforceable answers; all are fixed and three extensions await the operator's confirmation — the routed budget refutes intact datagrams (the pinned browser refused to write frames at exactly the 1,312- and 1,314-byte sizes an unchanged engine needs), a symmetric `FRAGMENT_SIZE` reduction carries every netchan case at either candidate (704 at the selected 768-byte floor, 896 at the 982-byte derived budget considered and not selected), and the out-of-band classes the engine never fragments are bounded by the profile plus a fail-closed emitted-size check. Derivation, boundary cases and thresholds in [`wp6-network-sizing.md`](wp6-network-sizing.md), recomputable with `scripts/derive-network-sizing.py` |
+| WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | Contract complete with the decided values filled in and the review's enforcement requirements folded in (address rule, two-endpoint size check at `Sys_SendPacket`, server-browser neutralization, CSPRNG `Sys_RandomBytes`); blocked on WP6's re-review |
 | WP8 | Two-browser multiplayer acceptance | WP5, WP7 | Contract complete, thresholds frozen 2026-08-30; blocked on WP7 |
 | WP9 | Public product-integration blueprint | WP8 | Scope gate |
 
@@ -779,8 +783,12 @@ covers connectionless and netchan traffic and measures the correct boundary.
 ## WP6 — Measured network-sizing decision
 
 **State:** Decision made by the operator on 2026-08-30, every point as
-proposed. Awaiting the mandatory independent protocol/security review, which is
-the only thing still blocking closure and WP7.
+proposed. The mandatory independent protocol/security review returned
+**fix-first**: no arithmetic error and the strategy endorsed, but the
+packet-class census was incomplete and two bounds the strategy leans on were not
+enforceable. Those fixes are made. WP6 closes when the three
+**[operator confirmation pending]** extensions are confirmed and the review
+re-verifies them; WP7 stays blocked until then.
 
 ### Result
 
@@ -794,9 +802,12 @@ it is recomputed from the two committed records by
 positively and against doctored records that must flip its verdicts.
 
 What the evidence established: intact datagrams are refuted — an unchanged
-engine needs a 1,356-byte frame and the routed record contains the transport's
-refusals at exactly the 1,312- and 1,314-byte inner sizes it requires, so the
-failure lands on the gamestate during every connection rather than rarely. A
+engine needs a 1,356-byte frame, and the pinned browser refused to write frames
+at exactly the 1,312- and 1,314-byte inner sizes it requires. That refusal is the
+probe's own pre-send check against the reported maximum rather than an
+observation of the path, but a datagram the client will not send is just as
+fatal, and the failure lands on the gamestate during every connection rather
+than rarely. A
 symmetric `FRAGMENT_SIZE` reduction carries every netchan case at either sizing
 target — 704 at the record-backed 768-byte floor, 896 at the derived 982-byte
 budget — and costs two extra datagrams once per connect at the conservative
@@ -907,6 +918,12 @@ Decided by the operator on 2026-08-30, each as WP6 proposed.
 | `[decision: userinfo cap]` | 512 bytes | WP6; inside the selected target's 752-byte limit |
 | `[decision: receive queue depth]` | 256 datagrams | WP6, frozen WP8 threshold |
 | `[decision: echo treatment]` | refuse the oversize reply via the emitted-size check | WP6; disabling the handler was considered and not selected |
+| `[decision: cl_motd]` | `+set cl_motd 0` | WP6, review finding M1 — **[operator confirmation pending]** |
+| `[decision: counter split]` | client-originated and elicited refusals counted separately | WP6, review finding m3 — **[operator confirmation pending]** |
+
+Two of these arrived from the independent review after the operator's selection
+and extend the decided profile bounds, so they are marked pending his
+confirmation. The rest are within the frame he already settled.
 
 ### Outcome
 
@@ -954,23 +971,73 @@ re-censused, because the selected strategy changes server-side packet logic.
   browser client and the native server must therefore be built from the same
   engine pin. Asymmetry is a silent truncation, so WP7 must include a test that
   fails when the two disagree rather than relying on the build to be careful.
-- Enforce the `[decision: userinfo cap]` on the client userinfo before the
-  `connect` packet is formatted.
-- Add a fail-closed emitted-size check on the browser's send path. It compares
-  the **emitted** datagram — after Huffman compression, for the `connect`
-  packet — against the session's current accepted budget, refuses to send when
-  it does not fit, and counts and surfaces the refusal per direction and per
-  class. The pre-compression size is not a bound and must not be used as one.
+- Enforce the `[decision: userinfo cap]` on the **formatted `connect` data
+  string**, not on the userinfo copy. The two differ: `CL_CheckForResend` copies
+  the userinfo and *then* adds `protocol`, `qport` and `challenge`
+  (`cl_main.c:2413-2425`), so a cap applied before that copy does not bound what
+  reaches the wire — and the formatted string is the whole variable term WP6's
+  arithmetic bounds.
+  The behaviour on violation is **refuse and surface**, never truncate.
+  Truncating an info string can cut a key/value pair in half and drop the
+  `challenge` key the server requires (`sv_client.c:369,402-419`), turning a cap
+  violation into an unexplained connect failure instead of a clear one.
+- Add a fail-closed emitted-size check **at `Sys_SendPacket`**, in **both** the
+  browser client and the native server build. The seam is named deliberately: it
+  is the only point below both `NET_OutOfBandPrint` and `NET_OutOfBandData` —
+  `rcon` bypasses the former and the `connect` packet is compressed inside the
+  latter — and below the `cl_packetdelay`/`sv_packetdelay` queue
+  (`net_chan.c:528,550-566`). Placing it there makes "after compression"
+  automatic and makes the check total.
+  It compares the **emitted** datagram against the session's current accepted
+  budget, refuses to send when it does not fit, and counts and surfaces the
+  refusal per direction and per class. The pre-compression size is not a bound
+  and must not be used as one.
+- The server build carries the same check and the same counters. The largest
+  over-budget classes — `statusResponse` 1,443, `infoResponse` 1,040, the rcon
+  redirect's `print` 1,017 — are all server-emitted, so a browser-only check
+  leaves them unmeasured: the datagram would be emitted, dropped by the relay or
+  the transport, and counted nowhere. A server-side over-budget emission is a
+  counted, surfaced event.
+- Split the refusal counters into **client-originated** and **elicited**
+  (`echo`). `[decision: counter split]` — WP8's zero-oversize threshold applies
+  to the client-originated counter; an elicited refusal is the mechanism working
+  as designed and is reported, not failed.
+- Refuse and count any send to an address **other than the pinned virtual
+  destination**, and never silently re-address one. This is the structural bound
+  on every second-destination class: `getmotd` (1,038 bytes, addressed to the
+  update server, carrying the renderer string) and `getKeyAuthorize` (64 bytes,
+  addressed to the authorize server, carrying the CD key). A backend that maps
+  any `netadr_t` onto the pinned destination — the obvious shortcut when there
+  is only one — would put both on the relayed path and disclose their contents
+  to the game server. The rule binds regardless of size, and regardless of what
+  a later engine change adds to that list.
 - Re-read the transport's reported datagram maximum on every send, not only at
   session open, and derive the accepted inner budget as that value less the
   42-byte single-datagram overhead.
 - Implement WP6's budget-change behaviour: a session whose accepted budget falls
   below `[decision: inner budget]` fails closed with a distinct, non-retrying
   error and closes, whether that is true at session open or becomes true later.
-- Keep the server browser off the relayed path: the client issues no `getstatus`
-  or `getinfo` on a relayed session. WP6 bounds `statusResponse` and
-  `infoResponse` by excluding them, not by capping them, and the exclusion has
-  to be real.
+- Keep the server browser off the relayed path **structurally**: neutralize the
+  client's `ping`, `serverstatus`, `localservers` and `globalservers` command
+  paths in the `web` branch. WP6 bounds `statusResponse` and `infoResponse` by
+  excluding them rather than capping them, and until this lands the exclusion is
+  an assumption, not a constraint — there is no cvar and no removed command
+  today, and the WP5 census that this decision sizes against actually contains
+  both queries and both answers.
+- `[decision: cl_motd]` launch the client with `+set cl_motd 0` as defence in
+  depth behind the address rule. `cl_motd` carries no `CVAR_INIT`
+  (`cl_main.c:3562` registers it with flags 0), so unlike `com_legacyprotocol`
+  it can be changed after start and cannot carry this bound alone.
+- Implement the browser's `Sys_RandomBytes` as a real CSPRNG
+  (`crypto.getRandomValues`). This is a security requirement, not housekeeping:
+  `qport` comes from `Com_RandomBytes` (`common.c:2816-2818`), which falls back
+  to time-seeded `rand()` if `Sys_RandomBytes` fails, and on the relay's shared
+  server-visible address `qport` is the **only** discriminator between the two
+  players' netchans (`sv_main.c:851-862`). A collision re-homes the victim's
+  netchan to the wrong relay port — the server rewrites the stored port at
+  `:867-870` *before* the checksum is validated — and would deliver server
+  traffic into the wrong browser session. Weak seeding also correlates
+  `clc.challenge` across clients.
 - Launch both the server and the browser client with `+set com_legacyprotocol 0`.
   The pinned server otherwise accepts protocol-68 connections by default, which
   bypasses the gamename check and drops the challenge-checksum spoofing
@@ -991,7 +1058,13 @@ re-censused, because the selected strategy changes server-side packet logic.
   including the compressed `connect` case and an oversize `echo` reply, the
   userinfo cap, the budget-change path, and fragment reassembly at the selected
   `FRAGMENT_SIZE` including the zero-length terminator case.
-- A test that fails when client and server `FRAGMENT_SIZE` disagree.
+- Symmetry is observed on **artifacts**, not asserted in source: the constant is
+  file-static to one file, so a source-level "client and server agree" test
+  compares the value with itself and cannot fail. The server artifact is pinned
+  by the re-census's fragment geometry below; the browser artifact is pinned by
+  WP8's zero-failed-reassembly evidence, since a browser built with a different
+  value cannot reassemble the server's gamestate. WP7 states both observations
+  as its symmetry evidence rather than shipping a self-comparing test.
 - The exact browser connects through the shared relay to the exact server and
   can join, move, fire, score, disconnect and reconnect.
 - **The server is rebuilt from the same final `web` pin and its WP5 profile is
@@ -1002,6 +1075,13 @@ re-censused, because the selected strategy changes server-side packet logic.
   gamestate split into the fragment count WP6 predicts, no connectionless class
   over budget, and the netchan header widths still 8/10/12/14 — which is also
   the observable proof that `com_legacyprotocol 0` took effect.
+  It must additionally assert **presence, not size**: no `getstatus` and no
+  `getinfo` datagram appears in the capture at all. A size assertion cannot
+  catch a server-browser violation, because this profile's realized
+  `statusResponse` is 465 bytes and passes an over-budget check whether or not
+  the browser is issuing queries. The capture filter must be widened beyond
+  `udp port 27960` for this assertion to mean anything, and to make any
+  second-destination traffic visible.
   `scripts/derive-network-sizing.py` re-run against the new census must report
   every bound still passing.
 - No packet is delivered across browser sessions or outside the authorized
@@ -1061,7 +1141,24 @@ a plan change rather than a WP8 judgement call.
 - Connection/reconnect success, unexpected disconnect and packet-send failure
   counts, with oversize refusals counted separately from write failures — WP6
   requires zero of the former and tolerates a small rate of the latter, so a
-  report that merges them cannot be assessed.
+  report that merges them cannot be assessed. Oversize refusals are themselves
+  reported split into **client-originated** and **elicited**; the zero threshold
+  applies to the client-originated count, because the `echo` mechanism WP6
+  installed deliberately produces elicited refusals when it works.
+- Oversize-refusal counts from **both** endpoints. The largest over-budget
+  classes are server-emitted, so browser-side counters alone cannot show that no
+  class was missed.
+- **Distinct qports for the two clients**, read from the server side. On the
+  relay's shared server-visible address `qport` is the only thing separating the
+  two netchans, so this is the evidence that the browser's `Sys_RandomBytes` is
+  a real CSPRNG rather than a stub. Also report any
+  `SV_PacketEvent: fixing up a translated port` occurrence: on a shared address
+  that log line is the observable signature of the collision hazard WP6 records.
+- Any observed exhaustion of the server's shared per-address rate-limit bucket.
+  WP6 accepts the sharing as an inherited gap, but it can deny `getchallenge` to
+  one player through no fault of either client and so violate the connection
+  threshold; if it is observed, the answer is to scope the buckets per source
+  port, not to relax the threshold.
 - Browser- and server-side per-session evidence for packet sizes, drops,
   reassembly failures and bounded queue behaviour, including the observed
   maximum queue depth.
@@ -1140,10 +1237,13 @@ integration implementation is scheduled.
    The analysis and the replacement contracts are complete, and the operator
    made every decision on 2026-08-30 — strategy, sizing target, reserve and
    alignment, userinfo cap and all ten WP8 thresholds — each as proposed. The
-   gate now closes on one remaining step: the mandatory independent
-   protocol/security review of
-   [`wp6-network-sizing.md`](wp6-network-sizing.md). Until it passes, WP6 does
-   not close and WP7 does not start.
+   mandatory independent protocol/security review of
+   [`wp6-network-sizing.md`](wp6-network-sizing.md) then returned **fix-first**,
+   endorsing the strategy and the arithmetic but requiring a complete packet-class
+   census and enforceable bounds; those fixes are made. The gate now closes on
+   two remaining steps: the operator confirming the three extensions marked
+   **[operator confirmation pending]**, and the review re-verifying the fixes.
+   Until both, WP6 does not close and WP7 does not start.
 4. **Vertical-slice closure:** WP8 reviews the complete two-client evidence
    before WP9 or any hosting integration begins.
 
