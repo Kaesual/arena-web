@@ -2,7 +2,9 @@
 
 # WP5 evidence: matching native server and packet census
 
-**Status:** implemented; one witnessed round pending
+**Status:** complete — the witnessed round of 2026-08-30 closed the one
+pending acceptance word (see
+[`wp5-witnessed-round-2026-08-30.md`](wp5-witnessed-round-2026-08-30.md))
 
 The census below was taken from a live session and every required check passed.
 The one thing an automated run could not produce — a *player* scoring against
@@ -730,11 +732,26 @@ if the selected runtime lacks those constructs, instead of failing obscurely
 part way through a build. The image-id reproducibility claim in this document is
 a Podman claim.
 
-## Witnessed round — **PENDING**
+## Witnessed round — completed 2026-08-30
 
-One acceptance word is not covered by the automated session: a player scoring.
-It needs a person, the two artifacts this work package built, and about five
-minutes. Nothing else about WP5 depends on it.
+One acceptance word was not covered by the automated session: a player
+scoring. The operator played the round on 2026-08-30 and every item passed —
+join, move/look/fire, **a witnessed kill against a bot** (client obituary plus
+the server's `Kill: … ArenaWebCensus killed Sly by MOD_MACHINEGUN`),
+disconnect and reconnect. The full report, including a documented
+local-network variation and two usability observations, is
+[`wp5-witnessed-round-2026-08-30.md`](wp5-witnessed-round-2026-08-30.md);
+with it, WP5's client acceptance list is complete.
+
+One reproduction note from that round: on a rootless Podman host there is no
+route from the host into the container subnet, so the host-native client
+cannot reach `10.201.27.10` directly. The witnessed round kept every
+containment option and additionally published the port on loopback only —
+`--publish 127.0.0.1:27960:27960/udp` — with the client connecting to
+`127.0.0.1:27960`. The recipe below is kept in its original in-network form;
+add that publish option when running the client on the host.
+
+The original recipe, for reproduction:
 
 Start the server exactly as the census does, containment included — the
 acceptance sits next to that posture, so it should not be witnessed against a

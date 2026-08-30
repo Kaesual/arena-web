@@ -3,7 +3,7 @@
 # Browser arena: prototype work packages
 
 **Status:** Independently reviewed and approved; WP0, WP1 and WP3 complete;
-WP4 and WP5 implemented with their witnessed rounds pending
+WP5 complete; WP4 implemented with its witnessed acceptance pending
 
 This document turns the reviewed direction in
 [`initial-plan.md`](initial-plan.md) into coherent, testable increments. It
@@ -43,7 +43,7 @@ is a plan change; adding another platform is later scope.
 | WP2 | Relay conformance probe and routed-path measurement | WP0 | Deterministic part implemented — public contract, browser probe, in-memory adapter and 125 deterministic tests; routed acceptance pending operator-supplied runtime values |
 | WP3 | Audited deterministic minimal-content closure | WP0 | ✅ Complete — two clean assemblies in the pinned builder image produce a byte-identical 668-member `oa_pvomit` FFA pack from six digest-pinned Debian-cleaned OpenArena archives, every member `GPL-2.0-or-later` with resolved notices, and every reference the two static readings of the pinned `baseq3` QVM sources extract either resolves or is a recipe acceptance with a stated reason |
 | WP4 | One-map offline browser arena with bots | WP1, WP3 | Implemented, witnessed acceptance pending — the witnessed attempts of 2026-08-30 exposed a browser-renderer defect class (white lightmapped surfaces, mitigated by the reviewed `r_vertexLight` workaround and guarded by a near-white regression check; distance-graded entity shading and frame flicker, deterministically reproduced, no configuration lever). Decided: the round proceeds with the defects recorded, and a timeboxed instrumented root-cause hunt on scratch builds was pulled forward (see the WP4 evidence document) |
-| WP5 | Matching native server and packet census | WP0, WP3 | Implemented, one witnessed round pending — the pinned native toolchain, the reproducible dedicated server, the runtime-base server image and a 41,833-datagram census of a driven session are built and green; a player scoring against the server is the one acceptance word a blind driven client did not produce |
+| WP5 | Matching native server and packet census | WP0, WP3 | ✅ Complete — the pinned native toolchain, the reproducible dedicated server, the runtime-base server image and a 41,833-datagram census of a driven session are built, reviewed and green, and the witnessed round of 2026-08-30 closed the one outstanding acceptance word with a player kill against a bot (report and native reference images in the evidence documents) |
 | WP6 | Measured network-sizing decision | WP2, WP5 | Approved |
 | WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | Scope gate |
 | WP8 | Two-browser multiplayer acceptance | WP5, WP7 | Scope gate |
@@ -523,10 +523,12 @@ rendering alone is insufficient.
 
 ## WP5 — Matching native server and packet census
 
-**State:** implemented; one witnessed round pending. The approved WP0 amendment
-landed on 2026-08-30, was independently reviewed at WP0 level and its findings
-were fixed in the same step, which unblocked this work package. The
-implementation followed; see the Result section below.
+**State:** complete. The approved WP0 amendment landed on 2026-08-30, was
+independently reviewed at WP0 level and its findings were fixed in the same
+step, which unblocked this work package; the implementation and its review
+followed, and the witnessed round of 2026-08-30 closed the final acceptance
+word (see the Result section below and
+[`wp5-witnessed-round-2026-08-30.md`](wp5-witnessed-round-2026-08-30.md)).
 
 ### Why WP5 stopped, and the approved resolution
 

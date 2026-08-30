@@ -597,7 +597,12 @@ repeated measurement in the pinned browser:
 slice renders with per-vertex lighting instead of lightmaps. That is a visual
 downgrade confined to the browser — the native client keeps lightmaps and its
 defaults — and it is marked in the profile as a workaround to remove, not a
-preference. The automated pre-acceptance now measures near-white fractions on
+preference. The operator's native-vs-browser comparison (reference images in
+[`evidence/wp5-witnessed-round-2026-08-30/`](evidence/wp5-witnessed-round-2026-08-30/))
+puts the cost concretely: beyond the flatter lighting, the map's coloured
+light strips visible throughout the native render are absent in the browser.
+Restoring parity with those reference images is the measurable target for the
+root-cause fix. The automated pre-acceptance now measures near-white fractions on
 the in-game screenshots and fails above 5% (`canvas-no-white-surface-regression`),
 so the defect class cannot return silently and the workaround's effectiveness
 is re-measured on every run.
