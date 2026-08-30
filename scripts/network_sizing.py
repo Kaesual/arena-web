@@ -1347,6 +1347,19 @@ class SizingTarget:
 DEFAULT_RESERVE_BYTES = 64
 DEFAULT_ALIGNMENT_BYTES = 64
 
+# What the operator selected, so the recomputation tool is self-describing: a
+# reviewer running the script sees which of the two targets is decided without
+# having to cross-reference the document. The derivation still computes both,
+# deliberately — the alternative is the road not taken, not a deleted branch.
+#
+# `DECIDED_FRAGMENT_SIZE` is not used as an input anywhere. It is restated so the
+# derivation can check that the decided value is still what the selected target's
+# arithmetic produces, and say so if it ever stops being.
+DECISION_DATE = "2026-08-30"
+SELECTED_TARGET = "recordBackedFloor"
+DECIDED_FRAGMENT_SIZE = 704
+DECIDED_USERINFO_CAP_BYTES = 512
+
 
 def candidate_fragment_size(
     budget_bytes: int,
@@ -1671,6 +1684,7 @@ def derive(
         "census": facts.as_json(),
         "profile": profile.as_json(),
         "budgets": budgets,
+        "decision": _decision_block(targets, profile),
         "boundaryCases": _class_fit_rows(stock_netchan + connectionless, budgets),
         "observedClasses": _class_fit_rows(facts.observed, budgets),
         "strategies": {
@@ -1678,6 +1692,55 @@ def derive(
             "symmetricFragmentSizeReduction": reduction,
             "boundedTunnelFragmentation": tunnel,
         },
+    }
+
+
+def _decision_block(
+    targets: dict[str, "SizingTarget"], profile: PrototypeProfile
+) -> dict[str, Any]:
+    """Name the selected target and check the decided value still follows.
+
+    The check is reported rather than raised, because the reserve and alignment
+    are script arguments: a reviewer exploring a different margin should see the
+    decided value no longer follow, not get an exception.
+    """
+    selected = targets.get(SELECTED_TARGET)
+    if selected is None:
+        _fail(f"the selected target {SELECTED_TARGET!r} is not among the candidates")
+    connect = next(
+        (
+            case
+            for case in connectionless_boundary_cases(profile)
+            if case.name == "connect"
+        ),
+        None,
+    )
+    cap_limit = (
+        connect.required_cap_bytes(selected.budget_bytes) if connect else None
+    )
+    return {
+        "decidedOn": DECISION_DATE,
+        "selectedTarget": SELECTED_TARGET,
+        "selectedStrategy": "symmetricFragmentSizeReduction",
+        "decidedFragmentSize": DECIDED_FRAGMENT_SIZE,
+        "decidedUserinfoCapBytes": DECIDED_USERINFO_CAP_BYTES,
+        "candidateMatchesDecidedFragmentSize": (
+            selected.candidate_fragment_size == DECIDED_FRAGMENT_SIZE
+        ),
+        "userinfoCapWithinSelectedTargetLimit": (
+            cap_limit is not None and DECIDED_USERINFO_CAP_BYTES <= cap_limit
+        ),
+        "selectedTargetUserinfoCapLimitBytes": cap_limit,
+        "consideredNotSelected": [
+            key for key in targets if key != SELECTED_TARGET
+        ],
+        "reviewOutstanding": True,
+        "note": (
+            "The operator selected every open point on "
+            f"{DECISION_DATE}, each as proposed. The mandatory independent "
+            "protocol/security review has not happened; WP6 does not close and "
+            "WP7 does not start until it passes."
+        ),
     }
 
 

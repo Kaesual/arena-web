@@ -4,11 +4,13 @@
 
 **Status:** Independently reviewed and approved; WP0 through WP5 are complete
 — including WP2's routed acceptance of 2026-08-30 and the renderer fix carried
-as a WP1 contract amendment. WP6's analysis and proposed decision are drafted
-and recomputable from the committed records; it awaits the operator's strategy
-selection and threshold approval, and the mandatory independent
-protocol/security review. WP7 and WP8 now carry implementation-ready contracts
-conditioned on that selection, and stay blocked until it is made
+as a WP1 contract amendment. WP6's decision was made by the operator on
+2026-08-30 — strategy 2, `FRAGMENT_SIZE = 704` at the record-backed 768-byte
+floor, with the profile bounds and all ten WP8 thresholds frozen — every point
+as the analysis proposed, and recomputable from the committed records. WP6 does
+not close and WP7 stays blocked until the mandatory independent
+protocol/security review of that decision passes. WP7 and WP8 carry
+implementation-ready contracts with the decided values filled in
 
 This document turns the reviewed direction in
 [`initial-plan.md`](initial-plan.md) into coherent, testable increments. It
@@ -49,9 +51,9 @@ is a plan change; adding another platform is later scope.
 | WP3 | Audited deterministic minimal-content closure | WP0 | ✅ Complete — two clean assemblies in the pinned builder image produce a byte-identical 668-member `oa_pvomit` FFA pack from six digest-pinned Debian-cleaned OpenArena archives, every member `GPL-2.0-or-later` with resolved notices, and every reference the two static readings of the pinned `baseq3` QVM sources extract either resolves or is a recipe acceptance with a stated reason |
 | WP4 | One-map offline browser arena with bots | WP1, WP3 | ✅ Complete — the witnessed round of 2026-08-30 passed every gameplay, input, focus, audio, console and clean-relaunch check (report in the evidence documents); the known browser-renderer defect class (white lightmapped surfaces mitigated by the reviewed `r_vertexLight` workaround and guarded by a near-white regression check; distance-graded entity shading; frame flicker) is recorded as decided while the timeboxed root-cause hunt continues on scratch builds. Closure accepted the operator-chosen Brave/KDE variation (the pinned Chrome is exercised by the automated harness on every gate run) and recorded one new accepted limitation: runtime resize and fullscreen-after-start do not update the engine resolution. **Post-closure, 2026-08-30:** the defect class is resolved — white lightmapped surfaces root-caused to a GLSL ES `mediump` precision default and fixed in the engine (workaround removed), entity shading reclassified as renderergl2's normal native look rather than a browser defect, and frame flicker confirmed resolved by the operator on the real display, who also confirmed light-strip parity with the native reference images. Two pre-existing content gaps the operator reported at the same time — the machine gun's missing barrel model and the lightning gun's missing beam art — are recorded in the evidence document as an open content follow-up |
 | WP5 | Matching native server and packet census | WP0, WP3 | ✅ Complete — the pinned native toolchain, the reproducible dedicated server, the runtime-base server image and a 41,833-datagram census of a driven session are built, reviewed and green, and the witnessed round of 2026-08-30 closed the one outstanding acceptance word with a player kill against a bot (report and native reference images in the evidence documents) |
-| WP6 | Measured network-sizing decision | WP2, WP5 | Analysis and proposed decision drafted; awaiting the operator's strategy selection and threshold approval — the routed budget refutes intact datagrams (the record contains the refusals at exactly the 1,312- and 1,314-byte sizes an unchanged engine needs), a symmetric `FRAGMENT_SIZE` reduction to 704 (768-byte floor) or 896 (982-byte derived budget) carries every netchan case, and the out-of-band classes the engine never fragments are bounded by the profile. Derivation, boundary cases and thresholds in [`wp6-network-sizing.md`](wp6-network-sizing.md), recomputable with `scripts/derive-network-sizing.py` |
-| WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | Contract drafted; blocked on WP6's strategy selection and review |
-| WP8 | Two-browser multiplayer acceptance | WP5, WP7 | Contract drafted; blocked on WP7 and on the operator freezing WP6's thresholds |
+| WP6 | Measured network-sizing decision | WP2, WP5 | Decision made by the operator on 2026-08-30 (strategy 2, `FRAGMENT_SIZE` 704 at the record-backed 768-byte floor, profile bounds, thresholds frozen), every point as proposed; awaiting the mandatory independent protocol/security review, which is the only thing still blocking closure — the routed budget refutes intact datagrams (the record contains the refusals at exactly the 1,312- and 1,314-byte sizes an unchanged engine needs), a symmetric `FRAGMENT_SIZE` reduction carries every netchan case at either candidate (704 at the selected 768-byte floor, 896 at the 982-byte derived budget considered and not selected), and the out-of-band classes the engine never fragments are bounded by the profile plus a fail-closed emitted-size check. Derivation, boundary cases and thresholds in [`wp6-network-sizing.md`](wp6-network-sizing.md), recomputable with `scripts/derive-network-sizing.py` |
+| WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | Contract complete with the decided values filled in; blocked on WP6's independent protocol/security review |
+| WP8 | Two-browser multiplayer acceptance | WP5, WP7 | Contract complete, thresholds frozen 2026-08-30; blocked on WP7 |
 | WP9 | Public product-integration blueprint | WP8 | Scope gate |
 
 WP1, WP2 and WP3 are independent after WP0 and may be scheduled separately.
@@ -776,14 +778,16 @@ covers connectionless and netchan traffic and measures the correct boundary.
 
 ## WP6 — Measured network-sizing decision
 
-**State:** Analysis complete, decision proposed, awaiting the operator.
+**State:** Decision made by the operator on 2026-08-30, every point as
+proposed. Awaiting the mandatory independent protocol/security review, which is
+the only thing still blocking closure and WP7.
 
 ### Result
 
 [`wp6-network-sizing.md`](wp6-network-sizing.md) carries the decision document:
 the inputs by commit and digest, the full arithmetic, the code-level boundary
 cases with `file:line` citations, the three strategies in the ownership order
-below, the proposed selection and the proposed WP8 thresholds. Every number in
+below, the selected strategy and the frozen WP8 thresholds. Every number in
 it is recomputed from the two committed records by
 `scripts/derive-network-sizing.py`, which
 [`tests/test_network_sizing.py`](../tests/test_network_sizing.py) exercises both
@@ -807,8 +811,15 @@ the client never originates them; `echo` is the exception, because the
 destination triggers it, and it is the reason the emitted-size check is a
 requirement rather than a belt-and-braces addition.
 
-Still open, and the operator's: the strategy selection, the sizing target, the
-userinfo cap and every numeric WP8 threshold.
+The operator settled all five open points on 2026-08-30, each exactly as
+proposed: strategy 2 with its profile bounds, the record-backed 768-byte target
+giving `FRAGMENT_SIZE = 704`, the 64-byte reserve and alignment, the 512-byte
+userinfo cap, and all ten WP8 thresholds frozen. The 896 alternative at the
+982-byte derived budget is recorded there as considered and not selected, and
+the derivation still computes it so the road not taken stays recomputable.
+
+Still open: the mandatory independent protocol/security review. WP6 does not
+close until it passes.
 
 ### Outcome
 
@@ -873,28 +884,29 @@ strategy, bounds or census reopens WP6 and keeps WP7 blocked.
 ## WP7 — Browser backend and matching server rebuild
 
 **State:** Implementation contract, drafted by WP6 and conditioned on the
-operator's strategy selection. WP7 may not start until the operator has selected
-a strategy and sizing target in
-[`wp6-network-sizing.md`](wp6-network-sizing.md) and that document has passed its
-independent protocol/security review. Every `[decision]` below is filled from
-that selection and from nothing else; a value that appears in neither WP6 nor the
-operator's selection is not authorized.
+operator's strategy selection, **which was made on 2026-08-30**: strategy 2, the
+symmetric fragment-size reduction at `FRAGMENT_SIZE = 704`, sized to the
+record-backed 768-byte inner budget, with the profile bounds. The values below
+are therefore decided, not proposed, and this contract is written for that
+shape.
 
-The proposed selection is the symmetric fragment-size reduction at
-`FRAGMENT_SIZE = 704`, sized to the record-backed 768-byte inner budget. The
-contract is written for that shape. If the operator selects the derived
-982-byte budget instead, only the `[decision]` values change; if the operator
-selects a *different strategy*, this contract is withdrawn and WP6 rewrites it.
+WP7 nevertheless **remains blocked** on the one thing the selection did not
+supply: [`wp6-network-sizing.md`](wp6-network-sizing.md) has not yet passed its
+mandatory independent protocol/security review. A finding there that affects the
+strategy, the bounds or the census reopens WP6 and this contract with it. No
+value here may be sourced from anywhere but that document.
 
 ### Decision values
 
-| Placeholder | Proposed | Source |
+Decided by the operator on 2026-08-30, each as WP6 proposed.
+
+| Placeholder | Decided value | Source |
 | --- | --- | --- |
 | `[decision: inner budget]` | 768 bytes | WP6, record-backed contiguous floor |
 | `[decision: FRAGMENT_SIZE]` | 704 | WP6, budget less the 64-byte reserve, aligned |
-| `[decision: userinfo cap]` | 512 bytes | WP6, inside either target's limit |
-| `[decision: receive queue depth]` | 256 datagrams | WP6 proposed WP8 threshold |
-| `[decision: echo treatment]` | refuse the oversize reply via the emitted-size check | WP6; the alternative is disabling the handler |
+| `[decision: userinfo cap]` | 512 bytes | WP6; inside the selected target's 752-byte limit |
+| `[decision: receive queue depth]` | 256 datagrams | WP6, frozen WP8 threshold |
+| `[decision: echo treatment]` | refuse the oversize reply via the emitted-size check | WP6; disabling the handler was considered and not selected |
 
 ### Outcome
 
@@ -1014,9 +1026,8 @@ fragmentation layer was added beneath the engine's own.
 
 ## WP8 — Two-browser multiplayer acceptance
 
-**State:** Acceptance contract, drafted by WP6. WP8 may be approved once WP7
-closes and the operator has frozen the numeric thresholds below, which WP6
-proposes but does not decide.
+**State:** Acceptance contract, drafted by WP6, with its numeric thresholds
+**frozen by the operator on 2026-08-30**. WP8 may be approved once WP7 closes.
 
 ### Outcome
 
@@ -1037,12 +1048,13 @@ matching native server while meeting the frozen thresholds.
 
 ### Numeric thresholds
 
-The table in [`wp6-network-sizing.md`](wp6-network-sizing.md), "Proposed WP8
-acceptance thresholds", is the contract once the operator freezes it: connection
-success, unexpected disconnects, planned reconnects, packet send failures, frame
-pacing, long tasks, relay-added latency, receive-queue behaviour, reassembly and
-privacy. Until then every value in it is marked `[proposed]` and WP8 is not
-approved. A threshold the operator changes is changed there, not restated here.
+The table in [`wp6-network-sizing.md`](wp6-network-sizing.md), "WP8 acceptance
+thresholds", **is** the contract: connection success, unexpected disconnects,
+planned reconnects, packet send failures, frame pacing, long tasks, relay-added
+latency, receive-queue behaviour, reassembly and privacy. All ten were frozen by
+the operator on 2026-08-30, each as WP6 proposed. They are deliberately not
+restated here — one table, one place to change, and changing any of them now is
+a plan change rather than a WP8 judgement call.
 
 ### Evidence envelope
 
@@ -1125,11 +1137,13 @@ integration implementation is scheduled.
    measurements and content provenance before assembling the playable slice.
 3. **Network gate:** WP6 independently reviews the measurements and replaces
    WP7/WP8's scope gates with exact implementation and acceptance contracts.
-   The analysis, the proposed strategy and the replacement contracts are
-   drafted; the gate closes when the operator selects a strategy and sizing
-   target, freezes the numeric WP8 thresholds, and the mandatory independent
+   The analysis and the replacement contracts are complete, and the operator
+   made every decision on 2026-08-30 — strategy, sizing target, reserve and
+   alignment, userinfo cap and all ten WP8 thresholds — each as proposed. The
+   gate now closes on one remaining step: the mandatory independent
    protocol/security review of
-   [`wp6-network-sizing.md`](wp6-network-sizing.md) has passed.
+   [`wp6-network-sizing.md`](wp6-network-sizing.md). Until it passes, WP6 does
+   not close and WP7 does not start.
 4. **Vertical-slice closure:** WP8 reviews the complete two-client evidence
    before WP9 or any hosting integration begins.
 

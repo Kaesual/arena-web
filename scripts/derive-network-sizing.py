@@ -113,6 +113,32 @@ def render(result: dict) -> str:
             f"{message['largestDatagramBytes']} bytes ({message['direction']})"
         )
 
+    decision = result["decision"]
+    lines.append(_rule("The decision"))
+    lines.append(
+        f"selected {decision['selectedStrategy']} at target "
+        f"{decision['selectedTarget']}, FRAGMENT_SIZE "
+        f"{decision['decidedFragmentSize']}, userinfo cap "
+        f"{decision['decidedUserinfoCapBytes']} bytes "
+        f"(operator, {decision['decidedOn']})"
+    )
+    lines.append(
+        f"candidate still matches the decided fragment size: "
+        f"{decision['candidateMatchesDecidedFragmentSize']}; "
+        f"userinfo cap within the selected target's "
+        f"{decision['selectedTargetUserinfoCapLimitBytes']} byte limit: "
+        f"{decision['userinfoCapWithinSelectedTargetLimit']}"
+    )
+    lines.append(
+        "considered and not selected: "
+        + ", ".join(decision["consideredNotSelected"])
+    )
+    if decision["reviewOutstanding"]:
+        lines.append(
+            "OUTSTANDING: the mandatory independent protocol/security review "
+            "has not happened; WP6 does not close and WP7 does not start"
+        )
+
     lines.append(_rule("Budgets"))
     for key, value in budgets.items():
         lines.append(f"  {key}: {value} inner bytes")

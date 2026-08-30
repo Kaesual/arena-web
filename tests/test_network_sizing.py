@@ -602,6 +602,47 @@ class DerivationTests(unittest.TestCase):
             tunnel["connectionlessCasesItWouldCover"], ["connect", "echo"]
         )
 
+    def test_the_decision_block_names_the_selected_target(self):
+        decision = self.result["decision"]
+        self.assertEqual(decision["decidedOn"], "2026-08-30")
+        self.assertEqual(decision["selectedTarget"], "recordBackedFloor")
+        self.assertEqual(
+            decision["selectedStrategy"], "symmetricFragmentSizeReduction"
+        )
+        self.assertEqual(decision["decidedFragmentSize"], 704)
+        self.assertEqual(decision["decidedUserinfoCapBytes"], 512)
+
+    def test_the_decided_value_still_follows_from_the_arithmetic(self):
+        # The decided fragment size is restated, never used as an input, so
+        # this is a real check: if the selected target's arithmetic stopped
+        # producing 704, the derivation says so instead of quietly disagreeing
+        # with the document.
+        decision = self.result["decision"]
+        self.assertTrue(decision["candidateMatchesDecidedFragmentSize"])
+        self.assertTrue(decision["userinfoCapWithinSelectedTargetLimit"])
+        self.assertEqual(decision["selectedTargetUserinfoCapLimitBytes"], 752)
+
+    def test_the_alternative_target_is_still_computed(self):
+        # The road not taken stays recomputable rather than becoming a claim.
+        decision = self.result["decision"]
+        self.assertEqual(decision["consideredNotSelected"], ["derivedReportedMaximum"])
+        self.assertIn(
+            "derivedReportedMaximum",
+            self.result["strategies"]["symmetricFragmentSizeReduction"],
+        )
+
+    def test_the_outstanding_review_is_recorded(self):
+        # WP6 does not close on the operator's selection alone.
+        self.assertTrue(self.result["decision"]["reviewOutstanding"])
+
+    def test_a_different_reserve_shows_the_decided_value_no_longer_follows(self):
+        # Reserve and alignment are script arguments, so a reviewer exploring a
+        # different margin must see the mismatch reported, not raised.
+        result = derive(
+            self.report, self.census, plan=self.plan, reserve_bytes=128
+        )
+        self.assertFalse(result["decision"]["candidateMatchesDecidedFragmentSize"])
+
     def test_result_is_json_serialisable_and_deterministic(self):
         first = json.dumps(self.result, sort_keys=True)
         second = json.dumps(

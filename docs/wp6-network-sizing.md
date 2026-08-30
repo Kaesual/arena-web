@@ -2,11 +2,16 @@
 
 # WP6: the measured network-sizing decision
 
-**Status:** analysis complete and a decision **proposed**. The strategy
-selection and every numeric WP8 threshold below are the operator's to settle;
-nothing here is decided. Each such value is marked **[proposed]**. WP7 stays
-blocked until the operator selects a strategy and the independent
-protocol/security review of this document has happened.
+**Status:** **decided** — the operator selected every open point on 2026-08-30,
+each one exactly as this analysis proposed: strategy 2 with its profile bounds,
+the record-backed 768-byte sizing target giving `FRAGMENT_SIZE = 704`, the
+64-byte reserve and alignment, the 512-byte userinfo cap, and all ten WP8
+thresholds frozen. Nothing in the arithmetic changed on selection.
+
+**Still open, and blocking:** the mandatory independent protocol/security review
+of this document has **not** happened. WP6 does not close and WP7 stays blocked
+until it passes. A finding that affects the strategy, the bounds or the census
+reopens WP6, decision or no decision.
 
 WP2 measured what a browser can push through the relay. WP5 measured what the
 game actually puts on the wire. This document puts the two together, adds the
@@ -24,11 +29,12 @@ fragments.
 
 ## What this document decides, and what it does not
 
-It decides — subject to the operator's selection — the transport strategy, the
-exact byte, packet and fragment limits that strategy needs, what happens when a
-live session reports a budget the decision did not anticipate, and the
-implementation and acceptance contracts that replace WP7's and WP8's scope-gate
-text.
+It decides the transport strategy, the exact byte, packet and fragment limits
+that strategy needs, what happens when a live session reports a budget the
+decision did not anticipate, and the implementation and acceptance contracts
+that replace WP7's and WP8's scope-gate text. All of that was selected by the
+operator on 2026-08-30 and is decided, not proposed — subject only to the
+independent review named in the status header, which can still reopen it.
 
 It does not implement anything. No engine source is touched by this work
 package; `ioq3/` is untouched at its pinned commit, and no record, lock,
@@ -428,10 +434,10 @@ check is a requirement rather than a precaution.
    | 982 | 966 bytes | — |
 
    The cap is comfortable: the profile's actual userinfo produces a packet under
-   300 bytes, so a 752-byte allowance is roughly 2.5× headroom. **[proposed]** a
-   cap of **512 bytes** of userinfo, well inside either target and still far
-   above what the profile uses, so the same number holds whichever budget the
-   operator selects.
+   300 bytes, so a 752-byte allowance is roughly 2.5× headroom. **Decided:** a
+   cap of **512 bytes** of userinfo — well inside the selected target's 752-byte
+   limit and still far above what the profile uses, and deliberately a number
+   that would also have held at the 982-byte budget.
 
 2. **`statusResponse` and `infoResponse` — excluded, not capped.** These are the
    server browser's answers, and the prototype profile has no server browser:
@@ -459,14 +465,14 @@ check is a requirement rather than a precaution.
    number, and WP2's methodology explicitly could not attribute a budget per
    direction. It is therefore not a bound this decision may rest on.
 
-   **[proposed]** treatment: leave the handler in place and let WP7's
-   fail-closed emitted-size check refuse an oversize reply, counted like any
-   other refusal. Losing an `echo` answer costs the session nothing — it is a
-   diagnostic courtesy, not part of the protocol — so a counted, harmless drop
-   is a better outcome than a code change to the connectionless path. The
-   alternative, disabling the handler outright in the `web` branch, is also
-   sound and the operator may prefer it; it is a slightly larger engine change
-   for a slightly smaller attack surface.
+   **Decided:** leave the handler in place and let WP7's fail-closed
+   emitted-size check refuse an oversize reply, counted like any other refusal.
+   Losing an `echo` answer costs the session nothing — it is a diagnostic
+   courtesy, not part of the protocol — so a counted, harmless drop is a better
+   outcome than a code change to the connectionless path. The alternative that
+   was considered and not selected, disabling the handler outright in the `web`
+   branch, remains sound: a slightly larger engine change for a slightly smaller
+   attack surface.
 
 4. **`rcon` and its answer — excluded.** The profile sets no rcon password and
    the browser client exposes no rcon command, so neither the 1,024-byte request
@@ -483,7 +489,7 @@ check is a requirement rather than a precaution.
    protocol-68 by default, and doing so bypasses the gamename check and drops
    the challenge-checksum spoofing protection, while also making the header
    geometry this document derives no longer the only one on the wire.
-   **[proposed]** both server and client launch with `+set com_legacyprotocol 0`,
+   **Decided:** both server and client launch with `+set com_legacyprotocol 0`,
    so the legacy path is refused outright and the census's observed geometry is
    the only one the profile can produce.
 
@@ -525,13 +531,16 @@ improvise it.
 a separately owned shared-relay change requiring a new cross-repository plan and
 review, and this document neither selects nor designs it.
 
-## Proposed decision
+## The decision
 
-**[proposed]** Select **strategy 2, the symmetric fragment-size reduction**,
-sized to the **record-backed floor of 768 inner bytes**, giving
-**`FRAGMENT_SIZE = 704`**, together with the profile bounds above.
+**Decided by the operator on 2026-08-30:** **strategy 2, the symmetric
+fragment-size reduction**, sized to the **record-backed floor of 768 inner
+bytes**, giving **`FRAGMENT_SIZE = 704`**, together with the profile bounds
+above. The reserve stays at 64 bytes with 64-byte alignment, the userinfo cap at
+512 bytes, and the WP8 thresholds are frozen as tabulated below.
 
-The reasoning for the conservative target over the permissive one:
+The reasoning that was put to the operator, for the conservative target over the
+permissive one:
 
 - 768 is the only number the record demonstrates actually carried traffic
   end-to-end. 982 is a subtraction from a self-reported value, inside a range
@@ -548,28 +557,41 @@ The reasoning for the conservative target over the permissive one:
   replay confirms the 704 worst case is still carried at a transport maximum of
   810 bytes, where the 896 worst case is not.
 
-The counter-argument the operator should weigh: if the 1,024-byte maximum is a
-stable property of this browser and this relay — and the evidence that it was
-identical on loopback and constant across six seconds of a held session is real
-— then 896 leaves a smaller gamestate burst and a little more headroom per
-datagram for later engine changes. The choice is genuinely the operator's.
+### The road not taken
 
-### Decision points the operator must settle
+**Considered and not selected: `FRAGMENT_SIZE = 896` at the derived 982-byte
+budget.** The counter-argument was real and is kept here rather than deleted,
+because a later path that behaves differently is the circumstance under which it
+would be revisited. If the 1,024-byte reported maximum is a stable property of
+this browser and this relay — and the evidence that it was byte-identical on
+loopback and constant across six seconds of a held session is genuine — then 896
+would leave a smaller gamestate burst and a little more headroom per datagram
+for later engine changes. It was rejected because 982 is a subtraction from a
+self-reported number inside a range no case was ever sent in, and because the
+failure mode is asymmetric: too conservative costs two datagrams per connect,
+too optimistic costs every session.
 
-1. **Strategy**: symmetric fragment-size reduction, as proposed, or another.
-2. **Sizing target**: the record-backed floor (`FRAGMENT_SIZE = 704`) or the
-   derived budget (`FRAGMENT_SIZE = 896`).
-3. **The 64-byte reserve and 64-byte alignment**, or different values. Both are
-   script arguments, so any choice recomputes.
-4. **The userinfo cap**: 512 bytes as proposed, or another value below the
-   target's limit.
-5. **The WP8 thresholds** below, each individually.
+The derivation deliberately still computes both targets side by side, so this
+alternative stays recomputable rather than becoming a historical claim.
+
+### What the operator settled
+
+| Point | Decision |
+| --- | --- |
+| Strategy | Strategy 2, symmetric fragment-size reduction, with the profile bounds |
+| Sizing target | Record-backed 768-byte inner floor → `FRAGMENT_SIZE = 704` |
+| Reserve / alignment | 64 bytes / 64 bytes |
+| Userinfo cap | 512 bytes |
+| WP8 thresholds | All ten frozen as tabulated, including the 256-datagram receive queue |
+
+Every one as proposed by this analysis; no value was changed on selection.
 
 ## Behaviour when the live budget is not what was measured
 
 The record shows a constant 1,024 on the measured path, but the contract
 requires the specification regardless, and a browser is entitled to report
-something else. The rules are **[proposed]** and belong in WP7's implementation:
+something else. These rules are **decided** as part of the selected strategy and
+belong in WP7's implementation:
 
 - **Read the transport's reported maximum at session open, and again on every
   send.** WP2's probe sampled it once, which its own open-items list records as
@@ -632,11 +654,13 @@ maximum, whether the reported maximum moves over a fifteen-minute session, and
 the behaviour of a real relay under real fragment bursts. These are named in
 WP7's and WP8's replacement contracts below so they cannot be lost.
 
-## Proposed WP8 acceptance thresholds
+## WP8 acceptance thresholds
 
-All **[proposed]**; the operator freezes them. Each applies to the WP8 topology
-— two independently addressed browser clients, at least 15 minutes of active
-two-player FFA after both join, planned disconnect/reconnect exercises for each.
+**Frozen by the operator on 2026-08-30**, all ten exactly as proposed. Changing
+any of them after this point is a plan change, not a WP8 judgement call. Each
+applies to the WP8 topology — two independently addressed browser clients, at
+least 15 minutes of active two-player FFA after both join, and planned
+disconnect/reconnect exercises for each.
 
 | Metric | Threshold | Rationale |
 | --- | --- | --- |
@@ -647,7 +671,7 @@ two-player FFA after both join, planned disconnect/reconnect exercises for each.
 | Frame pacing | ≥ 95% of frames within 2× the median frame time; no frame > 250 ms after the first 10 s | WP4 established the offline baseline; this bounds what the network backend is allowed to add, and excludes startup. |
 | Long tasks | No main-thread task > 100 ms after the first 10 s | A synchronous drain of a fragment burst would show up here; it is the specific failure mode a smaller `FRAGMENT_SIZE` makes more likely. |
 | Relay-added latency | Median round trip ≤ 1.5× the direct native round trip on the same path; 99th percentile ≤ 3× | Relative rather than absolute, because the routed path's own latency is an environment property and the record has no absolute baseline to hold anyone to. |
-| Receive queue | Bounded at a fixed depth **[proposed: 256 datagrams]**; no growth trend over the session; overflow is an explicit counted event | WP7's bounded queue needs a number, and an unbounded queue is the failure the envelope already forbids. |
+| Receive queue | Bounded at a fixed depth of **256 datagrams**; no growth trend over the session; overflow is an explicit counted event | WP7's bounded queue needs a number, and an unbounded queue is the failure the envelope already forbids. |
 | Reassembly | 0 failed reassemblies; 0 truncated messages | The direct test that both endpoints agree on `FRAGMENT_SIZE`. |
 | Privacy | Both players appear only as the relay's IPv4 endpoint with distinct source ports; neither public address appears in server logs or committed evidence | Unchanged from the WP8 envelope; restated so it is frozen with the rest. |
 
