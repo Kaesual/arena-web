@@ -640,12 +640,17 @@ on top of the pinned upstream commit — the same model the operator's Luanti
 fork uses — which also means amending WP1's "unmodified ioq3" contract
 deliberately at that point, plus an upstream issue or pull request.
 
-## Operator acceptance checklist — **PENDING**
+## Operator acceptance checklist — **completed 2026-08-30**
 
-None of the following has happened, and none of it is claimed. It needs a
-person at the WP0 acceptance desktop — Fedora Linux Workstation 44 on x86_64,
-GNOME — with the pinned Chrome for Testing `152.0.7977.64` in a visible,
-focused window, serving the slice with `scripts/serve-arena.sh`.
+The witnessed round happened on 2026-08-30 and is recorded in
+[`wp4-witnessed-round-2026-08-30.md`](wp4-witnessed-round-2026-08-30.md):
+fourteen of the sixteen checks passed literally, the browser/desktop check was
+an operator-chosen variation, and the fullscreen/resize check was only
+partial. The owner decisions that close the round follow the checklist below,
+which is kept as written. It declared a person at the WP0 acceptance desktop —
+Fedora Linux Workstation 44 on x86_64, GNOME — with the pinned Chrome for
+Testing `152.0.7977.64` in a visible, focused window, serving the slice with
+`scripts/serve-arena.sh`.
 
 Before starting, confirm the run is the declared one:
 
@@ -683,6 +688,36 @@ Then, with the page open at `http://127.0.0.1:8174/`:
 
 Record the result — the desktop, the browser version, the observations and any
 defect — and only then is WP4's acceptance evidence complete.
+
+### Closure decisions — 2026-08-30
+
+The witnessed report deliberately left two policy decisions to the WP4 owner;
+both are decided here.
+
+**The Brave/KDE environment variation is accepted for this round.** The
+operator deliberately chose the locally installed Brave 1.94.117 Flatpak on
+KDE/Wayland instead of the declared pinned Chrome for Testing on GNOME. The
+pinned Chrome for Testing `152.0.7977.64` is exercised on every gate run by
+the automated acceptance harness — same serve path, same artifact-verifying
+loader — so the pinned platform does not go unwitnessed; the human round adds
+what the harness cannot: a real GPU and compositor path, real input, audible
+audio and a second Chromium-based browser. A future witnessed round should
+either use the pinned browser or record its variation the same way this one
+did.
+
+**The runtime-resize finding is recorded as an accepted known limitation, not
+a blocker.** After engine start, resizing the browser window does not update
+the engine resolution, and entering fullscreen after start retains the
+startup dimensions (entering fullscreen *before* start derives the correct
+size). The checklist's "fills the screen at the new size" wording is
+therefore not met. This is a loader/engine canvas-size propagation gap,
+distinct from the three renderer symptoms under root-cause investigation, and
+it is carried forward as its own follow-up item rather than silently widening
+that investigation.
+
+With those two decisions, the recorded renderer defect class and the passing
+gameplay, input, focus, audio, console and clean-relaunch evidence, WP4's
+acceptance evidence is complete and WP4 is closed.
 
 ## What this does not prove
 
