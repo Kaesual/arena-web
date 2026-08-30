@@ -122,6 +122,212 @@
     "botfiles/syn.c",
     "botfiles/weapons.c"
   ],
+  "derivedReferences": [
+    {
+      "constructedFrom": "models/weapons2/bfg/bfg.md3",
+      "construction": {
+        "appends": "_barrel.md3",
+        "file": "code/cgame/cg_weapons.c",
+        "lines": [
+          662,
+          664
+        ]
+      },
+      "kind": "model",
+      "members": [
+        "models/weapons2/bfg/bfg_barrel.md3"
+      ],
+      "reference": "models/weapons2/bfg/bfg_barrel.md3"
+    },
+    {
+      "constructedFrom": "models/weapons2/bfg/bfg.md3",
+      "construction": {
+        "appends": "_flash.md3",
+        "file": "code/cgame/cg_weapons.c",
+        "lines": [
+          658,
+          660
+        ]
+      },
+      "kind": "model",
+      "members": [
+        "models/weapons2/bfg/bfg_flash.md3"
+      ],
+      "reference": "models/weapons2/bfg/bfg_flash.md3"
+    },
+    {
+      "constructedFrom": "models/weapons2/gauntlet/gauntlet.md3",
+      "construction": {
+        "appends": "_barrel.md3",
+        "file": "code/cgame/cg_weapons.c",
+        "lines": [
+          662,
+          664
+        ]
+      },
+      "kind": "model",
+      "members": [
+        "models/weapons2/gauntlet/gauntlet_barrel.md3"
+      ],
+      "reference": "models/weapons2/gauntlet/gauntlet_barrel.md3"
+    },
+    {
+      "constructedFrom": "models/weapons2/grapple/grapple.md3",
+      "construction": {
+        "appends": "_barrel.md3",
+        "file": "code/cgame/cg_weapons.c",
+        "lines": [
+          662,
+          664
+        ]
+      },
+      "excludedReason": "excluded by the operator decision of 2026-08-30: the stock FFA profile cannot reach the grapple — no packaged map entity places weapon_grapplinghook and the profile offers no other way to obtain it; the upstream barrel model stays out of the pack",
+      "kind": "model",
+      "reference": "models/weapons2/grapple/grapple_barrel.md3"
+    },
+    {
+      "constructedFrom": "models/weapons2/grenadel/grenadel.md3",
+      "construction": {
+        "appends": "_flash.md3",
+        "file": "code/cgame/cg_weapons.c",
+        "lines": [
+          658,
+          660
+        ]
+      },
+      "kind": "model",
+      "members": [
+        "models/weapons2/grenadel/grenadel_flash.md3"
+      ],
+      "reference": "models/weapons2/grenadel/grenadel_flash.md3"
+    },
+    {
+      "constructedFrom": "models/weapons2/lightning/lightning.md3",
+      "construction": {
+        "appends": "_flash.md3",
+        "file": "code/cgame/cg_weapons.c",
+        "lines": [
+          658,
+          660
+        ]
+      },
+      "kind": "model",
+      "members": [
+        "models/weapons2/lightning/lightning_flash.md3"
+      ],
+      "reference": "models/weapons2/lightning/lightning_flash.md3"
+    },
+    {
+      "constructedFrom": "models/weapons2/machinegun/machinegun.md3",
+      "construction": {
+        "appends": "_barrel.md3",
+        "file": "code/cgame/cg_weapons.c",
+        "lines": [
+          662,
+          664
+        ]
+      },
+      "kind": "model",
+      "members": [
+        "models/weapons2/machinegun/machinegun_barrel.md3"
+      ],
+      "reference": "models/weapons2/machinegun/machinegun_barrel.md3"
+    },
+    {
+      "constructedFrom": "models/weapons2/machinegun/machinegun.md3",
+      "construction": {
+        "appends": "_flash.md3",
+        "file": "code/cgame/cg_weapons.c",
+        "lines": [
+          658,
+          660
+        ]
+      },
+      "kind": "model",
+      "members": [
+        "models/weapons2/machinegun/machinegun_flash.md3"
+      ],
+      "reference": "models/weapons2/machinegun/machinegun_flash.md3"
+    },
+    {
+      "constructedFrom": "models/weapons2/machinegun/machinegun.md3",
+      "construction": {
+        "appends": "_hand.md3",
+        "file": "code/cgame/cg_weapons.c",
+        "lines": [
+          666,
+          668
+        ]
+      },
+      "excludedReason": "the upstream file is byte-identical (sha256 681d01439210d9669156e25065a45c9c4a42f368ed606f86bcf1b6f8571e59c2) to the packed models/weapons2/shotgun/shotgun_hand.md3 that cg_weapons.c:670-672 registers whenever the constructed hand model is absent, so packaging it would duplicate the same bytes without changing what renders",
+      "kind": "model",
+      "reference": "models/weapons2/machinegun/machinegun_hand.md3"
+    },
+    {
+      "constructedFrom": "models/weapons2/plasma/plasma.md3",
+      "construction": {
+        "appends": "_flash.md3",
+        "file": "code/cgame/cg_weapons.c",
+        "lines": [
+          658,
+          660
+        ]
+      },
+      "kind": "model",
+      "members": [
+        "models/weapons2/plasma/plasma_flash.md3"
+      ],
+      "reference": "models/weapons2/plasma/plasma_flash.md3"
+    },
+    {
+      "constructedFrom": "models/weapons2/railgun/railgun.md3",
+      "construction": {
+        "appends": "_flash.md3",
+        "file": "code/cgame/cg_weapons.c",
+        "lines": [
+          658,
+          660
+        ]
+      },
+      "kind": "model",
+      "members": [
+        "models/weapons2/railgun/railgun_flash.md3"
+      ],
+      "reference": "models/weapons2/railgun/railgun_flash.md3"
+    },
+    {
+      "constructedFrom": "models/weapons2/rocketl/rocketl.md3",
+      "construction": {
+        "appends": "_flash.md3",
+        "file": "code/cgame/cg_weapons.c",
+        "lines": [
+          658,
+          660
+        ]
+      },
+      "kind": "model",
+      "members": [
+        "models/weapons2/rocketl/rocketl_flash.md3"
+      ],
+      "reference": "models/weapons2/rocketl/rocketl_flash.md3"
+    },
+    {
+      "constructedFrom": "models/weapons2/shotgun/shotgun.md3",
+      "construction": {
+        "appends": "_flash.md3",
+        "file": "code/cgame/cg_weapons.c",
+        "lines": [
+          658,
+          660
+        ]
+      },
+      "kind": "model",
+      "members": [
+        "models/weapons2/shotgun/shotgun_flash.md3"
+      ],
+      "reference": "models/weapons2/shotgun/shotgun_flash.md3"
+    }
+  ],
   "formatVersion": 1,
   "generatedMembers": [
     "NOTICE-arena-web.txt",

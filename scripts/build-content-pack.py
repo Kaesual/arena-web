@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,7 @@ from content_pack import (
     ClosureBuilder,
     ContentError,
     SourceSet,
+    _game_path,
     build_provenance,
     file_sha256,
     iter_forbidden,
@@ -41,6 +43,24 @@ from metadata import (
 from qvm_references import baseq3_references
 
 PRODUCER_NAME = "arena-web scripts/build-content-pack.sh"
+
+# The reference kinds ClosureBuilder can expand; a derived reference must name
+# one of these so `builder.add` dispatches to a real handler.
+DERIVED_REFERENCE_KINDS = (
+    "bsp",
+    "botfile",
+    "file",
+    "image",
+    "model",
+    "shader",
+    "skin",
+    "sound",
+)
+
+_DERIVED_ENTRY_BASE_FIELDS = frozenset(
+    {"constructedFrom", "construction", "kind", "reference"}
+)
+_DERIVED_CONSTRUCTION_FIELDS = frozenset({"appends", "file", "lines"})
 
 
 def _encode(value: Any) -> str:
@@ -102,6 +122,171 @@ def _reconcile_templates(
                 "kind of reference its expansions are"
             )
     return declared
+
+
+def _check_derived_references(
+    references: dict[str, Any], recipe: dict[str, Any], engine_root: Path
+) -> list[dict[str, Any]]:
+    """Check the recipe's derived references against the pinned gamecode.
+
+    A derived reference is a name the gamecode *constructs* at runtime by
+    string surgery on a name it holds statically — `cg_weapons.c` strips the
+    world model's extension and appends `_flash.md3`, `_barrel.md3` or
+    `_hand.md3` — so neither of the two static readings can extract it: the
+    only literal in the constructing code is the suffix. Each recipe entry
+    therefore names the constructing code, and this check refuses an entry the
+    pinned tree does not back:
+
+    - the constructing lines must exist in the named engine source and contain
+      both `COM_StripExtension` and the quoted suffix the entry declares;
+    - the reference must equal the declared base name with its extension
+      stripped and the suffix appended — the derivation is recomputed, not
+      trusted;
+    - the base name must be one of the references the static readings extract,
+      because the gamecode can only construct from a name it actually holds;
+    - the derived reference must *not* be statically extracted, or it does not
+      belong in this category at all (the fallback literal
+      `models/weapons2/shotgun/shotgun_hand.md3` is the live example);
+    - an entry either resolves to declared members or states why it is
+      excluded, never both and never neither.
+
+    Runs before any archive byte is read, like the template reconciliation.
+    Returns the included entries; `_check_derived_members` verifies their
+    declared members after the closure is built.
+    """
+    static_references: set[str] = set()
+    for module_references in references.values():
+        static_references |= {
+            _game_path(literal) for literal in module_references.literals
+        }
+        static_references |= {
+            _game_path(name) for _kind, name in module_references.registrations
+        }
+
+    included: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for entry in recipe.get("derivedReferences", []):
+        fields = set(entry)
+        if fields == _DERIVED_ENTRY_BASE_FIELDS | {"members"}:
+            excluded = False
+        elif fields == _DERIVED_ENTRY_BASE_FIELDS | {"excludedReason"}:
+            excluded = True
+        else:
+            raise ContentError(
+                f"derived reference entry has unexpected fields {sorted(fields)}; "
+                "an entry carries exactly the base fields plus either 'members' "
+                "or 'excludedReason'"
+            )
+        reference = entry["reference"]
+        kind = entry["kind"]
+        if kind not in DERIVED_REFERENCE_KINDS:
+            raise ContentError(
+                f"derived reference {reference!r} has unknown kind {kind!r}"
+            )
+        key = (kind, _game_path(reference))
+        if key in seen:
+            raise ContentError(f"derived reference {reference!r} is declared twice")
+        seen.add(key)
+
+        construction = entry["construction"]
+        if set(construction) != _DERIVED_CONSTRUCTION_FIELDS:
+            raise ContentError(
+                f"derived reference {reference!r} construction must have exactly "
+                f"the fields {sorted(_DERIVED_CONSTRUCTION_FIELDS)}"
+            )
+        file_name = construction["file"]
+        lines = construction["lines"]
+        appends = construction["appends"]
+        if (
+            not isinstance(lines, list)
+            or len(lines) != 2
+            or not all(isinstance(line, int) for line in lines)
+            or not 1 <= lines[0] <= lines[1]
+        ):
+            raise ContentError(
+                f"derived reference {reference!r} construction lines must be "
+                "[first, last] with 1 <= first <= last"
+            )
+        if Path(file_name).is_absolute() or ".." in Path(file_name).parts:
+            raise ContentError(
+                f"derived reference {reference!r} names a constructing file "
+                f"outside the engine tree: {file_name!r}"
+            )
+        source_path = engine_root / file_name
+        try:
+            source_lines = source_path.read_text(
+                encoding="utf-8", errors="replace"
+            ).splitlines()
+        except OSError as error:
+            raise ContentError(
+                f"derived reference {reference!r}: cannot read constructing "
+                f"file {file_name}: {error}"
+            ) from error
+        if lines[1] > len(source_lines):
+            raise ContentError(
+                f"derived reference {reference!r}: {file_name} has "
+                f"{len(source_lines)} lines, entry names {lines}"
+            )
+        snippet = "\n".join(source_lines[lines[0] - 1 : lines[1]])
+        if "COM_StripExtension" not in snippet or f'"{appends}"' not in snippet:
+            raise ContentError(
+                f"derived reference {reference!r}: {file_name}:{lines[0]}-{lines[1]} "
+                f"does not construct a name by appending {appends!r} to a "
+                "stripped base name"
+            )
+
+        constructed_from = entry["constructedFrom"]
+        stem = re.sub(r"\.[^./]*$", "", constructed_from)
+        if _game_path(reference) != _game_path(stem + appends):
+            raise ContentError(
+                f"derived reference {reference!r} is not {constructed_from!r} "
+                f"with its extension replaced by {appends!r}"
+            )
+        if _game_path(constructed_from) not in static_references:
+            raise ContentError(
+                f"derived reference {reference!r} is constructed from "
+                f"{constructed_from!r}, which is not a reference the static "
+                "readings of the pinned QVM sources extract"
+            )
+        if _game_path(reference) in static_references:
+            raise ContentError(
+                f"derived reference {reference!r} is itself statically "
+                "extracted from the pinned QVM sources; it does not belong in "
+                "the derived category"
+            )
+
+        if excluded:
+            if not str(entry["excludedReason"]).strip():
+                raise ContentError(
+                    f"derived reference {reference!r} is excluded without a reason"
+                )
+            continue
+        if (
+            not isinstance(entry["members"], list)
+            or not entry["members"]
+            or not all(
+                isinstance(member, str) and member for member in entry["members"]
+            )
+        ):
+            raise ContentError(
+                f"derived reference {reference!r} must declare the non-empty "
+                "member list it resolves to"
+            )
+        included.append(entry)
+    return included
+
+
+def _check_derived_members(
+    entries: list[dict[str, Any]], members: dict[str, Any]
+) -> None:
+    """Fail if a derived reference did not resolve to its declared members."""
+    for entry in entries:
+        for member in entry["members"]:
+            if _game_path(member) not in members:
+                raise ContentError(
+                    f"derived reference {entry['reference']!r} declares member "
+                    f"{member!r}, which the assembled closure did not package"
+                )
 
 
 def _check_generated_metadata(
@@ -233,8 +418,10 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
     recipe = dict(recipe, generatedSource=generated)
 
     _check_profile(recipe)
-    references = baseq3_references(root / baseline["engine"]["submodulePath"])
+    engine_root = root / baseline["engine"]["submodulePath"]
+    references = baseq3_references(engine_root)
     declared_templates = _reconcile_templates(references, recipe)
+    derived_references = _check_derived_references(references, recipe, engine_root)
 
     sources = SourceSet(recipe_sources(recipe), arguments.archive_dir)
     builder = ClosureBuilder(sources, recipe)
@@ -257,6 +444,20 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
             entry = declared_templates[template]
             for expansion in entry["expansions"]:
                 builder.add(expansion, entry["kind"], f"{module} template {template}")
+
+    # 1b. The references the gamecode constructs at runtime by string surgery
+    #     on world-model names it holds statically: cg_weapons.c strips the
+    #     extension of item->world_model[0] and appends "_flash.md3",
+    #     "_barrel.md3" or "_hand.md3". The only literal there is the suffix,
+    #     so neither static reading can see these; the recipe declares each one
+    #     with its constructing code, verified above against the pinned tree.
+    for entry in derived_references:
+        construction = entry["construction"]
+        builder.add(
+            entry["reference"],
+            entry["kind"],
+            f"derived reference ({construction['file']}:{construction['lines'][0]})",
+        )
 
     # 2. The one map.
     map_name = profile["map"]
@@ -298,6 +499,7 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
         builder.add(notice, "file", "packaged notice")
 
     report = builder.finish()
+    _check_derived_members(derived_references, report.members)
 
     members: dict[str, bytes] = {}
     origins: dict[str, tuple[str, str, str]] = {}

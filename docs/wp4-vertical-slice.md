@@ -739,6 +739,42 @@ provide these assets at all, extend the recipe with explicit
 reference bookkeeping if they do (or record a stated acceptance if they do
 not), and rebuild the pack reproducibly with reissued records.
 
+### Post-closure correction and closure of the content follow-up — 2026-08-31
+
+Appended after the fact; the two entries above stand as reported, and this
+note corrects one of them.
+
+**The recorded cause of the lightning-beam gap was wrong.** Item 2 above says
+the pack carries "no beam shader or texture" and, in the same breath, that it
+carries the muzzle flashes. Both halves are backwards. The beam art was
+**always packed**: the `lightningBoltNew` shader is defined in the packaged
+`scripts/oanew.shader` and all six `textures/oafx/lbeam3..8.tga` stage images
+were in the pack from WP3's first assembly, unshadowed. What was missing is
+`models/weapons2/lightning/lightning_flash.md3` — a *muzzle-flash* model —
+and it gates the beam: `CG_AddPlayerWeapon` returns when `flash.hModel` is 0
+(`code/cgame/cg_weapons.c:1315-1318`), before it ever reaches
+`CG_LightningBolt` (`:1340`) or the muzzle dynamic light. Consistent with
+that mechanism, `cg_drawGun 0` would have shown the beam all along, because
+`CG_AddViewWeapon` calls `CG_LightningBolt` directly (`:1384-1388`) and
+bypasses the gate. The machine-gun barrel entry (item 1) was correct as
+written, and the same runtime name construction turned out to hide a wider
+gap: **no** weapon had its `_flash.md3` model, so no weapon rendered
+muzzle-flash art or its dynamic light.
+
+**The follow-up is closed.** The content increment this section asked for was
+delivered on 2026-08-31 as an in-band WP3 amendment: a fail-closed
+`derivedReferences` recipe category for the names `cg_weapons.c:658-668`
+constructs at runtime, the missing barrels and every reachable muzzle flash
+restored from the pinned archives (grapple excluded by the operator's
+decision of 2026-08-30), and the pack identity reissued at 696 members. The
+what, the why and the per-member digests are in
+[the WP3 amendment section](wp3-content-closure.md#amendment-of-2026-08-31-the-names-the-gamecode-constructs-at-runtime).
+One incidental effect on this document's records: the plasma flash's closure
+packages `textures/flares/flarey.tga`, so finding 2's `sun`-shader acceptance
+(and its "Shader sun has a stage with no image" line) will no longer fire in
+future runs; the acceptance list keeps the entry, and an acceptance that
+never fires is harmless by construction.
+
 ### An operational fact found on the way
 
 **ioquake3 silently drops startup `+` commands beyond 32 lines.**

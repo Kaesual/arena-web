@@ -2,7 +2,10 @@
 
 # WP3 evidence: audited minimal-content closure
 
-**Status:** WP3 complete — two clean assemblies accepted, byte-identical
+**Status:** WP3 complete — two clean assemblies accepted, byte-identical.
+Amended 2026-08-31: the pack additionally carries the weapon models whose
+names the gamecode constructs at runtime; see
+[the amendment section](#amendment-of-2026-08-31-the-names-the-gamecode-constructs-at-runtime).
 
 This document records what the arena-web content pack is: how its members were
 selected, which upstream inputs they come from, how their licences were
@@ -24,8 +27,8 @@ script or committed WP1 manifest was changed.
 | Item | Selection |
 | --- | --- |
 | Package | `arena-web-ffa-oa_pvomit` |
-| Archive | `baseq3/arena-web-ffa.pk3`, `sha256:55a1d51fa99b131c76e5813ee5449fa671c3a584ee251607528868e5a0a05ad7`, 24,181,175 bytes |
-| Members | 668 (660 assets, 6 notices, 2 generated metadata), 53.17 MB uncompressed |
+| Archive | `baseq3/arena-web-ffa.pk3`, `sha256:f3d19e9b3f0ed10258212542e2555246f796c54120e113785eae8a19bf9f0ed2`, 24,482,996 bytes |
+| Members | 696 (688 assets, 6 notices, 2 generated metadata), 54.25 MB uncompressed |
 | Map | `oa_pvomit`, "Projectile Vomit", 16 deathmatch spawns, with its `.aas` bot navigation |
 | Player presentation | `skelebot/default`: `lower`/`upper`/`head` MD3s, skins, `animation.cfg`, icon and its complete `sound/player/skelebot` voice set |
 | Bots | Skelebot, Rai and Sly, all using the one packaged presentation |
@@ -233,21 +236,33 @@ The pack is a closure, not a list. Roots:
    sources do not contain — a cvar, a server-set model name, a downloaded
    configuration — is outside any static reading, and so is any content a
    *map* asks for that its BSP does not name.
-2. **The declared expansion of every template.** A template such as
+2. **The declared derived references.** `cg_weapons.c:658-668` constructs
+   per-weapon model names the sources never spell out: it strips the extension
+   of `item->world_model[0]` and appends `_flash.md3`, `_barrel.md3` or
+   `_hand.md3`, so the only literal either reading can extract is the suffix.
+   The recipe's `derivedReferences` category declares each such name together
+   with the constructing code location and the base name it is derived from,
+   and the assembly refuses an entry the pinned tree does not back: the cited
+   lines must contain the construction, the derivation is recomputed rather
+   than trusted, the base name must be statically extracted, the derived name
+   must *not* be, and each included entry's declared members must end up
+   packaged. An entry is either included or carries an explicit exclusion
+   reason. Added by the amendment of 2026-08-31, below.
+3. **The declared expansion of every template.** A template such as
    `sound/player/footsteps/step%i.wav` cannot be resolved statically, so
    `content/pack-recipe.json` states either its expansion (footsteps 1–4 from
    `cg_main.c`, crosshairs `a`–`j` from `NUM_CROSSHAIRS`, the profile map) or
    the reason it expands to nothing. The assembly fails if the QVMs use a
    template the recipe does not mention, and fails again if the recipe mentions
    one the QVMs do not use, so the list cannot rot in either direction.
-3. **The map**: BSP shader lump, plus entity `model`, `noise` and `music` keys,
+4. **The map**: BSP shader lump, plus entity `model`, `noise` and `music` keys,
    plus its `.aas` and level shot.
-4. **The player presentation**: MD3s, `.skin` files, `animation.cfg`, icon, and
+5. **The player presentation**: MD3s, `.skin` files, `animation.cfg`, icon, and
    the model's own and its `sex`-derived voice directories.
-5. **The bots**: `botfiles/` defaults plus each selected character, expanded
+6. **The bots**: `botfiles/` defaults plus each selected character, expanded
    through `#include` and `CHARACTERISTIC_*` file references — resolved from
    `botfiles/` itself, because `botlib` calls `PC_SetBaseFolder("botfiles")`.
-6. **The packaged notices.**
+7. **The packaged notices.**
 
 Resolution uses the engine's own rules, read out of the pinned checkout:
 
@@ -260,7 +275,7 @@ Resolution uses the engine's own rules, read out of the pinned checkout:
   and only falls back to an image of the *original* name (`R_FindShader`);
 - shader definitions are indexed across every `scripts/*.shader` in the source
   set with reverse-alphabetical file precedence, and
-  only the 26 shader files that actually win a needed definition are packaged;
+  only the 27 shader files that actually win a needed definition are packaged;
 - MD3 surface shaders, `.skin` surface assignments and BSP shader lump entries
   are followed transitively.
 
@@ -283,8 +298,9 @@ satisfies the QVM reference without the upstream file being packaged at all.
 
 `scripts/build-content-pack.py` reports **no unresolved reference among those
 the two readings above extract**, once 28 recipe-declared acceptances are
-subtracted. That is the exact claim: every reference the check can see either
-resolves to a packaged member or is named in the recipe with a reason. It is
+subtracted, and none among the recipe's declared derived references. That is
+the exact claim: every reference the check can see either resolves to a
+packaged member or is named in the recipe with a reason. It is
 not a claim that the pack satisfies every reference the running game could ever
 make, which no static reading can establish.
 
@@ -343,9 +359,10 @@ zlib-module-version: 1.3
 zlib-runtime-version: 1.3
 ```
 
-Two clean assemblies were run by `CONTAINER_RUNTIME=podman
-scripts/verify-content-pack.sh` from arena-web commit
-`c773fdd3783811ce6c78940e9e182de1ff16e930`:
+Two clean assemblies were last run by `CONTAINER_RUNTIME=podman
+scripts/verify-content-pack.sh` for the amendment of 2026-08-31, from the
+commit that carries the reissued records (the original WP3 acceptance ran
+identically from commit `c773fdd3783811ce6c78940e9e182de1ff16e930`):
 
 ```text
 === comparing the two assemblies ===
@@ -401,7 +418,7 @@ intermediate tree this design deliberately avoids.
 
 ## Licence report
 
-Every one of the 668 packaged members is **`GPL-2.0-or-later`**, an expression
+Every one of the 696 packaged members is **`GPL-2.0-or-later`**, an expression
 on WP0's product-input allowlist. The combination is therefore internally
 consistent and distributable under GPL-2.0-or-later, and it is compatible with
 the GPL-2.0-or-later browser client WP1 assembled, though the two remain
@@ -410,15 +427,15 @@ contains no code and is loaded as data.
 
 | Member group | Members | Source | Licence | Obligations |
 | --- | --- | --- | --- | --- |
-| Core art, sound, item/weapon models, menu art, shaders, and the `CREDITS`, `CREDITS-0.8.5` and `README` notices | 470 | `openarena-data` | GPL-2.0-or-later | attribution notice, corresponding source |
+| Core art, sound, item/weapon models, menu art, shaders, and the `CREDITS`, `CREDITS-0.8.5` and `README` notices | 493 | `openarena-data` | GPL-2.0-or-later | attribution notice, corresponding source |
 | Bot files, `.aas`, feedback and team sounds | 78 | `openarena-misc` | GPL-2.0-or-later | same |
-| 0.8.8 patch replacements and the `COPYING` and `CREDITS-0.8.8` notices | 68 | `openarena-088-data` | GPL-2.0-or-later | same |
-| World textures and sky | 24 | `openarena-textures` | GPL-2.0-or-later | same |
+| 0.8.8 patch replacements and the `COPYING` and `CREDITS-0.8.8` notices | 71 | `openarena-088-data` | GPL-2.0-or-later | same |
+| World textures, sky and flares | 26 | `openarena-textures` | GPL-2.0-or-later | same |
 | Player model and voices | 23 | `openarena-players` | GPL-2.0-or-later | same |
 | Map and level shot | 2 | `openarena-maps` | GPL-2.0-or-later | same |
 | `scripts/arenas.txt`, `scripts/bots.txt`, `NOTICE-arena-web.txt` | 3 | arena-web recipe | GPL-2.0-or-later | same |
 
-The seven rows sum to the 668 packaged members. Five of the six notice members
+The seven rows sum to the 696 packaged members. Five of the six notice members
 travel with the OpenArena source that carries them; the sixth,
 `NOTICE-arena-web.txt`, is generated, which is why the `arena-web` row is three
 members and not two.
@@ -508,7 +525,7 @@ change: no schema, validator or WP0/WP1 artifact was modified.
   browser or anywhere else. Runtime compatibility with the pinned `baseq3`
   QVMs is WP4's acceptance, and WP4's failure boundary — stop and return to
   plan review rather than switching gamecode — is unchanged.
-- 24.2 MB compressed is a large first page load. WP3 owns the audited closure,
+- 24.5 MB compressed is a large first page load. WP3 owns the audited closure,
   not delivery; measuring and reducing load time belongs to the work package
   that ships a loader.
 - The pack is not byte-compatible with a public OpenArena pure server, and is
@@ -517,3 +534,193 @@ change: no schema, validator or WP0/WP1 artifact was modified.
   required by the `q3_ui` menu the `baseq3` QVMs contain. Re-encoding it would
   be a transformation with its own provenance consequences and was deliberately
   not done here.
+
+## Amendment of 2026-08-31: the names the gamecode constructs at runtime
+
+WP3 closed on the bounded claim above: every reference the two static readings
+extract resolves or is a recipe acceptance. The claim held; the bound bit.
+While confirming the WP4 renderer fix on 2026-08-30, the operator reported two
+visual gaps — the machine gun's spinning barrel missing, the lightning gun's
+beam invisible — and the investigation found one shared cause outside anything
+the static readings can see: **`cg_weapons.c` constructs a whole family of
+per-weapon model names at runtime by string surgery**. `CG_RegisterWeapon`
+strips the extension of `item->world_model[0]` and appends `_flash.md3`
+(`code/cgame/cg_weapons.c:658-660`), `_barrel.md3` (`:662-664`) and
+`_hand.md3` (`:666-668`). The only string literal in that code is the suffix,
+which is not path-shaped, and the first argument of the registration trap is
+the composed `path` variable rather than a literal, so *both* readings pass it
+by. Verified empirically, not argued: the extractor reports zero `_flash` or
+`_barrel` references and exactly one `_hand` — the literal fallback
+`models/weapons2/shotgun/shotgun_hand.md3` (`:670-672`), which was packed all
+along.
+
+The consequences in the shipped pack were wider than the two reports:
+
+- **No weapon had a muzzle-flash model**, so no weapon rendered muzzle-flash
+  art or its dynamic light — the flash entity is the `tag_flash` anchor and
+  `CG_AddPlayerWeapon` returns when `flash.hModel` is 0
+  (`cg_weapons.c:1315-1318`).
+- **The lightning beam was gated off by that same early return**, which sits
+  *before* `CG_LightningBolt` (`:1340`). The beam art was never missing:
+  `lightningBoltNew` is defined in the packed `scripts/oanew.shader` and all
+  six `textures/oafx/lbeam*.tga` were packed from the start. WP4's defect
+  ledger recorded "beam shader/texture absent" as the cause; that was wrong,
+  and [`wp4-vertical-slice.md`](wp4-vertical-slice.md) now carries the dated
+  correction.
+- **The machine gun's barrel** (and the gauntlet's and BFG's) registered as 0
+  and was silently not drawn — the spin logic was always present
+  (`cg_weapons.c:1137`).
+
+The operator decided the scope on 2026-08-30: **full restoration except the
+grapple** — the two defect fixes, the remaining barrels, and muzzle-flash
+models for every weapon the stock FFA profile can reach.
+
+### The new recipe category: `derivedReferences`
+
+`templateExpansions` could not carry this: its reconciliation deliberately
+fails on a declared template the QVM readings do not report, and these names
+are not format templates — the readings report nothing at all. The recipe
+therefore gains a third reference category, `derivedReferences`, consumed by
+`scripts/build-content-pack.py` as closure root 1b. Each entry names the
+derived `reference`, its `kind`, the `constructedFrom` base name, and the
+constructing code as `construction.file`, `construction.lines` and the
+appended suffix; it then either lists the `members` it must resolve to or an
+`excludedReason`. The validation is fail-closed in the same spirit as the
+rest of the recipe, before any archive byte is read:
+
+- the cited lines must exist in the pinned engine tree and contain both
+  `COM_StripExtension` and the quoted suffix — an entry citing code that does
+  not construct the name stops the build;
+- the derivation is recomputed: `reference` must equal `constructedFrom` with
+  its extension replaced by the suffix;
+- `constructedFrom` must be a reference the static readings extract, because
+  the gamecode can only construct from a name it actually holds;
+- the derived reference must **not** itself be statically extracted — the
+  shotgun-hand fallback literal is refused if declared here, so the category
+  cannot absorb references the ordinary closure already owns;
+- every included entry's declared members must be packaged by the finished
+  closure, and an excluded entry must state its reason.
+
+An entry is therefore checkable against the pinned tree alone, and
+`tests/test_content_pack.py` exercises the refusals (unknown constructing
+site, underivable name, unknown base, statically visible name, malformed
+entry, unpackaged member) as well as the positive case.
+
+### What was added
+
+Thirteen entries. Eleven resolve, and their dependency closures — computed by
+the same `SourceSet`/`ShaderIndex`/`ClosureBuilder` machinery as every other
+root — resolve **completely** inside the six pinned archives: all six
+closures the investigation had left open (`shotgun`, `rocketl`, `grenadel`,
+`plasma`, `railgun`, `bfg` flashes) came back with zero unresolved and zero
+malformed references, so none had to be excluded. Every added member is
+`GPL-2.0-or-later` under its source's default expression (the
+`nonDefaultLicensePaths` exclusions match none of them), carries the same
+obligations and notice bindings as its siblings, and is copied unmodified
+from the verified upstream archive; the amendment introduces **no new licence
+expression, no new obligation and no new notice document**, which the
+regenerated provenance record proves member by member.
+
+The 28 added members, 1,137,296 bytes uncompressed:
+
+| Member | Source | Bytes | SHA-256 |
+| --- | --- | --- | --- |
+| `models/weapons2/bfg/bfg_barrel.md3` | `openarena-088-data` | 3,796 | `86afeb04a1ad49594fdfc03c4be130b0d785445628489ce638ac37d4a15e6cce` |
+| `models/weapons2/bfg/bfg_flash.md3` | `openarena-data` | 1,324 | `bf3e28d1d423c79a0a0b020b914a35b5d29df4e861ac4a9b71372df05d41f7db` |
+| `models/weapons2/bfg/f_bfg2.tga` | `openarena-data` | 16,600 | `ca83017ee94d01ec4ad805cb1914a25cdee9128d021d0214a5a798d5a7c48060` |
+| `models/weapons2/bfg/f_bfg3.tga` | `openarena-data` | 49,691 | `ff86518cfb554dd1455bd2acbb8f768b27520a6c2e572cc2cfba1573e24685f7` |
+| `models/weapons2/gauntlet/gauntlet1.TGA` | `openarena-data` | 786,450 | `475e371d098e76727b086691c9d74bfd53117a555052129d38861e374a0bf8fd` |
+| `models/weapons2/gauntlet/gauntlet_barrel.md3` | `openarena-data` | 2,692 | `56bb358ada9a6e6f9e3b0ea730fa3b333f001dd624accb4a2f15a8e4def97315` |
+| `models/weapons2/grenadel/grenadel_flash.md3` | `openarena-data` | 3,116 | `20a7b6a596704194b50adb122f801517b03180c0644d5f0ccafbe14fca203df3` |
+| `models/weapons2/lightning/lightning_flash.md3` | `openarena-data` | 604 | `fcebd7d33964396a0c3486dc049f309d8ee17e7558d091ebed0d806b05f1aa7f` |
+| `models/weapons2/machinegun/f_machinegun2.tga` | `openarena-data` | 12,625 | `918f6f6e9d8c1813468a8d5c0199eb86bdc218fb55f82ac23cb89681b2a96e55` |
+| `models/weapons2/machinegun/f_machinegun3.jpg` | `openarena-088-data` | 3,054 | `a8c16dec5fccf5d368d4da78c233cebbf4c0377ab5baa7493386837c2bfed1cb` |
+| `models/weapons2/machinegun/machinegun_barrel.md3` | `openarena-data` | 1,988 | `5c76250c8834e1a0da729841ee006b8e6a6fc7c931aa9a9ae7a2a93e2de3c894` |
+| `models/weapons2/machinegun/machinegun_flash.md3` | `openarena-data` | 1,068 | `63580ff7fe37467d0765921f0e125cf2f2f0f92828724a727082f2627c2fa054` |
+| `models/weapons2/plasma/plasma_flash.md3` | `openarena-data` | 1,068 | `72e11aca42694f5d0130249942220e8e541a0ad6ea59229872d13a0731307f7a` |
+| `models/weapons2/railgun/f_railgun2.jpg` | `openarena-data` | 2,684 | `ce4185651927020f314553fbd7a1fae8cd4a21d387c7318a565a0292800423a7` |
+| `models/weapons2/railgun/railgun_flash.md3` | `openarena-data` | 956 | `2de713fd9ad1e7929117286ade6322d9bc83785cef16c81c9b0aa741311e5767` |
+| `models/weapons2/rocketl/rocketl_flash.md3` | `openarena-data` | 3,116 | `620ecf7d6fa8f2da35a6624c8cf832cfe5d6c7778fff5c07fb9888a867d0c2e4` |
+| `models/weapons2/shotgun/shotgun_flash.md3` | `openarena-data` | 3,116 | `3bf0a94071fd6ff7d7f0d21af870fc6a6d8f7daae967c5f298f0e632480656b3` |
+| `scripts/weapon_newmuzzle.shader` | `openarena-088-data` | 8,582 | `41e157b608ef96466167d7bcff08ef1ddac2b903de33b6d244dde282dd793b72` |
+| `textures/flares/flarey.tga` | `openarena-textures` | 66,075 | `60b8b1c095c44a97b8059004e60abf550a46abce76980b769a78005e797802d9` |
+| `textures/flares/lava.tga` | `openarena-textures` | 66,075 | `47bca573e9661d53f184b236bea81c8ed8ad1b6c9973906b942217cee59e55f8` |
+| `textures/oa/muzzle/muz1.tga` | `openarena-data` | 12,827 | `57711f65f4c7c078e804ac763f1bfc551c576fa42f33b04b3cb6ca48b8b0d45b` |
+| `textures/oa/muzzle/muz2.tga` | `openarena-data` | 12,827 | `2bc63754ca3f4977ea5afb715cd0955349319d41d51e449668a6bbd4891b34e4` |
+| `textures/oa/muzzle/muz3.tga` | `openarena-data` | 12,827 | `981b379b466a86e9ffa59fc034b4b281ca7f3178d2257fc12171801cd8a86efb` |
+| `textures/oa/muzzle/muz4.tga` | `openarena-data` | 12,827 | `cc1955bba3a3d94b3f4dc386e05bf5f69c7c77636799a621f389b9078ed2a3d6` |
+| `textures/oa/muzzle/muz5.tga` | `openarena-data` | 12,827 | `c3dad2d6b2c38813701aaa02513d9e7cfe168876e25feaa45cde65a40e43c359` |
+| `textures/oa/muzzle/muz6.tga` | `openarena-data` | 12,827 | `633a763283e59f3458c3bc35e190141e6556fc5e0b115f25889f445a5ef4509b` |
+| `textures/oa/muzzle/muz7.tga` | `openarena-data` | 12,827 | `541118e0816fe53f61825f80ebee8424e29d0049fb6bf7aa4b26470e52b93813` |
+| `textures/oa/muzzle/muz8.tga` | `openarena-data` | 12,827 | `958e7e18874c08a987c1012a2f4ab2b8512c7c7b2af35eebb2aa105e695d547a` |
+
+Three closure results deserve a sentence each. The shotgun, rocket and
+grenade flashes share one new shader file, `scripts/weapon_newmuzzle.shader`,
+whose 28 `cmuz_*` definitions collide with no definition in any previously
+packaged shader file, so packaging it shadows nothing (checked against every
+packaged file, not assumed). The plasma flash's `lowPlasmaFlash` stage chain
+pulls in `textures/flares/flarey.tga` — the very image WP4's finding 2
+records as the missing stage of the engine-registered `sun` shader — so that
+cosmetic gap closes incidentally and the corresponding acceptance in the WP4
+driver's list becomes inert (it stays listed; an acceptance that never fires
+is harmless). And the machine-gun barrel needs no shader at all: its `mgun`
+material has no definition anywhere, so the engine builds the implicit
+single-stage shader from the already-packed `mgun.tga`.
+
+### What was excluded, and what has no entry at all
+
+Two entries are exclusions, recorded in the recipe with their reasons:
+
+- **`models/weapons2/grapple/grapple_barrel.md3`** — the operator's decision.
+  The stock FFA profile cannot reach the grapple: no packaged map entity
+  places `weapon_grapplinghook` and the profile offers no other way to obtain
+  it. (The grapple's *world* model was always packed — it is a static
+  `bg_misc.c` literal — but its barrel stays out.)
+- **`models/weapons2/machinegun/machinegun_hand.md3`** — the upstream file is
+  byte-identical
+  (`sha256:681d01439210d9669156e25065a45c9c4a42f368ed606f86bcf1b6f8571e59c2`,
+  5,148 bytes) to the packed `shotgun_hand.md3` that `cg_weapons.c:670-672`
+  registers as the fallback whenever the constructed hand model is absent, so
+  packaging it would duplicate the same bytes without changing what renders.
+
+The rest of the 30-name derivation matrix (ten weapons × three suffixes) has
+deliberately **no** recipe entry, because the pinned archives provide no such
+file: no OpenArena release in this input set ships `gauntlet_flash`,
+`grapple_flash`, `grapple_hand`, any `_hand` beyond the two above, or barrels
+beyond the machinegun/gauntlet/BFG/grapple four. For those names the
+constructed registration returns 0 in the native reference client exactly as
+it does here — absence upstream is the reference behaviour, not a gap, and an
+entry would have nothing to include *or* exclude.
+
+### The reissued identity
+
+The pack identity moved from
+`sha256:55a1d51fa99b131c76e5813ee5449fa671c3a584ee251607528868e5a0a05ad7`
+(24,181,175 bytes, 668 members) to
+`sha256:f3d19e9b3f0ed10258212542e2555246f796c54120e113785eae8a19bf9f0ed2`
+(**24,482,996 bytes, 696 members**, 27 packaged shader files). Both committed
+records — the member-level provenance and the pack manifest — were
+regenerated by the same deterministic assembly in the pinned builder image,
+and the two-assembly reproducibility check was re-run and passed:
+byte-identical PK3s, provenance, manifest, toolchain record and closure
+report, agreeing with the committed records. The only changed pre-existing
+member is the generated `NOTICE-arena-web.txt`, whose text embeds the
+recipe's own digest by design. The staged `build/arena-serve` tree was
+re-staged and re-verified against the reissued manifest.
+
+Not rewritten, deliberately: the WP5 packet census, the WP2/WP4/WP5 witnessed
+and measurement evidence, and `provenance/arena-web-server.json`. The server
+record identifies the WP5 image **as built and censused**, with the
+pre-amendment pack inside it; that is a historical fact about accepted
+evidence, not a live manifest. WP7 must rebuild and re-census the server from
+the final engine pin anyway (the WP6 decision requires it), and that rebuild
+picks up the amended pack and reissues the server record.
+
+### This amendment is sizing-neutral for WP6
+
+The added members are client-side models and textures resolved from names the
+cgame constructs locally in `CG_RegisterWeapon`. They add no configstring,
+change no server-visible state and alter no packet the engine emits in either
+direction — the census inputs, the routed-path budget and every number in
+[`wp6-network-sizing.md`](wp6-network-sizing.md) are untouched, and the WP6
+decision's inputs therefore remain exactly the two committed records it names.

@@ -751,6 +751,150 @@ class BuildGateTests(unittest.TestCase):
                 with self.assertRaisesRegex(ContentError, message):
                     self._build(recipe, output, output)
 
+    @staticmethod
+    def _derived_entry(recipe: dict, reference: str) -> dict:
+        for entry in recipe["derivedReferences"]:
+            if entry["reference"] == reference:
+                return entry
+        raise AssertionError(f"recipe has no derived reference {reference}")
+
+    def test_the_committed_derived_references_verify_against_the_pinned_tree(
+        self,
+    ) -> None:
+        references = baseq3_references(ROOT / "ioq3")
+        included = self.module._check_derived_references(
+            references, self.recipe, ROOT / "ioq3"
+        )
+        self.assertEqual(len(included), 11)
+        included_references = {entry["reference"] for entry in included}
+        self.assertNotIn(
+            "models/weapons2/grapple/grapple_barrel.md3", included_references
+        )
+        self.assertNotIn(
+            "models/weapons2/machinegun/machinegun_hand.md3", included_references
+        )
+
+    def test_a_derived_reference_with_an_unknown_constructing_site_stops_the_build(
+        self,
+    ) -> None:
+        cases = (
+            ({"lines": [1, 3]}, "does not construct"),
+            ({"file": "code/cgame/cg_invented.c"}, "cannot read constructing"),
+            ({"lines": [400000, 400002]}, "entry names"),
+            ({"file": "../outside.c"}, "outside the engine tree"),
+        )
+        for override, message in cases:
+            recipe = json.loads(json.dumps(self.recipe))
+            entry = self._derived_entry(
+                recipe, "models/weapons2/lightning/lightning_flash.md3"
+            )
+            entry["construction"].update(override)
+            with tempfile.TemporaryDirectory() as raw:
+                output = Path(raw)
+                with self.assertRaisesRegex(ContentError, message):
+                    self._build(recipe, output, output)
+
+    def test_a_derived_reference_must_be_derivable_from_its_base(self) -> None:
+        recipe = json.loads(json.dumps(self.recipe))
+        entry = self._derived_entry(
+            recipe, "models/weapons2/lightning/lightning_flash.md3"
+        )
+        entry["constructedFrom"] = "models/weapons2/plasma/plasma.md3"
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "extension replaced"):
+                self._build(recipe, output, output)
+
+    def test_a_derived_base_the_sources_do_not_hold_stops_the_build(self) -> None:
+        recipe = json.loads(json.dumps(self.recipe))
+        entry = self._derived_entry(
+            recipe, "models/weapons2/lightning/lightning_flash.md3"
+        )
+        entry["constructedFrom"] = "models/weapons2/invented/invented.md3"
+        entry["reference"] = "models/weapons2/invented/invented_flash.md3"
+        entry["members"] = [entry["reference"]]
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "static readings"):
+                self._build(recipe, output, output)
+
+    def test_a_statically_visible_name_is_refused_in_the_derived_category(
+        self,
+    ) -> None:
+        # The live example: cg_weapons.c holds the shotgun_hand fallback as a
+        # path-shaped literal, so it is not a derived reference and an entry
+        # claiming so misdescribes the closure.
+        recipe = json.loads(json.dumps(self.recipe))
+        recipe["derivedReferences"].append(
+            {
+                "constructedFrom": "models/weapons2/shotgun/shotgun.md3",
+                "construction": {
+                    "appends": "_hand.md3",
+                    "file": "code/cgame/cg_weapons.c",
+                    "lines": [666, 668],
+                },
+                "kind": "model",
+                "members": ["models/weapons2/shotgun/shotgun_hand.md3"],
+                "reference": "models/weapons2/shotgun/shotgun_hand.md3",
+            }
+        )
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "itself statically"):
+                self._build(recipe, output, output)
+
+    def test_a_malformed_derived_entry_stops_the_build(self) -> None:
+        base = self._derived_entry(
+            self.recipe, "models/weapons2/lightning/lightning_flash.md3"
+        )
+        cases = (
+            ({"excludedReason": "both included and excluded at once"}, "unexpected fields"),
+            ({"members": None}, "unexpected fields"),
+            ({"kind": "weapon"}, "unknown kind"),
+        )
+        for override, message in cases:
+            recipe = json.loads(json.dumps(self.recipe))
+            entry = self._derived_entry(
+                recipe, "models/weapons2/lightning/lightning_flash.md3"
+            )
+            entry.update(json.loads(json.dumps(override)))
+            if entry.get("members") is None and "members" in entry:
+                del entry["members"]
+            with tempfile.TemporaryDirectory() as raw:
+                output = Path(raw)
+                with self.assertRaisesRegex(ContentError, message):
+                    self._build(recipe, output, output)
+        recipe = json.loads(json.dumps(self.recipe))
+        recipe["derivedReferences"].append(json.loads(json.dumps(base)))
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "declared twice"):
+                self._build(recipe, output, output)
+        recipe = json.loads(json.dumps(self.recipe))
+        entry = self._derived_entry(
+            recipe, "models/weapons2/grapple/grapple_barrel.md3"
+        )
+        entry["excludedReason"] = "   "
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "without a reason"):
+                self._build(recipe, output, output)
+
+    def test_a_derived_member_the_closure_did_not_package_stops_the_build(
+        self,
+    ) -> None:
+        entries = [
+            {
+                "reference": "models/weapons2/x/x_flash.md3",
+                "members": ["models/weapons2/x/x_flash.md3"],
+            }
+        ]
+        with self.assertRaisesRegex(ContentError, "did not package"):
+            self.module._check_derived_members(entries, {})
+        self.module._check_derived_members(
+            entries, {"models/weapons2/x/x_flash.md3": object()}
+        )
+
     def test_generated_metadata_must_agree_with_the_members(self) -> None:
         recipe = {
             "profile": {
@@ -839,6 +983,31 @@ class CommittedRecipeTests(unittest.TestCase):
         provenance = _load_json(ROOT / "provenance" / "arena-web-ffa-content.json")
         paths = {member["path"].lower() for member in provenance["members"]}
         self.assertIn("scripts/newmenu.shader", paths)
+
+    def test_every_derived_reference_is_included_or_excluded_with_a_reason(
+        self,
+    ) -> None:
+        entries = self.recipe["derivedReferences"]
+        self.assertEqual(len(entries), 13)
+        for entry in entries:
+            if "excludedReason" in entry:
+                self.assertGreater(len(entry["excludedReason"]), 30, entry["reference"])
+            else:
+                self.assertTrue(entry["members"], entry["reference"])
+
+    def test_the_committed_provenance_packages_every_derived_member(self) -> None:
+        provenance = _load_json(ROOT / "provenance" / "arena-web-ffa-content.json")
+        paths = {member["path"].lower() for member in provenance["members"]}
+        for entry in self.recipe["derivedReferences"]:
+            if "excludedReason" in entry:
+                self.assertNotIn(entry["reference"].lower(), paths)
+                continue
+            for member in entry["members"]:
+                self.assertIn(member.lower(), paths)
+
+    def test_the_committed_provenance_has_the_amended_member_count(self) -> None:
+        provenance = _load_json(ROOT / "provenance" / "arena-web-ffa-content.json")
+        self.assertEqual(len(provenance["members"]), 696)
 
     def test_generated_members_are_declared_as_such(self) -> None:
         self.assertIn(self.recipe["noticeFile"], self.recipe["generatedMembers"])
