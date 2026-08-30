@@ -29,9 +29,18 @@
   "map": "oa_pvomit",
   "playerModel": "skelebot/default",
   "bots": [
-    { "name": "Skelebot", "skill": 3 },
-    { "name": "Rai", "skill": 3 },
-    { "name": "Sly", "skill": 3 }
+    {
+      "name": "Skelebot",
+      "skill": 3
+    },
+    {
+      "name": "Rai",
+      "skill": 3
+    },
+    {
+      "name": "Sly",
+      "skill": 3
+    }
   ],
   "cvars": {
     "bot_enable": "1",
@@ -44,7 +53,8 @@
     "r_allowResize": "1",
     "sv_maxclients": "8",
     "sv_pure": "0",
-    "timelimit": "0"
+    "timelimit": "0",
+    "r_vertexLight": "1"
   },
   "cvarNotes": {
     "bot_enable": "ioq3 code/game/g_bot.c:761: Svcmd_AddBot_f (g_bot.c:752) returns immediately when this is 0",
@@ -57,7 +67,8 @@
     "r_allowResize": "ioq3 code/sdl/sdl_glimp.c: adds SDL_WINDOW_RESIZABLE so a canvas resize reaches the engine",
     "sv_maxclients": "ioq3 code/game/g_main.c: slots for the local player and the bots",
     "sv_pure": "ioq3 code/qcommon/files.c:1419: FS_FindVM (files.c:1398) only considers a loose vm/*.qvm in a directory search path while fs_numServerPaks is 0, so the QVMs written beside the pack are findable only on an impure client",
-    "timelimit": "ioq3 code/game/g_main.c: the profile ends on the frag limit"
+    "timelimit": "ioq3 code/game/g_main.c: the profile ends on the frag limit",
+    "r_vertexLight": "ioq3 code/renderergl2/tr_init.c:1274. Workaround, not a preference: under Emscripten/WebGL the lightmapped world-surface path intermittently renders surfaces as solid white in roughly two of three sessions (WebGL 1 and 2, with and without FBOs, merged lightmaps and VAOs; no GL error; the native client is clean), while the vertex-lit path was clean in seven of seven sessions. Diagnosed 2026-08-30; evidence and the deferred root-cause work are recorded in wp4-vertical-slice.md. Remove when the engine defect is fixed."
   },
   "readyMarkers": {
     "serverSpawned": "Server: oa_pvomit",
@@ -67,7 +78,7 @@
   "readyMarkerNotes": {
     "serverSpawned": "ioq3 code/server/sv_init.c:409",
     "clientGameLoaded": "ioq3 code/client/cl_cgame.c:757",
-    "clientEnteredGame": "ioq3 code/game/g_client.c:1026 — printed for EVERY client that begins, the local player first, so it is not evidence that a bot joined; the bots are matched by name against profile.bots instead"
+    "clientEnteredGame": "ioq3 code/game/g_client.c:1026 \u2014 printed for EVERY client that begins, the local player first, so it is not evidence that a bot joined; the bots are matched by name against profile.bots instead"
   },
   "manifests": {
     "content": "provenance/arena-web-ffa-content-manifest.json",
@@ -123,20 +134,58 @@
     }
   ],
   "engineArguments": [
-    "+set", "bot_enable", "1",
-    "+set", "com_basegame", "arena",
-    "+set", "fraglimit", "15",
-    "+set", "g_gametype", "0",
-    "+set", "headmodel", "skelebot/default",
-    "+set", "model", "skelebot/default",
-    "+set", "net_enabled", "0",
-    "+set", "r_allowResize", "1",
-    "+set", "sv_maxclients", "8",
-    "+set", "sv_pure", "0",
-    "+set", "timelimit", "0",
-    "+map", "oa_pvomit",
-    "+addbot", "Skelebot", "3", "free", "2000",
-    "+addbot", "Rai", "3", "free", "3500",
-    "+addbot", "Sly", "3", "free", "5000"
+    "+set",
+    "bot_enable",
+    "1",
+    "+set",
+    "com_basegame",
+    "arena",
+    "+set",
+    "fraglimit",
+    "15",
+    "+set",
+    "g_gametype",
+    "0",
+    "+set",
+    "headmodel",
+    "skelebot/default",
+    "+set",
+    "model",
+    "skelebot/default",
+    "+set",
+    "net_enabled",
+    "0",
+    "+set",
+    "r_allowResize",
+    "1",
+    "+set",
+    "r_vertexLight",
+    "1",
+    "+set",
+    "sv_maxclients",
+    "8",
+    "+set",
+    "sv_pure",
+    "0",
+    "+set",
+    "timelimit",
+    "0",
+    "+map",
+    "oa_pvomit",
+    "+addbot",
+    "Skelebot",
+    "3",
+    "free",
+    "2000",
+    "+addbot",
+    "Rai",
+    "3",
+    "free",
+    "3500",
+    "+addbot",
+    "Sly",
+    "3",
+    "free",
+    "5000"
   ]
 }

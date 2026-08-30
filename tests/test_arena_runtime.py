@@ -1573,7 +1573,11 @@ class ScoreTest(unittest.TestCase):
         result.engine_defects = classify_engine_log(result.engine_log)
         result.requests = requests if requests is not None else [f"{self.ORIGIN}/"]
         result.access_log = [{"path": "/", "status": 200}]
-        result.screenshots = [{"file": "x.png", "distinctColours": 900}]
+        result.screenshots = [
+            {"file": "01-map-entered.png", "distinctColours": 900, "nearWhiteFraction": 0.42},
+            {"file": "02-after-input.png", "distinctColours": 900, "nearWhiteFraction": 0.004},
+            {"file": "03-after-focus.png", "distinctColours": 900, "nearWhiteFraction": 0.003},
+        ]
         return result
 
     def _checks(self, result: RunResult) -> dict[str, Check]:
@@ -1593,6 +1597,31 @@ class ScoreTest(unittest.TestCase):
     def test_a_missing_bot_fails_the_bot_check(self) -> None:
         checks = self._checks(self._run(botEntries=[{"name": "Skelebot", "at": 1.0}]))
         self.assertFalse(checks["bots-entered-game"].passed)
+
+    def test_a_healthy_run_passes_the_white_surface_check(self) -> None:
+        checks = self._checks(self._run())
+        check = checks["canvas-no-white-surface-regression"]
+        self.assertTrue(check.passed, check.detail)
+
+    def test_a_white_in_game_screenshot_fails_the_white_surface_check(self) -> None:
+        run = self._run()
+        run.screenshots[1]["nearWhiteFraction"] = 0.16
+        check = self._checks(run)["canvas-no-white-surface-regression"]
+        self.assertFalse(check.passed)
+        self.assertIn("16.00%", check.detail)
+
+    def test_a_white_loading_screen_does_not_fail_the_white_surface_check(self) -> None:
+        # 01-map-entered may legitimately capture the bright loading screen;
+        # only the in-game screenshots are evidence of the defect.
+        run = self._run()
+        run.screenshots[0]["nearWhiteFraction"] = 0.51
+        check = self._checks(run)["canvas-no-white-surface-regression"]
+        self.assertTrue(check.passed, check.detail)
+
+    def test_a_run_with_no_in_game_screenshot_fails_the_white_surface_check(self) -> None:
+        run = self._run()
+        run.screenshots = run.screenshots[:1]
+        self.assertFalse(self._checks(run)["canvas-no-white-surface-regression"].passed)
 
     def test_a_page_report_disagreeing_with_the_log_fails_the_bot_check(self) -> None:
         run = self._run()

@@ -300,6 +300,7 @@ def png_pixel_statistics(data: bytes, *, sample_stride: int = 1) -> dict[str, An
     previous = bytearray(stride)
     colours: set[tuple[int, int, int]] = set()
     luminance_total = 0
+    near_white = 0
     counted = 0
     offset = 0
     for _row in range(height):
@@ -342,6 +343,8 @@ def png_pixel_statistics(data: bytes, *, sample_stride: int = 1) -> dict[str, An
             luminance_total += (
                 pixel[0] * 299 + pixel[1] * 587 + pixel[2] * 114
             ) // 1000
+            if pixel[0] > 245 and pixel[1] > 245 and pixel[2] > 245:
+                near_white += 1
             counted += 1
         previous = line
 
@@ -351,6 +354,7 @@ def png_pixel_statistics(data: bytes, *, sample_stride: int = 1) -> dict[str, An
         "sampledPixels": counted,
         "distinctColours": len(colours),
         "meanLuminance": round(luminance_total / counted, 2) if counted else 0.0,
+        "nearWhiteFraction": round(near_white / counted, 4) if counted else 0.0,
         "bytes": len(data),
     }
 
@@ -967,6 +971,27 @@ def _score(result: RunResult, expected: Expectations) -> None:
             ", ".join(
                 f"{shot['file']}: {shot['distinctColours']} colours"
                 for shot in result.screenshots
+            ),
+        )
+    )
+
+    # The renderer defect the first witnessed round found (wp4-vertical-slice.md):
+    # under Emscripten/WebGL the lightmapped world-surface path intermittently
+    # painted surfaces solid white — 15 to 52 percent of the frame in a defective
+    # session against well under one percent in a healthy one, in roughly two of
+    # three sessions. The map-entered shot is excluded because the loading screen
+    # may legitimately be bright; the in-game shots are the evidence.
+    in_game = [
+        shot for shot in result.screenshots if shot["file"] != "01-map-entered.png"
+    ]
+    result.checks.append(
+        Check(
+            "canvas-no-white-surface-regression",
+            bool(in_game)
+            and all(shot["nearWhiteFraction"] < 0.05 for shot in in_game),
+            ", ".join(
+                f"{shot['file']}: {shot['nearWhiteFraction']:.2%} near-white"
+                for shot in in_game
             ),
         )
     )

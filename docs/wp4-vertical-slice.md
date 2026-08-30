@@ -2,7 +2,11 @@
 
 # WP4 evidence: offline browser vertical slice
 
-**Status:** implemented; witnessed real-browser acceptance **pending**
+**Status:** implemented; witnessed real-browser acceptance **pending**. The
+first witnessed attempt on 2026-08-30 found an intermittent renderer defect,
+now mitigated by a reviewed configuration workaround and guarded by an
+automated regression check — see "The witnessed round found a renderer
+defect" below. The round restarts from the beginning.
 
 This document records what the offline one-map FFA slice is, how the engine is
 booted, which bytes a local serve is allowed to hand to the browser, what the
@@ -551,6 +555,62 @@ The accepted engine build used here reproduced WP1's result exactly: a third
 clean build, run from this work package's baseline commit, emitted the same ten
 artifact digests as `manifests/browser-client.json`, differing only in the
 manifest's `producer.commit`.
+
+## The witnessed round found a renderer defect
+
+The first witnessed attempt (2026-08-30) was aborted on sight: parts of the
+world rendered as solid white — whole wall sections, floor bands, a beam at a
+jump pad — and surfaces near the player vanished in a sphere-shaped region
+around the view. The defect was then found in the stored screenshots of every
+earlier automated pre-acceptance run as well; the harness had checked console
+output and colour diversity but never pixels, so nobody had looked.
+
+What the diagnosis established, each point against the pinned tree or by
+repeated measurement in the pinned browser:
+
+- **Not the content.** The engine log contains zero missing-image warnings
+  beyond the three known engine-registered cosmetics, and the same pack, QVMs
+  and profile render flawlessly in the WP5 native client (renderergl2 over
+  Mesa; screenshot taken via the engine's own `screenshot` command).
+- **Intermittent per session, stable within one.** Across all instrumented
+  browser sessions the defect appeared in roughly two of three runs; a healthy
+  in-game frame measures well under 1% near-white pixels, a defective one 15
+  to 52%.
+- **Ruled out by repeated A/B runs** (defect persists in every case):
+  `r_hdr 0`, `r_postProcess 0` + `r_toneMap 0`, `r_ext_framebuffer_object 0`,
+  `r_mergeLightmaps 0` (looked clean once, then reproduced — the defect's
+  intermittency produces false fixes at one run per configuration), a WebGL 1
+  context (`--disable-webgl2`, 3/3 defective) — which under this engine also
+  runs without vertex array objects, since the engine probes only for the ARB
+  extension name and WebGL exposes the OES name.
+- **`r_ignoreGLErrors 0` reports nothing.** The defective path completes
+  without a single GL error; the atlas of symptoms is semantic, not an
+  illegal call.
+- **Only bypassing the lightmapped world-surface path avoids it:**
+  `r_vertexLight 1` was clean in seven of seven sessions (probability of that
+  under the observed base rate, were it ineffective: about 0.05%).
+- **No upstream fix exists.** The pinned ioq3 commit is upstream `main`'s HEAD;
+  the historical VAO-cache fixes (upstream #678, #723) are already in the pin
+  with the cache defaulted off.
+
+**The mitigation** is `r_vertexLight 1` in the committed profile: the browser
+slice renders with per-vertex lighting instead of lightmaps. That is a visual
+downgrade confined to the browser — the native client keeps lightmaps and its
+defaults — and it is marked in the profile as a workaround to remove, not a
+preference. The automated pre-acceptance now measures near-white fractions on
+the in-game screenshots and fails above 5% (`canvas-no-white-surface-regression`),
+so the defect class cannot return silently and the workaround's effectiveness
+is re-measured on every run.
+
+**Deferred, by decision of 2026-08-30:** the root cause lives somewhere in
+renderergl2's lightmapped surface pipeline under Emscripten's WebGL layer and
+needs instrumented diagnostic builds to pin down; that hunt starts after the
+current work-package path (WP2 routed acceptance, WP6), not now. If it ends in
+a small engine patch, the agreed model is a public fork carrying enumerated,
+upstream-mergeable patches on top of the pinned upstream commit — the same
+model the operator's Luanti fork uses — which also means amending WP1's
+"unmodified ioq3" contract deliberately at that point, plus an upstream issue
+or pull request. Until then the engine stays byte-for-byte upstream.
 
 ## Operator acceptance checklist — **PENDING**
 
