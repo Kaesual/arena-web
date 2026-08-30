@@ -594,7 +594,12 @@ reconciliation over its whole derivation space described below, and the
 recipe now also declares the second construction site the review found in
 the menu code. The identity the first round issued
 (`sha256:f3d19e9b…`, 696 members) was superseded inside the same unpushed fix
-round and was never accepted.
+round and was never accepted. One transparency note on conventions: the fix
+round also corrected the member count inside WP4's dated note of 2026-08-31
+from 696 to 698 — legitimate precisely because nothing had been pushed and
+the 696 identity was never accepted, but stated plainly here: the append-only
+convention for dated evidence is held at the push boundary, not per local
+commit.
 
 ### The new recipe category: `derivedReferences`
 
@@ -615,10 +620,18 @@ no member of its own). The missionpack `code/ui/ui_players.c` carries the
 surgery too but is not compiled into these QVMs and is deliberately outside
 the record. The sites are reconciled **two-way** against the pinned tree: a
 declared site must really construct and register a derived name — the cited
-lines are a bounded adjacent range that must contain `COM_StripExtension`,
-the quoted suffix and `trap_R_RegisterModel` — and a scan of the compiled
-translation units for suffix literals such as `"_flash.md3"` must find no
-site the recipe does not declare.
+lines are a three-line adjacent range that must contain `COM_StripExtension`,
+the quoted suffix and `trap_R_RegisterModel`, which together make each
+declared citation the unique passing range for its suffix — and a scan of
+the compiled translation units and their reachable headers must find no site
+the recipe does not declare. The scan's reach is stated exactly rather than
+implied: it recognises string literals of the shape `"_<alphanumeric>.md3"`,
+the adjacent `COM_StripExtension`/`Q_strcat` spelling both pinned sites use,
+and nothing else — a future engine pin that composed such a name through a
+format string (`Com_sprintf("%s_hand.md3", …)`) or appended a non-`.md3`
+suffix would be outside its reach and would require the scan to be extended;
+the pinned tree contains no such spelling, so this is a bound on the guard's
+reach against future drift, not a live gap.
 
 Each `derivedReferences` entry names the derived `reference`, its `kind`, the
 `constructedFrom` base name, and the construction it cites — which must equal

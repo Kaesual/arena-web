@@ -817,6 +817,14 @@ class BuildGateTests(unittest.TestCase):
             # The overlapping-range attack: cg_weapons.c:658-668 contains all
             # three suffixes, so a range that wide must be refused outright.
             ({"lines": [658, 668]}, "cites 11 lines"),
+            # The citation-drift attack the re-verification found: a 5-line
+            # range shifted off the true flash site still contains a strip, a
+            # suffix and two traps, so only the span bound refuses it.
+            ({"lines": [659, 663]}, "cites 5 lines"),
+            # A three-line window shifted by one line drops a marker in each
+            # direction: up loses the registration trap, down loses the strip.
+            ({"lines": [657, 659]}, "does not construct"),
+            ({"lines": [659, 661]}, "does not construct"),
         )
         for override, message in cases:
             recipe = json.loads(json.dumps(self.recipe))
@@ -825,6 +833,24 @@ class BuildGateTests(unittest.TestCase):
                 output = Path(raw)
                 with self.assertRaisesRegex(ContentError, message):
                     self._build(recipe, output, output)
+
+    def test_an_unparseable_weapon_entry_stops_the_build(self) -> None:
+        # _WEAPON_ITEM_RE skipping an entry it cannot match must not silently
+        # shrink the derivation space: the builder requires the pinned count.
+        with tempfile.TemporaryDirectory() as raw:
+            fake_engine = Path(raw)
+            (fake_engine / "code" / "game").mkdir(parents=True)
+            (fake_engine / "code" / "game" / "bg_misc.c").write_text(
+                "{\n"
+                '"weapon_gauntlet",\n'
+                '"sound/misc/w_pkup.wav",\n'
+                '{ "models/weapons2/gauntlet/gauntlet.md3",\n'
+                "0, 0, 0},\n"
+                "}\n",
+                encoding="utf-8",
+            )
+            with self.assertRaisesRegex(ContentError, "expected 10"):
+                self.module._weapon_world_models(fake_engine)
 
     def test_an_undeclared_or_invented_construction_site_stops_the_build(
         self,

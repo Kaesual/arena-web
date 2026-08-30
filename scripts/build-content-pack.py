@@ -67,23 +67,36 @@ _DERIVED_ENTRY_BASE_FIELDS = frozenset(
 )
 _DERIVED_CONSTRUCTION_FIELDS = frozenset({"appends", "file", "lines"})
 
-# A construction site is a few adjacent lines: strip, append, register. A
-# larger cited range could contain several sites at once, and an entry citing
-# it would validate against whichever suffix it happened to contain.
-_CONSTRUCTION_SITE_MAX_SPAN = 4
+# A construction site is exactly three adjacent lines: strip, append,
+# register. Bounding the citation to that span, together with requiring all
+# three markers inside it, makes each declared citation the *unique* passing
+# range for its suffix — a range shifted by even one line drops a marker, and
+# a wider one could contain a neighbouring site's markers.
+_CONSTRUCTION_SITE_MAX_SPAN = 2
 
 # The registration trap through which every derived weapon-model name reaches
 # the renderer. A cited construction site must contain it, or the cited lines
 # are not the place the constructed name is used.
 _DERIVED_REGISTRATION_TRAP = "trap_R_RegisterModel"
 
-# A derived-name suffix as the pinned sources spell it. Scanning the compiled
-# translation units for this literal is what makes the construction-site
-# record two-way: a site the recipe does not declare fails the build.
+# A derived-name suffix exactly as the pinned sources spell it: a string
+# literal of the shape "_<alphanumeric>.md3", which is the adjacent
+# COM_StripExtension/Q_strcat spelling both pinned sites use. The scan sees
+# only this shape — a construction spelled through a format string such as
+# Com_sprintf("%s_hand.md3", ...), or a non-.md3 suffix, would be outside its
+# reach and would need this pattern extended. The pinned tree contains no
+# such spelling; a future engine pin must be re-checked when it moves.
 _SUFFIX_LITERAL_RE = re.compile(r'"(_[A-Za-z0-9]+\.md3)"')
 
 # One bg_itemlist weapon entry: classname, pickup sound, then world_model[0].
 _WEAPON_ITEM_RE = re.compile(r'"(weapon_\w+)"\s*,\s*"[^"]*"\s*,\s*\{\s*"([^"]+)"')
+
+# The pinned bg_itemlist defines exactly this many baseq3 weapons (the ten
+# from gauntlet through grapple; the MISSIONPACK ones are compiled out). The
+# parser must find them all, or an entry it silently failed to match would
+# shrink the derivation space unnoticed. This number moves only with the
+# engine pin.
+_BASEQ3_WEAPON_COUNT = 10
 
 
 def _encode(value: Any) -> str:
@@ -183,17 +196,20 @@ def _weapon_world_models(engine_root: Path) -> list[str]:
                 "parser does not understand"
             )
         models.add(model)
-    if not models:
+    if len(models) != _BASEQ3_WEAPON_COUNT:
         raise ContentError(
-            "no weapon item parsed out of the pinned bg_itemlist; the derived "
-            "reference machinery cannot enumerate its derivation space"
+            f"parsed {len(models)} weapon world models out of the pinned "
+            f"bg_itemlist, expected {_BASEQ3_WEAPON_COUNT}; an entry the "
+            "parser does not match would silently shrink the derivation "
+            "space, so this fails instead"
         )
     return sorted(models)
 
 
 def _scan_derived_suffix_sites(engine_root: Path) -> set[tuple[str, str]]:
     """Every `(file, suffix)` at which a compiled `baseq3` source holds a
-    derived-name suffix literal such as ``"_flash.md3"``.
+    derived-name suffix literal of the exact shape `_SUFFIX_LITERAL_RE`
+    recognises (see its comment for what that shape excludes).
 
     The scan runs over the exact translation units `cmake/basegame.cmake`
     compiles plus their reachable headers — the same file population the
