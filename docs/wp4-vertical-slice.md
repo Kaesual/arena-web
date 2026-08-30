@@ -602,15 +602,38 @@ the in-game screenshots and fails above 5% (`canvas-no-white-surface-regression`
 so the defect class cannot return silently and the workaround's effectiveness
 is re-measured on every run.
 
-**Deferred, by decision of 2026-08-30:** the root cause lives somewhere in
-renderergl2's lightmapped surface pipeline under Emscripten's WebGL layer and
-needs instrumented diagnostic builds to pin down; that hunt starts after the
-current work-package path (WP2 routed acceptance, WP6), not now. If it ends in
-a small engine patch, the agreed model is a public fork carrying enumerated,
-upstream-mergeable patches on top of the pinned upstream commit — the same
-model the operator's Luanti fork uses — which also means amending WP1's
-"unmodified ioq3" contract deliberately at that point, plus an upstream issue
-or pull request. Until then the engine stays byte-for-byte upstream.
+**The witnessed round then found two further symptoms of the same defect
+class** (2026-08-30, after the workaround landed):
+
+- **Distance-graded entity shading.** Items and player models render with
+  black modulate stages and white/oversaturated additive stages once they are
+  a few hundred units away, and correctly up close; the world and the
+  first-person weapon are correct at every distance. This is deterministically
+  reproducible: a camera at `setviewpos 96 1736 -370 270` shows the four-box
+  ammo cluster (~430 units) with black bodies and neon icons only, while
+  `setviewpos 96 1500 -390 270` (~170 units) shows them fully textured, in
+  the same session. Ruled out against the pinned data and by A/B runs:
+  broken mip levels (`r_textureMode GL_LINEAR` changes nothing), LOD models
+  with unresolved shaders (the pack contains none), fog (the BSP has zero fog
+  volumes), a missing light grid (present, no warnings), and the
+  `r_vertexLight` workaround itself (the defect is visible in the
+  pre-workaround session's screenshots). No configuration lever was found.
+- **Frame flicker.** The operator reports visible geometry flicker that
+  screenshots do not capture — consistent with unstable frames rather than
+  stable wrong pixels. Not yet instrumented.
+
+**Decisions of 2026-08-30, superseding the morning's deferral:** the witnessed
+acceptance proceeds *with these defects recorded* — gameplay, input, audio and
+identity evidence are unaffected, and the round's result records the known
+browser-renderer defect class instead of being blocked by it. The root-cause
+hunt was pulled forward: a timeboxed instrumented-build investigation of
+renderergl2 under Emscripten's WebGL layer, using the deterministic
+reproductions above, on scratch copies only — the `ioq3/` submodule stays
+byte-for-byte upstream while it runs. If it ends in a small engine patch, the
+agreed model is a public fork carrying enumerated, upstream-mergeable patches
+on top of the pinned upstream commit — the same model the operator's Luanti
+fork uses — which also means amending WP1's "unmodified ioq3" contract
+deliberately at that point, plus an upstream issue or pull request.
 
 ## Operator acceptance checklist — **PENDING**
 
