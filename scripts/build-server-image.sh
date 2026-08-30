@@ -145,7 +145,18 @@ printf 'from     %s\n' "${runtime_base}"
 # --timestamp fixes every layer's mtime, so two assemblies of the same content
 # and base produce the same image rather than two images that differ only in
 # when they were made.
+#
+# --no-cache is not belt-and-braces. The Containerfile stamps the engine commit,
+# the baseline identity and the producing commit into labels from build args,
+# and the layer cache was observed matching that LABEL step on its unexpanded
+# instruction text: a rebuild after the pin moved produced an image whose id and
+# labels were the *previous* build's, so the image described a baseline it was
+# not built from and the two-image reproducibility check compared a cache hit
+# with itself. An image that carries its own provenance may not be assembled
+# from a cache keyed on anything less than that provenance. The build is a base
+# plus two COPY layers, so rebuilding it costs almost nothing.
 "${runtime}" build \
+  --no-cache \
   --file "${repo_dir}/native/server.Containerfile" \
   --build-arg "ARENA_SERVER_RUNTIME_BASE=${runtime_base}" \
   --build-arg "ARENA_ENGINE_COMMIT=${engine_commit}" \
