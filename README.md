@@ -39,6 +39,15 @@ release.
   content configuration of the offline one-map slice;
   `docs/wp4-vertical-slice.md` records how the engine is booted, what the
   served set is allowed to contain and what the automated run observed.
+- `native/` is the dedicated server and its native test client: the container
+  definitions, the server's own engine configuration and the declarative profile
+  both sides derive their command line from.
+  `provenance/arena-web-server.json` is the artifact manifest of the server
+  image's content, `locks/native-toolchain-packages.conf` pins the packages the
+  native toolchain installs, and `docs/wp5-packet-census.md` records the build,
+  the image and the packet census.
+- `records/` holds the machine-readable measurement records the work packages
+  produce, starting with the WP5 packet census.
 - `docs/relay-datagram-contract.md` is the public routed datagram contract: the
   protocol subset and byte-exact framing a browser needs to reach one game
   destination through a compatible relay.
@@ -154,6 +163,32 @@ That stages, serves and launches twice, and writes logs, screenshots and a
 machine-readable summary to the gitignored `build/arena-acceptance/`. It is
 pre-acceptance evidence only: a person at the acceptance desktop still has to
 play the slice, and `docs/wp4-vertical-slice.md` carries that checklist.
+
+## Building the native server and taking the packet census
+
+The dedicated server matches the browser client: same engine commit, same
+audited content pack, same accepted QVMs. It is built in a toolchain image that
+is the WP0 native builder base plus exactly the packages
+`locks/native-toolchain-packages.conf` pins, and the distributed image starts
+from the separately pinned Debian runtime base.
+
+```bash
+CONTAINER_RUNTIME=podman scripts/fetch-native-packages.sh    # once, online
+CONTAINER_RUNTIME=podman scripts/build-native-toolchain.sh   # offline
+CONTAINER_RUNTIME=podman scripts/build-native.sh --target server
+CONTAINER_RUNTIME=podman scripts/build-native.sh --target client
+CONTAINER_RUNTIME=podman scripts/build-server-image.sh
+CONTAINER_RUNTIME=podman scripts/run-packet-census.sh
+```
+
+Only the first command uses the network, and it accepts a package only if its
+byte length and SHA-256 match the lock. `scripts/verify-native-build.sh` runs two
+clean builds of either target and compares them.
+
+The census starts the server and the native client on a private container
+network, drives a full session through the client's own console, captures the
+traffic on the server's interface filtered to its own UDP port, and writes a
+machine-readable census. See `docs/wp5-packet-census.md`.
 
 ## Running the relay conformance probe
 

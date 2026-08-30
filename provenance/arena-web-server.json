@@ -1,0 +1,69 @@
+{
+  "$schema": "https://kaesual.github.io/arena-web/schemas/artifact-manifest.schema.json",
+  "artifacts": [
+    {
+      "path": "opt/arena-web/arena/arena-web-ffa.pk3",
+      "sha256": "55a1d51fa99b131c76e5813ee5449fa671c3a584ee251607528868e5a0a05ad7",
+      "size": 24181175
+    },
+    {
+      "path": "opt/arena-web/arena/default.cfg",
+      "sha256": "72c8f5c95e8964271b8a5ddb2eaf1d0f8c659ad2f9dd7e2960f64e044baf02dc",
+      "size": 1970
+    },
+    {
+      "path": "opt/arena-web/arena/vm/qagame.qvm",
+      "sha256": "449fbd197d34ec3f51006438fc2bf961cdabdf38101b6a17d33f107ad4186805",
+      "size": 488108
+    },
+    {
+      "path": "opt/arena-web/ioq3ded",
+      "sha256": "dbb194f26ec8870e004da56acc11d5caa449dd2a2afd829be957f534cef499d2",
+      "size": 798456
+    }
+  ],
+  "baselineIdentity": "sha256:036573866ac5d3da70fbe0b736d8196ebfa94f8b5002bca7fd31fd91943fc1eb",
+  "baselineInputIds": [
+    "ioq3",
+    "native-builder-base",
+    "server-runtime-base"
+  ],
+  "digestAlgorithm": "sha256",
+  "formatVersion": 1,
+  "inputs": [
+    {
+      "id": "arena-web-browser-client",
+      "identity": "sha256:fbfdac8b0eb8b982b7f01d5ece11eaefa1ffaf9583d7095f872f814ffdb2b12b",
+      "kind": "artifact-manifest"
+    },
+    {
+      "id": "arena-web-ffa-content",
+      "identity": "sha256:3e87a994001cc75d8701653bf8ec9003d231fa14a6ccd818831fd23b820e2b15",
+      "kind": "artifact-manifest"
+    },
+    {
+      "id": "ioq3",
+      "identity": "git:588393618dbc82e7207c21c6ddecca229944a03a",
+      "kind": "git"
+    },
+    {
+      "id": "native-builder-base",
+      "identity": "docker.io/library/ubuntu@sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316",
+      "kind": "oci-image"
+    },
+    {
+      "id": "native-toolchain-packages",
+      "identity": "sha256:d36179bb9342033f9412b86f441c7f645e6e873b95ee48700fe952cef5465e10",
+      "kind": "archive"
+    },
+    {
+      "id": "server-runtime-base",
+      "identity": "docker.io/library/debian@sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f",
+      "kind": "oci-image"
+    }
+  ],
+  "producer": {
+    "commit": "da8d356890f90751eb35bd14c8a3ddb8c688d556",
+    "name": "arena-web scripts/build-server-image.sh"
+  }
+}

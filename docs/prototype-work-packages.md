@@ -3,7 +3,7 @@
 # Browser arena: prototype work packages
 
 **Status:** Independently reviewed and approved; WP0, WP1 and WP3 complete;
-WP4 implemented with its witnessed acceptance pending
+WP4 and WP5 implemented with their witnessed rounds pending
 
 This document turns the reviewed direction in
 [`initial-plan.md`](initial-plan.md) into coherent, testable increments. It
@@ -43,7 +43,7 @@ is a plan change; adding another platform is later scope.
 | WP2 | Relay conformance probe and routed-path measurement | WP0 | Deterministic part implemented — public contract, browser probe, in-memory adapter and 125 deterministic tests; routed acceptance pending operator-supplied runtime values |
 | WP3 | Audited deterministic minimal-content closure | WP0 | ✅ Complete — two clean assemblies in the pinned builder image produce a byte-identical 668-member `oa_pvomit` FFA pack from six digest-pinned Debian-cleaned OpenArena archives, every member `GPL-2.0-or-later` with resolved notices, and every reference the two static readings of the pinned `baseq3` QVM sources extract either resolves or is a recipe acceptance with a stated reason |
 | WP4 | One-map offline browser arena with bots | WP1, WP3 | Implemented, witnessed acceptance pending — the product loader, the digest-verified served set and the automated pre-acceptance are built and green in the pinned browser; a person at the WP0 desktop has not yet played it |
-| WP5 | Matching native server and packet census | WP0, WP3 | Approved — the WP0 gap that stopped it (no record type for a redistributed runtime image) was closed by the reviewed amendment of 2026-08-30, which pinned the Debian `13-slim` server runtime base (see the WP5 State block) |
+| WP5 | Matching native server and packet census | WP0, WP3 | Implemented, one witnessed round pending — the pinned native toolchain, the reproducible dedicated server, the runtime-base server image and a 41,823-datagram census of a driven session are built and green; a player scoring against the server is the one acceptance word a blind driven client did not produce |
 | WP6 | Measured network-sizing decision | WP2, WP5 | Approved |
 | WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | Scope gate |
 | WP8 | Two-browser multiplayer acceptance | WP5, WP7 | Scope gate |
@@ -523,9 +523,10 @@ rendering alone is insufficient.
 
 ## WP5 — Matching native server and packet census
 
-**State:** unblocked. The approved WP0 amendment landed on 2026-08-30,
-was independently reviewed at WP0 level and its findings were fixed in the
-same step; WP5 implementation may proceed. No WP5 code exists yet.
+**State:** implemented; one witnessed round pending. The approved WP0 amendment
+landed on 2026-08-30, was independently reviewed at WP0 level and its findings
+were fixed in the same step, which unblocked this work package. The
+implementation followed; see the Result section below.
 
 ### Why WP5 stopped, and the approved resolution
 
@@ -599,7 +600,51 @@ independent review round was not required for it.
 Recorded for WP5 rather than fixed here: `_baseline_input_identities`
 deliberately excludes the new record type, so a WP5 artifact manifest that
 declares `server-runtime-base` as a baseline input fails closed until WP5
-extends that mapping as part of its own reviewed change.
+extends that mapping as part of its own reviewed change. **WP5 has since done
+so**, adding the third collection to that mapping with positive and negative
+tests and without changing any rule an input is checked by; see the Result
+section below.
+
+### Result
+
+The scope below was met without an engine change, without a schema change and
+without a second license gate. The evidence is
+[`wp5-packet-census.md`](wp5-packet-census.md); the server image's content
+identity is
+[`provenance/arena-web-server.json`](../provenance/arena-web-server.json) and
+the census is [`records/wp5-packet-census.json`](../records/wp5-packet-census.json).
+Decided facts:
+
+- **The builder pin needed a package lock of its own, and got one.** The pinned
+  Ubuntu base carries no compiler, so WP5 pins the packages its toolchain adds
+  in `locks/native-toolchain-packages.conf`: one immutable
+  `snapshot.ubuntu.com` archive at an exact timestamp, every package by version,
+  size and SHA-256 from that snapshot's signed index, fetched and verified
+  before an offline image build. An accepted build resolves nothing.
+- **The dedicated server is reproducible.** Two clean builds produce a
+  byte-identical binary, and two image builds produce the same image id. The
+  server's QVM is the accepted WP1 artifact rather than a second build of the
+  same bytecode, so no `lcc` executable is produced at all.
+- **The image adds four files to the pinned runtime base and changes nothing
+  else**, verified by comparing the whole filesystem of the built image with the
+  base's. All 78 per-package copyright files survive — and the obvious check
+  finds only 76, because two of the base's documentation directories are
+  symlinks.
+- **The census confirms WP0's header numbers by measurement**: 10 bytes
+  client-to-server, 8 server-to-client, +4 when fragmented. The observed maximum
+  is 1,312 bytes, exactly `FRAGMENT_SIZE` plus the fragmented server header, and
+  nothing reached `MAX_PACKETLEN`.
+- **Connectionless traffic is rare but not small.** `statusResponse` was 464
+  bytes with four players and grows with the player count, and out-of-band
+  datagrams carry no fragment fields at all — so netchan fragmentation is not a
+  bound for them.
+- **`_baseline_input_identities` was extended**, deliberately and with positive
+  and negative tests, so an artifact manifest may declare the runtime base it
+  ships. Nothing else about how a baseline input is checked changed.
+- **One acceptance word is not met by the automated session.** The client is
+  driven blind and did not frag a bot; that check is recorded as an explicit
+  non-gating observation and a witnessed round is listed in the evidence
+  document.
 
 ### Verified groundwork, recorded ahead of implementation
 
@@ -632,6 +677,11 @@ the WP5 evidence document inherits and re-cites these:
   real GL path (Xvfb + software GL; `SDL_VIDEODRIVER=dummy` yields no GL
   context). Server and client have very different runtime needs; the runtime
   base the amendment pins may be minimal.
+
+**State of the implementation:** the evidence document
+[`wp5-packet-census.md`](wp5-packet-census.md) records the builds, the image,
+the census and the findings. Everything below is built and checked except the
+witnessed "scores" round, which that document carries as a checklist.
 
 ### Outcome
 

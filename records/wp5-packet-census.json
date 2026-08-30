@@ -1,0 +1,1589 @@
+{
+  "checks": [
+    {
+      "check": "client-joined-twice",
+      "detail": "2 'entered the game' lines for ArenaWebCensus",
+      "evidence": "server log",
+      "passed": true,
+      "required": true
+    },
+    {
+      "check": "client-disconnected",
+      "detail": "2 'disconnected' lines for ArenaWebCensus",
+      "evidence": "server log",
+      "passed": true,
+      "required": true
+    },
+    {
+      "check": "client-took-damage-and-died",
+      "detail": "33 obituaries naming ArenaWebCensus as the victim",
+      "evidence": "server log",
+      "passed": true,
+      "required": true
+    },
+    {
+      "check": "client-scored-and-respawned",
+      "detail": "14 score-changing self-inflicted deaths",
+      "evidence": "server log",
+      "passed": true,
+      "required": true
+    },
+    {
+      "check": "client-fragged-a-bot",
+      "detail": "no frag by the blind census client",
+      "evidence": "server log",
+      "passed": false,
+      "required": false
+    },
+    {
+      "check": "two-netchan-connections-observed",
+      "detail": "2 netchan sequence runs",
+      "evidence": "capture",
+      "passed": true,
+      "required": true
+    },
+    {
+      "check": "challenge-and-connect-observed",
+      "detail": "getchallenge, challengeResponse, connect, connectResponse",
+      "evidence": "capture",
+      "passed": true,
+      "required": true
+    },
+    {
+      "check": "initial-queries-observed",
+      "detail": "getinfo, infoResponse, getstatus, statusResponse",
+      "evidence": "capture",
+      "passed": true,
+      "required": true
+    },
+    {
+      "check": "gamestate-fragments-observed",
+      "detail": "2 fragmented messages",
+      "evidence": "capture",
+      "passed": true,
+      "required": true
+    },
+    {
+      "check": "no-media-download-attempted",
+      "detail": "no 'Downloading' or 'dlfile' line in the client log",
+      "evidence": "client log",
+      "passed": true,
+      "required": true
+    },
+    {
+      "check": "no-engine-error",
+      "detail": "no fatal engine error in either log",
+      "evidence": "both logs",
+      "passed": true,
+      "required": true
+    },
+    {
+      "check": "no-unknown-connectionless-command",
+      "detail": "[]",
+      "evidence": "capture",
+      "passed": true,
+      "required": true
+    }
+  ],
+  "session": {
+    "clientArguments": [
+      "+set",
+      "cl_allowDownload",
+      "0",
+      "+set",
+      "com_basegame",
+      "arena",
+      "+set",
+      "headmodel",
+      "skelebot/default",
+      "+set",
+      "in_nograb",
+      "1",
+      "+set",
+      "model",
+      "skelebot/default",
+      "+set",
+      "name",
+      "ArenaWebCensus",
+      "+set",
+      "net_enabled",
+      "1",
+      "+set",
+      "r_customheight",
+      "480",
+      "+set",
+      "r_customwidth",
+      "640",
+      "+set",
+      "r_fullscreen",
+      "0",
+      "+set",
+      "r_mode",
+      "-1",
+      "+set",
+      "s_initsound",
+      "0",
+      "+set",
+      "sv_pure",
+      "0",
+      "+connect",
+      "10.201.27.10:27960"
+    ],
+    "engineCommit": "588393618dbc82e7207c21c6ddecca229944a03a",
+    "maxPlaySeconds": 420,
+    "phases": [
+      {
+        "name": "client-started",
+        "startedAt": 1788053613.017
+      },
+      {
+        "name": "queries-requested",
+        "startedAt": 1788053627.017
+      },
+      {
+        "name": "driven-play",
+        "startedAt": 1788053630.018
+      },
+      {
+        "name": "disconnect-requested",
+        "startedAt": 1788053856.959
+      },
+      {
+        "name": "reconnect-requested",
+        "startedAt": 1788053861.959
+      },
+      {
+        "name": "driven-play-after-reconnect",
+        "startedAt": 1788053875.959
+      },
+      {
+        "name": "final-disconnect-requested",
+        "startedAt": 1788053996.978
+      },
+      {
+        "name": "quit-requested",
+        "startedAt": 1788053999.978
+      },
+      {
+        "name": "session-ended",
+        "startedAt": 1788054000.041
+      }
+    ],
+    "playSeconds": 240,
+    "serverAddress": "10.201.27.10",
+    "serverArguments": [
+      "+set",
+      "bot_enable",
+      "1",
+      "+set",
+      "com_basegame",
+      "arena",
+      "+set",
+      "dedicated",
+      "1",
+      "+set",
+      "fraglimit",
+      "15",
+      "+set",
+      "g_gametype",
+      "0",
+      "+set",
+      "net_enabled",
+      "1",
+      "+set",
+      "net_port",
+      "27960",
+      "+set",
+      "sv_maxclients",
+      "8",
+      "+set",
+      "sv_pure",
+      "0",
+      "+set",
+      "timelimit",
+      "0",
+      "+map",
+      "oa_pvomit",
+      "+addbot",
+      "Skelebot",
+      "1",
+      "free",
+      "2000",
+      "+addbot",
+      "Rai",
+      "1",
+      "free",
+      "3500",
+      "+addbot",
+      "Sly",
+      "1",
+      "free",
+      "5000"
+    ],
+    "serverImage": "arena-web-server:latest",
+    "serverImageId": "97650fdecb396ff731e2c3b51707c07fc06a25fe7db3ca6f5fe4d5370fbdeffa",
+    "serverPort": 27960,
+    "toolchainImage": "arena-web-native-toolchain:d36179bb9342033f",
+    "toolchainImageId": "840ab42edff879671ecc777f644e901e6bee16b4b3c22f2e0ab2709b78c2e677"
+  },
+  "summary": {
+    "byDirection": {
+      "client-to-server": {
+        "all": {
+          "count": 34169,
+          "maximum": 395,
+          "mean": 35.225,
+          "median": 36,
+          "minimum": 13,
+          "percentile95": 39,
+          "percentile99": 40,
+          "totalBytes": 1203619
+        },
+        "byClass": {
+          "connectionless": {
+            "commands": {
+              "connect": {
+                "count": 2,
+                "maximum": 295,
+                "minimum": 267,
+                "sizes": [
+                  267,
+                  295
+                ]
+              },
+              "getchallenge": {
+                "count": 2,
+                "maximum": 39,
+                "minimum": 38,
+                "sizes": [
+                  38,
+                  39
+                ]
+              },
+              "getinfo": {
+                "count": 1,
+                "maximum": 15,
+                "minimum": 15,
+                "sizes": [
+                  15
+                ]
+              },
+              "getstatus": {
+                "count": 1,
+                "maximum": 13,
+                "minimum": 13,
+                "sizes": [
+                  13
+                ]
+              }
+            },
+            "distribution": [
+              [
+                13,
+                1
+              ],
+              [
+                15,
+                1
+              ],
+              [
+                38,
+                1
+              ],
+              [
+                39,
+                1
+              ],
+              [
+                267,
+                1
+              ],
+              [
+                295,
+                1
+              ]
+            ],
+            "fragmented": 0,
+            "statistics": {
+              "count": 6,
+              "maximum": 295,
+              "mean": 111.167,
+              "median": 38,
+              "minimum": 13,
+              "percentile95": 295,
+              "percentile99": 295,
+              "totalBytes": 667
+            }
+          },
+          "netchan": {
+            "distribution": [
+              [
+                15,
+                2
+              ],
+              [
+                20,
+                2
+              ],
+              [
+                24,
+                1
+              ],
+              [
+                25,
+                241
+              ],
+              [
+                26,
+                1900
+              ],
+              [
+                27,
+                584
+              ],
+              [
+                28,
+                47
+              ],
+              [
+                29,
+                116
+              ],
+              [
+                30,
+                214
+              ],
+              [
+                31,
+                813
+              ],
+              [
+                32,
+                1481
+              ],
+              [
+                33,
+                1796
+              ],
+              [
+                34,
+                4097
+              ],
+              [
+                35,
+                3631
+              ],
+              [
+                36,
+                4247
+              ],
+              [
+                37,
+                7331
+              ],
+              [
+                38,
+                5433
+              ],
+              [
+                39,
+                1604
+              ],
+              [
+                40,
+                428
+              ],
+              [
+                41,
+                119
+              ],
+              [
+                42,
+                7
+              ],
+              [
+                44,
+                1
+              ],
+              [
+                46,
+                1
+              ],
+              [
+                50,
+                6
+              ],
+              [
+                54,
+                1
+              ],
+              [
+                55,
+                8
+              ],
+              [
+                56,
+                18
+              ],
+              [
+                57,
+                18
+              ],
+              [
+                58,
+                7
+              ],
+              [
+                394,
+                2
+              ],
+              [
+                395,
+                7
+              ]
+            ],
+            "fragmented": 0,
+            "statistics": {
+              "count": 34163,
+              "maximum": 395,
+              "mean": 35.212,
+              "median": 36,
+              "minimum": 15,
+              "percentile95": 39,
+              "percentile99": 40,
+              "totalBytes": 1202952
+            }
+          }
+        },
+        "byPhase": {
+          "client-started": {
+            "count": 1080,
+            "maximum": 395,
+            "mean": 28.125,
+            "median": 26,
+            "minimum": 15,
+            "percentile95": 26,
+            "percentile99": 27,
+            "totalBytes": 30375
+          },
+          "disconnect-requested": {
+            "count": 3,
+            "maximum": 44,
+            "mean": 36.0,
+            "median": 32,
+            "minimum": 32,
+            "percentile95": 44,
+            "percentile99": 44,
+            "totalBytes": 108
+          },
+          "driven-play": {
+            "count": 20587,
+            "maximum": 58,
+            "mean": 35.86,
+            "median": 36,
+            "minimum": 26,
+            "percentile95": 39,
+            "percentile99": 40,
+            "totalBytes": 738258
+          },
+          "driven-play-after-reconnect": {
+            "count": 10999,
+            "maximum": 58,
+            "mean": 35.817,
+            "median": 36,
+            "minimum": 26,
+            "percentile95": 39,
+            "percentile99": 39,
+            "totalBytes": 393955
+          },
+          "final-disconnect-requested": {
+            "count": 3,
+            "maximum": 46,
+            "mean": 36.667,
+            "median": 32,
+            "minimum": 32,
+            "percentile95": 46,
+            "percentile99": 46,
+            "totalBytes": 110
+          },
+          "queries-requested": {
+            "count": 273,
+            "maximum": 27,
+            "mean": 25.971,
+            "median": 26,
+            "minimum": 13,
+            "percentile95": 27,
+            "percentile99": 27,
+            "totalBytes": 7090
+          },
+          "reconnect-requested": {
+            "count": 1224,
+            "maximum": 395,
+            "mean": 27.551,
+            "median": 26,
+            "minimum": 15,
+            "percentile95": 27,
+            "percentile99": 27,
+            "totalBytes": 33723
+          }
+        },
+        "headerBytes": [
+          10
+        ]
+      },
+      "server-to-client": {
+        "all": {
+          "count": 7654,
+          "maximum": 1312,
+          "mean": 77.179,
+          "median": 71,
+          "minimum": 30,
+          "percentile95": 109,
+          "percentile99": 169,
+          "totalBytes": 590725
+        },
+        "byClass": {
+          "connectionless": {
+            "commands": {
+              "challengeResponse": {
+                "count": 2,
+                "maximum": 47,
+                "minimum": 45,
+                "sizes": [
+                  45,
+                  47
+                ]
+              },
+              "connectResponse": {
+                "count": 2,
+                "maximum": 31,
+                "minimum": 30,
+                "sizes": [
+                  30,
+                  31
+                ]
+              },
+              "infoResponse": {
+                "count": 1,
+                "maximum": 182,
+                "minimum": 182,
+                "sizes": [
+                  182
+                ]
+              },
+              "statusResponse": {
+                "count": 1,
+                "maximum": 464,
+                "minimum": 464,
+                "sizes": [
+                  464
+                ]
+              }
+            },
+            "distribution": [
+              [
+                30,
+                1
+              ],
+              [
+                31,
+                1
+              ],
+              [
+                45,
+                1
+              ],
+              [
+                47,
+                1
+              ],
+              [
+                182,
+                1
+              ],
+              [
+                464,
+                1
+              ]
+            ],
+            "fragmented": 0,
+            "statistics": {
+              "count": 6,
+              "maximum": 464,
+              "mean": 133.167,
+              "median": 45,
+              "minimum": 30,
+              "percentile95": 464,
+              "percentile99": 464,
+              "totalBytes": 799
+            }
+          },
+          "netchan": {
+            "distribution": [
+              [
+                39,
+                3
+              ],
+              [
+                40,
+                2
+              ],
+              [
+                41,
+                2
+              ],
+              [
+                42,
+                5
+              ],
+              [
+                43,
+                7
+              ],
+              [
+                44,
+                7
+              ],
+              [
+                45,
+                13
+              ],
+              [
+                46,
+                17
+              ],
+              [
+                47,
+                22
+              ],
+              [
+                48,
+                22
+              ],
+              [
+                49,
+                22
+              ],
+              [
+                50,
+                39
+              ],
+              [
+                51,
+                36
+              ],
+              [
+                52,
+                37
+              ],
+              [
+                53,
+                48
+              ],
+              [
+                54,
+                45
+              ],
+              [
+                55,
+                75
+              ],
+              [
+                56,
+                66
+              ],
+              [
+                57,
+                76
+              ],
+              [
+                58,
+                97
+              ],
+              [
+                59,
+                160
+              ],
+              [
+                60,
+                164
+              ],
+              [
+                61,
+                168
+              ],
+              [
+                62,
+                200
+              ],
+              [
+                63,
+                233
+              ],
+              [
+                64,
+                259
+              ],
+              [
+                65,
+                261
+              ],
+              [
+                66,
+                317
+              ],
+              [
+                67,
+                277
+              ],
+              [
+                68,
+                281
+              ],
+              [
+                69,
+                301
+              ],
+              [
+                70,
+                314
+              ],
+              [
+                71,
+                248
+              ],
+              [
+                72,
+                258
+              ],
+              [
+                73,
+                255
+              ],
+              [
+                74,
+                226
+              ],
+              [
+                75,
+                220
+              ],
+              [
+                76,
+                184
+              ],
+              [
+                77,
+                198
+              ],
+              [
+                78,
+                161
+              ],
+              [
+                79,
+                156
+              ],
+              [
+                80,
+                136
+              ],
+              [
+                81,
+                119
+              ],
+              [
+                82,
+                127
+              ],
+              [
+                83,
+                92
+              ],
+              [
+                84,
+                109
+              ],
+              [
+                85,
+                113
+              ],
+              [
+                86,
+                98
+              ],
+              [
+                87,
+                90
+              ],
+              [
+                88,
+                85
+              ],
+              [
+                89,
+                93
+              ],
+              [
+                90,
+                77
+              ],
+              [
+                91,
+                75
+              ],
+              [
+                92,
+                50
+              ],
+              [
+                93,
+                48
+              ],
+              [
+                94,
+                48
+              ],
+              [
+                95,
+                49
+              ],
+              [
+                96,
+                48
+              ],
+              [
+                97,
+                46
+              ],
+              [
+                98,
+                27
+              ],
+              [
+                99,
+                30
+              ],
+              [
+                100,
+                42
+              ],
+              [
+                101,
+                36
+              ],
+              [
+                102,
+                25
+              ],
+              [
+                103,
+                25
+              ],
+              [
+                104,
+                25
+              ],
+              [
+                105,
+                23
+              ],
+              [
+                106,
+                12
+              ],
+              [
+                107,
+                21
+              ],
+              [
+                108,
+                12
+              ],
+              [
+                109,
+                11
+              ],
+              [
+                110,
+                6
+              ],
+              [
+                111,
+                18
+              ],
+              [
+                112,
+                17
+              ],
+              [
+                113,
+                14
+              ],
+              [
+                114,
+                12
+              ],
+              [
+                115,
+                8
+              ],
+              [
+                116,
+                7
+              ],
+              [
+                117,
+                8
+              ],
+              [
+                118,
+                6
+              ],
+              [
+                119,
+                8
+              ],
+              [
+                120,
+                6
+              ],
+              [
+                121,
+                2
+              ],
+              [
+                122,
+                2
+              ],
+              [
+                123,
+                1
+              ],
+              [
+                124,
+                5
+              ],
+              [
+                125,
+                5
+              ],
+              [
+                126,
+                3
+              ],
+              [
+                127,
+                3
+              ],
+              [
+                129,
+                3
+              ],
+              [
+                130,
+                4
+              ],
+              [
+                131,
+                2
+              ],
+              [
+                132,
+                5
+              ],
+              [
+                133,
+                3
+              ],
+              [
+                134,
+                1
+              ],
+              [
+                135,
+                3
+              ],
+              [
+                136,
+                2
+              ],
+              [
+                137,
+                4
+              ],
+              [
+                138,
+                3
+              ],
+              [
+                139,
+                1
+              ],
+              [
+                140,
+                2
+              ],
+              [
+                141,
+                6
+              ],
+              [
+                142,
+                3
+              ],
+              [
+                143,
+                2
+              ],
+              [
+                145,
+                6
+              ],
+              [
+                146,
+                4
+              ],
+              [
+                147,
+                1
+              ],
+              [
+                148,
+                1
+              ],
+              [
+                149,
+                6
+              ],
+              [
+                150,
+                2
+              ],
+              [
+                151,
+                3
+              ],
+              [
+                152,
+                2
+              ],
+              [
+                154,
+                3
+              ],
+              [
+                155,
+                3
+              ],
+              [
+                156,
+                3
+              ],
+              [
+                157,
+                5
+              ],
+              [
+                158,
+                2
+              ],
+              [
+                159,
+                1
+              ],
+              [
+                161,
+                1
+              ],
+              [
+                163,
+                5
+              ],
+              [
+                164,
+                8
+              ],
+              [
+                165,
+                10
+              ],
+              [
+                166,
+                14
+              ],
+              [
+                167,
+                10
+              ],
+              [
+                168,
+                16
+              ],
+              [
+                169,
+                21
+              ],
+              [
+                177,
+                1
+              ],
+              [
+                178,
+                1
+              ],
+              [
+                179,
+                1
+              ],
+              [
+                183,
+                3
+              ],
+              [
+                184,
+                2
+              ],
+              [
+                185,
+                1
+              ],
+              [
+                189,
+                2
+              ],
+              [
+                191,
+                1
+              ],
+              [
+                193,
+                2
+              ],
+              [
+                195,
+                1
+              ],
+              [
+                198,
+                1
+              ],
+              [
+                201,
+                1
+              ],
+              [
+                202,
+                1
+              ],
+              [
+                207,
+                1
+              ],
+              [
+                209,
+                1
+              ],
+              [
+                214,
+                1
+              ],
+              [
+                219,
+                1
+              ],
+              [
+                221,
+                1
+              ],
+              [
+                223,
+                2
+              ],
+              [
+                224,
+                1
+              ],
+              [
+                228,
+                2
+              ],
+              [
+                229,
+                3
+              ],
+              [
+                230,
+                3
+              ],
+              [
+                233,
+                1
+              ],
+              [
+                234,
+                1
+              ],
+              [
+                238,
+                2
+              ],
+              [
+                239,
+                1
+              ],
+              [
+                240,
+                1
+              ],
+              [
+                245,
+                1
+              ],
+              [
+                246,
+                2
+              ],
+              [
+                250,
+                1
+              ],
+              [
+                251,
+                2
+              ],
+              [
+                256,
+                1
+              ],
+              [
+                260,
+                2
+              ],
+              [
+                261,
+                3
+              ],
+              [
+                262,
+                2
+              ],
+              [
+                264,
+                1
+              ],
+              [
+                265,
+                1
+              ],
+              [
+                266,
+                2
+              ],
+              [
+                268,
+                1
+              ],
+              [
+                269,
+                1
+              ],
+              [
+                275,
+                1
+              ],
+              [
+                276,
+                1
+              ],
+              [
+                279,
+                1
+              ],
+              [
+                286,
+                1
+              ],
+              [
+                291,
+                1
+              ],
+              [
+                299,
+                1
+              ],
+              [
+                304,
+                1
+              ],
+              [
+                306,
+                1
+              ],
+              [
+                1017,
+                1
+              ],
+              [
+                1018,
+                1
+              ],
+              [
+                1312,
+                2
+              ]
+            ],
+            "fragmented": 4,
+            "statistics": {
+              "count": 7648,
+              "maximum": 1312,
+              "mean": 77.135,
+              "median": 71,
+              "minimum": 39,
+              "percentile95": 109,
+              "percentile99": 169,
+              "totalBytes": 589926
+            }
+          }
+        },
+        "byPhase": {
+          "client-started": {
+            "count": 269,
+            "maximum": 1312,
+            "mean": 90.903,
+            "median": 74,
+            "minimum": 31,
+            "percentile95": 184,
+            "percentile99": 260,
+            "totalBytes": 24453
+          },
+          "disconnect-requested": {
+            "count": 40,
+            "maximum": 169,
+            "mean": 167.45,
+            "median": 167,
+            "minimum": 165,
+            "percentile95": 169,
+            "percentile99": 169,
+            "totalBytes": 6698
+          },
+          "driven-play": {
+            "count": 4539,
+            "maximum": 306,
+            "mean": 76.529,
+            "median": 72,
+            "minimum": 39,
+            "percentile95": 105,
+            "percentile99": 156,
+            "totalBytes": 347363
+          },
+          "driven-play-after-reconnect": {
+            "count": 2421,
+            "maximum": 291,
+            "mean": 74.254,
+            "median": 70,
+            "minimum": 44,
+            "percentile95": 100,
+            "percentile99": 145,
+            "totalBytes": 179770
+          },
+          "final-disconnect-requested": {
+            "count": 40,
+            "maximum": 169,
+            "mean": 166.175,
+            "median": 165,
+            "minimum": 163,
+            "percentile95": 169,
+            "percentile99": 169,
+            "totalBytes": 6647
+          },
+          "queries-requested": {
+            "count": 62,
+            "maximum": 464,
+            "mean": 85.694,
+            "median": 73,
+            "minimum": 61,
+            "percentile95": 111,
+            "percentile99": 182,
+            "totalBytes": 5313
+          },
+          "reconnect-requested": {
+            "count": 283,
+            "maximum": 1312,
+            "mean": 72.371,
+            "median": 61,
+            "minimum": 30,
+            "percentile95": 100,
+            "percentile99": 195,
+            "totalBytes": 20481
+          }
+        },
+        "headerBytes": [
+          8,
+          12
+        ]
+      }
+    },
+    "connections": [
+      {
+        "clientSourcePorts": [
+          27960
+        ],
+        "clientToServer": 21939,
+        "endedAt": 1788053858.921143,
+        "index": 0,
+        "qports": [
+          24195
+        ],
+        "serverToClient": 4906,
+        "startedAt": 1788053613.718673
+      },
+      {
+        "clientSourcePorts": [
+          27960
+        ],
+        "clientToServer": 12224,
+        "endedAt": 1788053998.971094,
+        "index": 1,
+        "qports": [
+          24195
+        ],
+        "serverToClient": 2742,
+        "startedAt": 1788053862.006439
+      }
+    ],
+    "engineBounds": {
+      "fragmentSize": 1300,
+      "maxMsgLen": 16384,
+      "maxPacketLen": 1400,
+      "observedAtOrAboveFragmentSize": 2,
+      "observedAtOrAboveMaxPacketLen": 0
+    },
+    "fragmentedMessages": [
+      {
+        "connectionIndex": 0,
+        "direction": "server-to-client",
+        "fragments": 2,
+        "largestDatagramBytes": 1312,
+        "messageBytes": 2305,
+        "sequence": 1,
+        "startedAt": 1788053613.718798,
+        "totalUdpPayloadBytes": 2329
+      },
+      {
+        "connectionIndex": 1,
+        "direction": "server-to-client",
+        "fragments": 2,
+        "largestDatagramBytes": 1312,
+        "messageBytes": 2306,
+        "sequence": 1,
+        "startedAt": 1788053862.006547,
+        "totalUdpPayloadBytes": 2330
+      }
+    ],
+    "headerAsymmetry": {
+      "client-to-server": {
+        "count": 34163,
+        "headerBytes": [
+          10
+        ]
+      },
+      "client-to-server-fragmented": {
+        "count": 0,
+        "headerBytes": []
+      },
+      "difference": 2,
+      "server-to-client": {
+        "count": 7644,
+        "headerBytes": [
+          8
+        ]
+      },
+      "server-to-client-fragmented": {
+        "count": 4,
+        "headerBytes": [
+          12
+        ]
+      }
+    },
+    "milestones": {
+      "challengeResponse": {
+        "direction": "server-to-client",
+        "index": 1,
+        "timestamp": 1788053613.616547,
+        "udpPayloadBytes": 47
+      },
+      "connect": {
+        "direction": "client-to-server",
+        "index": 2,
+        "timestamp": 1788053613.717211,
+        "udpPayloadBytes": 267
+      },
+      "connectResponse": {
+        "direction": "server-to-client",
+        "index": 3,
+        "timestamp": 1788053613.71736,
+        "udpPayloadBytes": 31
+      },
+      "firstFragment": {
+        "direction": "server-to-client",
+        "index": 5,
+        "timestamp": 1788053613.718798,
+        "udpPayloadBytes": 1312
+      },
+      "firstNetchanClientToServer": {
+        "direction": "client-to-server",
+        "index": 4,
+        "timestamp": 1788053613.718673,
+        "udpPayloadBytes": 15
+      },
+      "firstNetchanServerToClient": {
+        "direction": "server-to-client",
+        "index": 5,
+        "timestamp": 1788053613.718798,
+        "udpPayloadBytes": 1312
+      },
+      "getchallenge": {
+        "direction": "client-to-server",
+        "index": 0,
+        "timestamp": 1788053613.61648,
+        "udpPayloadBytes": 39
+      },
+      "getinfo": {
+        "direction": "client-to-server",
+        "index": 1349,
+        "timestamp": 1788053627.021111,
+        "udpPayloadBytes": 15
+      },
+      "getstatus": {
+        "direction": "client-to-server",
+        "index": 1519,
+        "timestamp": 1788053628.528026,
+        "udpPayloadBytes": 13
+      },
+      "infoResponse": {
+        "direction": "server-to-client",
+        "index": 1352,
+        "timestamp": 1788053627.021186,
+        "udpPayloadBytes": 182
+      },
+      "statusResponse": {
+        "direction": "server-to-client",
+        "index": 1521,
+        "timestamp": 1788053628.528053,
+        "udpPayloadBytes": 464
+      }
+    },
+    "overall": {
+      "clientSourcePorts": [
+        27960
+      ],
+      "count": 41823,
+      "maximumUdpPayloadBytes": 1312,
+      "qports": [
+        24195
+      ],
+      "unknownConnectionlessCommands": []
+    }
+  }
+}

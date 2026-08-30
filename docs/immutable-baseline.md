@@ -131,6 +131,16 @@ below. That still leaves WP5 to pin every additional package or builder layer
 it introduces: this builder pin alone is not permission to use an unversioned
 package repository during an accepted build.
 
+WP5 did exactly that. The base carries no compiler, so
+[`locks/native-toolchain-packages.conf`](../locks/native-toolchain-packages.conf)
+pins the packages its toolchain image installs — one immutable
+`snapshot.ubuntu.com` archive at an exact timestamp, and every package by name,
+version, size and SHA-256 taken from that snapshot's GPG-signed index. An
+accepted build resolves nothing and downloads nothing: the packages are fetched
+and digest-verified first, and the image is assembled offline. That lock is
+WP5's own, validated by `scripts/native_toolchain.py`, and it is not part of the
+baseline identity; see [`wp5-packet-census.md`](wp5-packet-census.md).
+
 ## Server runtime base, and why WP0 had to be amended for it
 
 **Amendment of 2026-08-30.** WP5 stopped before implementation because its
