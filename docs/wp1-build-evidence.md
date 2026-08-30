@@ -574,7 +574,7 @@ two image builds:
 | Regenerated manifest vs. `provenance/arena-web-server.json` | agrees, `producer` aside |
 
 The image **id** does change, to
-`27a307166f2fad40c73a8a4df2c59e5a1f9db13584383296a84ec5306f42dfc2`, and the
+`167138a3d63f8fdac8e9f20966c7c438c4c5c0da1eec04707f02beca6c959679`, and the
 image was rebuilt for that reason: `native/server.Containerfile` stamps the
 engine commit, the baseline identity and the producing commit into
 `com.kaesual.arena-web.*` labels, so an unrebuilt image would keep asserting the
@@ -582,6 +582,24 @@ superseded baseline while the provenance record asserted the new one. The
 distributed bytes under `/opt/arena-web` are the same bytes; only the labels
 moved. The WP5 evidence documents are records of the rounds they describe and
 are left exactly as written.
+
+### A build-cache defect found while proving that
+
+The first attempt at that rebuild produced an image whose id was byte-for-byte
+the previous build's, and whose labels proved it: `engine-commit` `5883936…`,
+the superseded baseline identity, and a producer commit from an earlier session.
+The layer cache had matched the `LABEL` step on its unexpanded instruction text,
+so the substituted build-arg values never entered the cache key.
+
+That is worse than a stale tag. The image would have described a baseline it was
+not built from while the provenance record asserted the new one, and
+`verify-native-build.sh`'s "two image builds produced the same image id" was
+comparing a cache hit with itself — a check that could not fail. The image is
+now built with `--no-cache`: an image that carries its own provenance may not be
+assembled from a cache keyed on less than that provenance, and a base plus two
+`COPY` layers costs nothing to rebuild. With the cache off, three independent
+builds — the two verification builds and the canonical `latest` — produced the
+same id, which is now a real result.
 
 ### Validation of the fix
 
