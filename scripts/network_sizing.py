@@ -148,15 +148,30 @@ def engine_value(name: str) -> int:
 # Netchan datagram geometry
 # --------------------------------------------------------------------------
 
-# Every netchan datagram opens with the sequence number and the challenge
-# checksum; a client adds its qport, and a fragment adds the two fragment
+# Every netchan datagram opens with the sequence number; a client adds its
+# qport, the challenge checksum follows, and a fragment adds the two fragment
 # fields. This is the same decomposition `packet_census.classify` applies to
 # captured bytes, which is why the derived header widths below and the census's
 # observed `headerAsymmetry` must agree — and the derivation checks that they do.
 SEQUENCE_BYTES = 4  # code/qcommon/net_chan.c:118 and :207
 QPORT_BYTES = 2  # code/qcommon/net_chan.c:123, client to server only
-CHECKSUM_BYTES = 4  # code/qcommon/net_chan.c:129 and :210, NETCHAN_GENCHECKSUM
 FRAGMENT_FIELD_BYTES = 4  # code/qcommon/net_chan.c:137-138, start + length
+
+# The challenge checksum is **not** unconditional, and getting this wrong would
+# understate nothing but misdescribe the protocol. Both write sites
+# (code/qcommon/net_chan.c:129 and :210) and the matching read
+# (code/qcommon/net_chan.c:270-278) sit under `#ifdef LEGACY_PROTOCOL` /
+# `if(!chan->compat)`, and LEGACY_PROTOCOL *is* defined in this build:
+# code/qcommon/q_shared.h:52 defines it in the non-STANDALONE branch, and
+# neither build script sets STANDALONE. So the four widths this module derives
+# are the protocol-71 non-compat path — which is what the census observed on all
+# 41,833 datagrams, and what the WP7 profile pins by refusing the legacy path.
+#
+# The direction of safety is worth stating: a compat (protocol-68) connection
+# *omits* these four bytes, so every header is 4 bytes SMALLER and every bound
+# derived here remains a valid upper bound. Sizing can never be broken by the
+# legacy path; only the header geometry's description would be.
+CHECKSUM_BYTES = 4  # code/qcommon/net_chan.c:129 and :210, NETCHAN_GENCHECKSUM
 
 OUT_OF_BAND_PREFIX_BYTES = 4  # the 0xffffffff sequence, net_chan.c:578-581
 
@@ -167,10 +182,17 @@ def _check_direction(direction: str) -> str:
     return direction
 
 
-def netchan_header_bytes(direction: str, *, fragmented: bool) -> int:
-    """Return the netchan header width for one direction and framing."""
+def netchan_header_bytes(
+    direction: str, *, fragmented: bool, compat: bool = False
+) -> int:
+    """Return the netchan header width for one direction and framing.
+
+    `compat` models a legacy protocol-68 connection, which omits the challenge
+    checksum. It exists so the direction-of-safety claim above is computed
+    rather than asserted in prose; the fixed profile refuses that path.
+    """
     _check_direction(direction)
-    header = SEQUENCE_BYTES + CHECKSUM_BYTES
+    header = SEQUENCE_BYTES + (0 if compat else CHECKSUM_BYTES)
     if direction == CLIENT_TO_SERVER:
         header += QPORT_BYTES
     if fragmented:
@@ -841,6 +863,17 @@ OOB_DATA_CEILING_CITATION = "code/qcommon/net_chan.c:600,616"
 # checked on the wire instead of trusted.
 HUFFMAN_EXPANSION_BYTES = 2
 
+# The server's rcon output redirect buffer, code/server/sv_main.c:714.
+SV_OUTPUTBUF_LENGTH = 1024 - 16
+
+# `getchallenge` and `connect` are formatted into the same local buffer,
+# `char data[MAX_INFO_STRING + 10]` at code/client/cl_main.c:2373. Com_sprintf
+# truncates to it, so the emitted datagram cannot exceed the buffer's string
+# length plus the out-of-band prefix.
+GETCHALLENGE_BUFFER_CEILING_BYTES = (
+    engine_value("MAX_INFO_STRING") + 10 - 1 + OUT_OF_BAND_PREFIX_BYTES
+)
+
 
 def connectionless_boundary_cases(
     profile: PrototypeProfile = PROTOTYPE_PROFILE,
@@ -940,7 +973,7 @@ def connectionless_boundary_cases(
         ('literal "getchallenge "', len("getchallenge ")),
         ('client challenge, "%d" of an int', digits),
         ("space", 1),
-        ("com_gamename, bounded only by the data buffer", profile.game_name_bytes),
+        ("com_gamename, GAMENAME_FOR_MASTER default", profile.game_name_bytes),
     )
 
     get_status_terms = (
@@ -956,6 +989,34 @@ def connectionless_boundary_cases(
     rcon_terms = (
         ("out-of-band prefix", OUT_OF_BAND_PREFIX_BYTES),
         ("message, MAX_RCON_MESSAGE - 4", 1024 - OUT_OF_BAND_PREFIX_BYTES),
+    )
+
+    # The rcon *answer*. SV_FlushRedirect prints the accumulated command output
+    # back out of band, bounded by the redirect buffer rather than by anything
+    # rcon itself declares. It is a second server-to-client consequence of rcon
+    # and is off the relayed path for exactly the same reason rcon is.
+    rcon_print_terms = (
+        ("out-of-band prefix", OUT_OF_BAND_PREFIX_BYTES),
+        ('literal "print\\n"', len("print\n")),
+        ("output, SV_OUTPUTBUF_LENGTH - 1", SV_OUTPUTBUF_LENGTH - 1),
+    )
+
+    # The one out-of-band class the *server* can elicit from the client. The
+    # client answers an `echo` command by sending its argument straight back,
+    # so unlike the server-browser classes it cannot be excluded by saying the
+    # client never originates it — the trigger belongs to the destination.
+    #
+    # The bound is the read line, not the info string: CL_ConnectionlessPacket
+    # reads the command with MSG_ReadStringLine, which truncates at
+    # MAX_STRING_CHARS - 1 (code/qcommon/msg.c:508,526), and the command token
+    # plus its separating space consume five of those bytes.
+    echo_argument_bytes = engine_value("MAX_STRING_CHARS") - 1 - len("echo ")
+    echo_terms = (
+        ("out-of-band prefix", OUT_OF_BAND_PREFIX_BYTES),
+        (
+            'Cmd_Argv(1), the read line less "echo "',
+            echo_argument_bytes,
+        ),
     )
 
     browser_note = (
@@ -1079,12 +1140,15 @@ def connectionless_boundary_cases(
             inner_bytes=_sum_terms(get_challenge_terms),
             terms=get_challenge_terms,
             citation="code/client/cl_main.c:2404-2406",
-            code_ceiling_bytes=OOB_PRINT_CEILING_BYTES,
-            ceiling_citation=OOB_PRINT_CEILING_CITATION,
+            code_ceiling_bytes=GETCHALLENGE_BUFFER_CEILING_BYTES,
+            ceiling_citation="code/client/cl_main.c:2373",
             note=(
-                "com_gamename is a short fixed string in this profile; the buffer "
-                "that formats the whole command is MAX_INFO_STRING + 10 "
-                "(cl_main.c:2373), which is the only thing bounding it in general"
+                "the realized size in the fixed profile, where com_gamename keeps "
+                "its GAMENAME_FOR_MASTER default and the derivation therefore "
+                "reproduces the census's observed 40-byte maximum exactly. The "
+                "ceiling beside it is what bounds the command in general: the "
+                "MAX_INFO_STRING + 10 buffer it is formatted into, which "
+                "Com_sprintf truncates to"
             ),
         ),
         BoundaryCase(
@@ -1118,6 +1182,50 @@ def connectionless_boundary_cases(
                 "" if profile.server_browser_queries_on_relay_path else browser_note
             ),
             note="a fixed literal",
+        ),
+        BoundaryCase(
+            name="echo",
+            direction=CLIENT_TO_SERVER,
+            kind=CONNECTIONLESS,
+            fragmentable=False,
+            inner_bytes=_sum_terms(echo_terms),
+            terms=echo_terms,
+            citation="code/client/cl_main.c:2784-2791",
+            code_ceiling_bytes=OOB_PRINT_CEILING_BYTES,
+            ceiling_citation=OOB_PRINT_CEILING_CITATION,
+            on_relay_path=True,
+            note=(
+                "the only out-of-band class the destination can elicit from the "
+                "client, so it cannot be excluded the way the server-browser "
+                "classes are. The client answers an `echo` from its own server "
+                "address by sending the argument straight back. On the relayed "
+                "path the eliciting datagram is itself budget-bounded and the "
+                "reply is strictly smaller than it, but WP2's method cannot "
+                "attribute a budget per direction, so that is not a bound this "
+                "decision may rely on: the emitted-size check is"
+            ),
+        ),
+        BoundaryCase(
+            name="print-rcon-redirect",
+            direction=SERVER_TO_CLIENT,
+            kind=CONNECTIONLESS,
+            fragmentable=False,
+            inner_bytes=_sum_terms(rcon_print_terms),
+            terms=rcon_print_terms,
+            citation="code/server/sv_main.c:696-698,714-715,744",
+            code_ceiling_bytes=OOB_PRINT_CEILING_BYTES,
+            ceiling_citation=OOB_PRINT_CEILING_CITATION,
+            on_relay_path=False,
+            off_path_reason=(
+                "it is the answer to an rcon command, and the profile sets no "
+                "rcon password and exposes no client rcon command, so nothing "
+                "can elicit it"
+            ),
+            note=(
+                "the rcon answer, bounded by the redirect buffer rather than by "
+                "the out-of-band path; listed so that both consequences of rcon "
+                "are visible together"
+            ),
         ),
         BoundaryCase(
             name="rcon",

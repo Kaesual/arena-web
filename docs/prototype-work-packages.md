@@ -800,8 +800,12 @@ value, with nothing else in the profile beginning to fragment. Bounded tunnel
 fragmentation is not needed for netchan traffic. What a fragment-size change
 does *not* address is out-of-band traffic, which the engine never fragments and
 to which it applies no packet-sized ceiling at all: `statusResponse` reaches
-1,443 bytes and `connect` 1,039, so the decision adds explicit profile bounds
-and a fail-closed emitted-size check rather than relying on fragmentation.
+1,443 bytes, `connect` 1,039 and the server-elicited `echo` reply 1,022, so the
+decision adds explicit profile bounds and a fail-closed emitted-size check
+rather than relying on fragmentation. Most of those classes are excluded because
+the client never originates them; `echo` is the exception, because the
+destination triggers it, and it is the reason the emitted-size check is a
+requirement rather than a belt-and-braces addition.
 
 Still open, and the operator's: the strategy selection, the sizing target, the
 userinfo cap and every numeric WP8 threshold.
@@ -890,6 +894,7 @@ selects a *different strategy*, this contract is withdrawn and WP6 rewrites it.
 | `[decision: FRAGMENT_SIZE]` | 704 | WP6, budget less the 64-byte reserve, aligned |
 | `[decision: userinfo cap]` | 512 bytes | WP6, inside either target's limit |
 | `[decision: receive queue depth]` | 256 datagrams | WP6 proposed WP8 threshold |
+| `[decision: echo treatment]` | refuse the oversize reply via the emitted-size check | WP6; the alternative is disabling the handler |
 
 ### Outcome
 
@@ -954,14 +959,26 @@ re-censused, because the selected strategy changes server-side packet logic.
   or `getinfo` on a relayed session. WP6 bounds `statusResponse` and
   `infoResponse` by excluding them, not by capping them, and the exclusion has
   to be real.
+- Launch both the server and the browser client with `+set com_legacyprotocol 0`.
+  The pinned server otherwise accepts protocol-68 connections by default, which
+  bypasses the gamename check and drops the challenge-checksum spoofing
+  protection, and which would put a second netchan header geometry on the wire
+  besides the one WP6 derived and the census observed. This is a sizing-neutral
+  hardening requirement — a compat connection only makes datagrams smaller — but
+  it must be in the launch profile and asserted by the re-census.
+- Handle the out-of-band `echo` class, which the destination triggers rather
+  than the client. Per `[decision: echo treatment]`, the emitted-size check
+  refuses an oversize reply and counts it; losing an `echo` answer costs the
+  session nothing. WP7 must not assume the inbound budget bounds the reply — WP2
+  could not attribute a budget per direction, so the check is the bound.
 
 ### Minimum acceptance envelope
 
 - Automated native/unit tests cover address conversion, queue limits and
   overflow, send and receive failures, shutdown, the emitted-size check
-  including the compressed `connect` case, the userinfo cap, the budget-change
-  path, and fragment reassembly at the selected `FRAGMENT_SIZE` including the
-  zero-length terminator case.
+  including the compressed `connect` case and an oversize `echo` reply, the
+  userinfo cap, the budget-change path, and fragment reassembly at the selected
+  `FRAGMENT_SIZE` including the zero-length terminator case.
 - A test that fails when client and server `FRAGMENT_SIZE` disagree.
 - The exact browser connects through the shared relay to the exact server and
   can join, move, fire, score, disconnect and reconnect.
@@ -970,9 +987,11 @@ re-censused, because the selected strategy changes server-side packet logic.
   The re-census must show: no datagram in either direction above
   `[decision: inner budget]`, the largest fragment datagram equal to
   `[decision: FRAGMENT_SIZE]` plus the fragmented header for its direction, the
-  gamestate split into the fragment count WP6 predicts, and no connectionless
-  class over budget. `scripts/derive-network-sizing.py` re-run against the new
-  census must report every bound still passing.
+  gamestate split into the fragment count WP6 predicts, no connectionless class
+  over budget, and the netchan header widths still 8/10/12/14 — which is also
+  the observable proof that `com_legacyprotocol 0` took effect.
+  `scripts/derive-network-sizing.py` re-run against the new census must report
+  every bound still passing.
 - No packet is delivered across browser sessions or outside the authorized
   virtual destination.
 - Browser and server logs demonstrate exact engine/QVM/content identity.

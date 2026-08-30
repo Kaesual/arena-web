@@ -17,7 +17,10 @@ makes them?**
 
 The short answer is that they cannot as they stand, that the reason is
 measured rather than argued, and that one symmetric constant in both engines
-plus two profile bounds is enough to fix it. The long answer is below.
+plus a short list of profile bounds is enough to fix it. The long answer is
+below — and the profile bounds turn out to matter as much as the constant,
+because the traffic that does not fit is largely traffic the engine never
+fragments.
 
 ## What this document decides, and what it does not
 
@@ -129,18 +132,39 @@ the conservative reading, and records the gap as inherited rather than closed.
 
 ### Netchan geometry
 
-Every netchan datagram opens with the sequence number (4 bytes) and the
-challenge checksum (4 bytes, `NETCHAN_GENCHECKSUM`,
-`code/qcommon/qcommon.h:191`, written unconditionally at
-`code/qcommon/net_chan.c:129` and `:210`). A client adds its 2-byte qport
-(`net_chan.c:123`), and a fragment adds `fragmentStart` and `fragmentLength`
-(`net_chan.c:137-138`). That gives four header widths, and the census observed
-exactly these on 41,833 real datagrams:
+Every netchan datagram opens with the sequence number (4 bytes). A client adds
+its 2-byte qport (`net_chan.c:123`), the challenge checksum follows (4 bytes,
+`NETCHAN_GENCHECKSUM`, `code/qcommon/qcommon.h:191`, written at
+`code/qcommon/net_chan.c:129` and `:210`), and a fragment adds `fragmentStart`
+and `fragmentLength` (`net_chan.c:137-138`). That gives four header widths, and
+the census observed exactly these on 41,833 real datagrams:
 
 | Direction | Unfragmented | Fragmented |
 | --- | --- | --- |
 | server → client | 8 | 12 |
 | client → server | 10 | 14 |
+
+**The checksum is not unconditional, and the profile is what makes these four
+widths the only ones in play.** Both write sites and the matching read
+(`net_chan.c:270-278`) sit under `#ifdef LEGACY_PROTOCOL` / `if(!chan->compat)`,
+and `LEGACY_PROTOCOL` *is* defined in this build: `q_shared.h:52` defines it in
+the non-`STANDALONE` branch, neither build script sets `STANDALONE`, and both
+built artifacts contain the `com_legacyprotocol` cvar name, which exists only
+under that `#ifdef`. The widths above are therefore the **protocol-71
+non-compat** path — which is what the census observed on every one of its
+41,833 datagrams.
+
+A legacy protocol-68 connection would omit those four bytes, making **every
+header 4 bytes smaller**. The direction of safety is one way only: the legacy
+path can only shrink datagrams, so every bound derived here stays a valid upper
+bound and no sizing conclusion can be broken by it. What the legacy path would
+break is elsewhere: the pinned server accepts protocol-68 by default
+(`sv_client.c:354-356` sets `compat` when the client's declared version equals
+`com_legacyprotocol`, which defaults to 68 via `PROTOCOL_LEGACY_VERSION`,
+`qcommon.h:248`), and a legacy connect both bypasses the gamename check
+(`sv_client.c:86-92`) and loses the challenge-checksum spoofing protection. The
+decision therefore pins the profile to the non-legacy path — see the profile
+bounds below — rather than relying on it not being used.
 
 `Netchan_Transmit` fragments when the message length is **greater than or equal
 to** `FRAGMENT_SIZE` (`net_chan.c:187`), so at the stock `FRAGMENT_SIZE` of
@@ -185,14 +209,23 @@ FFA map, the committed QVM and content.
 | `connect` | c → s | **1,039** | 1,081 | no | no | **no** |
 | `infoResponse` | s → c | 1,040 | 1,082 | no | no | **no** |
 | `rcon` | c → s | 1,024 | 1,066 | no | no | **no** |
-| `print` | s → c | 86 | 128 | yes | yes | **no** |
+| **`echo`** | **c → s** | **1,022** | **1,064** | **no** | **no** | **no** |
+| `print` (rcon redirect) | s → c | 1,017 | 1,059 | no | no | **no** |
+| `print` (rejection) | s → c | 86 | 128 | yes | yes | **no** |
 | `challengeResponse` | s → c | 57 | 99 | yes | yes | **no** |
-| `getchallenge` | c → s | 40 | 82 | yes | yes | **no** |
+| `getchallenge` | c → s | 40 (ceiling 1,037) | 82 | yes | yes | **no** |
 | `connectResponse` | s → c | 31 | 73 | yes | yes | **no** |
 | `getinfo` | c → s | 15 | 57 | yes | yes | **no** |
 | `getstatus` | c → s | 13 | 55 | yes | yes | **no** |
 | netchan fragment | c → s | 1,314 | 1,356 | no | no | n/a — it *is* the fragment |
 | netchan fragment | s → c | 1,312 | 1,354 | no | no | n/a |
+
+`getchallenge` is the one row carrying two numbers, because the two differ for a
+reason worth seeing: 40 bytes is what this profile realizes, with `com_gamename`
+at its `GAMENAME_FOR_MASTER` default — and the derivation reproducing the
+census's observed 40-byte maximum exactly is a useful check on the whole method.
+1,037 is what bounds the command in general: the `char data[MAX_INFO_STRING + 10]`
+buffer it is formatted into (`cl_main.c:2373`), which `Com_sprintf` truncates to.
 
 The derivation of the two large ones:
 
@@ -372,8 +405,18 @@ once, during connect** — 108 additional wire bytes on a 2.4 KB transfer.
 
 ### Profile bounds the strategy also needs
 
-A fragment-size change does nothing for out-of-band traffic. Three classes are
-over budget at both targets, and each needs an explicit, enforced bound:
+A fragment-size change does nothing for out-of-band traffic. **Six classes are
+over budget at both targets** — `statusResponse`, `infoResponse`, `connect`,
+`echo`, `rcon` and the rcon redirect's `print` — and they need four treatments,
+grouped below. A fifth item follows them: the legacy protocol path, which is not
+a sizing problem at all but belongs here because it is the other thing the
+profile has to pin.
+
+The grouping turns on one distinction. Most of these are excluded because the
+*client* never originates them, which is a statement about the profile. But one
+— `echo` — is triggered by the **destination**, so no statement about what the
+client chooses to send can exclude it, and it is the reason the emitted-size
+check is a requirement rather than a precaution.
 
 1. **`connect` — the one that must be solved.** It is the largest datagram the
    client can originate and the connection cannot happen without it. Its only
@@ -400,11 +443,49 @@ over budget at both targets, and each needs an explicit, enforced bound:
    if the operator wanted them on the path, `statusResponse` would need the
    serverinfo capped to 348 bytes at the 768 target and 562 at 982.
 
-3. **`rcon` — excluded.** The profile sets no rcon password and the browser
-   client exposes no rcon command. It is listed because it is the one class that
+3. **`echo` — the one that cannot be excluded.** The client answers an
+   out-of-band `echo` from its own server address by sending the argument
+   straight back (`cl_main.c:2784-2791`). The trigger belongs to the
+   destination, so a compromised or merely chatty server can elicit a
+   client-to-server out-of-band datagram of up to 1,022 bytes: the read line is
+   truncated to `MAX_STRING_CHARS - 1` by `MSG_ReadStringLine`
+   (`msg.c:508,526`), the command token and its space consume five of those, and
+   the reply is the argument plus the 4-byte prefix.
+
+   There is a mitigating property — on the relayed path the eliciting datagram
+   is itself bounded by the transport, and the reply is strictly *smaller* than
+   what elicited it, so a conforming relay makes this fit automatically. But
+   that argument leans on the inbound and outbound budgets being the same
+   number, and WP2's methodology explicitly could not attribute a budget per
+   direction. It is therefore not a bound this decision may rest on.
+
+   **[proposed]** treatment: leave the handler in place and let WP7's
+   fail-closed emitted-size check refuse an oversize reply, counted like any
+   other refusal. Losing an `echo` answer costs the session nothing — it is a
+   diagnostic courtesy, not part of the protocol — so a counted, harmless drop
+   is a better outcome than a code change to the connectionless path. The
+   alternative, disabling the handler outright in the `web` branch, is also
+   sound and the operator may prefer it; it is a slightly larger engine change
+   for a slightly smaller attack surface.
+
+4. **`rcon` and its answer — excluded.** The profile sets no rcon password and
+   the browser client exposes no rcon command, so neither the 1,024-byte request
+   nor the server's reply can be elicited. The reply is worth naming beside it:
+   `SV_FlushRedirect` prints accumulated command output out of band bounded by
+   `SV_OUTPUTBUF_LENGTH` (1,008 bytes, `sv_main.c:696-698,714`), giving a
+   1,017-byte server-to-client datagram. `rcon` itself is also the one class that
    bypasses `NET_OutOfBandPrint` and calls `NET_SendPacket` directly
    (`cl_main.c:1890`), so a size check placed at the out-of-band send would not
-   see it. A future profile enabling rcon must revisit this.
+   see it. A future profile enabling rcon must revisit both.
+
+5. **The legacy protocol path — refused.** Not a size problem: a compat
+   connection only makes datagrams smaller. But the pinned server accepts
+   protocol-68 by default, and doing so bypasses the gamename check and drops
+   the challenge-checksum spoofing protection, while also making the header
+   geometry this document derives no longer the only one on the wire.
+   **[proposed]** both server and client launch with `+set com_legacyprotocol 0`,
+   so the legacy path is refused outright and the census's observed geometry is
+   the only one the profile can produce.
 
 ### Where the change lands
 
@@ -412,6 +493,7 @@ over budget at both targets, and each needs an explicit, enforced bound:
 | --- | --- |
 | `ioq3` (`web` branch) | `FRAGMENT_SIZE` becomes an explicit constant at the selected value, documented in place with the reason and the symmetry requirement. `MAX_PACKETLEN` unchanged. |
 | `ioq3` (`web` branch) | A fail-closed emitted-size check on the browser's send path (see below), and the userinfo cap. |
+| Profile (launch arguments) | `+set com_legacyprotocol 0` on both server and client. |
 | This repository | The engine pin, and the WP7 evidence recording the rebuild and re-census. |
 | Native server | Rebuilt from the same final `web` pin — mandatory, because `FRAGMENT_SIZE` is server-side packet logic. |
 
@@ -423,17 +505,20 @@ case fits at both targets, and netchan traffic already has fragmentation and
 reassembly built into the engine. Adding a second, independent fragmentation
 layer underneath it would duplicate machinery that works.
 
-The only traffic a tunnel could help is the out-of-band classes, which the
-engine never fragments — and for those, bounding the profile is a strictly
-smaller change than adding a reassembly path, a reassembly buffer, a timeout and
-a fragment-loss policy to both endpoints, each of which is new attack surface on
-a path that carries unauthenticated pre-connection traffic.
+The only traffic a tunnel could help is the out-of-band classes the profile
+cannot exclude — `connect` and `echo` — which the engine never fragments. For
+those, bounding the profile is a strictly smaller change than adding a
+reassembly path, a reassembly buffer, a timeout and a fragment-loss policy to
+both endpoints, each of which is new attack surface on a path that carries
+unauthenticated pre-connection traffic. It would also not help `echo` in the way
+one might hope: reassembling a diagnostic reply is a strange thing to build when
+dropping it costs nothing.
 
 **The condition under which it comes back** is worth stating precisely, because
 it is the one thing that would reopen this: a tunnel becomes necessary if the
 operator rejects the profile bounds — that is, if the relayed path must carry
-arbitrary userinfo, a server browser, or any other out-of-band class that cannot
-be bounded below the budget. If that happens, WP6 reopens; WP7 must not
+arbitrary userinfo, a server browser, an `echo` reply that must not be dropped,
+or any other out-of-band class that cannot be bounded below the budget. If that happens, WP6 reopens; WP7 must not
 improvise it.
 
 **Stream-assisted game traffic** remains out of scope: the WP6 contract makes it
@@ -585,3 +670,13 @@ Recorded so they are not rediscovered as surprises:
   a `MAX_PACKETLEN` buffer. Not reachable in this profile — it needs a listen
   server answering its own out-of-band query — but it is one more place where
   out-of-band traffic is unchecked.
+- **The SOCKS send path copies without a length check** too
+  (`net_ip.c:679` into the 4,096-byte `socksBuf` at `:643`). Unreachable without
+  `usingSocks`, which the browser build has no way to set, and recorded beside
+  the loopback path for the same reason: both are places where a size check on
+  the out-of-band send would not be the last word.
+- **The legacy protocol path is refused by profile, not by code.** `+set
+  com_legacyprotocol 0` is a launch argument; nothing in the engine prevents a
+  build from accepting protocol-68. WP7 records it as a profile requirement, and
+  a deployment that forgets it gets weaker spoofing protection rather than a
+  sizing failure.

@@ -136,6 +136,34 @@ class NetchanGeometryTests(unittest.TestCase):
         with self.assertRaises(NetworkSizingError):
             netchan_header_bytes("sideways", fragmented=False)
 
+    def test_a_legacy_connection_omits_the_checksum(self):
+        # The challenge checksum is written only when the connection is not in
+        # legacy-protocol compat mode, and LEGACY_PROTOCOL is defined in this
+        # build. A compat connection therefore has four fewer header bytes.
+        for direction in (CLIENT_TO_SERVER, SERVER_TO_CLIENT):
+            for fragmented in (False, True):
+                self.assertEqual(
+                    netchan_header_bytes(direction, fragmented=fragmented)
+                    - netchan_header_bytes(
+                        direction, fragmented=fragmented, compat=True
+                    ),
+                    4,
+                )
+
+    def test_every_derived_bound_still_holds_on_the_legacy_path(self):
+        # The direction of safety: the legacy path can only make datagrams
+        # smaller, so every bound derived for the pinned non-compat geometry
+        # remains a valid upper bound. Sizing cannot be broken by it.
+        for size in (704, 896, 1300):
+            for direction in (CLIENT_TO_SERVER, SERVER_TO_CLIENT):
+                compat_fragment = size + netchan_header_bytes(
+                    direction, fragmented=True, compat=True
+                )
+                self.assertLess(
+                    compat_fragment,
+                    largest_fragment_datagram_bytes(size, direction),
+                )
+
     def test_stock_maxima(self):
         self.assertEqual(
             largest_unfragmented_datagram_bytes(STOCK_FRAGMENT_SIZE, SERVER_TO_CLIENT),
@@ -283,6 +311,25 @@ class ConnectionlessBoundaryTests(unittest.TestCase):
         for case in self.cases.values():
             self.assertFalse(case.fragmentable, case.name)
             self.assertEqual(case.kind, CONNECTIONLESS, case.name)
+
+    def test_echo_is_on_the_relay_path_and_over_budget(self):
+        # The destination triggers it, so "the client never sends it" is not
+        # available as an exclusion the way it is for the server browser.
+        case = self.cases["echo"]
+        self.assertTrue(case.on_relay_path)
+        self.assertEqual(case.inner_bytes, 1022)
+        self.assertGreater(case.inner_bytes, 982)
+        self.assertFalse(case.fragmentable)
+
+    def test_the_rcon_answer_is_bounded_by_the_redirect_buffer(self):
+        case = self.cases["print-rcon-redirect"]
+        self.assertEqual(case.inner_bytes, 1017)
+        self.assertFalse(case.on_relay_path)
+
+    def test_getchallenge_carries_both_the_realized_size_and_its_ceiling(self):
+        case = self.cases["getchallenge"]
+        self.assertEqual(case.inner_bytes, 40)
+        self.assertEqual(case.code_ceiling_bytes, 1037)
 
     def test_the_engine_ceiling_is_the_out_of_band_buffer(self):
         # The point of the connectionless analysis: the engine applies no
@@ -493,13 +540,25 @@ class DerivationTests(unittest.TestCase):
             reduction["derivedReportedMaximum"]["target"]["marginBytes"], 72
         )
 
-    def test_connect_is_the_one_class_needing_a_profile_bound(self):
+    def test_the_on_path_classes_needing_a_bound(self):
+        # `connect` is originated by the client and `echo` is elicited from it
+        # by the destination. Both are out-of-band, so no fragment-size change
+        # touches them, and both are over budget at either target.
         reduction = self.result["strategies"]["symmetricFragmentSizeReduction"]
         for key in ("recordBackedFloor", "derivedReportedMaximum"):
             self.assertEqual(
-                reduction[key]["connectionlessCasesOverBudget"], ["connect"], key
+                reduction[key]["connectionlessCasesOverBudget"],
+                ["connect", "echo"],
+                key,
             )
             self.assertTrue(reduction[key]["requiresProfileBounds"], key)
+
+    def test_rcon_and_its_answer_are_both_off_the_relay_path(self):
+        reduction = self.result["strategies"]["symmetricFragmentSizeReduction"]
+        for key in ("recordBackedFloor", "derivedReportedMaximum"):
+            off = reduction[key]["connectionlessCasesOverBudgetOffRelayPath"]
+            self.assertIn("rcon", off, key)
+            self.assertIn("print-rcon-redirect", off, key)
 
     def test_no_observed_connectionless_size_is_over_budget(self):
         # The derived bounds are what the verdict rests on, so this is a
@@ -539,7 +598,9 @@ class DerivationTests(unittest.TestCase):
     def test_tunnel_is_not_required_for_netchan_traffic(self):
         tunnel = self.result["strategies"]["boundedTunnelFragmentation"]
         self.assertFalse(tunnel["requiredForNetchanTraffic"])
-        self.assertEqual(tunnel["connectionlessCasesItWouldCover"], ["connect"])
+        self.assertEqual(
+            tunnel["connectionlessCasesItWouldCover"], ["connect", "echo"]
+        )
 
     def test_result_is_json_serialisable_and_deterministic(self):
         first = json.dumps(self.result, sort_keys=True)
