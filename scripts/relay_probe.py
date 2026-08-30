@@ -24,7 +24,7 @@ import math
 import re
 import struct
 from collections import Counter, deque
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 # docs/relay-datagram-contract.md, "Frame format". These are the same constants
 # the committed measurement vector fixes; `MeasurementPlan.from_vector` refuses a
@@ -794,7 +794,7 @@ class ProbeConfig:
     """The runtime values a probe session needs, none of which are committed."""
 
     authorization: str = field(repr=False)
-    endpoint_url: str
+    endpoint_url: str = field(repr=False)
     destination_address: bytes
     destination_port: int
     client_source_port: int = DEFAULT_CLIENT_SOURCE_PORT
@@ -901,9 +901,11 @@ class SessionHandshake:
     `ERROR_INVALID_AUTHORIZATION` and the relay then closes the session.
 
     The authorization is single-use, and that is enforced by construction: the
-    handshake holds the only copy, drops it the moment the request datagram is
-    built, and refuses to build a second one. Nothing here logs, stores or
-    returns the value.
+    handshake drops every copy it holds — its own field and the one inside its
+    retained configuration — the moment the request datagram is built, and
+    refuses to build a second one. Nothing here logs, stores or returns the
+    value. A caller that keeps its own configuration object keeps its own
+    copy; the drivers build one configuration per attempt and never reuse it.
     """
 
     def __init__(self, config: ProbeConfig) -> None:
@@ -925,6 +927,7 @@ class SessionHandshake:
             raise RelaySessionError("the authorization was already spent")
         datagram = encode_address_request(self._authorization)
         self._authorization = None
+        self._config = replace(self._config, authorization="")
         return datagram
 
     def accept(self, datagram: bytes):

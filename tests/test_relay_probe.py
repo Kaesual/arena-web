@@ -484,6 +484,9 @@ class SessionSetupTests(unittest.TestCase):
         )
         with self.assertRaises(RelaySessionError):
             handshake.request_datagram()
+        # Building the request also redacts the handshake's retained
+        # configuration copy, so no copy the handshake can reach survives.
+        self.assertEqual(handshake._config.authorization, "")
 
     def test_no_datagram_is_accepted_before_the_request_was_built(self) -> None:
         handshake = SessionHandshake(make_config())
@@ -1927,7 +1930,13 @@ class BrowserImplementationTests(unittest.TestCase):
             handshake.request_datagram()
         self.assertEqual(
             self.observed["singleUseAuthorization"],
-            {"secondRequest": "refused", "spentAfter": True, "spentBefore": False},
+            {
+                "configAuthorizationAfter": None,
+                "reusedConfigRequest": "refused",
+                "secondRequest": "refused",
+                "spentAfter": True,
+                "spentBefore": False,
+            },
         )
 
     def test_browser_refuses_an_authorization_in_band_like_the_reference(self) -> None:

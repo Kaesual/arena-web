@@ -205,6 +205,14 @@ class LoopbackRelay:
         if source.terminated:
             # The relay closed this session after refusing its authorization.
             raise AdapterSendError("the relay closed this session")
+        if len(datagram) < 4:
+            # Too short to carry a type: reported in band, not a close — the
+            # same non-terminal report an unrecognised type receives.
+            self._deliver_to(
+                source,
+                encode_error(ERROR_INVALID_AUTHORIZATION, "loopback-malformed-datagram"),
+            )
+            return
         kind = datagram_type(datagram)
         if kind == TYPE_RELAY_PACKET and self.refuse_send:
             # A transport that starts refusing writes once the session is
@@ -221,7 +229,7 @@ class LoopbackRelay:
         if kind == TYPE_RELAY_PACKET:
             self._handle_relay(source, datagram)
             return
-        self._deliver_to(source, encode_error(ERROR_INVALID_AUTHORIZATION, "unknown"))
+        self._deliver_to(source, encode_error(ERROR_INVALID_AUTHORIZATION, "loopback-unrecognised-type"))
 
     def _handle_address_request(self, source: LoopbackAdapter, datagram: bytes) -> None:
         self.address_requests += 1
@@ -232,7 +240,7 @@ class LoopbackRelay:
             source.terminated = True
             self._deliver_to(
                 source,
-                encode_error(ERROR_INVALID_AUTHORIZATION, "Invalid or expired token"),
+                encode_error(ERROR_INVALID_AUTHORIZATION, "loopback-refusal-message"),
             )
             return
         source.assigned_address = source.client_address
@@ -256,7 +264,7 @@ class LoopbackRelay:
             self.refused_destinations += 1
             self._deliver_to(
                 source,
-                encode_error(ERROR_DESTINATION_UNAVAILABLE, "Destination not connected"),
+                encode_error(ERROR_DESTINATION_UNAVAILABLE, "loopback-unavailable-message"),
             )
             return
         self.received_frames += 1

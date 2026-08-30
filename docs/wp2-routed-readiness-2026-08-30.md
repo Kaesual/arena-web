@@ -134,7 +134,7 @@ observations recorded above are left exactly as they were made.
 
 Using the same shared relay for the browser ioquake3 client is feasible and is
 the preferred convergence path. The relay moves opaque UDP payloads; it does
-not require the payload to be a Luanti packet. An ioquake3-specific relay server
+not require the payload to be any particular game's packet. An ioquake3-specific relay server
 would duplicate infrastructure and create a second wire behavior to maintain.
 
 The browser fork needs a small WebTransport network backend at ioquake3's UDP

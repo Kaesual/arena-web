@@ -106,6 +106,14 @@ async function sha256Hex(buffer) {
 // them through this file proves that the browser implementation and the tested
 // Python implementation agree, before any network traffic exists.
 function checkConformanceVectors(vectors) {
+  if (
+    vectors.kind !== "arena-web-routed-datagram-conformance-vectors" ||
+    vectors.formatVersion !== 2
+  ) {
+    throw new RelayProbeError(
+      "the conformance-vector file is not the expected kind and version",
+    );
+  }
   for (const item of vectors.encodeCases) {
     const payloads = item.payloadHexes.map((value) => hexToBytes(value));
     const frame = encodeFrame(

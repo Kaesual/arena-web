@@ -78,7 +78,7 @@ Two error codes concern a client of this subset:
 
 | Code | Meaning |
 | --- | --- |
-| `0x00000002` | the authorization was invalid or refused. **Terminal**: the relay closes the session after sending it. |
+| `0x00000002` | the authorization was invalid or refused, or a datagram was malformed. In answer to a `REQUEST_ADDRESS` it is **terminal**: the relay closes the session after sending it. In answer to malformed traffic it is a report, not a close — but a conforming client of this subset never sends a malformed datagram, so it meets the code only at authorization. |
 | `0x00000003` | the destination is not available. An unknown destination and one the session is not authorized for are answered **identically**, so the error cannot be used to enumerate destinations. |
 
 A client never surfaces the message text of an `ERROR`: it is text the relay

@@ -103,7 +103,7 @@ committed identity.
 | [`probe/conformance-vectors.json`](../probe/conformance-vectors.json) | 82 committed cases: 19 encoded frames, 4 ceiling acceptances, 15 frame rejections, 8 tags, 8 payloads, 10 control datagrams, 7 control rejections, 3 headers, 3 header rejections, 5 return-header decisions |
 | `probe/relay-framing.js`, `probe/measurement.js`, `probe/adapters.js`, `probe/probe.js`, `probe/index.html` | the standalone browser probe, including its own report validator so the page never renders or offers an unvalidated report |
 | [`scripts/serve-probe.sh`](../scripts/serve-probe.sh) | loopback static server for the probe |
-| [`tests/test_relay_probe.py`](../tests/test_relay_probe.py) | 155 deterministic tests for this work package; the repository suite is 665 |
+| [`tests/test_relay_probe.py`](../tests/test_relay_probe.py) | 157 deterministic tests for this work package; the repository suite is 667 |
 | [`tests/js_conformance_harness.mjs`](../tests/js_conformance_harness.mjs) | runs the browser sources under Node so the suite can compare the two implementations |
 
 The tests run in `scripts/check.sh` and in the containerized
@@ -129,7 +129,9 @@ third-party dependency and no network.
   every frame it builds and accepts rather than measuring it.
 - A packed browser-to-server frame of `k` datagrams is answered by `k` separate
   server-to-browser frames, so the return direction pays the overhead `k` times.
-- The destination UDP port must equal the projected endpoint's port exactly.
+- The client writes the destination UDP port into the header itself, from
+  runtime configuration; a wrong port is answered by the relay as an
+  unavailable destination rather than assumed away.
 
 ## How the plan exercises both directions
 
@@ -263,9 +265,10 @@ The tests cover the acceptance evidence that does not need a network:
   injects truncated, packed, header-only, oversize-declaring and
   foreign-header return frames, and none of them completes a case.
 - **Control datagrams inside a measuring session** — an answered keep-alive, a
-  second address assignment, an in-band destination refusal, an unknown type and
-  a datagram too short to carry one are each counted in their own bucket, and
-  none of them completes a case. An unauthorized destination is answered in band
+  second address assignment and an in-band destination refusal are each counted
+  in their own bucket, an unknown type and a datagram too short to carry one
+  land together in the malformed-frame counter, and none of them completes a
+  case. An unauthorized destination is answered in band
   and its cases still time out, because an unknown and an unauthorized
   destination are the same answer.
 - **Mismatched nonces** — two concurrent sessions on a deliberately
@@ -563,7 +566,7 @@ the assigned address, which the page also keeps out of its log.
 ## Repeating what exists
 
 ```bash
-scripts/check.sh                                  # 665 tests, no network
+scripts/check.sh                                  # 667 tests, no network
 CONTAINER_RUNTIME=podman scripts/check-container.sh
 python3 scripts/emit-relay-conformance-vectors.py --check
 scripts/serve-probe.sh                            # then open http://127.0.0.1:8173/probe/

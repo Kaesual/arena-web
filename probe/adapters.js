@@ -116,6 +116,14 @@ export class LoopbackAdapter {
       this.writeFailures += 1;
       throw new AdapterSendError("the relay closed this session");
     }
+    if (datagram.length < 4) {
+      // Too short to carry a type: reported in band, not a close — the same
+      // non-terminal report an unrecognised type receives.
+      this.deliver(
+        encodeError(ERROR_INVALID_AUTHORIZATION, "loopback-malformed-datagram"),
+      );
+      return;
+    }
     const kind = datagramType(datagram);
     if (kind === TYPE_RELAY_PACKET && this.refuseSend) {
       // A transport that starts refusing writes once the session is measuring.
@@ -137,7 +145,7 @@ export class LoopbackAdapter {
       this.handleRelay(datagram);
       return;
     }
-    this.deliver(encodeError(ERROR_INVALID_AUTHORIZATION, "unknown"));
+    this.deliver(encodeError(ERROR_INVALID_AUTHORIZATION, "loopback-unrecognised-type"));
   }
 
   handleAddressRequest(datagram) {
@@ -148,7 +156,7 @@ export class LoopbackAdapter {
       this.refusedAuthorizations += 1;
       this.terminated = true;
       this.deliver(
-        encodeError(ERROR_INVALID_AUTHORIZATION, "Invalid or expired token"),
+        encodeError(ERROR_INVALID_AUTHORIZATION, "loopback-refusal-message"),
       );
       return;
     }
@@ -171,7 +179,7 @@ export class LoopbackAdapter {
       // An unknown and an unauthorized destination are the same answer.
       this.refusedDestinations += 1;
       this.deliver(
-        encodeError(ERROR_DESTINATION_UNAVAILABLE, "Destination not connected"),
+        encodeError(ERROR_DESTINATION_UNAVAILABLE, "loopback-unavailable-message"),
       );
       return;
     }

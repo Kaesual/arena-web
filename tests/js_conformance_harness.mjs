@@ -254,7 +254,11 @@ const baseConfig = {
   destinationPort: adapters.SYNTHETIC_DESTINATION_PORT,
   endpointUrl: "https://harness.invalid/probe",
 };
-const config = measurement.parseConfig(baseConfig);
+// One configuration per attempt: a handshake spends the configuration's
+// authorization when it builds the request, so a session must never reuse
+// another session's configuration object.
+const freshConfig = () => measurement.parseConfig(baseConfig);
+const config = freshConfig();
 const returnHeader = framing.encodeRelayHeader({
   destinationAddress: adapters.SYNTHETIC_CLIENT_ADDRESS,
   destinationPort: adapters.SYNTHETIC_CLIENT_PORT,
@@ -268,7 +272,7 @@ for (const limit of JSON.parse(process.env.HARNESS_LIMITS)) {
   const driver = adapters.openLoopbackSession(
     adapter,
     plan,
-    config,
+    freshConfig(),
     new Uint8Array(12),
   );
   adapters.runLoopbackSession(driver, adapter);
@@ -318,7 +322,7 @@ function runFault(options, sessionPlan = faultPlan) {
   const driver = adapters.openLoopbackSession(
     adapter,
     sessionPlan,
-    config,
+    freshConfig(),
     new Uint8Array(12),
   );
   adapters.runLoopbackSession(driver, adapter);
@@ -351,7 +355,7 @@ const zeroAdapter = new adapters.LoopbackAdapter(20000);
 const zeroDriver = adapters.openLoopbackSession(
   zeroAdapter,
   zeroPlan,
-  config,
+  freshConfig(),
   new Uint8Array(12),
 );
 adapters.runLoopbackSession(zeroDriver, zeroAdapter);
@@ -367,7 +371,7 @@ const zeroLengthBoundary = {
 const refusedAdapter = new adapters.LoopbackAdapter(20000, {
   refuseAuthorization: true,
 });
-const refusedHandshake = new measurement.SessionHandshake(config);
+const refusedHandshake = new measurement.SessionHandshake(freshConfig());
 refusedAdapter.send(refusedHandshake.requestDatagram());
 let refusalCode = null;
 let refusalKind = "";
@@ -400,7 +404,7 @@ const foreignAdapter = new adapters.LoopbackAdapter(20000, { echo: false });
 const foreignDriver = adapters.openLoopbackSession(
   foreignAdapter,
   faultPlan,
-  config,
+  freshConfig(),
   new Uint8Array(12),
 );
 foreignDriver.pump(0);
@@ -423,7 +427,7 @@ const controlAdapter = new adapters.LoopbackAdapter(20000, { echo: false });
 const controlDriver = adapters.openLoopbackSession(
   controlAdapter,
   faultPlan,
-  config,
+  freshConfig(),
   new Uint8Array(12),
 );
 controlDriver.pump(0);
@@ -446,7 +450,7 @@ const cleanAdapter = new adapters.LoopbackAdapter(20000);
 const cleanDriver = adapters.openLoopbackSession(
   cleanAdapter,
   faultPlan,
-  config,
+  freshConfig(),
   new Uint8Array(12),
 );
 adapters.runLoopbackSession(cleanDriver, cleanAdapter);
@@ -604,7 +608,7 @@ const lateAdapter = new adapters.LoopbackAdapter(20000);
 const lateDriver = adapters.openLoopbackSession(
   lateAdapter,
   plan,
-  config,
+  freshConfig(),
   new Uint8Array(12),
 );
 lateDriver.pump(0);
@@ -650,7 +654,16 @@ try {
   secondRequest =
     error instanceof framing.RelaySessionError ? "refused" : "other";
 }
+let reusedConfigRequest = "accepted";
+try {
+  new measurement.SessionHandshake(spendConfig).requestDatagram();
+} catch (error) {
+  reusedConfigRequest =
+    error instanceof framing.RelaySessionError ? "refused" : "other";
+}
 const singleUseAuthorization = {
+  configAuthorizationAfter: spendConfig.authorization,
+  reusedConfigRequest,
   secondRequest,
   spentAfter: spendHandshake.spent,
   spentBefore,

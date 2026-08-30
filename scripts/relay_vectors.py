@@ -261,6 +261,10 @@ def _decode_acceptances() -> list:
 
 
 def _encode_rejections() -> list:
+    # The "routingPrefix*" case names predate the 2026-08-30 amendment, which
+    # renamed the opaque routing prefix to the non-opaque relay header. The
+    # names stay: they are part of the published vector file, and renaming
+    # them would change a committed artifact for vocabulary alone.
     one = build_payload(VECTOR_SESSION_NONCE, 0, 16)
     return [
         {

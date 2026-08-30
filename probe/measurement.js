@@ -409,9 +409,11 @@ export function parseConfig(mapping) {
 }
 
 // The in-band exchange that opens one measured session. The authorization is
-// single-use and that is enforced by construction: the handshake holds the only
-// copy, drops it the moment the request datagram is built and refuses to build
-// a second one. Nothing here logs, stores or returns the value.
+// single-use and that is enforced by construction: the handshake drops every
+// copy it can reach — its own field and the configuration's — the moment the
+// request datagram is built, and refuses to build a second one, so a second
+// handshake over the same configuration refuses as well. Nothing here logs,
+// stores or returns the value.
 export class SessionHandshake {
   constructor(config) {
     this.config = config;
@@ -433,6 +435,7 @@ export class SessionHandshake {
     }
     const datagram = encodeAddressRequest(this.authorization);
     this.authorization = null;
+    this.config.authorization = null;
     return datagram;
   }
 
