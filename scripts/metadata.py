@@ -1501,17 +1501,58 @@ def validate_measurement_vector(value: Any, path: str = "measurement") -> None:
 def _baseline_input_identities(
     baseline: dict[str, Any],
 ) -> dict[str, tuple[str, str]]:
-    identities = {
-        baseline["engine"]["id"]: (
-            "git",
-            f"git:{baseline['engine']['commit']}",
-        )
-    }
+    """Every baseline record a generated artifact may declare as an input.
+
+    The three collections are all admissible and all bound the same way, by the
+    exact identity the lock pins:
+
+    * the engine, by commit;
+    * a `tools[]` entry, by image reference or archive digest — what produced
+      the artifact;
+    * a `redistributedProductImages[]` entry, by image reference — what an
+      artifact that is itself an image *ships*.
+
+    The third was deliberately absent while the WP0 amendment only pinned the
+    runtime base and nothing consumed it. The WP5 server image does consume it:
+    the base is not a tool that vanishes when the build ends, it is part of the
+    distributed bytes, and a manifest that could not say so would have to leave
+    its largest input undeclared. Adding it changes nothing about how an input
+    is checked — the id must still exist here, the manifest must still carry a
+    matching input record, and its kind and identity must still agree exactly.
+
+    The three id spaces cannot collide in a valid baseline: the engine id is
+    fixed to `ioq3`, and the tool and image id sets are each required to equal
+    their own closed set, neither of which contains it. This function is
+    nonetheless the one place where a collision would silently resolve to one
+    record rather than fail, so it refuses one outright.
+    """
+
+    def _register(
+        identities: dict[str, tuple[str, str]], record_id: str, identity: tuple[str, str]
+    ) -> None:
+        if record_id in identities:
+            _fail(
+                "baseline",
+                f"records {record_id!r} in two input collections, so a manifest "
+                "input naming it would not identify one pinned record",
+            )
+        identities[record_id] = identity
+
+    identities: dict[str, tuple[str, str]] = {}
+    _register(
+        identities,
+        baseline["engine"]["id"],
+        ("git", f"git:{baseline['engine']['commit']}"),
+    )
     for tool in baseline["tools"]:
         if tool["kind"] == "oci-image":
-            identities[tool["id"]] = ("oci-image", tool["immutableRef"])
+            _register(identities, tool["id"], ("oci-image", tool["immutableRef"]))
         else:
-            identities[tool["id"]] = ("archive", f"sha256:{tool['sha256']}")
+            _register(
+                identities, tool["id"], ("archive", f"sha256:{tool['sha256']}")
+            )
+    for image in baseline["redistributedProductImages"]:
+        _register(identities, image["id"], ("oci-image", image["immutableRef"]))
     return identities
 
 

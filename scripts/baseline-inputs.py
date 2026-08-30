@@ -26,6 +26,8 @@ FIELDS = (
     "builder-version",
     "engine-commit",
     "engine-submodule-path",
+    "native-builder-image",
+    "server-runtime-image",
 )
 
 
@@ -34,6 +36,15 @@ def _tool(baseline: dict, tool_id: str) -> dict:
         if tool["id"] == tool_id:
             return tool
     raise MetadataError(f"baseline.tools: does not record {tool_id!r}")
+
+
+def _redistributed_image(baseline: dict, image_id: str) -> dict:
+    for image in baseline["redistributedProductImages"]:
+        if image["id"] == image_id:
+            return image
+    raise MetadataError(
+        f"baseline.redistributedProductImages: does not record {image_id!r}"
+    )
 
 
 def resolve(baseline: dict, field: str) -> str:
@@ -47,6 +58,13 @@ def resolve(baseline: dict, field: str) -> str:
         return baseline["engine"]["commit"]
     if field == "engine-submodule-path":
         return baseline["engine"]["submodulePath"]
+    if field == "native-builder-image":
+        return _tool(baseline, "native-builder-base")["immutableRef"]
+    if field == "server-runtime-image":
+        # Deliberately the redistributed-image registry rather than tools[]:
+        # the runtime base is the one pinned image arena-web hands on, and the
+        # two populations are required to be disjoint.
+        return _redistributed_image(baseline, "server-runtime-base")["immutableRef"]
     raise MetadataError(f"baseline-inputs: unknown field {field!r}")
 
 

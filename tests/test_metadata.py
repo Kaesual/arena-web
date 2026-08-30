@@ -26,6 +26,7 @@ from metadata import (  # noqa: E402
     REDISTRIBUTED_IMAGE_KIND,
     REQUIRED_REDISTRIBUTED_IMAGES,
     MetadataError,
+    _baseline_input_identities,
     _canonical_json_identity,
     _check_supported_schema,
     _load_json,
@@ -1018,6 +1019,146 @@ class ArtifactManifestTests(unittest.TestCase):
             "manifest",
             baseline=self.baseline,
             required_baseline_input_ids=ARTIFACT_REQUIRED_BASELINE_INPUT_IDS,
+        )
+
+
+class RedistributedImageBaselineInputTests(unittest.TestCase):
+    """A generated image may declare the runtime base it ships as an input.
+
+    The WP0 amendment pinned the runtime base without letting anything consume
+    it: `_baseline_input_identities` mapped only the engine and `tools[]`, so a
+    manifest naming `server-runtime-base` failed closed. WP5 needs exactly that
+    declaration, because for a server image the base is not a tool that vanishes
+    when the build ends — it is most of the distributed bytes.
+    """
+
+    def setUp(self) -> None:
+        self.baseline = load_fixture("locks/baseline.json")
+        self.image = next(
+            image
+            for image in self.baseline["redistributedProductImages"]
+            if image["id"] == "server-runtime-base"
+        )
+        self.builder = next(
+            tool
+            for tool in self.baseline["tools"]
+            if tool["id"] == "native-builder-base"
+        )
+        self.manifest = {
+            "$schema": ARTIFACT_SCHEMA,
+            "artifacts": [
+                {"path": "opt/arena-web/ioq3ded", "sha256": "a" * 64, "size": 4096}
+            ],
+            "baselineIdentity": _canonical_json_identity(self.baseline),
+            "baselineInputIds": [
+                "ioq3",
+                "native-builder-base",
+                "server-runtime-base",
+            ],
+            "digestAlgorithm": "sha256",
+            "formatVersion": 1,
+            "inputs": [
+                {
+                    "id": "ioq3",
+                    "identity": "git:" + self.baseline["engine"]["commit"],
+                    "kind": "git",
+                },
+                {
+                    "id": "native-builder-base",
+                    "identity": self.builder["immutableRef"],
+                    "kind": "oci-image",
+                },
+                {
+                    "id": "server-runtime-base",
+                    "identity": self.image["immutableRef"],
+                    "kind": "oci-image",
+                },
+            ],
+            "producer": {"commit": "d" * 40, "name": "arena-web WP5"},
+        }
+
+    def test_runtime_base_is_an_accepted_baseline_input(self) -> None:
+        validate_artifact_manifest(
+            self.manifest,
+            "manifest",
+            baseline=self.baseline,
+            required_baseline_input_ids=("ioq3", "server-runtime-base"),
+        )
+
+    def test_identities_cover_all_three_collections(self) -> None:
+        identities = _baseline_input_identities(self.baseline)
+        self.assertEqual(identities["ioq3"][0], "git")
+        self.assertEqual(
+            identities["native-builder-base"],
+            ("oci-image", self.builder["immutableRef"]),
+        )
+        self.assertEqual(
+            identities["server-runtime-base"],
+            ("oci-image", self.image["immutableRef"]),
+        )
+        self.assertEqual(
+            identities["chrome-for-testing"][0],
+            "archive",
+            "the archive branch must stay reachable",
+        )
+
+    def test_wrong_runtime_base_digest_is_rejected(self) -> None:
+        candidate = copy.deepcopy(self.manifest)
+        candidate["inputs"][2]["identity"] = "docker.io/library/debian@sha256:" + "0" * 64
+        with self.assertRaisesRegex(MetadataError, "committed baseline"):
+            validate_artifact_manifest(candidate, "manifest", baseline=self.baseline)
+
+    def test_runtime_base_declared_as_the_wrong_kind_is_rejected(self) -> None:
+        candidate = copy.deepcopy(self.manifest)
+        candidate["inputs"][2]["kind"] = "archive"
+        candidate["inputs"][2]["identity"] = "sha256:" + "0" * 64
+        with self.assertRaisesRegex(MetadataError, "committed baseline"):
+            validate_artifact_manifest(candidate, "manifest", baseline=self.baseline)
+
+    def test_renamed_runtime_base_is_rejected(self) -> None:
+        candidate = copy.deepcopy(self.manifest)
+        candidate["baselineInputIds"] = [
+            "ioq3",
+            "native-builder-base",
+            "server-runtime-base-13",
+        ]
+        candidate["inputs"][2]["id"] = "server-runtime-base-13"
+        with self.assertRaisesRegex(MetadataError, "unknown baseline input"):
+            validate_artifact_manifest(candidate, "manifest", baseline=self.baseline)
+
+    def test_present_but_undeclared_runtime_base_is_rejected(self) -> None:
+        candidate = copy.deepcopy(self.manifest)
+        candidate["baselineInputIds"] = ["ioq3", "native-builder-base"]
+        with self.assertRaisesRegex(MetadataError, "does not declare baseline inputs"):
+            validate_artifact_manifest(candidate, "manifest", baseline=self.baseline)
+
+    def test_an_id_in_two_collections_is_refused(self) -> None:
+        # A baseline this shape cannot pass validate_baseline — both id sets are
+        # closed — but the mapping is the one place a collision would silently
+        # resolve to one record, so it refuses rather than picks.
+        candidate = copy.deepcopy(self.baseline)
+        candidate["redistributedProductImages"][0]["id"] = "native-builder-base"
+        with self.assertRaisesRegex(MetadataError, "two input collections"):
+            _baseline_input_identities(candidate)
+
+    def test_the_committed_server_manifest_agrees_with_the_baseline(self) -> None:
+        path = ROOT / "provenance" / "arena-web-server.json"
+        if not path.is_file():
+            self.skipTest("the server image manifest has not been issued yet")
+        manifest = load_fixture("provenance/arena-web-server.json")
+        validate_artifact_manifest(
+            manifest,
+            str(path),
+            baseline=self.baseline,
+            required_baseline_input_ids=(
+                "ioq3",
+                "native-builder-base",
+                "server-runtime-base",
+            ),
+        )
+        declared = {item["id"]: item for item in manifest["inputs"]}
+        self.assertEqual(
+            declared["server-runtime-base"]["identity"], self.image["immutableRef"]
         )
 
 
