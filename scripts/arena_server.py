@@ -53,6 +53,7 @@ PROFILE_KEYS = (
     "package",
     "playerModel",
     "port",
+    "runtimeBaseCopyrightFiles",
     "serverArguments",
     "serverBinary",
 )
@@ -336,6 +337,21 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
     port = profile.get("port")
     if not isinstance(port, int) or isinstance(port, bool) or not 1024 <= port <= 65535:
         _fail("profile.port", "must be an unprivileged UDP port")
+
+    # The number of per-package copyright files the pinned runtime base carries.
+    # Comparing the built image with the base proves nothing on its own — both
+    # sides would agree if both silently lost the same files — so the expected
+    # count is pinned here and required of the base itself.
+    copyright_files = profile.get("runtimeBaseCopyrightFiles")
+    if (
+        not isinstance(copyright_files, int)
+        or isinstance(copyright_files, bool)
+        or copyright_files < 1
+    ):
+        _fail(
+            "profile.runtimeBaseCopyrightFiles",
+            "must be the positive number of copyright files the runtime base carries",
+        )
 
     _validate_cvars(profile.get("cvars"), "profile.cvars")
     client = _object(profile.get("client"), "profile.client")

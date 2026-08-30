@@ -20,7 +20,8 @@ set -euo pipefail
 export PYTHONDONTWRITEBYTECODE=1
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-runtime="${CONTAINER_RUNTIME:-docker}"
+# Consistent with the rest of the WP5 native steps; this one needs only `run`.
+runtime="${CONTAINER_RUNTIME:-podman}"
 
 # The snapshot timestamp and the requested set are the two decisions this
 # command makes; everything else is resolved from them.
@@ -31,24 +32,39 @@ requests=(cmake gcc libgl1-mesa-dri libglx-mesa0 libsdl2-dev make tcpdump xvfb)
 
 usage() {
   cat <<'EOF'
-usage: resolve-native-packages.sh [--output FILE]
+usage: resolve-native-packages.sh [--output FILE] [--index-output FILE]
+                                  [--indexes-only]
 
-  --output FILE   write the regenerated lock here
-                  (default: locks/native-toolchain-packages.conf)
+  --output FILE        write the regenerated package lock here
+                       (default: locks/native-toolchain-packages.conf)
+  --index-output FILE  write the index sidecar here
+                       (default: locks/native-toolchain-indexes.conf)
+  --indexes-only       refresh only the sidecar, leaving the package lock alone
 
-Needs network access and the host's CA bundle. The WP0 builder base ships no
-ca-certificates package, so the bundle is mounted into the container for the
-one resolution request; nothing else in this repository fetches over TLS from
-inside that image.
+Needs network access. The package lock additionally needs the host's CA bundle:
+the WP0 builder base ships no ca-certificates package, so the bundle is mounted
+into the container for the one resolution request; nothing else in this
+repository fetches over TLS from inside that image. The sidecar is fetched on
+the host, which has its own trust store.
 EOF
 }
 
 output="${repo_dir}/locks/native-toolchain-packages.conf"
+index_output="${repo_dir}/locks/native-toolchain-indexes.conf"
+indexes_only=0
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --output)
       output="$(readlink -m "${2:?--output needs a path}")"
       shift 2
+      ;;
+    --index-output)
+      index_output="$(readlink -m "${2:?--index-output needs a path}")"
+      shift 2
+      ;;
+    --indexes-only)
+      indexes_only=1
+      shift
       ;;
     -h | --help)
       usage
@@ -63,6 +79,75 @@ done
 
 builder_image="$(python3 "${repo_dir}/scripts/baseline-inputs.py" native-builder-image)"
 snapshot_url="https://snapshot.ubuntu.com/ubuntu/${snapshot_timestamp}"
+
+# The sidecar records the snapshot's own signed index files by digest. The
+# package lock's ~239 SHA-256 values come from those indexes, and without this
+# a reviewer would have to take one unrecorded networked run's word for them.
+# With it, the chain is re-checkable offline down to the Ubuntu archive key:
+# InRelease is the clearsigned root, and each Packages file is what the
+# per-package digests were read out of.
+write_index_sidecar() {
+  local destination="$1"
+  local temporary
+  temporary="$(mktemp)"
+  {
+    cat <<EOF
+# SPDX-License-Identifier: GPL-2.0-or-later
+#
+# The signed index files the package lock's per-package digests were read out
+# of, at the same immutable snapshot. Regenerate together with the package lock
+# using scripts/resolve-native-packages.sh; every other command treats this file
+# as immutable input.
+#
+# What it makes auditable: a reviewer can fetch these exact paths from the
+# snapshot, check them against these digests, verify InRelease against the
+# Ubuntu archive keyring, and confirm that the Packages files it lists produce
+# the package digests in locks/native-toolchain-packages.conf. What it does not
+# remove is the need to trust that keyring itself, and it is not a second copy
+# of the package digests.
+#
+# Rows:
+#   snapshot <immutable archive base URL>
+#   index    <suite> <component|-> <kind> <sha256> <size> <path>
+EOF
+    printf 'snapshot %s\n' "${snapshot_url}"
+    local suite component kind path digest size
+    for suite in "${suites[@]}"; do
+      for kind in InRelease Release Release.gpg; do
+        path="dists/${suite}/${kind}"
+        if ! curl --fail --location --silent --show-error \
+          --output "${temporary}" "${snapshot_url}/${path}"; then
+          continue
+        fi
+        digest="$(sha256sum "${temporary}" | cut -d' ' -f1)"
+        size="$(stat -c %s "${temporary}")"
+        printf 'index %s - %s %s %s %s\n' \
+          "${suite}" "${kind}" "${digest}" "${size}" "${path}"
+      done
+      for component in "${components[@]}"; do
+        for kind in Packages.gz Packages.xz; do
+          path="dists/${suite}/${component}/binary-amd64/${kind}"
+          if ! curl --fail --location --silent --show-error \
+            --output "${temporary}" "${snapshot_url}/${path}"; then
+            continue
+          fi
+          digest="$(sha256sum "${temporary}" | cut -d' ' -f1)"
+          size="$(stat -c %s "${temporary}")"
+          printf 'index %s %s %s %s %s %s\n' \
+            "${suite}" "${component}" "${kind}" "${digest}" "${size}" "${path}"
+        done
+      done
+    done
+  } > "${destination}"
+  rm -f "${temporary}"
+  printf 'wrote %s (%s indexes)\n' \
+    "${destination}" "$(grep -c '^index ' "${destination}")" >&2
+}
+
+if [[ ${indexes_only} -eq 1 ]]; then
+  write_index_sidecar "${index_output}"
+  exit 0
+fi
 
 host_ca=""
 for candidate in \
@@ -174,3 +259,5 @@ EOF
 
 printf 'wrote %s (%s packages)\n' \
   "${output}" "$(grep -c '^package ' "${output}")" >&2
+
+write_index_sidecar "${index_output}"

@@ -57,9 +57,18 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(sys.argv[1]) / "scripts"))
 
-from native_toolchain import load_package_lock, package_file_name, package_url
+from native_toolchain import (
+    load_index_lock,
+    load_package_lock,
+    package_file_name,
+    package_url,
+)
 
 lock = load_package_lock(Path(sys.argv[1]))
+# The sidecar is not fetched here, but a malformed or disagreeing one is a
+# broken trust root, so it fails the step that reads the lock rather than
+# sitting unread beside it.
+load_index_lock(Path(sys.argv[1]), lock)
 for package in lock["packages"]:
     print(
         "\t".join(

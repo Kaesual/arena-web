@@ -8,8 +8,8 @@
     },
     {
       "path": "opt/arena-web/arena/default.cfg",
-      "sha256": "72c8f5c95e8964271b8a5ddb2eaf1d0f8c659ad2f9dd7e2960f64e044baf02dc",
-      "size": 1970
+      "sha256": "fae1855de2317efb03a660bfdc2e24daca0119729cf3078489b79b8231eb9f01",
+      "size": 2006
     },
     {
       "path": "opt/arena-web/arena/vm/qagame.qvm",
@@ -63,7 +63,7 @@
     }
   ],
   "producer": {
-    "commit": "a8adeef15895d9e81ba64a35f46a0bd453cdfdf7",
+    "commit": "66d192118e7c3123e7142d3d42d23d07eb4a79d9",
     "name": "arena-web scripts/build-server-image.sh"
   }
 }

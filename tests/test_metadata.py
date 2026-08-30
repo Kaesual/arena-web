@@ -1141,10 +1141,21 @@ class RedistributedImageBaselineInputTests(unittest.TestCase):
         with self.assertRaisesRegex(MetadataError, "two input collections"):
             _baseline_input_identities(candidate)
 
+    def test_a_record_that_shadows_the_engine_id_is_refused(self) -> None:
+        # The engine registers first, so a tool or an image claiming its id is
+        # the other order of the same collision and has to fail the same way.
+        for collection, index in (("tools", 1), ("redistributedProductImages", 0)):
+            with self.subTest(collection=collection):
+                candidate = copy.deepcopy(self.baseline)
+                candidate[collection][index]["id"] = candidate["engine"]["id"]
+                with self.assertRaisesRegex(MetadataError, "two input collections"):
+                    _baseline_input_identities(candidate)
+
     def test_the_committed_server_manifest_agrees_with_the_baseline(self) -> None:
+        # Deliberately not a skip. The manifest is committed evidence, not a
+        # build artifact: if it is missing, the gate has to go red.
         path = ROOT / "provenance" / "arena-web-server.json"
-        if not path.is_file():
-            self.skipTest("the server image manifest has not been issued yet")
+        self.assertTrue(path.is_file(), f"{path} is committed evidence and must exist")
         manifest = load_fixture("provenance/arena-web-server.json")
         validate_artifact_manifest(
             manifest,

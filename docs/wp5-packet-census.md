@@ -24,9 +24,11 @@ game protocol.
 | Path | Role |
 | --- | --- |
 | [`locks/native-toolchain-packages.conf`](../locks/native-toolchain-packages.conf) | the exact package set the native toolchain installs, pinned to one immutable Ubuntu snapshot by version, size and SHA-256 |
+| [`locks/native-toolchain-indexes.conf`](../locks/native-toolchain-indexes.conf) | the sidecar: the snapshot's own signed index files by digest, so the package lock's trust root is re-checkable |
 | [`scripts/resolve-native-packages.sh`](../scripts/resolve-native-packages.sh) | maintenance: regenerate that lock (the only step that resolves anything) |
 | [`scripts/fetch-native-packages.sh`](../scripts/fetch-native-packages.sh) | fetch and digest-verify those packages; `--check` re-verifies |
-| [`scripts/native_toolchain.py`](../scripts/native_toolchain.py) | the lock's fail-closed contract |
+| [`scripts/native_toolchain.py`](../scripts/native_toolchain.py) | the lock's and the sidecar's fail-closed contract |
+| [`scripts/container-runtime.sh`](../scripts/container-runtime.sh) | resolve the container runtime and refuse one that lacks the Podman constructs these steps use |
 | [`native/toolchain.Containerfile`](../native/toolchain.Containerfile) | the build-and-test toolchain image, from the WP0 native builder base |
 | [`scripts/build-native-toolchain.sh`](../scripts/build-native-toolchain.sh) | assemble that image offline; `--print-tag` |
 | [`scripts/build-native.sh`](../scripts/build-native.sh) + [`build-native-in-container.sh`](../scripts/build-native-in-container.sh) | one accepted native build, `--target server` or `--target client` |
@@ -78,20 +80,64 @@ build:
    `apt-get update` inside the toolchain fails instead of reaching a moving
    archive.
 
+4. **The trust root is recorded, not just used.** The package digests came out
+   of the snapshot's signed `Packages` indexes during one networked resolution,
+   and nothing about that run was itself recorded, so a reviewer would have had
+   to take it on faith. `locks/native-toolchain-indexes.conf` is the sidecar
+   that closes it: per suite the clearsigned `InRelease` (plus `Release` and
+   `Release.gpg`) and per suite and component the `Packages.gz`/`Packages.xz`,
+   each by SHA-256 and byte length, at the same immutable snapshot.
+   `scripts/native_toolchain.py` validates its shape and requires it to describe
+   the same archive, suites and components the package lock resolved against,
+   and `fetch-native-packages.sh` loads it, so a malformed or disagreeing
+   sidecar fails the step rather than sitting unread beside the lock.
+
+   **What it makes auditable:** a reviewer can fetch those exact paths, check
+   them against these digests, verify `InRelease` with the Ubuntu archive
+   keyring, and confirm that the `Packages` files it names produce the package
+   digests in the lock — offline afterwards, and without re-running the
+   resolver. **What it does not do:** it does not remove the need to trust that
+   keyring, and it is deliberately not a second copy of the package digests; a
+   test asserts the two files share none.
+
 The install itself is two passes — `dpkg --unpack --force-depends` over the
 whole closure, then an unforced `dpkg --configure -a`. A single
 `dpkg --install` cannot work offline here: it unpacks in the order it is given
 and `python3-minimal` `Pre-Depends` on a package that sorts after it. The
 forcing applies to the unpack pass only; the configure pass runs unforced and
-the image build then asserts that no package is left in a state other than
-`install ok installed`, so an incomplete closure fails rather than producing a
-half-installed toolchain.
+the image build then asserts, with an **anchored** match, that no package is
+left in a state other than `install ok installed` — unanchored, that pattern
+also matches `deinstall ok installed`, so a removed package would read as a
+healthy one — and that at least as many packages are installed as `.deb` files
+were staged, because a package that never unpacked leaves no status line to be
+unhealthy. Neither check tolerates a `dpkg-query` failure, so an incomplete
+closure fails rather than producing a half-installed toolchain.
 
 **The toolchain is build-and-test only.** It compiles the dedicated server and
 the native test client, runs that client for the census and carries `tcpdump`.
-None of its bytes enter the distributed server image, which starts from the
-separately pinned Debian runtime base and inherits nothing from Ubuntu. The
-server binary is compiled against the builder's glibc 2.39 and runs on the
+No *file* from it is copied into the distributed server image, which starts from
+the separately pinned Debian runtime base and inherits no layer from Ubuntu.
+
+That is the honest form of the claim, and the stronger one would be wrong:
+`ioq3ded` is statically linked against the toolchain's C runtime startup objects
+and `libgcc`, so fragments of Ubuntu-built `crt*.o` and `libgcc.a` are inside
+the distributed binary. Both carry permissive terms for exactly this — the GCC
+Runtime Library Exception for `libgcc`, and glibc's own permissive terms for the
+startup files — so the licensing conclusion is unchanged: the binary is
+distributable under the engine's GPL without the toolchain becoming a
+distributed component. What changes is only the wording, from "no bytes" to "no
+files".
+
+`locks/native-toolchain-packages.conf`'s own header still carries the older,
+broader phrasing ("none of its bytes"). It is left exactly as it is on purpose:
+that file's SHA-256 is the toolchain image's tag, the
+`native-toolchain-packages` input identity in
+`provenance/arena-web-server.json` and a field of the census record, so editing
+a comment in it would move three committed identities for a wording fix. The
+correction lives here; the next change that legitimately regenerates the lock
+carries it into the header.
+
+The server binary is compiled against the builder's glibc 2.39 and runs on the
 runtime base's 2.41; that direction works and the reverse would not, which is
 what the WP0 amendment already recorded.
 
@@ -169,7 +215,11 @@ file: `/usr/share/doc/libgcc-s1` and `/usr/share/doc/libstdc++6` are symlinks to
 check uses `find -L` and verifies all 78 by content.
 
 This is worth stating because a check that silently verified 76 of 78 would have
-looked like it passed.
+looked like it passed — and comparing the image against the base cannot catch
+it, since a mis-reading applies to both sides equally. The expected count is
+therefore pinned in `native/server-profile.json` as `runtimeBaseCopyrightFiles`
+and required of the **base** before the two sets are compared, so reverting
+`find -L` to `find` fails the verification instead of passing quietly with 76.
 
 ## The native test client
 
@@ -217,7 +267,16 @@ rather than assume one.
 | connectionless vs netchan | first four bytes equal to −1 | `code/qcommon/net_chan.c:35` |
 | fragmented | high bit of the sequence (`FRAGMENT_BIT`) | `net_chan.c:55` |
 | header bytes | sequence 4, plus qport 2 **only** client-to-server, plus challenge checksum 4, plus 2 + 2 when fragmented | `Netchan_Transmit`, `net_chan.c:196-210`; `Netchan_TransmitNextFragment`, `:117-137` |
-| connection | a client-to-server sequence that does not advance opens the next one | `Netchan_Setup` resets the netchan, `net_chan.c:84-90` |
+| connection | a client-to-server sequence that goes **backwards** opens the next one | `Netchan_Setup` resets the netchan, `net_chan.c:84-90` |
+
+A strict decrease, not a failure to advance: `Netchan_TransmitNextFragment`
+writes the same `outgoingSequence` on every fragment of one message and
+increments only after the last (`net_chan.c:118`, `:162-165`), so a repeated
+client sequence is the rest of a fragmented message. Treating it as a reconnect
+would invent a connection and split the message into one-fragment pieces. This
+profile produced no fragmented client message, so the accepted record reads the
+same either way — but WP6 has to generate exactly that case with this tool, so
+it is fixed and tested rather than left to be discovered there.
 
 The netchan payload itself is Huffman-coded, so the census reads sizes and
 headers rather than message contents. What the traffic cannot say — that the
@@ -242,40 +301,41 @@ pause long enough for `sv_reconnectlimit`, `connect` again, driven play again,
 
 The accepted session is
 [`records/wp5-packet-census.json`](../records/wp5-packet-census.json). It is the
-run's own summary, unedited: 41,823 engine datagrams over two connections,
+run's own summary, unedited: 41,833 engine datagrams over two connections,
 against `arena-web-server:latest`
-(`sha256:97650fdecb396ff731e2c3b51707c07fc06a25fe7db3ca6f5fe4d5370fbdeffa`) and
-the toolchain image
-`sha256:840ab42edff879671ecc777f644e901e6bee16b4b3c22f2e0ab2709b78c2e677`.
+(`sha256:27a307166f2fad40c73a8a4df2c59e5a1f9db13584383296a84ec5306f42dfc2`) and
+the toolchain image `arena-web-native-toolchain:d36179bb9342033f`
+(`sha256:e472ec1f90ee255dec1d532479fba43cfd893922be29327eb46c98df2d06f4c3`).
 
 ### Per direction, at the engine/UDP boundary
 
 | | client → server | server → client |
 | --- | --- | --- |
-| datagrams | 34,169 | 7,654 |
-| **maximum** | **395 B** | **1,312 B** |
+| datagrams | 34,179 | 7,654 |
+| **maximum** | **394 B** | **1,312 B** |
 | minimum | 13 B | 30 B |
-| median | 36 B | 71 B |
-| 95th percentile | 39 B | 109 B |
-| 99th percentile | 40 B | 169 B |
-| mean | 35.2 B | 77.2 B |
-| total | 1,203,619 B | 590,725 B |
+| median | 36 B | 81 B |
+| 95th percentile | 38 B | 124 B |
+| 99th percentile | 40 B | 191 B |
+| mean | 34.9 B | 86.7 B |
+| total | 1,194,275 B | 663,505 B |
 
-The asymmetry is the point. The server's datagrams are on average 2.2 times
+The asymmetry is the point. The server's datagrams are on average 2.5 times
 larger and its maximum is 3.3 times larger, because a snapshot carries the world
 and a usercmd carries one player's intent.
 
 **The client's packet *rate*, however, is not representative, and the census says
-so rather than hiding it.** The client sent about 90 datagrams a second, not the
-30 `cl_maxpackets` defaults to (`code/client/cl_main.c:3588`): the census server
+so rather than hiding it.** The client sent 89.5 and 89.3 datagrams a second
+across the two connections, not the 30 `cl_maxpackets` defaults to
+(`code/client/cl_main.c:3588`): the census server
 is on `10.201.27.0/24`, `Sys_IsLANAddress` treats RFC1918 space as LAN
 (`code/qcommon/net_ip.c:715-736`), and `CL_ReadyToSendPacket` then returns true
 every frame while `cl_lanForcePackets` is 1 (`code/client/cl_input.c:701-703`,
 default 1 at `cl_main.c:3655`). The server has the mirror rule for outgoing rate
 (`sv_lanForceRate`, `code/server/sv_snapshot.c:669`,
 `code/server/sv_client.c:1416`), although it was not the binding constraint
-here: the server sent 19.6 datagrams a second, which is the `sv_fps` of 20 that
-`native/server-default.cfg` sets.
+here: the server sent 20.0 datagrams a second in both connections, which is the
+`sv_fps` of 20 that `native/server-default.cfg` sets.
 
 **Sizes are unaffected by that**, and sizes are what this census measures. A
 routed deployment would see fewer client datagrams of the same shapes. Counts,
@@ -286,8 +346,8 @@ the size distributions are.
 
 | | client → server | server → client |
 | --- | --- | --- |
-| netchan | 34,163 (max 395 B) | 7,648 (max 1,312 B) |
-| connectionless | 6 (max 295 B) | 6 (max 464 B) |
+| netchan | 34,173 (max 394 B) | 7,648 (max 1,312 B) |
+| connectionless | 6 (max 292 B) | 6 (max 465 B) |
 | fragmented | 0 | 4 |
 
 Connectionless traffic is rare but it is **not** small, and it is exactly the
@@ -298,17 +358,17 @@ carries no fragment fields at all.
 | --- | --- | --- | --- |
 | `getstatus` | client → server | 1 | 13 |
 | `getinfo` | client → server | 1 | 15 |
-| `getchallenge` | client → server | 2 | 38, 39 |
-| `connect` | client → server | 2 | 267, 295 |
-| `connectResponse` | server → client | 2 | 30, 31 |
-| `challengeResponse` | server → client | 2 | 45, 47 |
+| `getchallenge` | client → server | 2 | 39, 40 |
+| `connect` | client → server | 2 | 263, 292 |
+| `connectResponse` | server → client | 2 | 30 |
+| `challengeResponse` | server → client | 2 | 46, 47 |
 | `infoResponse` | server → client | 1 | 182 |
-| `statusResponse` | server → client | 1 | 464 |
+| `statusResponse` | server → client | 1 | 465 |
 
 No unknown out-of-band command appeared. The largest connectionless datagram in
-either direction is the `statusResponse` at 464 bytes, and its size grows with
+either direction is the `statusResponse` at 465 bytes, and its size grows with
 the number of connected players — with three bots and one client it is already
-464, which is worth carrying into WP6 rather than treating out-of-band traffic
+465, which is worth carrying into WP6 rather than treating out-of-band traffic
 as negligible.
 
 ### Distribution
@@ -316,12 +376,12 @@ as negligible.
 The record carries the complete per-size counts; the shape is:
 
 - **client → server** has 31 distinct netchan sizes, concentrated in a narrow
-  band: 37 B (7,331), 38 B (5,433), 36 B (4,247), 34 B (4,097), 35 B (3,631),
-  26 B (1,900). Everything above ~60 bytes is a reliable command riding along,
-  and the single 395-byte maximum is one such burst.
-- **server → client** has 178 distinct netchan sizes with a long tail: the mode
-  is around 65–70 B (317 at 66 B, 314 at 70 B, 301 at 69 B), the 99th percentile
-  is 169 B, and the tail runs to the 1,312-byte gamestate fragment.
+  band: 37 B (7,752), 36 B (4,976), 34 B (4,291), 38 B (3,944), 35 B (3,285),
+  33 B (2,519). Everything above ~60 bytes is a reliable command riding along,
+  and the handful of datagrams at the maximum are such bursts.
+- **server → client** has 186 distinct netchan sizes with a long tail: the mode
+  is around 73–79 B (296 at 75 B, 284 at 76 B, 275 at 77 B), the 99th percentile
+  is 191 B, and the tail runs to the 1,312-byte gamestate fragment.
 
 ### Fragmentation, and the largest thing the protocol sends
 
@@ -330,17 +390,20 @@ both the gamestate, both server-to-client:
 
 | Connection | Fragments | Message bytes | Total UDP payload | Largest datagram |
 | --- | --- | --- | --- | --- |
-| 0 | 2 | 2,305 | 2,329 | 1,312 |
+| 0 | 2 | 2,304 | 2,328 | 1,312 |
 | 1 | 2 | 2,306 | 2,330 | 1,312 |
 
 **1,312 bytes is the observed maximum in the entire census, and it is exactly
 the value WP0 predicted from the source**: a 1,300-byte fragment
 (`FRAGMENT_SIZE`) plus the 12-byte fragmented server header. Nothing reached
-`MAX_PACKETLEN` (1,400) — the engine never sends a datagram that large, because
-it fragments at 1,300 first. Two datagrams in the session were at or above
-`FRAGMENT_SIZE`; both are the first fragment of a gamestate.
+`MAX_PACKETLEN` (1,400): the netchan fragments at 1,300 first, so no *netchan*
+datagram gets that large. That bound is a netchan bound only — a connectionless
+datagram never goes through `Netchan_Transmit` at all and has no fragment
+fields, which is why `statusResponse` is reported separately below and in
+finding 3. Two datagrams in the session were at or above `FRAGMENT_SIZE`; both
+are the first fragment of a gamestate.
 
-The client fragmented nothing. Its largest message in this profile is 395 bytes,
+The client fragmented nothing. Its largest message in this profile is 394 bytes,
 so the client-to-server fragmented header of 14 bytes was never exercised — a
 gap the census records rather than papers over, and one WP6 has to cover by
 generating the case rather than waiting to observe it.
@@ -349,16 +412,25 @@ generating the case rather than waiting to observe it.
 
 | | Observed header | Count |
 | --- | --- | --- |
-| client → server, whole | **10 B** | 34,163 |
+| client → server, whole | **10 B** | 34,173 |
 | server → client, whole | **8 B** | 7,644 |
 | server → client, fragmented | **12 B** | 4 |
 | client → server, fragmented | — | 0 |
 
 The difference is exactly 2 bytes, the qport only a client writes, and the
-fragment surcharge is exactly 4. Every value WP0 recorded from reading the
-source is confirmed by counting bytes on the wire — and the census derives the
-header length from the datagram itself rather than from a constant, so this is a
-measurement and not a restatement.
+fragment surcharge is exactly 4.
+
+**Read this precisely: it is a consistency check, not an independent
+measurement of the header layout.** `classify` computes the header length from
+the pinned engine's own constants, selected by direction and by the fragment
+bit, and the wire evidence is that all 41,833 datagrams are consistent with that
+computation — none was shorter than its computed header, every client-to-server
+netchan datagram carried a parseable qport in the two bytes the layout puts it
+in, and the fragment bit and the size classes line up. A census that re-derived
+the layout from the bytes alone would have to decode the message body, which the
+netchan Huffman-codes. So WP0's 10/8/+4 numbers are confirmed to be the numbers
+this profile is consistent with on every datagram; they were read from
+`net_chan.c:199-210` and `:118-138`, and this does not replace that reading.
 
 ### Connection, disconnect and reconnect
 
@@ -367,8 +439,8 @@ payload byte, because a netchan's outgoing sequence restarts at 1:
 
 | Connection | client → server | server → client | qport | client source port |
 | --- | --- | --- | --- | --- |
-| 0 | 21,939 | 4,906 | 24195 | 27960 |
-| 1 | 12,224 | 2,742 | 24195 | 27960 |
+| 0 | 21,944 | 4,906 | 44023 | 27960 |
+| 1 | 12,229 | 2,742 | 44023 | 27960 |
 
 Both the disconnect and the reconnect are therefore visible in the traffic, and
 the server's own log confirms them: two `entered the game` lines and two
@@ -396,23 +468,24 @@ Every step is located in the capture rather than in the driver's timeline:
 | `getstatus` | client → server | 13 B |
 | `getinfo` | client → server | 15 B |
 | `infoResponse` | server → client | 182 B |
-| `statusResponse` | server → client | 464 B |
+| `statusResponse` | server → client | 465 B |
 | `getchallenge` | client → server | 39 B |
-| `challengeResponse` | server → client | 47 B |
-| `connect` | client → server | 267 B |
-| `connectResponse` | server → client | 31 B |
+| `challengeResponse` | server → client | 46 B |
+| `connect` | client → server | 263 B |
+| `connectResponse` | server → client | 30 B |
 | first netchan client → server | client → server | 15 B |
 | first netchan server → client (gamestate fragment) | server → client | 1,312 B |
 
 ### Acceptance checks
 
-All eleven required checks passed; the twelfth is reported and did not occur.
+All eleven required checks passed. The twelfth is reported rather than required
+and did not occur; the findings below say why.
 
 | Check | Evidence | Result |
 | --- | --- | --- |
 | `client-joined-twice` | server log | pass — 2 `entered the game` lines |
 | `client-disconnected` | server log | pass — 2 `disconnected` lines |
-| `client-took-damage-and-died` | server log | pass — 33 obituaries naming the client |
+| `client-took-damage-and-died` | server log | pass — 40 obituaries naming the client |
 | `client-scored-and-respawned` | server log | pass — 14 score-changing deaths |
 | `client-fragged-a-bot` | server log | **not observed** — see the findings below |
 | `two-netchan-connections-observed` | capture | pass |
@@ -429,10 +502,13 @@ All eleven required checks passed; the twelfth is reported and did not occur.
   byte-identical binary,
   `sha256:dbb194f26ec8870e004da56acc11d5caa449dd2a2afd829be957f534cef499d2`
   (798,456 bytes).
-- Two builds of the server image from that binary produced the **same image id**,
-  `sha256:97650fdecb396ff731e2c3b51707c07fc06a25fe7db3ca6f5fe4d5370fbdeffa`, and
-  identical content manifests. `podman build --timestamp 0` is what makes that
-  true; without it the two images would differ only in when they were made.
+- Two builds of the server image from those binaries produced the **same image
+  id**, `sha256:27a307166f2fad40c73a8a4df2c59e5a1f9db13584383296a84ec5306f42dfc2`,
+  and identical content manifests, which also still equal the committed
+  `provenance/arena-web-server.json` apart from `producer`.
+  `scripts/verify-native-build.sh --target server` is what checks all three, and
+  `podman build --timestamp 0` is what makes the image id reproducible at all;
+  without it the two images would differ only in when they were made.
 - Two clean builds of the native test client were byte-identical too:
   `ioquake3` `sha256:0a16b40a…`, `renderer_opengl1.so` `sha256:5e13c0b8…`,
   `renderer_opengl2.so` `sha256:7a49bf20…`. It is not distributed, so this is
@@ -536,9 +612,9 @@ two-collection refusal, and a check that the committed
 
 | Suite | Covers |
 | --- | --- |
-| `tests/test_native_toolchain.py` | the package lock: a moving archive, a second snapshot, an unknown directive, unsorted or duplicated rows, a shared digest, a malformed digest or size, a pool path outside `pool/` or traversing out of it, a pool file naming another package or version, both epoch spellings, a foreign architecture, an unresolved request; and the fetched directory: a missing, extra, modified, truncated or symlinked package |
+| `tests/test_native_toolchain.py` | the package lock: a moving archive, a second snapshot, an unknown directive, unsorted or duplicated rows, a shared digest, a malformed digest or size, a pool path outside `pool/` or traversing out of it, a pool file naming another package or version, both epoch spellings, a foreign architecture, an unresolved request; the fetched directory: a missing, extra, modified, truncated or symlinked package; and the index sidecar: a moving archive, a missing or duplicated snapshot, an unknown directive or index kind, a suite index carrying a component and a component index without one, a non-canonical path, a malformed digest or size, duplicated or unsorted rows, a suite with no `InRelease`, a component with no `Packages`, an extra suite, and the committed sidecar's agreement with the committed package lock |
 | `tests/test_arena_server.py` | the profile: the retail base game, a public master registration, a pure server, a second address family, a port that disagrees with its cvar, a privileged port, a non-FFA game type, a client download, the retail player model, a map or bot the pack does not carry, a frag limit that differs from the recipe, an unexplained or shallow cvar note, a config source outside the repository, a config that is not `default.cfg`, a missing role, an unknown key, an out-of-range bot skill, a relative game directory, and a committed argument list that is not the derivation; plus staging: a wrong artifact, a missing build directory, an extra or modified staged file and a wrong mode |
-| `tests/test_packet_census.py` | the capture reader: Ethernet, cooked and big-endian captures, a non-pcap file, a short header, an unsupported link type, a truncated snapshot, an IP fragment, non-IPv4 frames, a capture ending mid-record; the classifier: connectionless detection and command extraction, the 10- and 8-byte headers, the fragment surcharge in both directions, datagrams shorter than their own header or sequence, an unknown direction; and the session: direction derivation, foreign traffic, phases, class separation, command naming, an unexpected connectionless command, reconnect segmentation, one gamestate per connection, milestones, per-direction maxima and distributions, the engine bounds and an empty census |
+| `tests/test_packet_census.py` | a fragmented client message staying one connection and one three-fragment message, its 14-byte header, and a strictly decreasing sequence still opening a connection; the committed record's required checks, evidence labels, session identity, both directions and classes, header asymmetry, engine bound, connection count and command set; the capture reader: Ethernet, cooked and big-endian captures, a non-pcap file, a short header, an unsupported link type, a truncated snapshot, an IP fragment, non-IPv4 frames, a capture ending mid-record; the classifier: connectionless detection and command extraction, the 10- and 8-byte headers, the fragment surcharge in both directions, datagrams shorter than their own header or sequence, an unknown direction; and the session: direction derivation, foreign traffic, phases, class separation, command naming, an unexpected connectionless command, reconnect segmentation, one gamestate per connection, milestones, per-direction maxima and distributions, the engine bounds and an empty census |
 | `tests/test_metadata.py` | the `_baseline_input_identities` extension, as above |
 
 Everything above is deterministic and runs in `scripts/check.sh` without a
@@ -547,9 +623,9 @@ container, a build or a network.
 **The census run itself has no unit test, on purpose.** It starts containers,
 drives a real client through a real X server and reads a real capture; a test
 against stubs would mostly assert that the stubs behave like the stubs. What
-covers it instead is that its own run scores itself: ten acceptance checks, each
-naming whether it rests on the capture or on the game's own logs, and the run
-fails if any of them fails.
+covers it instead is that its own run scores itself: twelve acceptance checks —
+eleven required and one reported — each naming whether it rests on the capture
+or on the game's own logs, and the run fails if any required one fails.
 
 ## Findings recorded rather than fixed
 
@@ -559,7 +635,7 @@ WP5's acceptance evidence asks for a client that "connects, joins, plays,
 scores, disconnects and reconnects". Everything except one word is demonstrated
 and checked: the client connects twice, joins by name twice, plays for the whole
 session — moving, turning, firing, switching weapons, chatting — takes damage
-from the bots 33 times, changes its own score by dying 14 times, disconnects
+from the bots 40 times, changes its own score by dying 14 times, disconnects
 twice and reconnects once.
 
 What did not happen is a **frag against a bot**. The client is driven blind from
@@ -577,7 +653,7 @@ would mean changing the game — a damage multiplier, a stripped-down map, a
 weapon the profile does not start with — and the census would then no longer be
 of the profile the browser slice runs. And the packet census does not depend on
 it: a frag is one obituary, a handful of bytes inside one snapshot, in a session
-of 41,823 datagrams.
+of 41,833 datagrams.
 
 The check therefore stays in the record as an explicit `required: false`
 observation rather than being deleted or quietly passed, and **scoring by a
@@ -596,7 +672,7 @@ bound.
 
 ### 3. `statusResponse` grows with the player count
 
-The out-of-band `statusResponse` was 464 bytes with four players on the server,
+The out-of-band `statusResponse` was 465 bytes with four players on the server,
 and it is built from the server info plus one line per client
 (`code/server/sv_main.c` `SVC_Status`). With `sv_maxclients` at 8 it would be
 roughly twice that. Connectionless traffic cannot be fragmented, so this is the
@@ -614,23 +690,45 @@ From a clean checkout, with the WP1 browser build and the WP3 content pack
 already produced:
 
 ```bash
-CONTAINER_RUNTIME=podman scripts/fetch-native-packages.sh      # once, online
-CONTAINER_RUNTIME=podman scripts/build-native-toolchain.sh     # offline
-CONTAINER_RUNTIME=podman scripts/build-native.sh --target server
-CONTAINER_RUNTIME=podman scripts/build-native.sh --target client
-CONTAINER_RUNTIME=podman scripts/build-server-image.sh
-CONTAINER_RUNTIME=podman scripts/run-packet-census.sh
+scripts/fetch-native-packages.sh                 # once, online
+scripts/build-native-toolchain.sh                # offline from here on
+scripts/build-native.sh --target server
+scripts/build-native.sh --target client
+scripts/build-server-image.sh
+scripts/run-packet-census.sh \
+  --play-seconds 240 --max-play-seconds 420 \
+  --record records/wp5-packet-census.json
 ```
 
+That last line is the exact command the accepted census was taken with, options
+included: the defaults are shorter (120 seconds of driven play, no record
+written), and `--record` is what turns a run into the committed evidence — it
+refuses to write when a required check failed.
+
+These scripts default to `CONTAINER_RUNTIME=podman` and check up front that the
+runtime provides the constructs they use; see the note on that below.
+
 Only the first command uses the network, and it accepts a package only if its
-length and SHA-256 match the lock. `scripts/verify-native-build.sh` runs two
-clean builds of either target and compares them. The census writes its evidence
-to the gitignored `build/packet-census/`: the raw capture, both game logs, the
-per-datagram records and the summary. `records/wp5-packet-census.json` is that
-summary from the accepted run.
+length and SHA-256 match the lock. `scripts/verify-native-build.sh --target
+server` runs two clean builds, builds the image from each, compares the two
+image ids and requires the regenerated manifest to still equal the committed
+`provenance/arena-web-server.json` apart from `producer`. The census writes its
+evidence to the gitignored `build/packet-census/`: the raw capture, both game
+logs, the per-datagram records and the summary.
+`records/wp5-packet-census.json` is that summary from the accepted run.
 
 The pinned runtime base must be present locally; obtain the exact reference with
 `scripts/baseline-inputs.py server-runtime-image` and pull that digest.
+
+### Why these steps are Podman-specific
+
+`podman build --timestamp` is what makes two assemblies of the same content
+produce the same image id, and `podman image exists` is the existence test the
+scripts use; Docker spells neither the same way. The scripts therefore default
+to `podman` and `scripts/container-runtime.sh` fails early with a clear message
+if the selected runtime lacks those constructs, instead of failing obscurely
+part way through a build. The image-id reproducibility claim in this document is
+a Podman claim.
 
 ## Witnessed round — **PENDING**
 
@@ -638,18 +736,35 @@ One acceptance word is not covered by the automated session: a player scoring.
 It needs a person, the two artifacts this work package built, and about five
 minutes. Nothing else about WP5 depends on it.
 
+Start the server exactly as the census does, containment included — the
+acceptance sits next to that posture, so it should not be witnessed against a
+laxer one:
+
 ```bash
-CONTAINER_RUNTIME=podman podman network create --subnet 10.201.27.0/24 arena-witness
-CONTAINER_RUNTIME=podman podman run --rm --name arena-witness-server \
+podman network create --subnet 10.201.27.0/24 arena-witness
+podman run --rm --name arena-witness-server \
   --network arena-witness --ip 10.201.27.10 \
-  --tmpfs /var/lib/arena:rw,mode=1777 \
+  --cap-drop all \
+  --security-opt no-new-privileges \
+  --security-opt label=disable \
+  --read-only \
+  --tmpfs /var/lib/arena:rw,noexec,nosuid,nodev,mode=1777 \
   arena-web-server:latest $(python3 -c \
     'import json;print(" ".join(json.load(open("native/server-profile.json"))["serverArguments"]))')
 ```
 
-Then, in a second terminal, run the native client this work package built —
-`build/native-client/tree/Release/ioquake3`, with the staged client tree beside
-it — against `10.201.27.10:27960` on a real display, and:
+Then stage the client's own tree — it is not the server's, because a client
+loads `cgame` and `ui` rather than `qagame` — and put the built binaries beside
+it, which is what the census driver does too:
+
+```bash
+scripts/stage-server-tree.py --role client --target build/witness-client
+cp build/native-client/tree/Release/ioquake3 \
+   build/native-client/tree/Release/renderer_opengl*.so build/witness-client/
+```
+
+Then run `build/witness-client/ioquake3` against `10.201.27.10:27960` on a real
+display, with the profile's client arguments, and:
 
 - [ ] **Join.** The client connects and the arena appears with the three bots.
 - [ ] **Move, look and fire.** Movement, mouse look and the weapon all respond.
@@ -679,6 +794,6 @@ recorded in `records/wp5-packet-census.json`.
   counts and not timing quality.
 - **Nothing about packet *rates* over a real path.** Both endpoints treat the
   other as a LAN peer on this private network and skip their own rate limits, so
-  the client's 90 datagrams a second is a property of the test topology. The
+  the client's ~89 datagrams a second is a property of the test topology. The
   size distributions are what transfers.
 - **Nothing about a second server, a second map or a longer session.**

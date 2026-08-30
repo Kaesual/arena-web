@@ -26,14 +26,29 @@ COPY . /arena-packages
 # forcing applies to the unpack pass only: `--configure -a` runs unforced, so
 # an incomplete closure still fails here rather than producing a half-installed
 # toolchain.
+#
+# The status check is anchored on purpose. `dpkg-query` prints
+# "<package> <want> <error> <state>", and an unanchored match for
+# "install ok installed" also matches "deinstall ok installed" — a removed
+# package would read as a healthy one. The count check is the other half: a
+# package that never unpacked at all leaves no status line to be unhealthy.
+# Neither `$(...)` swallows a dpkg-query failure; only the `grep` no-match
+# status is tolerated, which is what success looks like for the first one.
 RUN set -eu; \
     export DEBIAN_FRONTEND=noninteractive; \
+    expected="$(ls -1 /arena-packages/*.deb | wc -l)"; \
     dpkg --unpack --force-depends /arena-packages/*.deb; \
     dpkg --configure -a; \
-    unconfigured="$(dpkg-query -W -f='${Package} ${Status}\n' \
-      | grep -v 'install ok installed' || true)"; \
+    status="$(dpkg-query -W -f='${Package} ${Status}\n')"; \
+    unconfigured="$(printf '%s\n' "${status}" | grep -v ' install ok installed$' || :)"; \
     if [ -n "${unconfigured}" ]; then \
       printf 'packages are not fully installed:\n%s\n' "${unconfigured}" >&2; \
+      exit 1; \
+    fi; \
+    installed="$(printf '%s\n' "${status}" | grep -c ' install ok installed$' || :)"; \
+    if [ "${installed}" -lt "${expected}" ]; then \
+      printf 'only %s packages are installed, %s were staged\n' \
+        "${installed}" "${expected}" >&2; \
       exit 1; \
     fi; \
     rm -rf /arena-packages; \

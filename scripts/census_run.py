@@ -339,7 +339,7 @@ def acceptance_checks(
 
 def main() -> int:  # noqa: C901 - a session is a sequence, and it reads as one
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--runtime", default=os.environ.get("CONTAINER_RUNTIME", "docker"))
+    parser.add_argument("--runtime", default=os.environ.get("CONTAINER_RUNTIME", "podman"))
     parser.add_argument("--server-image", default="arena-web-server:latest")
     parser.add_argument("--toolchain-image", default=None)
     parser.add_argument("--subnet", default=DEFAULT_SUBNET)

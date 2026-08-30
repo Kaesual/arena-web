@@ -12,9 +12,11 @@ here reads the built image rather than the build context:
    and minus the paths a container runtime injects, is byte-for-byte the pinned
    runtime base's filesystem;
 3. every per-package ``/usr/share/doc/*/copyright`` file the base carries is
-   still there, unchanged. ``preserve-copyright-files`` is a recorded
-   redistribution obligation of the baseline's runtime-base record, and this is
-   where it is discharged rather than asserted.
+   still there, unchanged, and the base carries exactly as many of them as
+   ``native/server-profile.json`` pins. ``preserve-copyright-files`` is a
+   recorded redistribution obligation of the baseline's runtime-base record, and
+   this is where it is discharged rather than asserted — the pinned count is
+   what stops a mis-reading from being discharged against itself.
 
 The artifact manifest it writes is the committed identity of the image content;
 ``provenance/arena-web-server.json`` is a copy of it.
@@ -312,7 +314,7 @@ def main() -> int:
     )
     arguments = parser.parse_args()
 
-    runtime = arguments.runtime or os.environ.get("CONTAINER_RUNTIME", "docker")
+    runtime = arguments.runtime or os.environ.get("CONTAINER_RUNTIME", "podman")
 
     try:
         baseline = validate_baseline(
@@ -382,6 +384,16 @@ def main() -> int:
                 )
 
         base_copyright = _copyright_files(runtime, runtime_base)
+        # The count is required of the *base* before the two are compared.
+        # Comparing image with base proves nothing if the reading itself is
+        # wrong: a `find` without -L misses the two documentation directories
+        # that are symlinks, and both sides would then agree on 76 of 78.
+        expected_copyright = profile["runtimeBaseCopyrightFiles"]
+        if len(base_copyright) != expected_copyright:
+            raise ImageVerificationError(
+                f"the runtime base carries {len(base_copyright)} per-package "
+                f"copyright files, the profile pins {expected_copyright}"
+            )
         image_copyright = _copyright_files(runtime, arguments.tag)
         if image_copyright != base_copyright:
             missing = sorted(set(base_copyright) - set(image_copyright))

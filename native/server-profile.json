@@ -12,7 +12,14 @@
     "a person and uses skill 3; the census client is driven blind from a script",
     "and would spend a session respawning rather than playing, so its bots run",
     "at the engine's lowest skill. Bot skill changes how the game plays, not",
-    "what the protocol sends: it adds no message type, no command and no field."
+    "what the protocol sends: it adds no message type, no command and no field.",
+    "runtimeBaseCopyrightFiles is the number of per-package copyright files the",
+    "pinned runtime base carries. The baseline's runtime-base record obliges",
+    "arena-web to preserve them, and preservation is checked by comparing the",
+    "built image with the base \u2014 a comparison that would pass just as happily if",
+    "both sides silently dropped some, which is exactly what a `find` without",
+    "-L does here (two of the base's documentation directories are symlinks).",
+    "Pinning the count makes that regression fail instead of passing quietly."
   ],
   "basegame": "arena",
   "bots": [
@@ -144,6 +151,7 @@
   "package": "arena-web-ffa-oa_pvomit",
   "playerModel": "skelebot/default",
   "port": 27960,
+  "runtimeBaseCopyrightFiles": 78,
   "serverArguments": [
     "+set",
     "bot_enable",

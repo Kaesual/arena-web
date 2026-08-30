@@ -28,6 +28,7 @@ from typing import Any
 CHUNK_SIZE = 1024 * 1024
 
 LOCK_PATH = "locks/native-toolchain-packages.conf"
+INDEX_LOCK_PATH = "locks/native-toolchain-indexes.conf"
 
 # Only an immutable snapshot archive is admissible. `archive.ubuntu.com` and a
 # bare suite name are exactly the moving references WP0 forbids, so the
@@ -43,6 +44,25 @@ SUITE_RE = re.compile(r"\A[a-z][a-z0-9-]*\Z")
 COMPONENT_RE = re.compile(r"\A[a-z]+\Z")
 
 DIRECTIVES = ("component", "package", "request", "snapshot", "suite")
+
+INDEX_DIRECTIVES = ("index", "snapshot")
+
+# The signed index files the package lock's per-package digests came out of.
+# `InRelease` is the clearsigned root the Ubuntu archive key covers; `Release`
+# plus `Release.gpg` is the detached spelling of the same thing; each `Packages`
+# file is what a package digest was read from.
+SUITE_INDEX_KINDS = ("InRelease", "Release", "Release.gpg")
+COMPONENT_INDEX_KINDS = ("Packages.gz", "Packages.xz")
+INDEX_KINDS = SUITE_INDEX_KINDS + COMPONENT_INDEX_KINDS
+
+# The row that has to be present for a suite to be verifiable at all: without
+# the clearsigned root, nothing below it is anchored to the archive key.
+REQUIRED_SUITE_INDEX_KIND = "InRelease"
+
+NO_COMPONENT = "-"
+
+# The binary architecture the toolchain installs; the lock rejects any other.
+INDEX_ARCHITECTURE = "binary-amd64"
 
 # The architectures a `linux/amd64` toolchain may install from.
 ALLOWED_DEB_ARCHITECTURES = ("all", "amd64")
@@ -210,6 +230,157 @@ def load_package_lock(repo_root: Path) -> dict[str, Any]:
     # which is what the derived image is tagged with.
     lock["identity"] = hashlib.sha256(path.read_bytes()).hexdigest()
     return lock
+
+
+def _canonical_index_path(suite: str, component: str, kind: str) -> str:
+    if component == NO_COMPONENT:
+        return f"dists/{suite}/{kind}"
+    return f"dists/{suite}/{component}/{INDEX_ARCHITECTURE}/{kind}"
+
+
+def parse_index_lock(text: str) -> dict[str, Any]:
+    """Parse and fully validate the committed index sidecar.
+
+    The sidecar is what makes the package lock's trust root re-checkable
+    offline. It does not repeat the package digests and it is not a second
+    source of truth for them: it records the exact signed index files those
+    digests were read out of, so a reviewer can fetch them from the immutable
+    snapshot, verify `InRelease` against the Ubuntu archive keyring and confirm
+    the chain. Trusting that keyring is still required.
+    """
+    snapshot: str | None = None
+    indexes: list[dict[str, Any]] = []
+
+    for number, raw_line in enumerate(text.splitlines(), start=1):
+        line = raw_line.rstrip()
+        if not line or line.startswith("#"):
+            continue
+        if line != raw_line or line.strip() != line:
+            _fail(f"index line {number}: has leading or trailing whitespace")
+        fields = line.split(" ")
+        directive = fields[0]
+        if directive not in INDEX_DIRECTIVES:
+            _fail(f"index line {number}: unknown directive {directive!r}")
+        if directive == "snapshot":
+            if len(fields) != 2:
+                _fail(f"index line {number}: snapshot takes exactly one URL")
+            if snapshot is not None:
+                _fail(f"index line {number}: a second snapshot archive is not a pin")
+            if not SNAPSHOT_URL_RE.fullmatch(fields[1]):
+                _fail(
+                    f"index line {number}: {fields[1]!r} is not an immutable "
+                    "Ubuntu snapshot URL"
+                )
+            snapshot = fields[1]
+            continue
+        if len(fields) != 7:
+            _fail(
+                f"index line {number}: index takes suite, component, kind, "
+                "sha256, size and path"
+            )
+        _, suite, component, kind, sha256, size, path = fields
+        if not SUITE_RE.fullmatch(suite):
+            _fail(f"index line {number}: {suite!r} is not a suite name")
+        if component != NO_COMPONENT and not COMPONENT_RE.fullmatch(component):
+            _fail(f"index line {number}: {component!r} is not a component name")
+        if kind not in INDEX_KINDS:
+            _fail(f"index line {number}: {kind!r} is not an index kind")
+        if kind in SUITE_INDEX_KINDS and component != NO_COMPONENT:
+            _fail(f"index line {number}: {kind} belongs to a suite, not a component")
+        if kind in COMPONENT_INDEX_KINDS and component == NO_COMPONENT:
+            _fail(f"index line {number}: {kind} needs a component")
+        if not SHA256_RE.fullmatch(sha256):
+            _fail(f"index line {number}: {sha256!r} is not a SHA-256 digest")
+        if not size.isdigit() or int(size) <= 0:
+            _fail(f"index line {number}: {size!r} is not a positive byte count")
+        expected_path = _canonical_index_path(suite, component, kind)
+        if path != expected_path:
+            _fail(f"index line {number}: path must be {expected_path!r}, not {path!r}")
+        indexes.append(
+            {
+                "component": component,
+                "kind": kind,
+                "path": path,
+                "sha256": sha256,
+                "size": int(size),
+                "suite": suite,
+            }
+        )
+
+    if snapshot is None:
+        _fail("the index sidecar pins no snapshot archive")
+    if not indexes:
+        _fail("the index sidecar records no index")
+    keys = [(item["suite"], item["component"], item["kind"]) for item in indexes]
+    if len(set(keys)) != len(keys):
+        _fail("an index may be recorded only once")
+    if keys != sorted(keys):
+        _fail("index rows must be sorted by suite, component and kind")
+    return {"indexes": indexes, "snapshot": snapshot}
+
+
+def verify_index_lock(package_lock: dict[str, Any], index_lock: dict[str, Any]) -> None:
+    """Require the sidecar to describe the same archive the package lock used."""
+    if index_lock["snapshot"] != package_lock["snapshot"]:
+        _fail(
+            "the index sidecar pins a different snapshot than the package lock: "
+            f"{index_lock['snapshot']} vs {package_lock['snapshot']}"
+        )
+    suites = {item["suite"] for item in index_lock["indexes"]}
+    if suites != set(package_lock["suites"]):
+        _fail(
+            "the index sidecar covers suites "
+            f"{sorted(suites)}, the package lock resolved against "
+            f"{package_lock['suites']}"
+        )
+    components = {
+        item["component"]
+        for item in index_lock["indexes"]
+        if item["component"] != NO_COMPONENT
+    }
+    if components != set(package_lock["components"]):
+        _fail(
+            "the index sidecar covers components "
+            f"{sorted(components)}, the package lock resolved against "
+            f"{package_lock['components']}"
+        )
+    for suite in package_lock["suites"]:
+        kinds = {
+            item["kind"] for item in index_lock["indexes"] if item["suite"] == suite
+        }
+        if REQUIRED_SUITE_INDEX_KIND not in kinds:
+            _fail(
+                f"the index sidecar has no {REQUIRED_SUITE_INDEX_KIND} for "
+                f"suite {suite!r}, so nothing anchors it to the archive key"
+            )
+        for component in package_lock["components"]:
+            present = {
+                item["kind"]
+                for item in index_lock["indexes"]
+                if item["suite"] == suite and item["component"] == component
+            }
+            if not present & set(COMPONENT_INDEX_KINDS):
+                _fail(
+                    "the index sidecar records no Packages file for "
+                    f"{suite}/{component}, which is where the package digests "
+                    "were read from"
+                )
+
+
+def load_index_lock(repo_root: Path, package_lock: dict[str, Any]) -> dict[str, Any]:
+    path = repo_root / INDEX_LOCK_PATH
+    try:
+        text = path.read_text(encoding="utf-8")
+    except (OSError, UnicodeError) as error:
+        _fail(f"{INDEX_LOCK_PATH}: cannot be read: {error}")
+    index_lock = parse_index_lock(text)
+    verify_index_lock(package_lock, index_lock)
+    index_lock["identity"] = hashlib.sha256(path.read_bytes()).hexdigest()
+    return index_lock
+
+
+def index_url(index_lock: dict[str, Any], index: dict[str, Any]) -> str:
+    return f"{index_lock['snapshot']}/{index['path']}"
 
 
 def package_url(lock: dict[str, Any], package: dict[str, Any]) -> str:

@@ -15,10 +15,17 @@ set -euo pipefail
 export PYTHONDONTWRITEBYTECODE=1
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-runtime="${CONTAINER_RUNTIME:-docker}"
+# The WP5 native steps use Podman-only constructs; arena_require_container_runtime
+# is called before the first container use, so a metadata query still works
+# without one.
+# shellcheck source=scripts/container-runtime.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/container-runtime.sh"
+runtime="$(arena_container_runtime)"
 
 server_image="$("${repo_dir}/scripts/build-server-image.sh" --print-tag)"
 toolchain_image="$("${repo_dir}/scripts/build-native-toolchain.sh" --print-tag)"
+
+arena_require_container_runtime "${runtime}"
 
 for image in "${server_image}" "${toolchain_image}"; do
   if ! "${runtime}" image exists "${image}"; then

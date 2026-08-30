@@ -43,7 +43,7 @@ is a plan change; adding another platform is later scope.
 | WP2 | Relay conformance probe and routed-path measurement | WP0 | Deterministic part implemented — public contract, browser probe, in-memory adapter and 125 deterministic tests; routed acceptance pending operator-supplied runtime values |
 | WP3 | Audited deterministic minimal-content closure | WP0 | ✅ Complete — two clean assemblies in the pinned builder image produce a byte-identical 668-member `oa_pvomit` FFA pack from six digest-pinned Debian-cleaned OpenArena archives, every member `GPL-2.0-or-later` with resolved notices, and every reference the two static readings of the pinned `baseq3` QVM sources extract either resolves or is a recipe acceptance with a stated reason |
 | WP4 | One-map offline browser arena with bots | WP1, WP3 | Implemented, witnessed acceptance pending — the product loader, the digest-verified served set and the automated pre-acceptance are built and green in the pinned browser; a person at the WP0 desktop has not yet played it |
-| WP5 | Matching native server and packet census | WP0, WP3 | Implemented, one witnessed round pending — the pinned native toolchain, the reproducible dedicated server, the runtime-base server image and a 41,823-datagram census of a driven session are built and green; a player scoring against the server is the one acceptance word a blind driven client did not produce |
+| WP5 | Matching native server and packet census | WP0, WP3 | Implemented, one witnessed round pending — the pinned native toolchain, the reproducible dedicated server, the runtime-base server image and a 41,833-datagram census of a driven session are built and green; a player scoring against the server is the one acceptance word a blind driven client did not produce |
 | WP6 | Measured network-sizing decision | WP2, WP5 | Approved |
 | WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | Scope gate |
 | WP8 | Two-browser multiplayer acceptance | WP5, WP7 | Scope gate |
@@ -621,6 +621,9 @@ Decided facts:
   `snapshot.ubuntu.com` archive at an exact timestamp, every package by version,
   size and SHA-256 from that snapshot's signed index, fetched and verified
   before an offline image build. An accepted build resolves nothing.
+  `locks/native-toolchain-indexes.conf` records the signed index files those
+  digests came out of, so the trust root is re-checkable offline down to the
+  Ubuntu archive keyring rather than resting on one unrecorded networked run.
 - **The dedicated server is reproducible.** Two clean builds produce a
   byte-identical binary, and two image builds produce the same image id. The
   server's QVM is the accepted WP1 artifact rather than a second build of the
@@ -630,10 +633,14 @@ Decided facts:
   base's. All 78 per-package copyright files survive — and the obvious check
   finds only 76, because two of the base's documentation directories are
   symlinks.
-- **The census confirms WP0's header numbers by measurement**: 10 bytes
-  client-to-server, 8 server-to-client, +4 when fragmented. The observed maximum
-  is 1,312 bytes, exactly `FRAGMENT_SIZE` plus the fragmented server header, and
-  nothing reached `MAX_PACKETLEN`.
+- **The census is consistent with WP0's header numbers on every datagram**: 10
+  bytes client-to-server, 8 server-to-client, +4 when fragmented. That is a
+  consistency check rather than an independent measurement — the header length
+  is computed from the pinned engine's constants, and what the capture adds is
+  that all of the session's datagrams agree with it and none was shorter than
+  its computed header. The observed maximum is 1,312 bytes, exactly
+  `FRAGMENT_SIZE` plus the fragmented server header, and no netchan datagram
+  reached `MAX_PACKETLEN`.
 - **Connectionless traffic is rare but not small.** `statusResponse` was 464
   bytes with four players and grows with the player count, and out-of-band
   datagrams carry no fragment fields at all — so netchan fragmentation is not a

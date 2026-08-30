@@ -12,12 +12,17 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from native_toolchain import (  # noqa: E402
+    INDEX_LOCK_PATH,
     LOCK_PATH,
     NativeToolchainError,
+    index_url,
+    load_index_lock,
     load_package_lock,
     package_file_name,
     package_url,
+    parse_index_lock,
     parse_package_lock,
+    verify_index_lock,
     verify_package_directory,
 )
 
@@ -228,6 +233,183 @@ class VerifyDirectoryTests(unittest.TestCase):
     def test_a_missing_directory_is_rejected(self) -> None:
         with self.assertRaisesRegex(NativeToolchainError, "not a package directory"):
             verify_package_directory(self.lock, self.directory / "absent")
+
+
+MINIMAL_INDEXES = "\n".join(
+    (
+        "# a comment",
+        f"snapshot {SNAPSHOT}",
+        "index noble - InRelease " + "1" * 64 + " 10 dists/noble/InRelease",
+        "index noble main Packages.gz "
+        + "2" * 64
+        + " 20 dists/noble/main/binary-amd64/Packages.gz",
+    )
+)
+
+
+class IndexSidecarTests(unittest.TestCase):
+    """The sidecar that makes the package lock's trust root re-checkable."""
+
+    def setUp(self) -> None:
+        self.package_lock = parse_package_lock(MINIMAL)
+
+    def test_a_minimal_sidecar_parses(self) -> None:
+        index_lock = parse_index_lock(MINIMAL_INDEXES)
+        self.assertEqual(index_lock["snapshot"], SNAPSHOT)
+        self.assertEqual(len(index_lock["indexes"]), 2)
+        self.assertEqual(
+            index_url(index_lock, index_lock["indexes"][0]),
+            f"{SNAPSHOT}/dists/noble/InRelease",
+        )
+
+    def test_it_must_agree_with_the_package_lock(self) -> None:
+        verify_index_lock(self.package_lock, parse_index_lock(MINIMAL_INDEXES))
+
+    def test_a_different_snapshot_is_rejected(self) -> None:
+        other = SNAPSHOT.replace("20260824", "20260825")
+        index_lock = parse_index_lock(MINIMAL_INDEXES.replace(SNAPSHOT, other))
+        with self.assertRaisesRegex(NativeToolchainError, "different snapshot"):
+            verify_index_lock(self.package_lock, index_lock)
+
+    def test_a_moving_archive_is_rejected(self) -> None:
+        text = MINIMAL_INDEXES.replace(SNAPSHOT, "https://archive.ubuntu.com/ubuntu")
+        with self.assertRaisesRegex(NativeToolchainError, "immutable Ubuntu snapshot"):
+            parse_index_lock(text)
+
+    def test_a_missing_snapshot_is_rejected(self) -> None:
+        text = "\n".join(
+            line for line in MINIMAL_INDEXES.splitlines() if not line.startswith("snapshot ")
+        )
+        with self.assertRaisesRegex(NativeToolchainError, "pins no snapshot"):
+            parse_index_lock(text)
+
+    def test_an_empty_sidecar_is_rejected(self) -> None:
+        with self.assertRaisesRegex(NativeToolchainError, "records no index"):
+            parse_index_lock(f"snapshot {SNAPSHOT}")
+
+    def test_an_unknown_directive_is_rejected(self) -> None:
+        with self.assertRaisesRegex(NativeToolchainError, "unknown directive"):
+            parse_index_lock(MINIMAL_INDEXES + "\nkeyring /etc/apt/trusted.gpg")
+
+    def test_an_unknown_index_kind_is_rejected(self) -> None:
+        text = MINIMAL_INDEXES.replace("InRelease " + "1" * 64, "Sources " + "1" * 64)
+        with self.assertRaisesRegex(NativeToolchainError, "not an index kind"):
+            parse_index_lock(text)
+
+    def test_a_suite_index_with_a_component_is_rejected(self) -> None:
+        text = MINIMAL_INDEXES.replace(
+            "index noble - InRelease", "index noble main InRelease"
+        )
+        with self.assertRaisesRegex(NativeToolchainError, "belongs to a suite"):
+            parse_index_lock(text)
+
+    def test_a_component_index_without_a_component_is_rejected(self) -> None:
+        text = MINIMAL_INDEXES.replace(
+            "index noble main Packages.gz", "index noble - Packages.gz"
+        )
+        with self.assertRaisesRegex(NativeToolchainError, "needs a component"):
+            parse_index_lock(text)
+
+    def test_a_path_that_is_not_the_canonical_one_is_rejected(self) -> None:
+        text = MINIMAL_INDEXES.replace(
+            "dists/noble/main/binary-amd64/Packages.gz",
+            "dists/noble/main/binary-arm64/Packages.gz",
+        )
+        with self.assertRaisesRegex(NativeToolchainError, "path must be"):
+            parse_index_lock(text)
+
+    def test_a_malformed_digest_is_rejected(self) -> None:
+        text = MINIMAL_INDEXES.replace("1" * 64, "1" * 63)
+        with self.assertRaisesRegex(NativeToolchainError, "not a SHA-256 digest"):
+            parse_index_lock(text)
+
+    def test_a_zero_size_is_rejected(self) -> None:
+        text = MINIMAL_INDEXES.replace(" 10 dists/noble/InRelease", " 0 dists/noble/InRelease")
+        with self.assertRaisesRegex(NativeToolchainError, "positive byte count"):
+            parse_index_lock(text)
+
+    def test_a_duplicate_index_is_rejected(self) -> None:
+        text = MINIMAL_INDEXES + "\n" + MINIMAL_INDEXES.splitlines()[-1]
+        with self.assertRaisesRegex(NativeToolchainError, "recorded only once"):
+            parse_index_lock(text)
+
+    def test_unsorted_rows_are_rejected(self) -> None:
+        lines = MINIMAL_INDEXES.splitlines()
+        lines[-1], lines[-2] = lines[-2], lines[-1]
+        with self.assertRaisesRegex(NativeToolchainError, "must be sorted"):
+            parse_index_lock("\n".join(lines))
+
+    def test_a_suite_without_inrelease_is_rejected(self) -> None:
+        text = "\n".join(
+            line
+            for line in MINIMAL_INDEXES.splitlines()
+            if "InRelease" not in line
+        )
+        with self.assertRaisesRegex(NativeToolchainError, "nothing anchors it"):
+            verify_index_lock(self.package_lock, parse_index_lock(text))
+
+    def test_a_component_without_a_packages_file_is_rejected(self) -> None:
+        text = "\n".join(
+            line
+            for line in MINIMAL_INDEXES.splitlines()
+            if "Packages" not in line
+        )
+        with self.assertRaisesRegex(NativeToolchainError, "covers components"):
+            verify_index_lock(self.package_lock, parse_index_lock(text))
+
+    def test_an_extra_suite_is_rejected(self) -> None:
+        text = MINIMAL_INDEXES + (
+            "\nindex zesty - InRelease " + "3" * 64 + " 10 dists/zesty/InRelease"
+        )
+        with self.assertRaisesRegex(NativeToolchainError, "covers suites"):
+            verify_index_lock(self.package_lock, parse_index_lock(text))
+
+    def test_a_component_packages_file_may_be_missing_one_compression(self) -> None:
+        text = MINIMAL_INDEXES + (
+            "\nindex noble main Packages.xz "
+            + "4" * 64
+            + " 20 dists/noble/main/binary-amd64/Packages.xz"
+        )
+        verify_index_lock(self.package_lock, parse_index_lock(text))
+
+
+class CommittedIndexSidecarTests(unittest.TestCase):
+    """The sidecar this repository actually commits."""
+
+    def setUp(self) -> None:
+        self.package_lock = load_package_lock(ROOT)
+        self.index_lock = load_index_lock(ROOT, self.package_lock)
+
+    def test_the_committed_sidecar_agrees_with_the_package_lock(self) -> None:
+        self.assertEqual(self.index_lock["snapshot"], self.package_lock["snapshot"])
+
+    def test_every_suite_is_anchored_by_a_clearsigned_release(self) -> None:
+        for suite in self.package_lock["suites"]:
+            kinds = {
+                item["kind"]
+                for item in self.index_lock["indexes"]
+                if item["suite"] == suite
+            }
+            self.assertIn("InRelease", kinds, suite)
+
+    def test_every_suite_and_component_records_a_packages_file(self) -> None:
+        for suite in self.package_lock["suites"]:
+            for component in self.package_lock["components"]:
+                kinds = {
+                    item["kind"]
+                    for item in self.index_lock["indexes"]
+                    if item["suite"] == suite and item["component"] == component
+                }
+                self.assertTrue(kinds & {"Packages.gz", "Packages.xz"}, (suite, component))
+
+    def test_the_identity_is_the_file_digest(self) -> None:
+        expected = hashlib.sha256((ROOT / INDEX_LOCK_PATH).read_bytes()).hexdigest()
+        self.assertEqual(self.index_lock["identity"], expected)
+
+    def test_the_sidecar_does_not_repeat_the_package_digests(self) -> None:
+        package_digests = {package["sha256"] for package in self.package_lock["packages"]}
+        index_digests = {item["sha256"] for item in self.index_lock["indexes"]}
+        self.assertFalse(package_digests & index_digests)
 
 
 class CommittedLockTests(unittest.TestCase):

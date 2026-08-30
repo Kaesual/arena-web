@@ -44,8 +44,10 @@ release.
   both sides derive their command line from.
   `provenance/arena-web-server.json` is the artifact manifest of the server
   image's content, `locks/native-toolchain-packages.conf` pins the packages the
-  native toolchain installs, and `docs/wp5-packet-census.md` records the build,
-  the image and the packet census.
+  native toolchain installs with `locks/native-toolchain-indexes.conf` recording
+  the signed snapshot indexes those pins came from, and
+  `docs/wp5-packet-census.md` records the build, the image and the packet
+  census.
 - `records/` holds the machine-readable measurement records the work packages
   produce, starting with the WP5 packet census.
 - `docs/relay-datagram-contract.md` is the public routed datagram contract: the
@@ -173,17 +175,23 @@ is the WP0 native builder base plus exactly the packages
 from the separately pinned Debian runtime base.
 
 ```bash
-CONTAINER_RUNTIME=podman scripts/fetch-native-packages.sh    # once, online
-CONTAINER_RUNTIME=podman scripts/build-native-toolchain.sh   # offline
-CONTAINER_RUNTIME=podman scripts/build-native.sh --target server
-CONTAINER_RUNTIME=podman scripts/build-native.sh --target client
-CONTAINER_RUNTIME=podman scripts/build-server-image.sh
-CONTAINER_RUNTIME=podman scripts/run-packet-census.sh
+scripts/fetch-native-packages.sh          # once, online
+scripts/build-native-toolchain.sh         # offline from here on
+scripts/build-native.sh --target server
+scripts/build-native.sh --target client
+scripts/build-server-image.sh
+scripts/run-packet-census.sh
 ```
 
+These steps use Podman-only constructs — `build --timestamp`, which is what
+makes an image build reproducible, and `image exists` — so they default to
+`CONTAINER_RUNTIME=podman` and refuse a runtime that lacks them.
+
 Only the first command uses the network, and it accepts a package only if its
-byte length and SHA-256 match the lock. `scripts/verify-native-build.sh` runs two
-clean builds of either target and compares them.
+byte length and SHA-256 match the lock. `scripts/verify-native-build.sh
+--target server` runs two clean builds, builds the image from each, compares the
+two image ids and requires the regenerated artifact manifest to still equal the
+committed one apart from its producing commit.
 
 The census starts the server and the native client on a private container
 network, drives a full session through the client's own console, captures the

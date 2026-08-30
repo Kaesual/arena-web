@@ -15,7 +15,12 @@ set -euo pipefail
 export PYTHONDONTWRITEBYTECODE=1
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-runtime="${CONTAINER_RUNTIME:-docker}"
+# The WP5 native steps use Podman-only constructs; arena_require_container_runtime
+# is called before the first container use, so a metadata query still works
+# without one.
+# shellcheck source=scripts/container-runtime.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/container-runtime.sh"
+runtime="$(arena_container_runtime)"
 package_dir="${repo_dir}/build/native-packages"
 print_tag_only=0
 
@@ -68,6 +73,8 @@ if [[ ${print_tag_only} -eq 1 ]]; then
   printf '%s\n' "${image_tag}"
   exit 0
 fi
+
+arena_require_container_runtime "${runtime}"
 
 base_image="$(python3 "${repo_dir}/scripts/baseline-inputs.py" native-builder-image)"
 

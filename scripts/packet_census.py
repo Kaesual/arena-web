@@ -329,9 +329,16 @@ def build_records(
     records: list[dict[str, Any]] = []
     # A netchan's outgoing sequence starts at 1 for a new connection (ioq3
     # code/qcommon/net_chan.c Netchan_Setup), so a client-to-server sequence
-    # that does not advance opens a new connection. Every record carries that
+    # that goes *backwards* opens a new connection. Every record carries that
     # index, because a sequence number alone repeats across connections and
     # would merge two gamestates into one.
+    #
+    # It must be a strict decrease, not "does not advance":
+    # Netchan_TransmitNextFragment writes the same outgoingSequence on every
+    # fragment of one message and increments only after the last one
+    # (net_chan.c:118, :162-165), so a repeated sequence is the rest of a
+    # fragmented message and not a reconnect. This profile produced no
+    # fragmented client message, but WP6 has to generate exactly that case.
     connection_index = -1
     previous_sequence: int | None = None
     for packet in packets:
@@ -354,7 +361,7 @@ def build_records(
         if classification["class"] == NETCHAN:
             if direction == CLIENT_TO_SERVER:
                 sequence = classification["sequence"]
-                if previous_sequence is not None and sequence <= previous_sequence:
+                if previous_sequence is not None and sequence < previous_sequence:
                     connection_index += 1
                 elif connection_index < 0:
                     connection_index = 0
@@ -552,7 +559,9 @@ def _connections(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
     Disconnect and reconnect are therefore observable from the wire, without
     trusting the driver's timeline and without reading a payload the netchan
-    Huffman-codes.
+    Huffman-codes. The segmentation itself is done in `build_records`, where a
+    strictly decreasing client sequence — not merely a repeated one — opens the
+    next connection.
     """
     segments: dict[int, dict[str, Any]] = {}
     for item in records:

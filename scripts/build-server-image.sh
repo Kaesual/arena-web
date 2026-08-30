@@ -14,7 +14,12 @@ set -euo pipefail
 export PYTHONDONTWRITEBYTECODE=1
 
 repo_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
-runtime="${CONTAINER_RUNTIME:-docker}"
+# The WP5 native steps use Podman-only constructs; arena_require_container_runtime
+# is called before the first container use, so a metadata query still works
+# without one.
+# shellcheck source=scripts/container-runtime.sh
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/container-runtime.sh"
+runtime="$(arena_container_runtime)"
 server_dir="${repo_dir}/build/native-server/tree/Release"
 engine_dir="${repo_dir}/build/browser/tree/Release"
 content_dir="${repo_dir}/build/content-pack"
@@ -92,6 +97,8 @@ if [[ ${print_tag_only} -eq 1 ]]; then
   exit 0
 fi
 
+arena_require_container_runtime "${runtime}"
+
 python3 "${repo_dir}/scripts/validate-metadata.py" >/dev/null
 git -C "${repo_dir}" diff --check
 git -C "${repo_dir}" diff --cached --check
@@ -160,4 +167,5 @@ python3 "${repo_dir}/scripts/verify-server-image.py" \
   --runtime "${runtime}" \
   --tag "${image_tag}" \
   --report "${output_dir}/image-content.json" \
+  --server-binary "${server_binary}" \
   --producer-commit "${producer_commit}"

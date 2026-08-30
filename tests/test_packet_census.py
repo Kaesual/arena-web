@@ -387,6 +387,70 @@ class SessionTests(unittest.TestCase):
         self.assertEqual(self.summary["overall"]["clientSourcePorts"], [CLIENT_PORT])
 
 
+class FragmentedClientMessageTests(unittest.TestCase):
+    """A fragmented client message is one message, not a reconnect.
+
+    ioq3 code/qcommon/net_chan.c: Netchan_TransmitNextFragment writes the same
+    outgoingSequence on every fragment (:118) and increments it only after the
+    last one (:162-165), so consecutive client datagrams repeat a sequence.
+    Treating "does not advance" as a new connection would invent a phantom
+    connection and split the message into one-fragment pieces.
+    """
+
+    def setUp(self) -> None:
+        frames = [
+            (1.0, to_server(client_netchan(1, 4242, b"c" * 20))),
+            # One 3-fragment client message: sequence 5 three times.
+            (2.0, to_server(client_netchan(5, 4242, b"f" * 1300, fragmented=True))),
+            (2.1, to_client(server_netchan(5, b"s" * 40))),
+            (2.2, to_server(client_netchan(5, 4242, b"f" * 1300, fragmented=True))),
+            (2.3, to_server(client_netchan(5, 4242, b"f" * 12, fragmented=True))),
+            (3.0, to_server(client_netchan(6, 4242, b"c" * 20))),
+        ]
+        self.records = build_records(
+            parse_pcap(pcap(frames)),
+            server_address=SERVER,
+            server_port=SERVER_PORT,
+            phases=[],
+        )
+        self.summary = summarize(self.records)
+
+    def test_a_repeated_sequence_does_not_open_a_connection(self) -> None:
+        self.assertEqual({item["connectionIndex"] for item in self.records}, {0})
+        self.assertEqual(len(self.summary["connections"]), 1)
+
+    def test_the_fragments_form_one_message(self) -> None:
+        messages = self.summary["fragmentedMessages"]
+        self.assertEqual(len(messages), 1)
+        self.assertEqual(messages[0]["direction"], CLIENT_TO_SERVER)
+        self.assertEqual(messages[0]["fragments"], 3)
+        self.assertEqual(messages[0]["sequence"], 5)
+        self.assertEqual(messages[0]["largestDatagramBytes"], 1314)
+
+    def test_the_client_fragment_header_is_fourteen_bytes(self) -> None:
+        asymmetry = self.summary["headerAsymmetry"]
+        self.assertEqual(
+            asymmetry[f"{CLIENT_TO_SERVER}-fragmented"]["headerBytes"], [14]
+        )
+        self.assertEqual(asymmetry[f"{CLIENT_TO_SERVER}-fragmented"]["count"], 3)
+
+    def test_a_strictly_decreasing_sequence_still_opens_a_connection(self) -> None:
+        frames = [
+            (1.0, to_server(client_netchan(7, 4242, b"c" * 20))),
+            (2.0, to_server(client_netchan(8, 4242, b"c" * 20))),
+            (3.0, to_server(client_netchan(1, 4242, b"c" * 20))),
+        ]
+        summary = summarize(
+            build_records(
+                parse_pcap(pcap(frames)),
+                server_address=SERVER,
+                server_port=SERVER_PORT,
+                phases=[],
+            )
+        )
+        self.assertEqual(len(summary["connections"]), 2)
+
+
 class CommittedCensusRecordTests(unittest.TestCase):
     """The committed evidence of the accepted census run.
 
@@ -397,9 +461,11 @@ class CommittedCensusRecordTests(unittest.TestCase):
     """
 
     def setUp(self) -> None:
+        # Deliberately not a skip. The record is committed evidence, not a
+        # build artifact: if it is missing, the gate has to go red rather than
+        # quietly verify nothing.
         path = ROOT / "records" / "wp5-packet-census.json"
-        if not path.is_file():
-            self.skipTest("the census record has not been issued yet")
+        self.assertTrue(path.is_file(), f"{path} is committed evidence and must exist")
         self.record = json.loads(path.read_text(encoding="utf-8"))
 
     def test_every_required_acceptance_check_passed(self) -> None:
