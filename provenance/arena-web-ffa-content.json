@@ -72,7 +72,7 @@
       ],
       "path": "NOTICE-arena-web.txt",
       "role": "notice",
-      "sha256": "bf65e554c3fe7e9455d6843ce13e21e821022afaff5a04c67133e160b6cb8857",
+      "sha256": "8d20b36d0e0fbaa24d0b3489d057b6b639ee371d21af824971143f50ed3ad44c",
       "size": 4966,
       "sourceId": "arena-web",
       "sourcePath": "content/pack-recipe.json",
@@ -7521,6 +7521,28 @@
         "copyleft-source",
         "license-notice"
       ],
+      "path": "models/weapons2/bfg/bfg_hand.md3",
+      "role": "asset",
+      "sha256": "af578cefe5d12a896c79e90ddab27b4dabe6e907c52a48bcfb6ef1957e081d6b",
+      "size": 2460,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weapons2/bfg/bfg_hand.md3",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
       "path": "models/weapons2/bfg/bfgbody.tga",
       "role": "asset",
       "sha256": "e0e3a0d5ccc5bfff3fd061f82d4d5ea1315ee9f949763e86b5235bf9c9f6e60a",
@@ -8385,6 +8407,28 @@
       "size": 3116,
       "sourceId": "openarena-data",
       "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weapons2/rocketl/rocketl_flash.md3",
+      "transformation": "copied unmodified from the verified upstream archive"
+    },
+    {
+      "licenseExpression": "GPL-2.0-or-later",
+      "noticePaths": [
+        "COPYING",
+        "CREDITS",
+        "CREDITS-0.8.5",
+        "CREDITS-0.8.8",
+        "NOTICE-arena-web.txt",
+        "README"
+      ],
+      "obligations": [
+        "copyleft-source",
+        "license-notice"
+      ],
+      "path": "models/weapons2/rocketl/rocketl_hand.md3",
+      "role": "asset",
+      "sha256": "903b60569563a0c0b9d60fe85a2d0f1dd45d929b7eb1dd6411a8dda452c2a83c",
+      "size": 2964,
+      "sourceId": "openarena-data",
+      "sourcePath": "openarena-data-0.8.5split.orig/pak0/models/weapons2/rocketl/rocketl_hand.md3",
       "transformation": "copied unmodified from the verified upstream archive"
     },
     {
@@ -15283,9 +15327,9 @@
       "id": "arena-web",
       "licenseEvidenceUrl": "https://raw.githubusercontent.com/Kaesual/arena-web/1cc0a1a3d5e84ee2f3a3ff9305a962810e4283d2/LICENSE",
       "licenseExpression": "GPL-2.0-or-later",
-      "preferredSourceRevision": "sha256:656d56bf0874eaaabc4fa4bbdb07a4c44805b281bcd7a7ad4928c68f6b206bd8",
+      "preferredSourceRevision": "sha256:c08f8dac2a1b6c002d45e6c1dcb0d36a7863e2a30b91402f1139383ae361f033",
       "preferredSourceUrl": "https://github.com/Kaesual/arena-web",
-      "sourceIdentity": "sha256:656d56bf0874eaaabc4fa4bbdb07a4c44805b281bcd7a7ad4928c68f6b206bd8",
+      "sourceIdentity": "sha256:c08f8dac2a1b6c002d45e6c1dcb0d36a7863e2a30b91402f1139383ae361f033",
       "sourceUrl": "https://github.com/Kaesual/arena-web"
     },
     {

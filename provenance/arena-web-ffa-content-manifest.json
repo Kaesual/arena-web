@@ -3,8 +3,8 @@
   "artifacts": [
     {
       "path": "baseq3/arena-web-ffa.pk3",
-      "sha256": "f3d19e9b3f0ed10258212542e2555246f796c54120e113785eae8a19bf9f0ed2",
-      "size": 24482996
+      "sha256": "ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664",
+      "size": 24484503
     }
   ],
   "baselineIdentity": "sha256:a9126a609d3f041c60c7ca43b3db0e7be8754b9ef0862a6557e8c523038da5e5",
@@ -16,7 +16,7 @@
   "inputs": [
     {
       "id": "arena-web",
-      "identity": "sha256:656d56bf0874eaaabc4fa4bbdb07a4c44805b281bcd7a7ad4928c68f6b206bd8",
+      "identity": "sha256:c08f8dac2a1b6c002d45e6c1dcb0d36a7863e2a30b91402f1139383ae361f033",
       "kind": "archive"
     },
     {
@@ -56,7 +56,7 @@
     }
   ],
   "producer": {
-    "commit": "cb7af08a7172deb0d8acd1598cfd0ab828601ae2",
+    "commit": "f3e2831ffcffa2252f6bf57ef7f26e84a3bcd3c0",
     "name": "arena-web scripts/build-content-pack.sh"
   }
 }
