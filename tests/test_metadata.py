@@ -1470,17 +1470,22 @@ class BrowserBuildManifestTests(unittest.TestCase):
         with self.assertRaisesRegex(MetadataError, "emscripten-builder"):
             artifact_manifest.baseline_inputs(candidate)
 
-    def test_build_script_derives_source_date_epoch_from_the_pin(self) -> None:
+    def test_build_scripts_derive_source_date_epoch_from_the_upstream_base(
+        self,
+    ) -> None:
+        """The embedded PRODUCT_DATE follows the base, not the patch series.
+
+        Both accepted builds assert the same value, and it is the upstream
+        base's committer timestamp rather than the pin's: PRODUCT_DATE is
+        ioquake3's product version string, and a fork patch does not make a new
+        ioquake3 release. Deriving it from the base is also what keeps a
+        renderer-only patch from moving the QVMs and the dedicated server, which
+        do not compile a line of it.
+        """
         if os.environ.get("ARENA_WITHOUT_GIT_METADATA") == "1":
             self.skipTest(
                 "public source is mounted without linked-worktree Git metadata"
             )
-        script = (ROOT / "scripts" / "build-browser.sh").read_text(encoding="utf-8")
-        match = re.search(
-            r"(?m)^expected_source_date_epoch=([0-9]+)$",
-            script,
-        )
-        self.assertIsNotNone(match, "build-browser.sh must pin SOURCE_DATE_EPOCH")
         result = subprocess.run(
             [
                 "git",
@@ -1489,13 +1494,26 @@ class BrowserBuildManifestTests(unittest.TestCase):
                 "show",
                 "-s",
                 "--format=%ct",
-                self.baseline["engine"]["commit"],
+                self.baseline["engine"]["upstreamBase"]["commit"],
             ],
             check=True,
             capture_output=True,
             text=True,
         )
-        self.assertEqual(match.group(1), result.stdout.strip())
+        for name in ("build-browser.sh", "build-native.sh"):
+            with self.subTest(script=name):
+                script = (ROOT / "scripts" / name).read_text(encoding="utf-8")
+                match = re.search(
+                    r"(?m)^expected_source_date_epoch=([0-9]+)$",
+                    script,
+                )
+                self.assertIsNotNone(match, f"{name} must pin SOURCE_DATE_EPOCH")
+                self.assertEqual(match.group(1), result.stdout.strip())
+                self.assertIn(
+                    'show -s --format=%ct "${engine_base_commit}"',
+                    script,
+                    f"{name} must read the epoch from the upstream base commit",
+                )
 
     def test_port_archive_pin_matches_the_committed_manifest(self) -> None:
         script = (ROOT / "scripts" / "fetch-emscripten-ports.sh").read_text(

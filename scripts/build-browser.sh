@@ -23,9 +23,18 @@ print_image_only=0
 
 # Reproducible timestamps. CMake turns SOURCE_DATE_EPOCH into the compiled-in
 # PRODUCT_DATE; without it the engine embeds __DATE__ and no two builds agree.
-# The value is the pinned engine commit's own committer timestamp, so it is
-# derived from the baseline rather than from the moment of the build.
-expected_source_date_epoch=1788085967
+# The value is the committer timestamp of the lock's upstream *base* commit, so
+# it is derived from the baseline rather than from the moment of the build.
+#
+# The base rather than the pin, deliberately. PRODUCT_DATE is ioquake3's own
+# product version string, and the fork's patch series does not make the engine a
+# newer ioquake3 release; what identifies an accepted build is the commits and
+# digests the lock and the manifests carry, not this string. Deriving it from
+# the base also keeps the difference between two accepted builds equal to the
+# difference between their sources: a renderer-only patch then moves the
+# renderer artifacts and leaves the QVMs and the dedicated server
+# byte-identical, instead of moving every artifact that embeds a date.
+expected_source_date_epoch=1784478090
 
 usage() {
   cat <<'EOF'
@@ -85,6 +94,7 @@ fi
 
 builder_version="$(baseline_input builder-version)"
 engine_commit="$(baseline_input engine-commit)"
+engine_base_commit="$(baseline_input engine-upstream-base-commit)"
 engine_path="$(baseline_input engine-submodule-path)"
 engine_dir="${repo_dir}/${engine_path}"
 
@@ -101,9 +111,9 @@ if [[ -n "$(git -C "${repo_dir}" status --porcelain=v1)" ]]; then
 fi
 producer_commit="$(git -C "${repo_dir}" rev-parse HEAD)"
 
-source_date_epoch="$(git -C "${engine_dir}" show -s --format=%ct "${engine_commit}")"
+source_date_epoch="$(git -C "${engine_dir}" show -s --format=%ct "${engine_base_commit}")"
 if [[ "${source_date_epoch}" != "${expected_source_date_epoch}" ]]; then
-  printf 'refusing to build: pinned engine commit timestamp is %s, expected %s\n' \
+  printf 'refusing to build: upstream base commit timestamp is %s, expected %s\n' \
     "${source_date_epoch}" "${expected_source_date_epoch}" >&2
   exit 1
 fi

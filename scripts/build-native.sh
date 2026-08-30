@@ -28,9 +28,11 @@ require_clean=1
 
 # Reproducible timestamps. CMake turns SOURCE_DATE_EPOCH into the compiled-in
 # PRODUCT_DATE; without it the engine embeds __DATE__ and no two builds agree.
-# The value is the pinned engine commit's own committer timestamp, so it is
-# derived from the baseline rather than from the moment of the build. It is the
-# same value the browser build asserts.
+# The value is the committer timestamp of the lock's upstream *base* commit, so
+# it is derived from the baseline rather than from the moment of the build. It
+# is the same value the browser build asserts, and it is the base rather than
+# the pin for the reason build-browser.sh records: a renderer-only patch must
+# not move a dedicated server that does not compile a line of it.
 expected_source_date_epoch=1784478090
 
 usage() {
@@ -103,6 +105,7 @@ baseline_input() {
 
 toolchain_image="$("${repo_dir}/scripts/build-native-toolchain.sh" --print-tag)"
 engine_commit="$(baseline_input engine-commit)"
+engine_base_commit="$(baseline_input engine-upstream-base-commit)"
 engine_path="$(baseline_input engine-submodule-path)"
 engine_dir="${repo_dir}/${engine_path}"
 
@@ -128,9 +131,9 @@ if ! "${runtime}" image exists "${toolchain_image}"; then
   exit 1
 fi
 
-source_date_epoch="$(git -C "${engine_dir}" show -s --format=%ct "${engine_commit}")"
+source_date_epoch="$(git -C "${engine_dir}" show -s --format=%ct "${engine_base_commit}")"
 if [[ "${source_date_epoch}" != "${expected_source_date_epoch}" ]]; then
-  printf 'refusing to build: pinned engine commit timestamp is %s, expected %s\n' \
+  printf 'refusing to build: upstream base commit timestamp is %s, expected %s\n' \
     "${source_date_epoch}" "${expected_source_date_epoch}" >&2
   exit 1
 fi

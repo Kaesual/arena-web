@@ -26,6 +26,7 @@ FIELDS = (
     "builder-version",
     "engine-commit",
     "engine-submodule-path",
+    "engine-upstream-base-commit",
     "native-builder-image",
     "server-runtime-image",
 )
@@ -58,6 +59,8 @@ def resolve(baseline: dict, field: str) -> str:
         return baseline["engine"]["commit"]
     if field == "engine-submodule-path":
         return baseline["engine"]["submodulePath"]
+    if field == "engine-upstream-base-commit":
+        return baseline["engine"]["upstreamBase"]["commit"]
     if field == "native-builder-image":
         return _tool(baseline, "native-builder-base")["immutableRef"]
     if field == "server-runtime-image":
