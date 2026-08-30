@@ -63,7 +63,7 @@
     }
   ],
   "producer": {
-    "commit": "66d192118e7c3123e7142d3d42d23d07eb4a79d9",
+    "commit": "74087274ff2ff6401c8e729a679116be4c0a776d",
     "name": "arena-web scripts/build-server-image.sh"
   }
 }
