@@ -2306,5 +2306,62 @@ class BrowserImplementationTests(unittest.TestCase):
             self.assertEqual(len(summary["sessions"]), 1)
 
 
+class CommittedRoutedMeasurementTests(unittest.TestCase):
+    """The committed routed-measurement record stays a valid report.
+
+    The record is the WP2 routed round's deliverable: five sessions from the
+    pinned browser — three sequential and two concurrent contexts merged with
+    `merge_reports` — over one routed path. These tests do not re-measure
+    anything; they pin that the committed bytes validate against the committed
+    measurement vector, that the summary reduction still accepts them, and
+    that no runtime value leaked into a field.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        root = Path(__file__).resolve().parent.parent
+        cls.record = json.loads(
+            (root / "records" / "wp2-routed-measurement.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        cls.vector_bytes = (
+            root / "locks" / "relay-measurement-vector.json"
+        ).read_bytes()
+
+    def test_the_record_validates_against_the_committed_vector(self) -> None:
+        import hashlib
+
+        plan = MeasurementPlan.from_vector(json.loads(self.vector_bytes))
+        validate_report(self.record, plan)
+        self.assertEqual(
+            self.record["measurementVectorSha256"],
+            hashlib.sha256(self.vector_bytes).hexdigest(),
+        )
+        summary = summarize_report(self.record, plan)
+        self.assertEqual(len(summary["sessions"]), len(self.record["sessions"]))
+
+    def test_the_record_holds_the_concurrent_evidence_shape(self) -> None:
+        # Five sessions, renumbered 0..4 by the merge; more than one session
+        # is what makes the untagged-case exclusion in the summary apply.
+        self.assertEqual(len(self.record["sessions"]), 5)
+        self.assertEqual(
+            [session["sessionIndex"] for session in self.record["sessions"]],
+            list(range(5)),
+        )
+
+    def test_the_record_names_no_runtime_value(self) -> None:
+        # The report format has no field for the endpoint, authorization,
+        # destination or assigned address; this pins that the committed record
+        # also smuggles none of them through its two free-text carriers.
+        self.assertEqual(
+            self.record["pathNotes"],
+            "workstation browser to rehearsal VM relay, one routed LAN hop",
+        )
+        text = json.dumps(self.record)
+        for marker in ("://", "eyJ", "f4d3", "192.168", "fd00"):
+            self.assertNotIn(marker, text)
+
+
 if __name__ == "__main__":
     unittest.main()

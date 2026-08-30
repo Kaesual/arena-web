@@ -1,0 +1,3593 @@
+{
+  "formatVersion": 2,
+  "framing": {
+    "datagramLengthPrefixBytes": 2,
+    "relayHeaderBytes": 40,
+    "singleDatagramOverheadBytes": 42
+  },
+  "kind": "arena-web-routed-datagram-measurement",
+  "measurementVectorSha256": "546a9a859f92d72d0a2d7dc14acdd80410e0873148500b2d0e26765a6182a064",
+  "pathNotes": "workstation browser to rehearsal VM relay, one routed LAN hop",
+  "sessions": [
+    {
+      "caseTimeoutMilliseconds": 2000,
+      "cases": [
+        {
+          "caseIndex": 0,
+          "kind": "single",
+          "ordinals": [
+            0
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 42,
+              "innerBytes": 0
+            }
+          ],
+          "roundTripMilliseconds": 0.5999999940395355,
+          "sentFrameBytes": 42,
+          "sentInnerBytes": [
+            0
+          ]
+        },
+        {
+          "caseIndex": 1,
+          "kind": "single",
+          "ordinals": [
+            1
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 43,
+              "innerBytes": 1
+            }
+          ],
+          "roundTripMilliseconds": 0.5,
+          "sentFrameBytes": 43,
+          "sentInnerBytes": [
+            1
+          ]
+        },
+        {
+          "caseIndex": 2,
+          "kind": "single",
+          "ordinals": [
+            2
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 58,
+              "innerBytes": 16
+            }
+          ],
+          "roundTripMilliseconds": 0.7000000178813934,
+          "sentFrameBytes": 58,
+          "sentInnerBytes": [
+            16
+          ]
+        },
+        {
+          "caseIndex": 3,
+          "kind": "single",
+          "ordinals": [
+            3
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 106,
+              "innerBytes": 64
+            }
+          ],
+          "roundTripMilliseconds": 0.9000000059604645,
+          "sentFrameBytes": 106,
+          "sentInnerBytes": [
+            64
+          ]
+        },
+        {
+          "caseIndex": 4,
+          "kind": "single",
+          "ordinals": [
+            4
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 298,
+              "innerBytes": 256
+            }
+          ],
+          "roundTripMilliseconds": 1.2000000178813934,
+          "sentFrameBytes": 298,
+          "sentInnerBytes": [
+            256
+          ]
+        },
+        {
+          "caseIndex": 5,
+          "kind": "single",
+          "ordinals": [
+            5
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 554,
+              "innerBytes": 512
+            }
+          ],
+          "roundTripMilliseconds": 1.5,
+          "sentFrameBytes": 554,
+          "sentInnerBytes": [
+            512
+          ]
+        },
+        {
+          "caseIndex": 6,
+          "kind": "single",
+          "ordinals": [
+            6
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 810,
+              "innerBytes": 768
+            }
+          ],
+          "roundTripMilliseconds": 1.7000000178813934,
+          "sentFrameBytes": 810,
+          "sentInnerBytes": [
+            768
+          ]
+        },
+        {
+          "caseIndex": 7,
+          "kind": "single",
+          "ordinals": [
+            7
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1066,
+          "sentInnerBytes": [
+            1024
+          ]
+        },
+        {
+          "caseIndex": 8,
+          "kind": "single",
+          "ordinals": [
+            8
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1142,
+          "sentInnerBytes": [
+            1100
+          ]
+        },
+        {
+          "caseIndex": 9,
+          "kind": "single",
+          "ordinals": [
+            9
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1192,
+          "sentInnerBytes": [
+            1150
+          ]
+        },
+        {
+          "caseIndex": 10,
+          "kind": "single",
+          "ordinals": [
+            10
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1217,
+          "sentInnerBytes": [
+            1175
+          ]
+        },
+        {
+          "caseIndex": 11,
+          "kind": "single",
+          "ordinals": [
+            11
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1232,
+          "sentInnerBytes": [
+            1190
+          ]
+        },
+        {
+          "caseIndex": 12,
+          "kind": "single",
+          "ordinals": [
+            12
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1242,
+          "sentInnerBytes": [
+            1200
+          ]
+        },
+        {
+          "caseIndex": 13,
+          "kind": "single",
+          "ordinals": [
+            13
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1252,
+          "sentInnerBytes": [
+            1210
+          ]
+        },
+        {
+          "caseIndex": 14,
+          "kind": "single",
+          "ordinals": [
+            14
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1262,
+          "sentInnerBytes": [
+            1220
+          ]
+        },
+        {
+          "caseIndex": 15,
+          "kind": "single",
+          "ordinals": [
+            15
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1272,
+          "sentInnerBytes": [
+            1230
+          ]
+        },
+        {
+          "caseIndex": 16,
+          "kind": "single",
+          "ordinals": [
+            16
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1282,
+          "sentInnerBytes": [
+            1240
+          ]
+        },
+        {
+          "caseIndex": 17,
+          "kind": "single",
+          "ordinals": [
+            17
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1292,
+          "sentInnerBytes": [
+            1250
+          ]
+        },
+        {
+          "caseIndex": 18,
+          "kind": "single",
+          "ordinals": [
+            18
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1302,
+          "sentInnerBytes": [
+            1260
+          ]
+        },
+        {
+          "caseIndex": 19,
+          "kind": "single",
+          "ordinals": [
+            19
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1312,
+          "sentInnerBytes": [
+            1270
+          ]
+        },
+        {
+          "caseIndex": 20,
+          "kind": "single",
+          "ordinals": [
+            20
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1322,
+          "sentInnerBytes": [
+            1280
+          ]
+        },
+        {
+          "caseIndex": 21,
+          "kind": "single",
+          "ordinals": [
+            21
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1332,
+          "sentInnerBytes": [
+            1290
+          ]
+        },
+        {
+          "caseIndex": 22,
+          "kind": "single",
+          "ordinals": [
+            22
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1340,
+          "sentInnerBytes": [
+            1298
+          ]
+        },
+        {
+          "caseIndex": 23,
+          "kind": "single",
+          "ordinals": [
+            23
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1341,
+          "sentInnerBytes": [
+            1299
+          ]
+        },
+        {
+          "caseIndex": 24,
+          "kind": "single",
+          "ordinals": [
+            24
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1342,
+          "sentInnerBytes": [
+            1300
+          ]
+        },
+        {
+          "caseIndex": 25,
+          "kind": "single",
+          "ordinals": [
+            25
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1343,
+          "sentInnerBytes": [
+            1301
+          ]
+        },
+        {
+          "caseIndex": 26,
+          "kind": "single",
+          "ordinals": [
+            26
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1348,
+          "sentInnerBytes": [
+            1306
+          ]
+        },
+        {
+          "caseIndex": 27,
+          "kind": "single",
+          "ordinals": [
+            27
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1349,
+          "sentInnerBytes": [
+            1307
+          ]
+        },
+        {
+          "caseIndex": 28,
+          "kind": "single",
+          "ordinals": [
+            28
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1350,
+          "sentInnerBytes": [
+            1308
+          ]
+        },
+        {
+          "caseIndex": 29,
+          "kind": "single",
+          "ordinals": [
+            29
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1351,
+          "sentInnerBytes": [
+            1309
+          ]
+        },
+        {
+          "caseIndex": 30,
+          "kind": "single",
+          "ordinals": [
+            30
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1352,
+          "sentInnerBytes": [
+            1310
+          ]
+        },
+        {
+          "caseIndex": 31,
+          "kind": "single",
+          "ordinals": [
+            31
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1353,
+          "sentInnerBytes": [
+            1311
+          ]
+        },
+        {
+          "caseIndex": 32,
+          "kind": "single",
+          "ordinals": [
+            32
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1354,
+          "sentInnerBytes": [
+            1312
+          ]
+        },
+        {
+          "caseIndex": 33,
+          "kind": "single",
+          "ordinals": [
+            33
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1355,
+          "sentInnerBytes": [
+            1313
+          ]
+        },
+        {
+          "caseIndex": 34,
+          "kind": "single",
+          "ordinals": [
+            34
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1356,
+          "sentInnerBytes": [
+            1314
+          ]
+        },
+        {
+          "caseIndex": 35,
+          "kind": "single",
+          "ordinals": [
+            35
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1357,
+          "sentInnerBytes": [
+            1315
+          ]
+        },
+        {
+          "caseIndex": 36,
+          "kind": "single",
+          "ordinals": [
+            36
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1442,
+          "sentInnerBytes": [
+            1400
+          ]
+        },
+        {
+          "caseIndex": 37,
+          "kind": "single",
+          "ordinals": [
+            37
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1443,
+          "sentInnerBytes": [
+            1401
+          ]
+        },
+        {
+          "caseIndex": 38,
+          "kind": "single",
+          "ordinals": [
+            38
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 2090,
+          "sentInnerBytes": [
+            2048
+          ]
+        },
+        {
+          "caseIndex": 39,
+          "kind": "single",
+          "ordinals": [
+            39
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 4138,
+          "sentInnerBytes": [
+            4096
+          ]
+        },
+        {
+          "caseIndex": 40,
+          "kind": "single",
+          "ordinals": [
+            40
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 8234,
+          "sentInnerBytes": [
+            8192
+          ]
+        },
+        {
+          "caseIndex": 41,
+          "kind": "single",
+          "ordinals": [
+            41
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 16426,
+          "sentInnerBytes": [
+            16384
+          ]
+        },
+        {
+          "caseIndex": 42,
+          "kind": "packed",
+          "ordinals": [
+            42,
+            43
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 106,
+              "innerBytes": 64
+            },
+            {
+              "frameBytes": 106,
+              "innerBytes": 64
+            }
+          ],
+          "roundTripMilliseconds": 2.100000023841858,
+          "sentFrameBytes": 172,
+          "sentInnerBytes": [
+            64,
+            64
+          ]
+        },
+        {
+          "caseIndex": 43,
+          "kind": "packed",
+          "ordinals": [
+            44,
+            45
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1360,
+          "sentInnerBytes": [
+            16,
+            1300
+          ]
+        },
+        {
+          "caseIndex": 44,
+          "kind": "packed",
+          "ordinals": [
+            46,
+            47
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1360,
+          "sentInnerBytes": [
+            1300,
+            16
+          ]
+        },
+        {
+          "caseIndex": 45,
+          "kind": "packed",
+          "ordinals": [
+            48,
+            49,
+            50,
+            51
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1072,
+          "sentInnerBytes": [
+            256,
+            256,
+            256,
+            256
+          ]
+        }
+      ],
+      "errorDatagrams": 0,
+      "foreignFrames": 0,
+      "headerMismatchFrames": 0,
+      "keepAliveDatagrams": 0,
+      "malformedFrames": 0,
+      "maxDatagramSizeBytes": 1024,
+      "maxInFlightDatagrams": 8,
+      "sessionIndex": 0,
+      "unexpectedControlDatagrams": 0,
+      "unmatchedFrames": 0,
+      "writeFailures": 0
+    },
+    {
+      "caseTimeoutMilliseconds": 2000,
+      "cases": [
+        {
+          "caseIndex": 0,
+          "kind": "single",
+          "ordinals": [
+            0
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 42,
+              "innerBytes": 0
+            }
+          ],
+          "roundTripMilliseconds": 0.800000011920929,
+          "sentFrameBytes": 42,
+          "sentInnerBytes": [
+            0
+          ]
+        },
+        {
+          "caseIndex": 1,
+          "kind": "single",
+          "ordinals": [
+            1
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 43,
+              "innerBytes": 1
+            }
+          ],
+          "roundTripMilliseconds": 3,
+          "sentFrameBytes": 43,
+          "sentInnerBytes": [
+            1
+          ]
+        },
+        {
+          "caseIndex": 2,
+          "kind": "single",
+          "ordinals": [
+            2
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 58,
+              "innerBytes": 16
+            }
+          ],
+          "roundTripMilliseconds": 1.5999999940395355,
+          "sentFrameBytes": 58,
+          "sentInnerBytes": [
+            16
+          ]
+        },
+        {
+          "caseIndex": 3,
+          "kind": "single",
+          "ordinals": [
+            3
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 106,
+              "innerBytes": 64
+            }
+          ],
+          "roundTripMilliseconds": 1.5999999940395355,
+          "sentFrameBytes": 106,
+          "sentInnerBytes": [
+            64
+          ]
+        },
+        {
+          "caseIndex": 4,
+          "kind": "single",
+          "ordinals": [
+            4
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 298,
+              "innerBytes": 256
+            }
+          ],
+          "roundTripMilliseconds": 1.5999999940395355,
+          "sentFrameBytes": 298,
+          "sentInnerBytes": [
+            256
+          ]
+        },
+        {
+          "caseIndex": 5,
+          "kind": "single",
+          "ordinals": [
+            5
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 554,
+              "innerBytes": 512
+            }
+          ],
+          "roundTripMilliseconds": 1.5999999940395355,
+          "sentFrameBytes": 554,
+          "sentInnerBytes": [
+            512
+          ]
+        },
+        {
+          "caseIndex": 6,
+          "kind": "single",
+          "ordinals": [
+            6
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 810,
+              "innerBytes": 768
+            }
+          ],
+          "roundTripMilliseconds": 1.5999999940395355,
+          "sentFrameBytes": 810,
+          "sentInnerBytes": [
+            768
+          ]
+        },
+        {
+          "caseIndex": 7,
+          "kind": "single",
+          "ordinals": [
+            7
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1066,
+          "sentInnerBytes": [
+            1024
+          ]
+        },
+        {
+          "caseIndex": 8,
+          "kind": "single",
+          "ordinals": [
+            8
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1142,
+          "sentInnerBytes": [
+            1100
+          ]
+        },
+        {
+          "caseIndex": 9,
+          "kind": "single",
+          "ordinals": [
+            9
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1192,
+          "sentInnerBytes": [
+            1150
+          ]
+        },
+        {
+          "caseIndex": 10,
+          "kind": "single",
+          "ordinals": [
+            10
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1217,
+          "sentInnerBytes": [
+            1175
+          ]
+        },
+        {
+          "caseIndex": 11,
+          "kind": "single",
+          "ordinals": [
+            11
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1232,
+          "sentInnerBytes": [
+            1190
+          ]
+        },
+        {
+          "caseIndex": 12,
+          "kind": "single",
+          "ordinals": [
+            12
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1242,
+          "sentInnerBytes": [
+            1200
+          ]
+        },
+        {
+          "caseIndex": 13,
+          "kind": "single",
+          "ordinals": [
+            13
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1252,
+          "sentInnerBytes": [
+            1210
+          ]
+        },
+        {
+          "caseIndex": 14,
+          "kind": "single",
+          "ordinals": [
+            14
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1262,
+          "sentInnerBytes": [
+            1220
+          ]
+        },
+        {
+          "caseIndex": 15,
+          "kind": "single",
+          "ordinals": [
+            15
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1272,
+          "sentInnerBytes": [
+            1230
+          ]
+        },
+        {
+          "caseIndex": 16,
+          "kind": "single",
+          "ordinals": [
+            16
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1282,
+          "sentInnerBytes": [
+            1240
+          ]
+        },
+        {
+          "caseIndex": 17,
+          "kind": "single",
+          "ordinals": [
+            17
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1292,
+          "sentInnerBytes": [
+            1250
+          ]
+        },
+        {
+          "caseIndex": 18,
+          "kind": "single",
+          "ordinals": [
+            18
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1302,
+          "sentInnerBytes": [
+            1260
+          ]
+        },
+        {
+          "caseIndex": 19,
+          "kind": "single",
+          "ordinals": [
+            19
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1312,
+          "sentInnerBytes": [
+            1270
+          ]
+        },
+        {
+          "caseIndex": 20,
+          "kind": "single",
+          "ordinals": [
+            20
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1322,
+          "sentInnerBytes": [
+            1280
+          ]
+        },
+        {
+          "caseIndex": 21,
+          "kind": "single",
+          "ordinals": [
+            21
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1332,
+          "sentInnerBytes": [
+            1290
+          ]
+        },
+        {
+          "caseIndex": 22,
+          "kind": "single",
+          "ordinals": [
+            22
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1340,
+          "sentInnerBytes": [
+            1298
+          ]
+        },
+        {
+          "caseIndex": 23,
+          "kind": "single",
+          "ordinals": [
+            23
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1341,
+          "sentInnerBytes": [
+            1299
+          ]
+        },
+        {
+          "caseIndex": 24,
+          "kind": "single",
+          "ordinals": [
+            24
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1342,
+          "sentInnerBytes": [
+            1300
+          ]
+        },
+        {
+          "caseIndex": 25,
+          "kind": "single",
+          "ordinals": [
+            25
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1343,
+          "sentInnerBytes": [
+            1301
+          ]
+        },
+        {
+          "caseIndex": 26,
+          "kind": "single",
+          "ordinals": [
+            26
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1348,
+          "sentInnerBytes": [
+            1306
+          ]
+        },
+        {
+          "caseIndex": 27,
+          "kind": "single",
+          "ordinals": [
+            27
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1349,
+          "sentInnerBytes": [
+            1307
+          ]
+        },
+        {
+          "caseIndex": 28,
+          "kind": "single",
+          "ordinals": [
+            28
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1350,
+          "sentInnerBytes": [
+            1308
+          ]
+        },
+        {
+          "caseIndex": 29,
+          "kind": "single",
+          "ordinals": [
+            29
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1351,
+          "sentInnerBytes": [
+            1309
+          ]
+        },
+        {
+          "caseIndex": 30,
+          "kind": "single",
+          "ordinals": [
+            30
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1352,
+          "sentInnerBytes": [
+            1310
+          ]
+        },
+        {
+          "caseIndex": 31,
+          "kind": "single",
+          "ordinals": [
+            31
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1353,
+          "sentInnerBytes": [
+            1311
+          ]
+        },
+        {
+          "caseIndex": 32,
+          "kind": "single",
+          "ordinals": [
+            32
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1354,
+          "sentInnerBytes": [
+            1312
+          ]
+        },
+        {
+          "caseIndex": 33,
+          "kind": "single",
+          "ordinals": [
+            33
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1355,
+          "sentInnerBytes": [
+            1313
+          ]
+        },
+        {
+          "caseIndex": 34,
+          "kind": "single",
+          "ordinals": [
+            34
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1356,
+          "sentInnerBytes": [
+            1314
+          ]
+        },
+        {
+          "caseIndex": 35,
+          "kind": "single",
+          "ordinals": [
+            35
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1357,
+          "sentInnerBytes": [
+            1315
+          ]
+        },
+        {
+          "caseIndex": 36,
+          "kind": "single",
+          "ordinals": [
+            36
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1442,
+          "sentInnerBytes": [
+            1400
+          ]
+        },
+        {
+          "caseIndex": 37,
+          "kind": "single",
+          "ordinals": [
+            37
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1443,
+          "sentInnerBytes": [
+            1401
+          ]
+        },
+        {
+          "caseIndex": 38,
+          "kind": "single",
+          "ordinals": [
+            38
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 2090,
+          "sentInnerBytes": [
+            2048
+          ]
+        },
+        {
+          "caseIndex": 39,
+          "kind": "single",
+          "ordinals": [
+            39
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 4138,
+          "sentInnerBytes": [
+            4096
+          ]
+        },
+        {
+          "caseIndex": 40,
+          "kind": "single",
+          "ordinals": [
+            40
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 8234,
+          "sentInnerBytes": [
+            8192
+          ]
+        },
+        {
+          "caseIndex": 41,
+          "kind": "single",
+          "ordinals": [
+            41
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 16426,
+          "sentInnerBytes": [
+            16384
+          ]
+        },
+        {
+          "caseIndex": 42,
+          "kind": "packed",
+          "ordinals": [
+            42,
+            43
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 106,
+              "innerBytes": 64
+            },
+            {
+              "frameBytes": 106,
+              "innerBytes": 64
+            }
+          ],
+          "roundTripMilliseconds": 2.5999999940395355,
+          "sentFrameBytes": 172,
+          "sentInnerBytes": [
+            64,
+            64
+          ]
+        },
+        {
+          "caseIndex": 43,
+          "kind": "packed",
+          "ordinals": [
+            44,
+            45
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1360,
+          "sentInnerBytes": [
+            16,
+            1300
+          ]
+        },
+        {
+          "caseIndex": 44,
+          "kind": "packed",
+          "ordinals": [
+            46,
+            47
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1360,
+          "sentInnerBytes": [
+            1300,
+            16
+          ]
+        },
+        {
+          "caseIndex": 45,
+          "kind": "packed",
+          "ordinals": [
+            48,
+            49,
+            50,
+            51
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1072,
+          "sentInnerBytes": [
+            256,
+            256,
+            256,
+            256
+          ]
+        }
+      ],
+      "errorDatagrams": 0,
+      "foreignFrames": 0,
+      "headerMismatchFrames": 0,
+      "keepAliveDatagrams": 0,
+      "malformedFrames": 0,
+      "maxDatagramSizeBytes": 1024,
+      "maxInFlightDatagrams": 8,
+      "sessionIndex": 1,
+      "unexpectedControlDatagrams": 0,
+      "unmatchedFrames": 0,
+      "writeFailures": 0
+    },
+    {
+      "caseTimeoutMilliseconds": 2000,
+      "cases": [
+        {
+          "caseIndex": 0,
+          "kind": "single",
+          "ordinals": [
+            0
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 42,
+              "innerBytes": 0
+            }
+          ],
+          "roundTripMilliseconds": 0.5999999940395355,
+          "sentFrameBytes": 42,
+          "sentInnerBytes": [
+            0
+          ]
+        },
+        {
+          "caseIndex": 1,
+          "kind": "single",
+          "ordinals": [
+            1
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 43,
+              "innerBytes": 1
+            }
+          ],
+          "roundTripMilliseconds": 0.4000000059604645,
+          "sentFrameBytes": 43,
+          "sentInnerBytes": [
+            1
+          ]
+        },
+        {
+          "caseIndex": 2,
+          "kind": "single",
+          "ordinals": [
+            2
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 58,
+              "innerBytes": 16
+            }
+          ],
+          "roundTripMilliseconds": 0.5,
+          "sentFrameBytes": 58,
+          "sentInnerBytes": [
+            16
+          ]
+        },
+        {
+          "caseIndex": 3,
+          "kind": "single",
+          "ordinals": [
+            3
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 106,
+              "innerBytes": 64
+            }
+          ],
+          "roundTripMilliseconds": 0.5999999940395355,
+          "sentFrameBytes": 106,
+          "sentInnerBytes": [
+            64
+          ]
+        },
+        {
+          "caseIndex": 4,
+          "kind": "single",
+          "ordinals": [
+            4
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 298,
+              "innerBytes": 256
+            }
+          ],
+          "roundTripMilliseconds": 0.9000000059604645,
+          "sentFrameBytes": 298,
+          "sentInnerBytes": [
+            256
+          ]
+        },
+        {
+          "caseIndex": 5,
+          "kind": "single",
+          "ordinals": [
+            5
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 554,
+              "innerBytes": 512
+            }
+          ],
+          "roundTripMilliseconds": 0.9000000059604645,
+          "sentFrameBytes": 554,
+          "sentInnerBytes": [
+            512
+          ]
+        },
+        {
+          "caseIndex": 6,
+          "kind": "single",
+          "ordinals": [
+            6
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 810,
+              "innerBytes": 768
+            }
+          ],
+          "roundTripMilliseconds": 1.4000000059604645,
+          "sentFrameBytes": 810,
+          "sentInnerBytes": [
+            768
+          ]
+        },
+        {
+          "caseIndex": 7,
+          "kind": "single",
+          "ordinals": [
+            7
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1066,
+          "sentInnerBytes": [
+            1024
+          ]
+        },
+        {
+          "caseIndex": 8,
+          "kind": "single",
+          "ordinals": [
+            8
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1142,
+          "sentInnerBytes": [
+            1100
+          ]
+        },
+        {
+          "caseIndex": 9,
+          "kind": "single",
+          "ordinals": [
+            9
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1192,
+          "sentInnerBytes": [
+            1150
+          ]
+        },
+        {
+          "caseIndex": 10,
+          "kind": "single",
+          "ordinals": [
+            10
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1217,
+          "sentInnerBytes": [
+            1175
+          ]
+        },
+        {
+          "caseIndex": 11,
+          "kind": "single",
+          "ordinals": [
+            11
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1232,
+          "sentInnerBytes": [
+            1190
+          ]
+        },
+        {
+          "caseIndex": 12,
+          "kind": "single",
+          "ordinals": [
+            12
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1242,
+          "sentInnerBytes": [
+            1200
+          ]
+        },
+        {
+          "caseIndex": 13,
+          "kind": "single",
+          "ordinals": [
+            13
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1252,
+          "sentInnerBytes": [
+            1210
+          ]
+        },
+        {
+          "caseIndex": 14,
+          "kind": "single",
+          "ordinals": [
+            14
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1262,
+          "sentInnerBytes": [
+            1220
+          ]
+        },
+        {
+          "caseIndex": 15,
+          "kind": "single",
+          "ordinals": [
+            15
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1272,
+          "sentInnerBytes": [
+            1230
+          ]
+        },
+        {
+          "caseIndex": 16,
+          "kind": "single",
+          "ordinals": [
+            16
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1282,
+          "sentInnerBytes": [
+            1240
+          ]
+        },
+        {
+          "caseIndex": 17,
+          "kind": "single",
+          "ordinals": [
+            17
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1292,
+          "sentInnerBytes": [
+            1250
+          ]
+        },
+        {
+          "caseIndex": 18,
+          "kind": "single",
+          "ordinals": [
+            18
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1302,
+          "sentInnerBytes": [
+            1260
+          ]
+        },
+        {
+          "caseIndex": 19,
+          "kind": "single",
+          "ordinals": [
+            19
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1312,
+          "sentInnerBytes": [
+            1270
+          ]
+        },
+        {
+          "caseIndex": 20,
+          "kind": "single",
+          "ordinals": [
+            20
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1322,
+          "sentInnerBytes": [
+            1280
+          ]
+        },
+        {
+          "caseIndex": 21,
+          "kind": "single",
+          "ordinals": [
+            21
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1332,
+          "sentInnerBytes": [
+            1290
+          ]
+        },
+        {
+          "caseIndex": 22,
+          "kind": "single",
+          "ordinals": [
+            22
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1340,
+          "sentInnerBytes": [
+            1298
+          ]
+        },
+        {
+          "caseIndex": 23,
+          "kind": "single",
+          "ordinals": [
+            23
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1341,
+          "sentInnerBytes": [
+            1299
+          ]
+        },
+        {
+          "caseIndex": 24,
+          "kind": "single",
+          "ordinals": [
+            24
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1342,
+          "sentInnerBytes": [
+            1300
+          ]
+        },
+        {
+          "caseIndex": 25,
+          "kind": "single",
+          "ordinals": [
+            25
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1343,
+          "sentInnerBytes": [
+            1301
+          ]
+        },
+        {
+          "caseIndex": 26,
+          "kind": "single",
+          "ordinals": [
+            26
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1348,
+          "sentInnerBytes": [
+            1306
+          ]
+        },
+        {
+          "caseIndex": 27,
+          "kind": "single",
+          "ordinals": [
+            27
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1349,
+          "sentInnerBytes": [
+            1307
+          ]
+        },
+        {
+          "caseIndex": 28,
+          "kind": "single",
+          "ordinals": [
+            28
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1350,
+          "sentInnerBytes": [
+            1308
+          ]
+        },
+        {
+          "caseIndex": 29,
+          "kind": "single",
+          "ordinals": [
+            29
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1351,
+          "sentInnerBytes": [
+            1309
+          ]
+        },
+        {
+          "caseIndex": 30,
+          "kind": "single",
+          "ordinals": [
+            30
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1352,
+          "sentInnerBytes": [
+            1310
+          ]
+        },
+        {
+          "caseIndex": 31,
+          "kind": "single",
+          "ordinals": [
+            31
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1353,
+          "sentInnerBytes": [
+            1311
+          ]
+        },
+        {
+          "caseIndex": 32,
+          "kind": "single",
+          "ordinals": [
+            32
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1354,
+          "sentInnerBytes": [
+            1312
+          ]
+        },
+        {
+          "caseIndex": 33,
+          "kind": "single",
+          "ordinals": [
+            33
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1355,
+          "sentInnerBytes": [
+            1313
+          ]
+        },
+        {
+          "caseIndex": 34,
+          "kind": "single",
+          "ordinals": [
+            34
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1356,
+          "sentInnerBytes": [
+            1314
+          ]
+        },
+        {
+          "caseIndex": 35,
+          "kind": "single",
+          "ordinals": [
+            35
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1357,
+          "sentInnerBytes": [
+            1315
+          ]
+        },
+        {
+          "caseIndex": 36,
+          "kind": "single",
+          "ordinals": [
+            36
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1442,
+          "sentInnerBytes": [
+            1400
+          ]
+        },
+        {
+          "caseIndex": 37,
+          "kind": "single",
+          "ordinals": [
+            37
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1443,
+          "sentInnerBytes": [
+            1401
+          ]
+        },
+        {
+          "caseIndex": 38,
+          "kind": "single",
+          "ordinals": [
+            38
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 2090,
+          "sentInnerBytes": [
+            2048
+          ]
+        },
+        {
+          "caseIndex": 39,
+          "kind": "single",
+          "ordinals": [
+            39
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 4138,
+          "sentInnerBytes": [
+            4096
+          ]
+        },
+        {
+          "caseIndex": 40,
+          "kind": "single",
+          "ordinals": [
+            40
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 8234,
+          "sentInnerBytes": [
+            8192
+          ]
+        },
+        {
+          "caseIndex": 41,
+          "kind": "single",
+          "ordinals": [
+            41
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 16426,
+          "sentInnerBytes": [
+            16384
+          ]
+        },
+        {
+          "caseIndex": 42,
+          "kind": "packed",
+          "ordinals": [
+            42,
+            43
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 106,
+              "innerBytes": 64
+            },
+            {
+              "frameBytes": 106,
+              "innerBytes": 64
+            }
+          ],
+          "roundTripMilliseconds": 1.4000000059604645,
+          "sentFrameBytes": 172,
+          "sentInnerBytes": [
+            64,
+            64
+          ]
+        },
+        {
+          "caseIndex": 43,
+          "kind": "packed",
+          "ordinals": [
+            44,
+            45
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1360,
+          "sentInnerBytes": [
+            16,
+            1300
+          ]
+        },
+        {
+          "caseIndex": 44,
+          "kind": "packed",
+          "ordinals": [
+            46,
+            47
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1360,
+          "sentInnerBytes": [
+            1300,
+            16
+          ]
+        },
+        {
+          "caseIndex": 45,
+          "kind": "packed",
+          "ordinals": [
+            48,
+            49,
+            50,
+            51
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1072,
+          "sentInnerBytes": [
+            256,
+            256,
+            256,
+            256
+          ]
+        }
+      ],
+      "errorDatagrams": 0,
+      "foreignFrames": 0,
+      "headerMismatchFrames": 0,
+      "keepAliveDatagrams": 0,
+      "malformedFrames": 0,
+      "maxDatagramSizeBytes": 1024,
+      "maxInFlightDatagrams": 8,
+      "sessionIndex": 2,
+      "unexpectedControlDatagrams": 0,
+      "unmatchedFrames": 0,
+      "writeFailures": 0
+    },
+    {
+      "caseTimeoutMilliseconds": 2000,
+      "cases": [
+        {
+          "caseIndex": 0,
+          "kind": "single",
+          "ordinals": [
+            0
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 42,
+              "innerBytes": 0
+            }
+          ],
+          "roundTripMilliseconds": 1.699999988079071,
+          "sentFrameBytes": 42,
+          "sentInnerBytes": [
+            0
+          ]
+        },
+        {
+          "caseIndex": 1,
+          "kind": "single",
+          "ordinals": [
+            1
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 43,
+              "innerBytes": 1
+            }
+          ],
+          "roundTripMilliseconds": 1.5999999940395355,
+          "sentFrameBytes": 43,
+          "sentInnerBytes": [
+            1
+          ]
+        },
+        {
+          "caseIndex": 2,
+          "kind": "single",
+          "ordinals": [
+            2
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 58,
+              "innerBytes": 16
+            }
+          ],
+          "roundTripMilliseconds": 1.5,
+          "sentFrameBytes": 58,
+          "sentInnerBytes": [
+            16
+          ]
+        },
+        {
+          "caseIndex": 3,
+          "kind": "single",
+          "ordinals": [
+            3
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 106,
+              "innerBytes": 64
+            }
+          ],
+          "roundTripMilliseconds": 1.5,
+          "sentFrameBytes": 106,
+          "sentInnerBytes": [
+            64
+          ]
+        },
+        {
+          "caseIndex": 4,
+          "kind": "single",
+          "ordinals": [
+            4
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 298,
+              "innerBytes": 256
+            }
+          ],
+          "roundTripMilliseconds": 2,
+          "sentFrameBytes": 298,
+          "sentInnerBytes": [
+            256
+          ]
+        },
+        {
+          "caseIndex": 5,
+          "kind": "single",
+          "ordinals": [
+            5
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 554,
+              "innerBytes": 512
+            }
+          ],
+          "roundTripMilliseconds": 2.0999999940395355,
+          "sentFrameBytes": 554,
+          "sentInnerBytes": [
+            512
+          ]
+        },
+        {
+          "caseIndex": 6,
+          "kind": "single",
+          "ordinals": [
+            6
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 810,
+              "innerBytes": 768
+            }
+          ],
+          "roundTripMilliseconds": 2.0999999940395355,
+          "sentFrameBytes": 810,
+          "sentInnerBytes": [
+            768
+          ]
+        },
+        {
+          "caseIndex": 7,
+          "kind": "single",
+          "ordinals": [
+            7
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1066,
+          "sentInnerBytes": [
+            1024
+          ]
+        },
+        {
+          "caseIndex": 8,
+          "kind": "single",
+          "ordinals": [
+            8
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1142,
+          "sentInnerBytes": [
+            1100
+          ]
+        },
+        {
+          "caseIndex": 9,
+          "kind": "single",
+          "ordinals": [
+            9
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1192,
+          "sentInnerBytes": [
+            1150
+          ]
+        },
+        {
+          "caseIndex": 10,
+          "kind": "single",
+          "ordinals": [
+            10
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1217,
+          "sentInnerBytes": [
+            1175
+          ]
+        },
+        {
+          "caseIndex": 11,
+          "kind": "single",
+          "ordinals": [
+            11
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1232,
+          "sentInnerBytes": [
+            1190
+          ]
+        },
+        {
+          "caseIndex": 12,
+          "kind": "single",
+          "ordinals": [
+            12
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1242,
+          "sentInnerBytes": [
+            1200
+          ]
+        },
+        {
+          "caseIndex": 13,
+          "kind": "single",
+          "ordinals": [
+            13
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1252,
+          "sentInnerBytes": [
+            1210
+          ]
+        },
+        {
+          "caseIndex": 14,
+          "kind": "single",
+          "ordinals": [
+            14
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1262,
+          "sentInnerBytes": [
+            1220
+          ]
+        },
+        {
+          "caseIndex": 15,
+          "kind": "single",
+          "ordinals": [
+            15
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1272,
+          "sentInnerBytes": [
+            1230
+          ]
+        },
+        {
+          "caseIndex": 16,
+          "kind": "single",
+          "ordinals": [
+            16
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1282,
+          "sentInnerBytes": [
+            1240
+          ]
+        },
+        {
+          "caseIndex": 17,
+          "kind": "single",
+          "ordinals": [
+            17
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1292,
+          "sentInnerBytes": [
+            1250
+          ]
+        },
+        {
+          "caseIndex": 18,
+          "kind": "single",
+          "ordinals": [
+            18
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1302,
+          "sentInnerBytes": [
+            1260
+          ]
+        },
+        {
+          "caseIndex": 19,
+          "kind": "single",
+          "ordinals": [
+            19
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1312,
+          "sentInnerBytes": [
+            1270
+          ]
+        },
+        {
+          "caseIndex": 20,
+          "kind": "single",
+          "ordinals": [
+            20
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1322,
+          "sentInnerBytes": [
+            1280
+          ]
+        },
+        {
+          "caseIndex": 21,
+          "kind": "single",
+          "ordinals": [
+            21
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1332,
+          "sentInnerBytes": [
+            1290
+          ]
+        },
+        {
+          "caseIndex": 22,
+          "kind": "single",
+          "ordinals": [
+            22
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1340,
+          "sentInnerBytes": [
+            1298
+          ]
+        },
+        {
+          "caseIndex": 23,
+          "kind": "single",
+          "ordinals": [
+            23
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1341,
+          "sentInnerBytes": [
+            1299
+          ]
+        },
+        {
+          "caseIndex": 24,
+          "kind": "single",
+          "ordinals": [
+            24
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1342,
+          "sentInnerBytes": [
+            1300
+          ]
+        },
+        {
+          "caseIndex": 25,
+          "kind": "single",
+          "ordinals": [
+            25
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1343,
+          "sentInnerBytes": [
+            1301
+          ]
+        },
+        {
+          "caseIndex": 26,
+          "kind": "single",
+          "ordinals": [
+            26
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1348,
+          "sentInnerBytes": [
+            1306
+          ]
+        },
+        {
+          "caseIndex": 27,
+          "kind": "single",
+          "ordinals": [
+            27
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1349,
+          "sentInnerBytes": [
+            1307
+          ]
+        },
+        {
+          "caseIndex": 28,
+          "kind": "single",
+          "ordinals": [
+            28
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1350,
+          "sentInnerBytes": [
+            1308
+          ]
+        },
+        {
+          "caseIndex": 29,
+          "kind": "single",
+          "ordinals": [
+            29
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1351,
+          "sentInnerBytes": [
+            1309
+          ]
+        },
+        {
+          "caseIndex": 30,
+          "kind": "single",
+          "ordinals": [
+            30
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1352,
+          "sentInnerBytes": [
+            1310
+          ]
+        },
+        {
+          "caseIndex": 31,
+          "kind": "single",
+          "ordinals": [
+            31
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1353,
+          "sentInnerBytes": [
+            1311
+          ]
+        },
+        {
+          "caseIndex": 32,
+          "kind": "single",
+          "ordinals": [
+            32
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1354,
+          "sentInnerBytes": [
+            1312
+          ]
+        },
+        {
+          "caseIndex": 33,
+          "kind": "single",
+          "ordinals": [
+            33
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1355,
+          "sentInnerBytes": [
+            1313
+          ]
+        },
+        {
+          "caseIndex": 34,
+          "kind": "single",
+          "ordinals": [
+            34
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1356,
+          "sentInnerBytes": [
+            1314
+          ]
+        },
+        {
+          "caseIndex": 35,
+          "kind": "single",
+          "ordinals": [
+            35
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1357,
+          "sentInnerBytes": [
+            1315
+          ]
+        },
+        {
+          "caseIndex": 36,
+          "kind": "single",
+          "ordinals": [
+            36
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1442,
+          "sentInnerBytes": [
+            1400
+          ]
+        },
+        {
+          "caseIndex": 37,
+          "kind": "single",
+          "ordinals": [
+            37
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1443,
+          "sentInnerBytes": [
+            1401
+          ]
+        },
+        {
+          "caseIndex": 38,
+          "kind": "single",
+          "ordinals": [
+            38
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 2090,
+          "sentInnerBytes": [
+            2048
+          ]
+        },
+        {
+          "caseIndex": 39,
+          "kind": "single",
+          "ordinals": [
+            39
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 4138,
+          "sentInnerBytes": [
+            4096
+          ]
+        },
+        {
+          "caseIndex": 40,
+          "kind": "single",
+          "ordinals": [
+            40
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 8234,
+          "sentInnerBytes": [
+            8192
+          ]
+        },
+        {
+          "caseIndex": 41,
+          "kind": "single",
+          "ordinals": [
+            41
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 16426,
+          "sentInnerBytes": [
+            16384
+          ]
+        },
+        {
+          "caseIndex": 42,
+          "kind": "packed",
+          "ordinals": [
+            42,
+            43
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 106,
+              "innerBytes": 64
+            },
+            {
+              "frameBytes": 106,
+              "innerBytes": 64
+            }
+          ],
+          "roundTripMilliseconds": 2.300000011920929,
+          "sentFrameBytes": 172,
+          "sentInnerBytes": [
+            64,
+            64
+          ]
+        },
+        {
+          "caseIndex": 43,
+          "kind": "packed",
+          "ordinals": [
+            44,
+            45
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1360,
+          "sentInnerBytes": [
+            16,
+            1300
+          ]
+        },
+        {
+          "caseIndex": 44,
+          "kind": "packed",
+          "ordinals": [
+            46,
+            47
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1360,
+          "sentInnerBytes": [
+            1300,
+            16
+          ]
+        },
+        {
+          "caseIndex": 45,
+          "kind": "packed",
+          "ordinals": [
+            48,
+            49,
+            50,
+            51
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1072,
+          "sentInnerBytes": [
+            256,
+            256,
+            256,
+            256
+          ]
+        }
+      ],
+      "errorDatagrams": 0,
+      "foreignFrames": 0,
+      "headerMismatchFrames": 0,
+      "keepAliveDatagrams": 0,
+      "malformedFrames": 0,
+      "maxDatagramSizeBytes": 1024,
+      "maxInFlightDatagrams": 8,
+      "sessionIndex": 3,
+      "unexpectedControlDatagrams": 0,
+      "unmatchedFrames": 0,
+      "writeFailures": 0
+    },
+    {
+      "caseTimeoutMilliseconds": 2000,
+      "cases": [
+        {
+          "caseIndex": 0,
+          "kind": "single",
+          "ordinals": [
+            0
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 42,
+              "innerBytes": 0
+            }
+          ],
+          "roundTripMilliseconds": 0.699999988079071,
+          "sentFrameBytes": 42,
+          "sentInnerBytes": [
+            0
+          ]
+        },
+        {
+          "caseIndex": 1,
+          "kind": "single",
+          "ordinals": [
+            1
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 43,
+              "innerBytes": 1
+            }
+          ],
+          "roundTripMilliseconds": 0.5,
+          "sentFrameBytes": 43,
+          "sentInnerBytes": [
+            1
+          ]
+        },
+        {
+          "caseIndex": 2,
+          "kind": "single",
+          "ordinals": [
+            2
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 58,
+              "innerBytes": 16
+            }
+          ],
+          "roundTripMilliseconds": 0.9000000059604645,
+          "sentFrameBytes": 58,
+          "sentInnerBytes": [
+            16
+          ]
+        },
+        {
+          "caseIndex": 3,
+          "kind": "single",
+          "ordinals": [
+            3
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 106,
+              "innerBytes": 64
+            }
+          ],
+          "roundTripMilliseconds": 0.9000000059604645,
+          "sentFrameBytes": 106,
+          "sentInnerBytes": [
+            64
+          ]
+        },
+        {
+          "caseIndex": 4,
+          "kind": "single",
+          "ordinals": [
+            4
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 298,
+              "innerBytes": 256
+            }
+          ],
+          "roundTripMilliseconds": 1,
+          "sentFrameBytes": 298,
+          "sentInnerBytes": [
+            256
+          ]
+        },
+        {
+          "caseIndex": 5,
+          "kind": "single",
+          "ordinals": [
+            5
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 554,
+              "innerBytes": 512
+            }
+          ],
+          "roundTripMilliseconds": 1.2000000178813934,
+          "sentFrameBytes": 554,
+          "sentInnerBytes": [
+            512
+          ]
+        },
+        {
+          "caseIndex": 6,
+          "kind": "single",
+          "ordinals": [
+            6
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 810,
+              "innerBytes": 768
+            }
+          ],
+          "roundTripMilliseconds": 1.300000011920929,
+          "sentFrameBytes": 810,
+          "sentInnerBytes": [
+            768
+          ]
+        },
+        {
+          "caseIndex": 7,
+          "kind": "single",
+          "ordinals": [
+            7
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1066,
+          "sentInnerBytes": [
+            1024
+          ]
+        },
+        {
+          "caseIndex": 8,
+          "kind": "single",
+          "ordinals": [
+            8
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1142,
+          "sentInnerBytes": [
+            1100
+          ]
+        },
+        {
+          "caseIndex": 9,
+          "kind": "single",
+          "ordinals": [
+            9
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1192,
+          "sentInnerBytes": [
+            1150
+          ]
+        },
+        {
+          "caseIndex": 10,
+          "kind": "single",
+          "ordinals": [
+            10
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1217,
+          "sentInnerBytes": [
+            1175
+          ]
+        },
+        {
+          "caseIndex": 11,
+          "kind": "single",
+          "ordinals": [
+            11
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1232,
+          "sentInnerBytes": [
+            1190
+          ]
+        },
+        {
+          "caseIndex": 12,
+          "kind": "single",
+          "ordinals": [
+            12
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1242,
+          "sentInnerBytes": [
+            1200
+          ]
+        },
+        {
+          "caseIndex": 13,
+          "kind": "single",
+          "ordinals": [
+            13
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1252,
+          "sentInnerBytes": [
+            1210
+          ]
+        },
+        {
+          "caseIndex": 14,
+          "kind": "single",
+          "ordinals": [
+            14
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1262,
+          "sentInnerBytes": [
+            1220
+          ]
+        },
+        {
+          "caseIndex": 15,
+          "kind": "single",
+          "ordinals": [
+            15
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1272,
+          "sentInnerBytes": [
+            1230
+          ]
+        },
+        {
+          "caseIndex": 16,
+          "kind": "single",
+          "ordinals": [
+            16
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1282,
+          "sentInnerBytes": [
+            1240
+          ]
+        },
+        {
+          "caseIndex": 17,
+          "kind": "single",
+          "ordinals": [
+            17
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1292,
+          "sentInnerBytes": [
+            1250
+          ]
+        },
+        {
+          "caseIndex": 18,
+          "kind": "single",
+          "ordinals": [
+            18
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1302,
+          "sentInnerBytes": [
+            1260
+          ]
+        },
+        {
+          "caseIndex": 19,
+          "kind": "single",
+          "ordinals": [
+            19
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1312,
+          "sentInnerBytes": [
+            1270
+          ]
+        },
+        {
+          "caseIndex": 20,
+          "kind": "single",
+          "ordinals": [
+            20
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1322,
+          "sentInnerBytes": [
+            1280
+          ]
+        },
+        {
+          "caseIndex": 21,
+          "kind": "single",
+          "ordinals": [
+            21
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1332,
+          "sentInnerBytes": [
+            1290
+          ]
+        },
+        {
+          "caseIndex": 22,
+          "kind": "single",
+          "ordinals": [
+            22
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1340,
+          "sentInnerBytes": [
+            1298
+          ]
+        },
+        {
+          "caseIndex": 23,
+          "kind": "single",
+          "ordinals": [
+            23
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1341,
+          "sentInnerBytes": [
+            1299
+          ]
+        },
+        {
+          "caseIndex": 24,
+          "kind": "single",
+          "ordinals": [
+            24
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1342,
+          "sentInnerBytes": [
+            1300
+          ]
+        },
+        {
+          "caseIndex": 25,
+          "kind": "single",
+          "ordinals": [
+            25
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1343,
+          "sentInnerBytes": [
+            1301
+          ]
+        },
+        {
+          "caseIndex": 26,
+          "kind": "single",
+          "ordinals": [
+            26
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1348,
+          "sentInnerBytes": [
+            1306
+          ]
+        },
+        {
+          "caseIndex": 27,
+          "kind": "single",
+          "ordinals": [
+            27
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1349,
+          "sentInnerBytes": [
+            1307
+          ]
+        },
+        {
+          "caseIndex": 28,
+          "kind": "single",
+          "ordinals": [
+            28
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1350,
+          "sentInnerBytes": [
+            1308
+          ]
+        },
+        {
+          "caseIndex": 29,
+          "kind": "single",
+          "ordinals": [
+            29
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1351,
+          "sentInnerBytes": [
+            1309
+          ]
+        },
+        {
+          "caseIndex": 30,
+          "kind": "single",
+          "ordinals": [
+            30
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1352,
+          "sentInnerBytes": [
+            1310
+          ]
+        },
+        {
+          "caseIndex": 31,
+          "kind": "single",
+          "ordinals": [
+            31
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1353,
+          "sentInnerBytes": [
+            1311
+          ]
+        },
+        {
+          "caseIndex": 32,
+          "kind": "single",
+          "ordinals": [
+            32
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1354,
+          "sentInnerBytes": [
+            1312
+          ]
+        },
+        {
+          "caseIndex": 33,
+          "kind": "single",
+          "ordinals": [
+            33
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1355,
+          "sentInnerBytes": [
+            1313
+          ]
+        },
+        {
+          "caseIndex": 34,
+          "kind": "single",
+          "ordinals": [
+            34
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1356,
+          "sentInnerBytes": [
+            1314
+          ]
+        },
+        {
+          "caseIndex": 35,
+          "kind": "single",
+          "ordinals": [
+            35
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1357,
+          "sentInnerBytes": [
+            1315
+          ]
+        },
+        {
+          "caseIndex": 36,
+          "kind": "single",
+          "ordinals": [
+            36
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1442,
+          "sentInnerBytes": [
+            1400
+          ]
+        },
+        {
+          "caseIndex": 37,
+          "kind": "single",
+          "ordinals": [
+            37
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1443,
+          "sentInnerBytes": [
+            1401
+          ]
+        },
+        {
+          "caseIndex": 38,
+          "kind": "single",
+          "ordinals": [
+            38
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 2090,
+          "sentInnerBytes": [
+            2048
+          ]
+        },
+        {
+          "caseIndex": 39,
+          "kind": "single",
+          "ordinals": [
+            39
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 4138,
+          "sentInnerBytes": [
+            4096
+          ]
+        },
+        {
+          "caseIndex": 40,
+          "kind": "single",
+          "ordinals": [
+            40
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 8234,
+          "sentInnerBytes": [
+            8192
+          ]
+        },
+        {
+          "caseIndex": 41,
+          "kind": "single",
+          "ordinals": [
+            41
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 16426,
+          "sentInnerBytes": [
+            16384
+          ]
+        },
+        {
+          "caseIndex": 42,
+          "kind": "packed",
+          "ordinals": [
+            42,
+            43
+          ],
+          "outcome": "echoed",
+          "receivedFrames": [
+            {
+              "frameBytes": 106,
+              "innerBytes": 64
+            },
+            {
+              "frameBytes": 106,
+              "innerBytes": 64
+            }
+          ],
+          "roundTripMilliseconds": 2,
+          "sentFrameBytes": 172,
+          "sentInnerBytes": [
+            64,
+            64
+          ]
+        },
+        {
+          "caseIndex": 43,
+          "kind": "packed",
+          "ordinals": [
+            44,
+            45
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1360,
+          "sentInnerBytes": [
+            16,
+            1300
+          ]
+        },
+        {
+          "caseIndex": 44,
+          "kind": "packed",
+          "ordinals": [
+            46,
+            47
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1360,
+          "sentInnerBytes": [
+            1300,
+            16
+          ]
+        },
+        {
+          "caseIndex": 45,
+          "kind": "packed",
+          "ordinals": [
+            48,
+            49,
+            50,
+            51
+          ],
+          "outcome": "notSentFrameExceedsTransportLimit",
+          "receivedFrames": [],
+          "roundTripMilliseconds": null,
+          "sentFrameBytes": 1072,
+          "sentInnerBytes": [
+            256,
+            256,
+            256,
+            256
+          ]
+        }
+      ],
+      "errorDatagrams": 0,
+      "foreignFrames": 0,
+      "headerMismatchFrames": 0,
+      "keepAliveDatagrams": 0,
+      "malformedFrames": 0,
+      "maxDatagramSizeBytes": 1024,
+      "maxInFlightDatagrams": 8,
+      "sessionIndex": 4,
+      "unexpectedControlDatagrams": 0,
+      "unmatchedFrames": 0,
+      "writeFailures": 0
+    }
+  ]
+}

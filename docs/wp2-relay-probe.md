@@ -2,19 +2,18 @@
 
 # WP2 evidence: relay conformance probe
 
-**Status:** deterministic part implemented, amended 2026-08-30 to the in-band
-session profile; routed acceptance **pending**
+**Status:** complete — the deterministic part, the 2026-08-30 in-band
+amendment and the routed acceptance round of 2026-08-30 are done; the
+validated measurement record is committed as
+[`records/wp2-routed-measurement.json`](../records/wp2-routed-measurement.json)
 
-This document records what exists for WP2 today and, just as precisely, what
-does not. The public contract, the browser probe, the in-memory adapter and the
-deterministic tests are built and green. The routed acceptance — a real
-endpoint, real measurements, a machine-readable report from the pinned browser
-and a payload budget derived from repeated sessions — has **not** happened, and
-cannot happen until an operator supplies the one-time runtime values listed at
-the end and provisions the integration UDP echo path.
-
-Nothing here is a measurement result. No number in this document was observed on
-a network path.
+This document records what exists for WP2 and how each part was accepted. The
+public contract, the browser probe, the in-memory adapter and the
+deterministic tests are built and green, and the routed acceptance — a real
+endpoint, real measurements, a machine-readable report from the pinned
+browser and a payload budget derived from repeated sessions — happened on
+2026-08-30 against an operator-provisioned integration environment; its
+record and numbers are in the "Routed acceptance" section below.
 
 `ioq3/` is untouched at its pinned commit. No lock, schema, WP0/WP1/WP3 script
 or committed manifest was changed, and the committed measurement vector is
@@ -435,37 +434,82 @@ the in-memory loopback inside the browser.
 **That observation predates the 2026-08-30 amendment and its second line no
 longer reproduces.** The vector count is now 82, and the loopback session the
 self-test runs goes through the in-band setup exchange and asserts that a
-zero-length inner datagram actually crossed the relay. The first line is
-unchanged, because the measurement vector is. A fresh pinned-browser observation
-therefore has to be taken before this is used as acceptance evidence again; the
-record above is kept as what was seen, not as what to expect.
+zero-length inner datagram actually crossed the relay. The fresh observation
+was taken the same day, in the same pinned browser, before the routed round:
+
+```text
+measurement vector sha256:546a9a859f92d72d0a2d7dc14acdd80410e0873148500b2d0e26765a6182a064 — 46 cases, ceiling 16384 bytes
+self-test passed: 82 conformance vectors, 46 loopback cases
+```
+
+The first line is unchanged, because the measurement vector is; the earlier
+record above is kept as what was seen then.
 
 This is **not** a measurement and involved no relay: no WebTransport session was
 opened, and the only network traffic was the loopback page load. It is evidence
 that the probe is ready to be pointed at an endpoint, nothing more. Real-browser
 acceptance of a routed session belongs to the pending work below.
 
-## Routed acceptance: pending
+## Routed acceptance — completed 2026-08-30
 
-None of the following has been done, and none of it is claimed:
+The routed round ran on 2026-08-30 against an operator-provisioned
+integration environment: a conforming relay on a separate rehearsal machine,
+a byte-exact UDP echo destination behind a temporary mapping, short-lived
+single-use authorizations minted immediately before each session, and
+certificate-hash trust — every value supplied at runtime and none of it
+recorded anywhere, exactly as the contract requires. The path was the
+operator's workstation to that machine over one routed LAN hop, which is what
+the committed record's `pathNotes` says and all it says.
 
-- running the probe against a real endpoint over at least one routed network
-  path;
-- observing the browser-reported datagram size, the successful payload range and
-  the failure behaviour of a real path;
-- confirming that the endpoint answers an invalid authorization with in-band
-  error `0x00000002` and then terminates the session, and that it accepts a
-  fresh short-lived one and assigns an address for only the configured
-  destination;
-- two concurrent sessions with distinct assigned virtual addresses on a real
-  relay;
-- a machine-readable measurement report from the exact WP0 browser;
-- the conservative payload budget WP6 needs, derived from repeated sessions.
+What the round did, in the exact pinned WP0 browser (Chrome for Testing
+`152.0.7977.64`, driven headless in its new-headless mode):
 
-The provisioning the readiness report lists as steps 5 to 7 — a byte-exact UDP
-echo destination behind a temporary integration mapping, enough short-lived
-single-use authorizations, and endpoint trust at runtime — is also still open,
-and is not something this repository can supply.
+- **Three sequential sessions** in one browser context, each opened with a
+  fresh single-use authorization and closed before the next.
+- **Two concurrent sessions** in two separate browser contexts, opened
+  back-to-back on authorizations naming distinct virtual client addresses;
+  both completed their session while the other was live. A shared address
+  would have been refused by the relay's ownership rule, so two completed
+  concurrent sessions are themselves the distinct-address evidence.
+- **The invalid-authorization case**: a syntactically fresh authorization
+  with a deliberately damaged signature was answered in band with `ERROR`
+  code `0x00000002` and the session then carried nothing further — the
+  amended acceptance behaviour, observed on a real relay.
+- The five session records were merged with `merge_reports`, validated, and
+  committed as
+  [`records/wp2-routed-measurement.json`](../records/wp2-routed-measurement.json);
+  `tests/test_relay_probe.py` re-validates the committed bytes against the
+  committed measurement vector on every gate run and pins that no runtime
+  value leaked into the record's free-text fields.
+
+**The numbers, identical across all five sessions:**
+
+- the browser-reported datagram maximum was **1,024 bytes**, so the inner
+  UDP budget was 982 bytes after the 42-byte overhead;
+- the largest echoed inner datagram at the vector's granularity was **768
+  bytes** (an 810-byte frame), the smallest refused single size 1,024, and
+  every size at or below 768 echoed — `monotonic` is true in every session
+  and the merged `conservativeInnerFloorBytes` is **768**;
+- the **zero-length inner datagram completed in both directions** through
+  the routed relay — the boundary case the 2026-08-30 relay-side change
+  exists for, observed end-to-end from a real browser;
+- write failures were zero everywhere: every refused size was refused by the
+  size pre-check against the reported maximum, not by a failed write.
+
+Two observations about that 1,024-byte maximum. It was byte-identical in an
+earlier same-day rehearsal of the identical procedure against a relay on the
+workstation itself (loopback), so it is a property of the implementations at
+the two ends, not of the path between them. And a separate probe that held a
+session open and re-read the transport's reported maximum every 500 ms for
+six seconds saw the value constant, so the "connect-time sample" caveat below
+did not bite on this path. Which end imposes 1,024 — the pinned browser or
+the relay's QUIC stack — is deliberately left unattributed here; the floor is
+what WP6 consumes either way, and only a different browser or a different
+relay implementation could separate the two.
+
+The provisioning the readiness report lists as steps 5 to 7 was supplied by
+the operator for the round and dismantled afterwards; none of it is, or ever
+was, something this repository carries.
 
 The report format, the summary reduction and the per-session floor are
 implemented and tested, so the routed round produces the report by running the
@@ -496,10 +540,10 @@ is committed and tested.
 The routed round therefore produces the concurrent-session evidence as one valid
 report without new code.
 
-### What the operator must supply
+### What the operator supplied
 
 Per the plan's own list, and refined by what the probe turned out to need after
-the 2026-08-30 amendment:
+the 2026-08-30 amendment, the round required — and received, at runtime only:
 
 - a compatible integration relay endpoint, as a plain `https` WebTransport URL —
   **no** authorization, placeholder or fragment in it;
@@ -524,7 +568,7 @@ None of these values may be committed. The probe takes all of them at runtime,
 and the report has no field in which any of them could be recorded — including
 the assigned address, which the page also keeps out of its log.
 
-### Open items the routed round has to settle
+### Open items, as the routed round left them
 
 - ~~**The relay header's interior.**~~ Settled by the 2026-08-30 amendment: the
   header is a public, self-contained profile, the probe builds it and validates
@@ -533,19 +577,22 @@ the assigned address, which the page also keeps out of its log.
   in the session's first datagram, refused in band, terminal.
 - **Whether a keep-alive is required at all**, and at what interval. The
   datagram type exists and inbound ones are recognised; nothing periodic is
-  sent, and only a held-open routed session can say whether that matters.
+  sent. The routed round's sessions each completed in well under a minute, so
+  it could not answer this — only a held-open routed session can, and the
+  question passes to the work that holds sessions open (the browser backend
+  and the two-browser acceptance).
 - **Write-failure attribution.** A WebTransport datagram write resolves after
   the datagram is queued, so a rejected write is observed one case late: the
   adapter marks itself failed and refuses later sends, but the case that caused
-  the rejection is recorded as a timeout. The size pre-check covers the failure
-  mode this probe is measuring; whether the browser ever rejects a write that
-  fits `maxDatagramSize` is a question for the routed round.
+  the rejection is recorded as a timeout. The routed round observed zero write
+  failures — every refusal came from the size pre-check — so whether the
+  browser ever rejects a write that fits `maxDatagramSize` remains unobserved.
 - **`maxDatagramSizeBytes` is a connect-time sample.** The probe reads the
   transport's reported maximum once, when the session opens, and records that.
-  It does not re-read it per send. The value can in principle change during a
-  session; if it does, the report will name the value the session started with.
-  Re-reading per send is a small change the routed round can make if a real path
-  turns out to move it.
+  On the routed path this did not bite: a separate held-open probe re-read the
+  value every 500 ms for six seconds and saw it constant. The caveat stands
+  for other paths; re-reading per send remains a small change if one turns out
+  to move it.
 - **Write failures are counted, not attributed.** A rejected datagram write is
   observed after the fact, so the affected case shows as a timeout. The count
   now travels in the report as a session counter rather than only in the page
