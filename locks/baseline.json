@@ -375,7 +375,7 @@
     },
     "upstreamBase": {
       "commit": "588393618dbc82e7207c21c6ddecca229944a03a",
-      "repository": "https://github.com/ioquake3/ioq3"
+      "repository": "https://github.com/ioquake/ioq3"
     }
   },
   "formatVersion": 1,

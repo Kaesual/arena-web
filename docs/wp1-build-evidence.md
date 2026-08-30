@@ -27,7 +27,7 @@ could fix; the amendment section below records what changed and what did not.
 | Engine and bundled `baseq3` gamecode | ioq3 fork `92351b8f0543448b9defaac25c552274eecbf15b` (branch `web`), on upstream base `588393618dbc82e7207c21c6ddecca229944a03a` |
 | WebAssembly builder | `docker.io/emscripten/emsdk@sha256:8714ed3a9fb585e662c931259a996bac36a57a8dd34b81e8277436fd77364475` (Emscripten 6.0.8, `linux/amd64`) |
 | SDL2 source snapshot for `-sUSE_SDL=2` | upstream tag `release-2.32.10`, obtained as `https://github.com/libsdl-org/SDL/archive/release-2.32.10.zip` |
-| Baseline the manifest binds to | `sha256:f189bdb77a7d4f0838206572cd77d6cfc77344a54d318957a6f6aed5a84f528c` |
+| Baseline the manifest binds to | `sha256:a9126a609d3f041c60c7ca43b3db0e7be8754b9ef0862a6557e8c523038da5e5` |
 
 That baseline identity has moved twice on 2026-08-30. First the WP0 amendment
 added the redistributed server runtime base: the build does not read that entry,

@@ -92,7 +92,7 @@ Two fields carry the claim, and they are meaningless apart:
 
 - `engine.upstreamBase` names the commit and the public repository the series
   sits on — here `588393618dbc82e7207c21c6ddecca229944a03a` in
-  `https://github.com/ioquake3/ioq3`, which is upstream `main`'s head.
+  `https://github.com/ioquake/ioq3`, which is upstream `main`'s head.
 - `engine.appliedPatches` enumerates what the pin adds: an `id`, the exact set
   of tree `paths` the patch touches, a one-line `rationale`, and an
   `upstreamStatus` from a closed vocabulary.
@@ -497,7 +497,7 @@ inspectable with:
 
 ```bash
 sha256sum locks/baseline.json
-# sha256:f189bdb77a7d4f0838206572cd77d6cfc77344a54d318957a6f6aed5a84f528c
+# sha256:a9126a609d3f041c60c7ca43b3db0e7be8754b9ef0862a6557e8c523038da5e5
 ```
 
 The container check first verifies the lock against the host checkout's ioq3

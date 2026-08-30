@@ -22,7 +22,7 @@
       "size": 798456
     }
   ],
-  "baselineIdentity": "sha256:f189bdb77a7d4f0838206572cd77d6cfc77344a54d318957a6f6aed5a84f528c",
+  "baselineIdentity": "sha256:a9126a609d3f041c60c7ca43b3db0e7be8754b9ef0862a6557e8c523038da5e5",
   "baselineInputIds": [
     "ioq3",
     "native-builder-base",
@@ -33,12 +33,12 @@
   "inputs": [
     {
       "id": "arena-web-browser-client",
-      "identity": "sha256:0ce5721e9ea41b6c40c542a7a0b21255fe4657d69e7ae7954618dfa62e2cfb76",
+      "identity": "sha256:5ec9416e0b9a94f5a368b9bcb59da60ed919ec6f68db7a30f6f885861dd27b2e",
       "kind": "artifact-manifest"
     },
     {
       "id": "arena-web-ffa-content",
-      "identity": "sha256:099db563270d84c62c809e6df877abac7445b02f9604aedfed9555034b6c4fd2",
+      "identity": "sha256:21aeadd6354f75053fb4effa3d9e10ed26d8958ac7ec2dc112bf60fa839c1a81",
       "kind": "artifact-manifest"
     },
     {
