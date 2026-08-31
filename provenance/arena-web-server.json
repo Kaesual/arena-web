@@ -33,7 +33,7 @@
   "inputs": [
     {
       "id": "arena-web-browser-client",
-      "identity": "sha256:6b9b8817360f6876c7df459ff32eb092c8febff7e1ef948fd7b828afd932f73f",
+      "identity": "sha256:8abd6b7a6f7d278ad95c753a5db9f1eff6be8ff08645c2f8ac4d91d7665e3f09",
       "kind": "artifact-manifest"
     },
     {
