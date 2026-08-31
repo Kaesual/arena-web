@@ -1,0 +1,31 @@
+{
+  "$comment": [
+    "SPDX-License-Identifier: GPL-2.0-or-later",
+    "The committed browser-client half of the WP7 relay profile.",
+    "Endpoint, certificate hash, destination address/port, client source port",
+    "and authorization are runtime inputs and must never be committed or reported.",
+    "The loader derives +set arguments from cvars and appends +connect -6 with",
+    "the runtime destination. The evidence copy always redacts that destination."
+  ],
+  "formatVersion": 1,
+  "mode": "relay-client",
+  "connectFamily": "-6",
+  "innerDatagramFloor": 768,
+  "fragmentSize": 704,
+  "receiveQueueDepth": 256,
+  "singleDatagramOverhead": 42,
+  "keepAliveIntervalSource": "runtime",
+  "cvars": {
+    "bot_enable": "0",
+    "cl_allowDownload": "0",
+    "cl_motd": "0",
+    "cl_voip": "0",
+    "com_basegame": "arena",
+    "com_legacyprotocol": "0",
+    "headmodel": "skelebot/default",
+    "model": "skelebot/default",
+    "net_enabled": "2",
+    "r_allowResize": "1",
+    "sv_pure": "0"
+  }
+}

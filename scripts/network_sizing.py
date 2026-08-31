@@ -89,11 +89,11 @@ class EngineConstant:
         }
 
 
-# The engine commit these citations were read at. The census was driven against
-# the upstream base commit; the current baseline pin adds one renderer-only
-# commit on top, which touches no file named here. The derivation asserts the
-# census agrees with these constants, so a pin that did change packet logic
-# would fail rather than pass silently.
+# The historical WP6 engine commit these citations were read at. Its census was
+# driven against the upstream base commit. The default derivation keeps those
+# immutable inputs exact; the explicit post-change mode instead requires the
+# decided 704-byte fragment size and the final baseline engine commit supplied
+# by its caller, while retaining the constants WP7 did not change.
 ENGINE_COMMIT = "92351b8f0543448b9defaac25c552274eecbf15b"
 ENGINE_CENSUS_COMMIT = "588393618dbc82e7207c21c6ddecca229944a03a"
 
@@ -539,7 +539,9 @@ class CensusFacts:
         }
 
 
-def read_census_facts(census: Any) -> CensusFacts:
+def read_census_facts(
+    census: Any, *, expected_fragment_size: int | None = None
+) -> CensusFacts:
     """Reduce the committed packet census to the WP6 traffic facts.
 
     Only the census's own reduction is read — this does not re-derive the
@@ -560,12 +562,14 @@ def read_census_facts(census: Any) -> CensusFacts:
     fragment_size = _positive_census_field(bounds, "fragmentSize")
     max_packet_len = _positive_census_field(bounds, "maxPacketLen")
     max_msg_len = _positive_census_field(bounds, "maxMsgLen")
-    for name, observed in (
-        ("FRAGMENT_SIZE", fragment_size),
-        ("MAX_PACKETLEN", max_packet_len),
-        ("MAX_MSGLEN", max_msg_len),
+    if expected_fragment_size is None:
+        expected_fragment_size = engine_value("FRAGMENT_SIZE")
+    _require_positive(expected_fragment_size, "expected fragment size")
+    for name, observed, restated in (
+        ("FRAGMENT_SIZE", fragment_size, expected_fragment_size),
+        ("MAX_PACKETLEN", max_packet_len, engine_value("MAX_PACKETLEN")),
+        ("MAX_MSGLEN", max_msg_len, engine_value("MAX_MSGLEN")),
     ):
-        restated = engine_value(name)
         if observed != restated:
             _fail(
                 f"packet census: engineBounds says {name} is {observed}, but the "
@@ -1581,10 +1585,26 @@ def derive(
     profile: PrototypeProfile = PROTOTYPE_PROFILE,
     reserve_bytes: int = DEFAULT_RESERVE_BYTES,
     alignment_bytes: int = DEFAULT_ALIGNMENT_BYTES,
+    post_change_engine_commit: str | None = None,
 ) -> dict[str, Any]:
-    """Recompute the whole WP6 decision from the two committed records."""
+    """Recompute WP6, optionally verifying a WP7 post-change census."""
     path = read_path_facts(routed_report, plan)
-    facts = read_census_facts(census)
+    post_change = post_change_engine_commit is not None
+    facts = read_census_facts(
+        census,
+        expected_fragment_size=(DECIDED_FRAGMENT_SIZE if post_change else None),
+    )
+    census_session = census.get("session") if isinstance(census, dict) else None
+    census_engine_commit = (
+        census_session.get("engineCommit")
+        if isinstance(census_session, dict)
+        else None
+    )
+    if post_change and census_engine_commit != post_change_engine_commit:
+        _fail(
+            "packet census: session.engineCommit does not match the final pinned "
+            "post-change engine commit"
+        )
     framing = path.framing
 
     targets = {
@@ -1794,13 +1814,23 @@ def derive(
         ),
     }
 
-    return {
+    result = {
         "kind": "arena-web-network-sizing-derivation",
         "formatVersion": 1,
         "engine": {
-            "commit": ENGINE_COMMIT,
-            "censusCommit": ENGINE_CENSUS_COMMIT,
-            "constants": [constant.as_json() for constant in ENGINE_CONSTANTS],
+            "commit": post_change_engine_commit or ENGINE_COMMIT,
+            "censusCommit": census_engine_commit if post_change else ENGINE_CENSUS_COMMIT,
+            "constants": [
+                {
+                    **constant.as_json(),
+                    "value": (
+                        DECIDED_FRAGMENT_SIZE
+                        if post_change and constant.name == "FRAGMENT_SIZE"
+                        else constant.value
+                    ),
+                }
+                for constant in ENGINE_CONSTANTS
+            ],
             "netchanHeaderBytes": {
                 f"{direction}{'-fragmented' if fragmented else ''}": (
                     netchan_header_bytes(direction, fragmented=fragmented)
@@ -1844,6 +1874,65 @@ def derive(
         },
     }
 
+    if post_change:
+        expected_headers = {
+            (direction, fragmented): netchan_header_bytes(
+                direction, fragmented=fragmented
+            )
+            for direction in DIRECTIONS
+            for fragmented in (False, True)
+        }
+        headers_observed = all(
+            facts.header_bytes[key] == expected
+            and bool(
+                census["summary"]["headerAsymmetry"][
+                    f"{key[0]}{'-fragmented' if key[1] else ''}"
+                ]["headerBytes"]
+            )
+            for key, expected in expected_headers.items()
+        )
+        fragments_match = all(
+            message.get("largestDatagramBytes")
+            == DECIDED_FRAGMENT_SIZE
+            + expected_headers[(message.get("direction", SERVER_TO_CLIENT), True)]
+            and message.get("fragments")
+            == len(
+                fragment_payloads(
+                    message.get("messageBytes", -1), DECIDED_FRAGMENT_SIZE
+                )
+            )
+            for message in facts.fragmented_messages
+        ) and bool(facts.fragmented_messages)
+        observed_commands = {
+            item.name for item in facts.observed if item.kind == CONNECTIONLESS
+        }
+        selected_budget = path.record_backed_inner_floor_bytes
+        verification = {
+            "engineCommitMatchesFinalPin": census_engine_commit
+            == post_change_engine_commit,
+            "fragmentSizeMatchesDecision": facts.fragment_size
+            == DECIDED_FRAGMENT_SIZE,
+            "allDatagramsWithinSelectedBudget": max(
+                facts.maximum_by_direction.values()
+            )
+            <= selected_budget,
+            "allConnectionlessDatagramsWithinSelectedBudget": all(
+                item.inner_bytes <= selected_budget
+                for item in facts.observed
+                if item.kind == CONNECTIONLESS
+            ),
+            "allFourHeaderWidthsObserved": headers_observed,
+            "fragmentGeometryMatchesDecision": fragments_match,
+            "serverBrowserQueriesAbsent": not bool(
+                {"getinfo", "getstatus", "infoResponse", "statusResponse"}
+                & observed_commands
+            ),
+        }
+        verification["allBoundsPass"] = all(verification.values())
+        result["postChangeVerification"] = verification
+
+    return result
+
 
 def _decision_block(
     targets: dict[str, "SizingTarget"], profile: PrototypeProfile
@@ -1884,12 +1973,12 @@ def _decision_block(
         "consideredNotSelected": [
             key for key in targets if key != SELECTED_TARGET
         ],
-        "reviewOutstanding": True,
+        "reviewOutstanding": False,
         "note": (
             "The operator selected every open point on "
             f"{DECISION_DATE}, each as proposed. The mandatory independent "
-            "protocol/security review has not happened; WP6 does not close and "
-            "WP7 does not start until it passes."
+            "protocol/security review and its fix-first re-verification passed "
+            "before WP7 was authorized."
         ),
     }
 

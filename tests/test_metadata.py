@@ -535,8 +535,13 @@ class BaselineTests(unittest.TestCase):
     def test_undeclared_changed_path_is_rejected(
         self, is_ancestor: mock.Mock, git_output: mock.Mock
     ) -> None:
-        git_output.return_value = (
-            "code/renderergl2/tr_glsl.c\ncode/qcommon/net_chan.c\n"
+        declared = {
+            path
+            for patch in self.baseline["engine"]["appliedPatches"]
+            for path in patch["paths"]
+        }
+        git_output.return_value = "\n".join(
+            sorted(declared | {"code/client/client.h"})
         )
         with self.assertRaisesRegex(MetadataError, "undeclared changed paths"):
             verify_engine_patch_series(ROOT, self.baseline)

@@ -1,6 +1,6 @@
 {
   "$schema": "https://kaesual.github.io/arena-web/schemas/content-provenance.schema.json",
-  "baselineIdentity": "sha256:a9126a609d3f041c60c7ca43b3db0e7be8754b9ef0862a6557e8c523038da5e5",
+  "baselineIdentity": "sha256:1b0f0b6a0675d527dbc8c6a269f4334c9229a171ffab61cb210ad4ed0a295539",
   "formatVersion": 1,
   "members": [
     {

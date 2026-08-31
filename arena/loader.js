@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 //
-// The product-owned browser loader of the offline one-map FFA slice.
+// The product-owned browser loader of the one-map FFA slice. It retains the
+// offline WP4 profile and can be configured at runtime for the WP7 relay path.
 //
 // This is original arena-web code. ioquake3's generated Emscripten shell is
 // build evidence only (docs/wp1-build-evidence.md) and is neither packaged nor
@@ -18,18 +19,26 @@
 //      exactly those verified bytes, not from a second fetch;
 //   3. waits for a real user gesture, so every audio context the engine
 //      creates is created under user activation;
-//   4. boots the engine straight into the profile's FFA map with its bots and
-//      records load timing, frame timing, the engine's own console output and
-//      the runtime identities.
+//   4. boots either the offline map-with-bots profile or the configured relay
+//      client and records load timing, frame timing, safe network counters, the
+//      engine's own console output and the runtime identities.
 //
 // It implements only the loader behaviour the work package names: canvas
 // sizing, pointer lock, keyboard/mouse input, fullscreen and user-activated
-// audio. There is no settings persistence, no OPFS, no account and no network
-// backend.
+// audio. There is no settings persistence, OPFS or account integration.
+
+import {
+  ArenaNetworkSession,
+  INNER_DATAGRAM_FLOOR,
+  PathBudgetError,
+  RECEIVE_QUEUE_DEPTH,
+} from "./arena/network-backend.js";
 
 const PROFILE_URL = "game-profile.json";
+const RELAY_PROFILE_URL = "arena/relay-profile.json";
 const ENGINE_LOG_LIMIT = 40000;
 const FRAME_SAMPLE_LIMIT = 30000;
+const EVENT_LIMIT = 10000;
 const LONG_FRAME_MS = 50;
 const MINIMUM_RENDER_WIDTH = 320;
 const MINIMUM_RENDER_HEIGHT = 240;
@@ -73,13 +82,23 @@ const report = {
   browserErrors: [],
   frames: { samples: 0, dropped: 0 },
   events: [],
+  eventsDropped: 0,
   unexpectedFileRequests: [],
   audioActivation: null,
   pointerLock: { supported: "pointerLockElement" in document, engaged: false, errors: 0 },
   fullscreen: { supported: Boolean(elements.stage.requestFullscreen), engaged: false },
   webglContextLost: 0,
   render: null,
+  mode: "offline",
+  relay: null,
 };
+
+let relayRuntimeConfiguration = null;
+let relayProfile = null;
+let relayBackend = null;
+let engineStarted = false;
+let relayReconnectReady = false;
+let relayReconnectRunning = false;
 
 const frameDeltas = [];
 const startedAt = performance.now();
@@ -89,7 +108,11 @@ function since() {
 }
 
 function note(kind, detail) {
-  report.events.push({ at: since(), kind, detail: detail ?? null });
+  if (report.events.length < EVENT_LIMIT) {
+    report.events.push({ at: since(), kind, detail: detail ?? null });
+  } else {
+    report.eventsDropped += 1;
+  }
 }
 
 function setMessage(text) {
@@ -110,6 +133,51 @@ function fail(error) {
   // The browser console is part of the acceptance evidence, so a loader
   // failure has to be visible there and not only inside this page.
   console.error("arena-web loader failed", error);
+}
+
+function offerRelayReconnect(reason) {
+  if (reason === "path_budget") {
+    fail(new PathBudgetError());
+    return;
+  }
+  if (!engineStarted || ["failed", "exited"].includes(report.status)) {
+    return;
+  }
+  relayReconnectReady = true;
+  report.status = "reconnect-ready";
+  report.error = { name: "RelayClosedError", message: "the relay session ended" };
+  elements.overlay.hidden = false;
+  elements.start.textContent = "Reconnect";
+  elements.start.disabled = false;
+  setMessage("The relay session ended. Reconnect uses a fresh one-time authorization.");
+}
+
+async function reconnectRelay() {
+  if (!relayReconnectReady || relayReconnectRunning || relayBackend === null) {
+    return;
+  }
+  relayReconnectReady = false;
+  relayReconnectRunning = true;
+  elements.start.disabled = true;
+  elements.overlay.hidden = true;
+  report.status = "reconnecting";
+  report.error = null;
+  note("relay-reconnect-started", null);
+  try {
+    await relayBackend.reconnect();
+    report.relay = relayBackend.snapshot();
+    report.status = report.markers.clientGameLoaded === undefined ? "booting" : "running";
+    elements.start.textContent = "Start";
+    note("relay-reconnect-completed", null);
+  } catch (error) {
+    if (error instanceof PathBudgetError || error?.retry === false) {
+      fail(error);
+    } else {
+      offerRelayReconnect("attempt_failed");
+    }
+  } finally {
+    relayReconnectRunning = false;
+  }
 }
 
 function requireObject(value, what) {
@@ -299,6 +367,87 @@ function parseProfile(profile) {
     served.add(path);
   }
   return profile;
+}
+
+function exactKeys(value, expected, what) {
+  const actual = Object.keys(requireObject(value, what)).sort();
+  const wanted = [...expected].sort();
+  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+    throw new LoaderError(`${what}: unexpected key set`);
+  }
+}
+
+function parseRelayProfile(profile) {
+  const keys = [
+    "$comment",
+    "connectFamily",
+    "cvars",
+    "formatVersion",
+    "fragmentSize",
+    "innerDatagramFloor",
+    "keepAliveIntervalSource",
+    "mode",
+    "receiveQueueDepth",
+    "singleDatagramOverhead",
+  ];
+  exactKeys(profile, keys, RELAY_PROFILE_URL);
+  if (
+    profile.formatVersion !== 1 ||
+    profile.mode !== "relay-client" ||
+    profile.connectFamily !== "-6" ||
+    profile.fragmentSize !== 704 ||
+    profile.innerDatagramFloor !== INNER_DATAGRAM_FLOOR ||
+    profile.receiveQueueDepth !== RECEIVE_QUEUE_DEPTH ||
+    profile.singleDatagramOverhead !== 42 ||
+    profile.keepAliveIntervalSource !== "runtime"
+  ) {
+    throw new LoaderError(`${RELAY_PROFILE_URL}: does not match the decided WP7 profile`);
+  }
+  const requiredCvars = {
+    bot_enable: "0",
+    cl_allowDownload: "0",
+    cl_motd: "0",
+    cl_voip: "0",
+    com_basegame: "arena",
+    com_legacyprotocol: "0",
+    headmodel: "skelebot/default",
+    model: "skelebot/default",
+    net_enabled: "2",
+    r_allowResize: "1",
+    sv_pure: "0",
+  };
+  exactKeys(profile.cvars, Object.keys(requiredCvars), `${RELAY_PROFILE_URL}: cvars`);
+  for (const [name, expected] of Object.entries(requiredCvars)) {
+    if (profile.cvars[name] !== expected) {
+      throw new LoaderError(`${RELAY_PROFILE_URL}: cvars.${name} is not '${expected}'`);
+    }
+  }
+  return profile;
+}
+
+function relayDestination(configuration) {
+  const hex = configuration.destinationAddressHex;
+  if (typeof hex !== "string" || !/^[0-9a-fA-F]{32}$/.test(hex)) {
+    throw new LoaderError("relay destination is not a 16-byte hexadecimal address");
+  }
+  const port = configuration.destinationPort;
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new LoaderError("relay destination port is outside its accepted range");
+  }
+  const groups = [];
+  for (let index = 0; index < hex.length; index += 4) {
+    groups.push(hex.slice(index, index + 4));
+  }
+  return `[${groups.join(":")}]:${port}`;
+}
+
+function relayEngineArguments(profile, configuration) {
+  const arguments_ = [];
+  for (const name of Object.keys(profile.cvars).sort()) {
+    arguments_.push("+set", name, profile.cvars[name]);
+  }
+  arguments_.push("+connect", profile.connectFamily, relayDestination(configuration));
+  return arguments_;
 }
 
 // Load every declared artifact and prove it is the committed one. The digest is
@@ -549,9 +698,9 @@ async function recordAudioActivation() {
   await context.close();
 }
 
-async function boot(profile, artifacts) {
+async function boot(profile, artifacts, networkBackend = null) {
   const markers = Object.entries(profile.readyMarkers);
-  const botNames = profile.bots.map((bot) => bot.name);
+  const botNames = networkBackend ? [] : profile.bots.map((bot) => bot.name);
   const byRole = new Map();
   for (const artifact of profile.artifacts) {
     if (artifact.role !== "filesystem") {
@@ -562,11 +711,20 @@ async function boot(profile, artifacts) {
   const wasmBytes = artifacts.get(byRole.get("module-wasm").served);
   const filesystemArtifacts = profile.artifacts.filter((artifact) => artifact.role === "filesystem");
 
-  const engineArguments = [...profile.engineArguments, ...renderSizeArguments()];
+  const profileArguments = networkBackend
+    ? relayEngineArguments(relayProfile, relayRuntimeConfiguration)
+    : profile.engineArguments;
+  const engineArguments = [...profileArguments, ...renderSizeArguments()];
   // The record is a copy: Emscripten's callMain unshifts the program name onto
   // the array it is given, so handing the engine this exact array would edit
   // the evidence.
-  report.engineArguments = [...engineArguments];
+  report.engineArguments = networkBackend
+    ? [
+        ...profileArguments.slice(0, -1),
+        "[relay destination]",
+        ...engineArguments.slice(profileArguments.length),
+      ]
+    : [...engineArguments];
 
   const moduleUrl = URL.createObjectURL(new Blob([scriptBytes], { type: "text/javascript" }));
   let factory;
@@ -580,6 +738,7 @@ async function boot(profile, artifacts) {
   const configuration = {
     canvas: elements.canvas,
     arguments: [...engineArguments],
+    arenaNetwork: networkBackend ?? undefined,
     // Every artifact is already in memory and verified, so nothing should be
     // located and fetched a second time. A request is recorded rather than
     // silently answered, because an extra fetch is exactly what the
@@ -649,12 +808,15 @@ function snapshot() {
     browserErrors: report.browserErrors,
     frames: frameStatistics(),
     events: report.events,
+    eventsDropped: report.eventsDropped,
     unexpectedFileRequests: report.unexpectedFileRequests,
     audioActivation: report.audioActivation,
     pointerLock: report.pointerLock,
     fullscreen: report.fullscreen,
     webglContextLost: report.webglContextLost,
     render: report.render,
+    mode: report.mode,
+    relay: relayBackend?.snapshot() ?? null,
   };
 }
 
@@ -662,6 +824,21 @@ globalThis.arenaWeb = {
   report,
   snapshot,
   engineLog: () => report.engineLog.slice(),
+  configureRelay(configuration) {
+    if (!["starting", "ready"].includes(report.status)) {
+      throw new LoaderError("relay configuration must be supplied before Start");
+    }
+    requireObject(configuration, "relay runtime configuration");
+    relayRuntimeConfiguration = {
+      ...configuration,
+      certificateHashes: Array.isArray(configuration.certificateHashes)
+        ? [...configuration.certificateHashes]
+        : configuration.certificateHashes,
+    };
+    report.mode = "relay";
+    note("relay-configured", null);
+  },
+  reconnectRelay,
 };
 
 async function main() {
@@ -669,6 +846,9 @@ async function main() {
   startFrameSampling();
   setMessage("Reading the content configuration.");
   const profile = parseProfile(await fetchJson(resolveServed(PROFILE_URL, "profile"), PROFILE_URL));
+  relayProfile = parseRelayProfile(
+    await fetchJson(resolveServed(RELAY_PROFILE_URL, "relay profile"), RELAY_PROFILE_URL),
+  );
   report.profile = { package: profile.package, map: profile.map, formatVersion: profile.formatVersion };
   report.timings.profileLoadedMs = since();
 
@@ -684,17 +864,44 @@ async function main() {
   elements.start.disabled = false;
   elements.fullscreen.disabled = false;
 
+  elements.start.addEventListener("click", () => {
+    void reconnectRelay();
+  });
+
   elements.start.addEventListener(
     "click",
-    () => {
+    async () => {
       elements.start.disabled = true;
       elements.overlay.hidden = true;
       report.status = "booting";
       report.timings.startClickedMs = since();
       elements.canvas.focus();
-      recordAudioActivation()
-        .then(() => boot(profile, artifacts))
-        .catch(fail);
+      try {
+        await recordAudioActivation();
+        if (relayRuntimeConfiguration !== null) {
+          relayBackend = new ArenaNetworkSession(relayRuntimeConfiguration, {
+            onEvent: (kind, detail) => {
+              note(kind, detail);
+              if (
+                kind === "relay-terminal" &&
+                !["client_close", "engine_shutdown"].includes(detail) &&
+                !["failed", "exited"].includes(report.status)
+              ) {
+                offerRelayReconnect(detail);
+              }
+            },
+          });
+          await relayBackend.open();
+          report.relay = relayBackend.snapshot();
+        }
+        await boot(profile, artifacts, relayBackend);
+        engineStarted = true;
+        if (relayBackend?.snapshot().state === "closed") {
+          offerRelayReconnect(relayBackend.snapshot().terminalReason);
+        }
+      } catch (error) {
+        fail(error);
+      }
     },
     { once: true },
   );

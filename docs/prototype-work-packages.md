@@ -12,9 +12,8 @@ mandatory independent protocol/security review returned **fix-first**; its four
 MAJOR findings were resolved, the three extensions it produced were settled by
 the operator the same day, and a re-verification pass then **passed**, finding
 no decided value had drifted. **WP6 is complete.** WP7 and WP8 carry
-implementation-ready contracts, and WP7 is blocked only on explicit approval to
-start it. WP7 and WP8 carry
-implementation-ready contracts with the decided values filled in
+implementation-ready contracts. The operator explicitly authorized WP7 on
+2026-08-31; implementation is in progress. WP8 remains blocked on WP7.
 
 This document turns the reviewed direction in
 [`initial-plan.md`](initial-plan.md) into coherent, testable increments. It
@@ -56,7 +55,7 @@ is a plan change; adding another platform is later scope.
 | WP4 | One-map offline browser arena with bots | WP1, WP3 | ✅ Complete — the witnessed round of 2026-08-30 passed every gameplay, input, focus, audio, console and clean-relaunch check (report in the evidence documents); the known browser-renderer defect class (white lightmapped surfaces mitigated by the reviewed `r_vertexLight` workaround and guarded by a near-white regression check; distance-graded entity shading; frame flicker) is recorded as decided while the timeboxed root-cause hunt continues on scratch builds. Closure accepted the operator-chosen Brave/KDE variation (the pinned Chrome is exercised by the automated harness on every gate run) and recorded one new accepted limitation: runtime resize and fullscreen-after-start do not update the engine resolution. **Post-closure, 2026-08-30:** the defect class is resolved — white lightmapped surfaces root-caused to a GLSL ES `mediump` precision default and fixed in the engine (workaround removed), entity shading reclassified as renderergl2's normal native look rather than a browser defect, and frame flicker confirmed resolved by the operator on the real display, who also confirmed light-strip parity with the native reference images. Two pre-existing content gaps the operator reported at the same time — the machine gun's missing barrel model and the lightning gun's missing beam art — are recorded in the evidence document as an open content follow-up. **Post-closure, 2026-08-31:** that follow-up is closed by WP3's content amendment, which also corrects the recorded lightning-beam cause — the beam art was always packed; the missing `lightning_flash.md3` gated the beam path — as a dated note in the evidence document |
 | WP5 | Matching native server and packet census | WP0, WP3 | ✅ Complete — the pinned native toolchain, the reproducible dedicated server, the runtime-base server image and a 41,833-datagram census of a driven session are built, reviewed and green, and the witnessed round of 2026-08-30 closed the one outstanding acceptance word with a player kill against a bot (report and native reference images in the evidence documents) |
 | WP6 | Measured network-sizing decision | WP2, WP5 | ✅ Complete — a reviewed, recomputable sizing decision: the routed budget refutes intact datagrams, and the selected strategy is a symmetric `FRAGMENT_SIZE` reduction to **704** at the record-backed 768-byte floor, with profile bounds for the out-of-band classes the engine never fragments, a fail-closed emitted-size check on both endpoints at `Sys_SendPacket`, and ten frozen WP8 thresholds. Built: [`wp6-network-sizing.md`](wp6-network-sizing.md), the `scripts/derive-network-sizing.py` derivation that recomputes every number from the two committed records (with a suite that requires doctored records to flip its verdicts), and implementation-ready WP7/WP8 contracts. The operator decided all five open points on 2026-08-30 and the three review extensions the same day; the mandatory independent protocol/security review returned fix-first, and its four MAJOR findings — the unlisted 1,038-byte `getmotd`, the unenforced server-browser exclusion, the one-directional fail-closed machinery and the shared relay address — were resolved and confirmed by a re-verification pass that found no decided value had drifted |
-| WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | Contract complete and its gate passed: the decided values are filled in and the review's enforcement requirements folded in (address rule, two-endpoint size check at `Sys_SendPacket`, server-browser neutralization, CSPRNG `Sys_RandomBytes`, the relay's live-source-port constraint, and the operator's 2026-08-30 scope extension for cvar-gated port-aware rate-limit buckets). Blocked only on explicit approval to start |
+| WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | 🚧 In progress — explicitly authorized 2026-08-31; the implementation uses the existing engine send/receive boundary, with ioq3 fragmentation remaining the only fragmentation layer |
 | WP8 | Two-browser multiplayer acceptance | WP5, WP7 | Contract complete, thresholds frozen 2026-08-30; blocked on WP7 |
 | WP9 | Public product-integration blueprint | WP8 | Scope gate |
 
@@ -900,18 +899,19 @@ strategy, bounds or census reopens WP6 and keeps WP7 blocked.
 
 ## WP7 — Browser backend and matching server rebuild
 
-**State:** Implementation contract, drafted by WP6 and conditioned on the
-operator's strategy selection, **which was made on 2026-08-30**: strategy 2, the
-symmetric fragment-size reduction at `FRAGMENT_SIZE = 704`, sized to the
-record-backed 768-byte inner budget, with the profile bounds. The values below
-are therefore decided, not proposed, and this contract is written for that
-shape.
+**State:** 🚧 In progress, explicitly authorized by the operator on
+2026-08-31. WP6's mandatory independent protocol/security review and
+re-verification passed before implementation began. The selected shape remains
+strategy 2: the symmetric fragment-size reduction at `FRAGMENT_SIZE = 704`,
+sized to the record-backed 768-byte inner budget, with the profile bounds. The
+values below are decided, not proposed.
 
-WP7 nevertheless **remains blocked** on the one thing the selection did not
-supply: [`wp6-network-sizing.md`](wp6-network-sizing.md) has not yet passed its
-mandatory independent protocol/security review. A finding there that affects the
-strategy, the bounds or the census reopens WP6 and this contract with it. No
-value here may be sourced from anywhere but that document.
+The implementation seam is the existing engine send/receive boundary:
+`Sys_SendPacket` hands emitted browser datagrams to the product backend and
+`NET_GetPacket` polls its bounded receive queue. ioq3 netchan remains above this
+boundary and is the only fragmentation and reassembly layer. Native builds keep
+their socket implementation at the same boundary. Product loader and
+authorization plumbing remain in this repository.
 
 ### Decision values
 

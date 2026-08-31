@@ -370,7 +370,7 @@ class SessionTests(unittest.TestCase):
     def test_engine_bounds_are_reported(self) -> None:
         bounds = self.summary["engineBounds"]
         self.assertEqual(bounds["maxPacketLen"], 1400)
-        self.assertEqual(bounds["fragmentSize"], 1300)
+        self.assertEqual(bounds["fragmentSize"], 704)
         self.assertEqual(bounds["observedAtOrAboveFragmentSize"], 2)
         self.assertEqual(bounds["observedAtOrAboveMaxPacketLen"], 0)
 
@@ -490,44 +490,17 @@ class CommittedCensusRecordTests(unittest.TestCase):
             (ROOT / "locks" / "baseline.json").read_text(encoding="utf-8")
         )
         # The census is the record of a session that was actually driven, so it
-        # names the engine commit that session ran and not the current pin. Both
-        # commits the lock accounts for are admissible — the pin, and the
-        # upstream base the pin declares — and nothing else is, so a measurement
-        # taken against an engine this repository never pinned is still refused.
-        # This census was taken at the upstream base; what the pin adds on top of
-        # it is enumerated in engine.appliedPatches and is confined to
-        # code/renderergl2/tr_glsl.c, which neither the dedicated server nor any
-        # datagram path compiles.
-        self.assertIn(
-            session["engineCommit"],
-            (
-                baseline["engine"]["commit"],
-                baseline["engine"]["upstreamBase"]["commit"],
-            ),
-        )
-        if session["engineCommit"] != baseline["engine"]["commit"]:
-            # The prose above is also enforced: a base-commit census stays
-            # admissible only while every enumerated patch is confined to
-            # renderer code the dedicated server and the datagram path do not
-            # compile. A future patch outside that prefix forces a re-run of
-            # the census (or a reviewed widening here) instead of silently
-            # inheriting a stale measurement.
-            for patch in baseline["engine"]["appliedPatches"]:
-                for path in patch["paths"]:
-                    self.assertTrue(
-                        path.startswith("code/renderergl2/"),
-                        f"patch {patch['id']} touches {path}, which the census "
-                        "session's server may compile; the census must be "
-                        "re-measured at the pinned commit",
-                    )
-        profile = json.loads(
-            (ROOT / "native" / "server-profile.json").read_text(encoding="utf-8")
-        )
-        self.assertEqual(session["serverArguments"], profile["serverArguments"])
+        # WP5 is immutable historical evidence from the upstream base. WP7 has
+        # a new profile and writes a new record; changing today's profile may
+        # never rewrite what this earlier session identifies.
         self.assertEqual(
-            session["clientArguments"],
-            profile["clientArguments"]
-            + ["+connect", f"{session['serverAddress']}:{session['serverPort']}"],
+            session["engineCommit"], baseline["engine"]["upstreamBase"]["commit"]
+        )
+        self.assertNotIn("com_legacyprotocol", session["serverArguments"])
+        self.assertNotIn("sv_rateLimitPerPort", session["serverArguments"])
+        self.assertEqual(
+            session["clientArguments"][-2:],
+            ["+connect", f"{session['serverAddress']}:{session['serverPort']}"],
         )
         for field in ("serverImageId", "toolchainImageId"):
             self.assertRegex(session[field], r"\A[0-9a-f]{64}\Z")

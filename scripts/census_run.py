@@ -1,14 +1,13 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""Run the WP5 packet census: one session, captured at the engine/UDP boundary.
+"""Run the WP7 packet re-census at the engine/UDP boundary.
 
 The session is deliberately small and complete: the native client connects to
 the containerized dedicated server, plays a representative FFA round against the
-profile's bots, disconnects, reconnects and plays again, and asks the server the
-two connectionless queries a server list would ask. Everything runs on a private
-container network with nothing else on it, and the capture is filtered to the
-server's own UDP port, so the recorded evidence contains this session's game
-traffic and nothing else — no credentials, no host traffic.
+profile's bots, disconnects, reconnects and plays again. Everything runs on a
+private container network with nothing else on it. The capture accepts every
+UDP datagram in the server namespace so the absence of server-browser traffic
+is observable rather than hidden by a port filter.
 
 The instrumentation is outside the game protocol. No engine source is patched
 and no engine option changes what is sent; the only control channel is the
@@ -18,6 +17,8 @@ client's own console on stdin, which is how a person would drive it.
 from __future__ import annotations
 
 import argparse
+import base64
+import hashlib
 import json
 import os
 import shutil
@@ -53,6 +54,14 @@ SCREEN = "640x480x24"
 
 CLIENT_BINARIES = ("ioquake3", "renderer_opengl1.so", "renderer_opengl2.so")
 
+# A deterministic high-entropy console command forces one real client netchan
+# fragmentation without changing the protocol or instrumenting the engine. The
+# base64 alphabet survives command parsing and does not compress below the
+# selected fragment threshold as a repetitive fixture would.
+CLIENT_FRAGMENT_PROBE = "say " + base64.b64encode(
+    b"".join(hashlib.sha256(f"arena-web-wp7-{index}".encode()).digest() for index in range(32))
+).decode()[:1000]
+
 
 class CensusError(RuntimeError):
     """The census could not be taken as declared."""
@@ -65,6 +74,16 @@ def _run(command: list[str], **kwargs: Any) -> subprocess.CompletedProcess:
             f"{' '.join(command[:3])}… failed: {result.stderr.strip() or result.returncode}"
         )
     return result
+
+
+def _file_identity(path: Path) -> dict[str, Any]:
+    digest = hashlib.sha256()
+    size = 0
+    with path.open("rb") as stream:
+        while chunk := stream.read(1024 * 1024):
+            digest.update(chunk)
+            size += len(chunk)
+    return {"sha256": digest.hexdigest(), "size": size}
 
 
 def _stage_client_root(target: Path, profile: dict[str, Any], client_dir: Path) -> None:
@@ -157,7 +176,6 @@ PLAY_CYCLE: tuple[tuple[float, str], ...] = (
 # the driver cannot see when a connection completed, and the census derives the
 # protocol milestones from the capture itself.
 PHASE_CLIENT_STARTED = "client-started"
-PHASE_QUERIES = "queries-requested"
 PHASE_PLAY = "driven-play"
 PHASE_DISCONNECT = "disconnect-requested"
 PHASE_RECONNECT = "reconnect-requested"
@@ -231,6 +249,33 @@ def acceptance_checks(
     ]
     connections = summary["connections"]
     milestones = summary["milestones"]
+    fragmented = summary["fragmentedMessages"]
+    asymmetry = summary["headerAsymmetry"]
+    observed_headers = {
+        value
+        for key in (
+            "client-to-server",
+            "server-to-client",
+            "client-to-server-fragmented",
+            "server-to-client-fragmented",
+        )
+        for value in asymmetry[key]["headerBytes"]
+    }
+    server_gamestates: dict[int, dict[str, Any]] = {}
+    for message in fragmented:
+        if message["direction"] == "server-to-client":
+            server_gamestates.setdefault(message["connectionIndex"], message)
+    fragment_envelopes = {
+        direction: max(
+            (
+                message["largestDatagramBytes"]
+                for message in fragmented
+                if message["direction"] == direction
+            ),
+            default=None,
+        )
+        for direction in ("client-to-server", "server-to-client")
+    }
     checks = [
         {
             "check": "client-joined-twice",
@@ -294,19 +339,49 @@ def acceptance_checks(
             ),
         },
         {
-            "check": "initial-queries-observed",
-            "detail": "getinfo, infoResponse, getstatus, statusResponse",
+            "check": "server-browser-queries-absent",
+            "detail": "no getinfo, infoResponse, getstatus or statusResponse",
             "evidence": "capture",
             "passed": all(
-                milestones.get(name) is not None
+                milestones.get(name) is None
                 for name in ("getinfo", "infoResponse", "getstatus", "statusResponse")
             ),
         },
         {
             "check": "gamestate-fragments-observed",
-            "detail": f"{len(summary['fragmentedMessages'])} fragmented messages",
+            "detail": f"first server fragmented message per connection: {server_gamestates}",
             "evidence": "capture",
-            "passed": bool(summary["fragmentedMessages"]),
+            "passed": len(server_gamestates) >= 2
+            and all(message["fragments"] == 4 for message in server_gamestates.values()),
+            "required": True,
+        },
+        {
+            "check": "relay-safe-datagram-floor",
+            "detail": f"maximum {summary['overall']['maximumUdpPayloadBytes']} <= 768",
+            "evidence": "capture",
+            "passed": summary["overall"]["maximumUdpPayloadBytes"] <= 768,
+            "required": True,
+        },
+        {
+            "check": "fragment-envelopes-and-header-widths",
+            "detail": f"headers {sorted(observed_headers)}; envelopes {fragment_envelopes}",
+            "evidence": "capture",
+            "passed": observed_headers == {8, 10, 12, 14}
+            and fragment_envelopes
+            == {"client-to-server": 718, "server-to-client": 716},
+            "required": True,
+        },
+        {
+            "check": "connectionless-classes-fit-floor",
+            "detail": "both connectionless direction maxima are at most 768 bytes",
+            "evidence": "capture",
+            "passed": all(
+                summary["byDirection"][direction]["byClass"]["connectionless"][
+                    "statistics"
+                ]["maximum"]
+                <= 768
+                for direction in ("client-to-server", "server-to-client")
+            ),
             "required": True,
         },
         {
@@ -321,6 +396,20 @@ def acceptance_checks(
             "detail": "no fatal engine error in either log",
             "evidence": "both logs",
             "passed": "ERROR: " not in client_log and "ERROR: " not in server_log,
+            "required": True,
+        },
+        {
+            "check": "no-fragment-reassembly-or-size-refusal-error",
+            "detail": "no fragment drop/length error and no arena_net refusal in either log",
+            "evidence": "both logs",
+            "passed": all(
+                marker not in server_log and marker not in client_log
+                for marker in (
+                    "Dropped a message fragment",
+                    "illegal fragment length",
+                    "arena_net refusal",
+                )
+            ),
             "required": True,
         },
         {
@@ -406,6 +495,7 @@ def main() -> int:  # noqa: C901 - a session is a sequence, and it reads as one
     session = f"arena-census-{os.getpid()}"
     network = session
     server_name = f"{session}-server"
+    client_network_name = f"{session}-client-network"
     capture_name = f"{session}-capture"
     client_name = f"{session}-client"
 
@@ -421,6 +511,14 @@ def main() -> int:  # noqa: C901 - a session is a sequence, and it reads as one
         return 1
 
     server_endpoint = f"{arguments.server_ip}:{profile['port']}"
+    client_dir = arguments.client_dir.resolve()
+    client_artifacts: dict[str, dict[str, Any]] = {}
+    for name in CLIENT_BINARIES:
+        path = client_dir / name
+        if not path.is_file():
+            print(f"{path} does not exist; build the native client first", file=sys.stderr)
+            return 1
+        client_artifacts[name] = _file_identity(path)
     client_root = output_dir / "client-root"
     started: list[str] = []
     created_network = False
@@ -431,7 +529,7 @@ def main() -> int:  # noqa: C901 - a session is a sequence, and it reads as one
         phases.append({"name": name, "startedAt": time.time()})
 
     try:
-        _stage_client_root(client_root, profile, arguments.client_dir.resolve())
+        _stage_client_root(client_root, profile, client_dir)
 
         _run([runtime, "network", "create", "--subnet", arguments.subnet, network])
         created_network = True
@@ -452,14 +550,32 @@ def main() -> int:  # noqa: C901 - a session is a sequence, and it reads as one
         started.append(server_name)
         time.sleep(4)
 
-        # The capture shares the server's network namespace, so it observes the
-        # server's own interface and nothing else on the host. The filter names
-        # the server's UDP port, so even inside that namespace only this
-        # session's game traffic is written.
+        # A quiet anchor owns the client's fixed address. Both the actual client
+        # and tcpdump join that namespace, which lets capture start before the
+        # engine and observe every client-originated destination rather than
+        # only traffic that happened to reach the expected server namespace.
+        _run(
+            [
+                runtime, "run", "--detach", "--name", client_network_name,
+                "--network", network, "--ip", arguments.client_ip,
+                "--cap-drop", "all",
+                "--security-opt", "label=disable",
+                "--security-opt", "no-new-privileges",
+                "--read-only",
+                "--entrypoint", "/bin/sleep",
+                toolchain_image,
+                "infinity",
+            ]
+        )
+        started.append(client_network_name)
+
+        # Capture every UDP port in the client namespace: a second-destination
+        # or server-browser path must be visible and make classification fail,
+        # not disappear behind a filter that names only the expected game port.
         _run(
             [
                 runtime, "run", "--detach", "--name", capture_name,
-                "--network", f"container:{server_name}",
+                "--network", f"container:{client_network_name}",
                 "--cap-drop", "all", "--cap-add", "NET_RAW",
                 "--security-opt", "label=disable",
                 "--security-opt", "no-new-privileges",
@@ -472,7 +588,7 @@ def main() -> int:  # noqa: C901 - a session is a sequence, and it reads as one
                 # cannot own the save file on a bind mount.
                 "-Z", "root",
                 "-w", "/capture/session.pcap",
-                f"udp port {profile['port']}",
+                "udp",
             ]
         )
         started.append(capture_name)
@@ -487,7 +603,7 @@ def main() -> int:  # noqa: C901 - a session is a sequence, and it reads as one
 
         client_command = [
             runtime, "run", "--rm", "--interactive", "--name", client_name,
-            "--network", network, "--ip", arguments.client_ip,
+            "--network", f"container:{client_network_name}",
             "--cap-drop", "all",
             "--security-opt", "label=disable",
             "--security-opt", "no-new-privileges",
@@ -555,14 +671,10 @@ def main() -> int:  # noqa: C901 - a session is a sequence, and it reads as one
         try:
             half = max(1.0, arguments.play_seconds / 2)
             send([(0.0, None, PHASE_CLIENT_STARTED)])
-            # The two queries a server browser makes, sent once the client has
-            # had time to connect. They are connectionless traffic on the same
-            # address pair, which is exactly what the census has to separate.
             send(
                 [
-                    (14.0, f"ping {server_endpoint}", PHASE_QUERIES),
-                    (1.5, f"serverstatus {server_endpoint}", None),
-                    (1.5, None, PHASE_PLAY),
+                    (14.0, None, PHASE_PLAY),
+                    (0.5, CLIENT_FRAGMENT_PROBE, None),
                 ]
             )
             play(half, arguments.max_play_seconds / 2)
@@ -575,6 +687,7 @@ def main() -> int:  # noqa: C901 - a session is a sequence, and it reads as one
                     # rather than politeness.
                     (5.0, f"connect {server_endpoint}", PHASE_RECONNECT),
                     (14.0, None, PHASE_PLAY_AGAIN),
+                    (0.5, CLIENT_FRAGMENT_PROBE, None),
                 ]
             )
             send(_play_steps(half))
@@ -657,6 +770,7 @@ def main() -> int:  # noqa: C901 - a session is a sequence, and it reads as one
 
     session_record = {
         "clientArguments": profile["clientArguments"] + ["+connect", server_endpoint],
+        "clientArtifacts": client_artifacts,
         "engineCommit": engine_commit,
         "phases": [
             {"name": phase["name"], "startedAt": round(phase["startedAt"], 3)}

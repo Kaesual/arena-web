@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
-"""The served runtime set of the offline vertical slice.
+"""The served runtime set of the browser vertical slice.
 
 This module owns the packaging discipline of WP4. It answers exactly one
 question — which bytes may a local serve hand to the browser — and it answers
@@ -35,7 +35,14 @@ CHUNK_SIZE = 1024 * 1024
 PROFILE_SOURCE = "arena/game-profile.json"
 PROFILE_SERVED = "game-profile.json"
 LOADER_SOURCE_DIRECTORY = "arena"
-LOADER_FILES = ("index.html", "loader.js")
+RUNTIME_SOURCE_FILES = {
+    "index.html": "arena/index.html",
+    "loader.js": "arena/loader.js",
+    "arena/network-backend.js": "arena/network-backend.js",
+    "arena/relay-profile.json": "arena/relay-profile.json",
+    "probe/relay-framing.js": "probe/relay-framing.js",
+}
+LOADER_FILES = tuple(RUNTIME_SOURCE_FILES)
 
 PROFILE_KEYS = (
     "$comment",
@@ -111,6 +118,33 @@ FFA_GAMETYPE = "0"
 # The loader derives these from the live canvas box; a committed value would be
 # an environment-specific one.
 RUNTIME_DERIVED_CVARS = ("r_customheight", "r_customwidth", "r_mode")
+
+RELAY_PROFILE_SOURCE = "arena/relay-profile.json"
+RELAY_PROFILE_KEYS = (
+    "$comment",
+    "connectFamily",
+    "cvars",
+    "formatVersion",
+    "fragmentSize",
+    "innerDatagramFloor",
+    "keepAliveIntervalSource",
+    "mode",
+    "receiveQueueDepth",
+    "singleDatagramOverhead",
+)
+RELAY_PROFILE_CVARS = {
+    "bot_enable": "0",
+    "cl_allowDownload": "0",
+    "cl_motd": "0",
+    "cl_voip": "0",
+    "com_basegame": "arena",
+    "com_legacyprotocol": "0",
+    "headmodel": "skelebot/default",
+    "model": "skelebot/default",
+    "net_enabled": "2",
+    "r_allowResize": "1",
+    "sv_pure": "0",
+}
 
 
 class ArenaRuntimeError(ValueError):
@@ -485,6 +519,36 @@ def _validate_against_recipe(profile: dict[str, Any], recipe: dict[str, Any]) ->
         )
 
 
+def load_relay_profile(repo_root: Path) -> dict[str, Any]:
+    """Validate the non-secret, fixed half of the WP7 browser profile."""
+    profile = _object(
+        _load_json(repo_root / RELAY_PROFILE_SOURCE, RELAY_PROFILE_SOURCE),
+        "relay profile",
+    )
+    _exact_keys(profile, RELAY_PROFILE_KEYS, "relay profile")
+    expected_scalars = {
+        "formatVersion": 1,
+        "mode": "relay-client",
+        "connectFamily": "-6",
+        "innerDatagramFloor": 768,
+        "fragmentSize": 704,
+        "receiveQueueDepth": 256,
+        "singleDatagramOverhead": 42,
+        "keepAliveIntervalSource": "runtime",
+    }
+    for name, expected in expected_scalars.items():
+        if profile.get(name) != expected:
+            _fail(
+                f"relay profile.{name}",
+                f"must equal the decided WP7 value {expected!r}",
+            )
+    cvars = _object(profile.get("cvars"), "relay profile.cvars")
+    _exact_keys(cvars, tuple(RELAY_PROFILE_CVARS), "relay profile.cvars")
+    if cvars != RELAY_PROFILE_CVARS:
+        _fail("relay profile.cvars", "does not match the decided WP7 client profile")
+    return profile
+
+
 def load_profile(repo_root: Path) -> dict[str, Any]:
     """Read, validate and cross-check the committed content configuration."""
     profile = _object(_load_json(repo_root / PROFILE_SOURCE, PROFILE_SOURCE), "profile")
@@ -538,6 +602,7 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
         profile,
         _object(_load_json(repo_root / "content/pack-recipe.json", "recipe"), "recipe"),
     )
+    load_relay_profile(repo_root)
     profile["_manifests"] = manifests
     return profile
 
@@ -545,10 +610,10 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
 def served_files(repo_root: Path, profile: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """The complete served set: served path -> source and expected identity."""
     files: dict[str, dict[str, Any]] = {}
-    for name in LOADER_FILES:
-        files[name] = {
+    for served, source in RUNTIME_SOURCE_FILES.items():
+        files[served] = {
             "kind": "loader",
-            "source": repo_root / LOADER_SOURCE_DIRECTORY / name,
+            "source": repo_root / source,
         }
     files[PROFILE_SERVED] = {"kind": "profile", "source": repo_root / PROFILE_SOURCE}
     for entry in profile["configFiles"]:

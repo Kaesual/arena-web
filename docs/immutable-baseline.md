@@ -497,7 +497,7 @@ inspectable with:
 
 ```bash
 sha256sum locks/baseline.json
-# sha256:a9126a609d3f041c60c7ca43b3db0e7be8754b9ef0862a6557e8c523038da5e5
+# sha256:1b0f0b6a0675d527dbc8c6a269f4334c9229a171ffab61cb210ad4ed0a295539
 ```
 
 The container check first verifies the lock against the host checkout's ioq3

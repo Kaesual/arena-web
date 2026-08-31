@@ -22,7 +22,7 @@
       "size": 798456
     }
   ],
-  "baselineIdentity": "sha256:a9126a609d3f041c60c7ca43b3db0e7be8754b9ef0862a6557e8c523038da5e5",
+  "baselineIdentity": "sha256:1b0f0b6a0675d527dbc8c6a269f4334c9229a171ffab61cb210ad4ed0a295539",
   "baselineInputIds": [
     "ioq3",
     "native-builder-base",
@@ -33,17 +33,17 @@
   "inputs": [
     {
       "id": "arena-web-browser-client",
-      "identity": "sha256:5ec9416e0b9a94f5a368b9bcb59da60ed919ec6f68db7a30f6f885861dd27b2e",
+      "identity": "sha256:6b9b8817360f6876c7df459ff32eb092c8febff7e1ef948fd7b828afd932f73f",
       "kind": "artifact-manifest"
     },
     {
       "id": "arena-web-ffa-content",
-      "identity": "sha256:21aeadd6354f75053fb4effa3d9e10ed26d8958ac7ec2dc112bf60fa839c1a81",
+      "identity": "sha256:f1e5453e6ecab0b251512cadee8f1a16de446bcc11c9038c93961f045765c7e1",
       "kind": "artifact-manifest"
     },
     {
       "id": "ioq3",
-      "identity": "git:92351b8f0543448b9defaac25c552274eecbf15b",
+      "identity": "git:968eeb44294aa0003c430430cf32a6540f9a81e4",
       "kind": "git"
     },
     {

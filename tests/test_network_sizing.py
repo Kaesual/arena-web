@@ -673,7 +673,7 @@ class DerivationTests(unittest.TestCase):
 
     def test_the_outstanding_review_is_recorded(self):
         # WP6 does not close on the operator's selection alone.
-        self.assertTrue(self.result["decision"]["reviewOutstanding"])
+        self.assertFalse(self.result["decision"]["reviewOutstanding"])
 
     def test_a_different_reserve_shows_the_decided_value_no_longer_follows(self):
         # Reserve and alignment are script arguments, so a reviewer exploring a
@@ -765,6 +765,60 @@ class DoctoredRecordFlipsTheVerdictTests(unittest.TestCase):
             ]["target"]["candidateFragmentSize"],
             640,
         )
+
+
+class PostChangeCensusVerificationTests(unittest.TestCase):
+    def setUp(self):
+        self.plan = committed_plan()
+        self.report = load(ROUTED_RECORD)
+        self.census = load(CENSUS_RECORD)
+        self.commit = "a" * 40
+        self.census["session"]["engineCommit"] = self.commit
+        summary = self.census["summary"]
+        summary["engineBounds"]["fragmentSize"] = 704
+        for direction in (CLIENT_TO_SERVER, SERVER_TO_CLIENT):
+            summary["byDirection"][direction]["all"]["maximum"] = 718
+        for direction, ordinary, fragmented in (
+            (CLIENT_TO_SERVER, 10, 14),
+            (SERVER_TO_CLIENT, 8, 12),
+        ):
+            summary["headerAsymmetry"][direction]["headerBytes"] = [ordinary]
+            summary["headerAsymmetry"][f"{direction}-fragmented"][
+                "headerBytes"
+            ] = [fragmented]
+        for message in summary["fragmentedMessages"]:
+            direction = message.get("direction", SERVER_TO_CLIENT)
+            message["fragments"] = len(fragment_payloads(message["messageBytes"], 704))
+            message["largestDatagramBytes"] = 704 + netchan_header_bytes(
+                direction, fragmented=True
+            )
+        for direction in (CLIENT_TO_SERVER, SERVER_TO_CLIENT):
+            commands = summary["byDirection"][direction]["byClass"][CONNECTIONLESS][
+                "commands"
+            ]
+            for command in ("getinfo", "getstatus", "infoResponse", "statusResponse"):
+                commands.pop(command, None)
+
+    def test_every_post_change_bound_can_pass_as_one_verdict(self):
+        result = derive(
+            self.report,
+            self.census,
+            plan=self.plan,
+            post_change_engine_commit=self.commit,
+        )
+        verification = result["postChangeVerification"]
+        self.assertTrue(verification["allBoundsPass"], verification)
+        self.assertEqual(result["engine"]["commit"], self.commit)
+        self.assertEqual(result["census"]["engineBounds"]["fragmentSize"], 704)
+
+    def test_a_census_from_a_different_post_change_engine_is_refused(self):
+        with self.assertRaises(NetworkSizingError):
+            derive(
+                self.report,
+                self.census,
+                plan=self.plan,
+                post_change_engine_commit="b" * 40,
+            )
 
 
 class WorstCaseReplayTests(unittest.TestCase):

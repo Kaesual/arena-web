@@ -222,6 +222,7 @@ class SyntheticRepository:
 
     def write(self) -> None:
         (self.root / "arena").mkdir(parents=True, exist_ok=True)
+        (self.root / "probe").mkdir(parents=True, exist_ok=True)
         (self.root / "manifests").mkdir(parents=True, exist_ok=True)
         (self.root / "provenance").mkdir(parents=True, exist_ok=True)
         (self.root / "content").mkdir(parents=True, exist_ok=True)
@@ -229,6 +230,41 @@ class SyntheticRepository:
             "<!doctype html>", encoding="utf-8"
         )
         (self.root / "arena" / "loader.js").write_text("// loader", encoding="utf-8")
+        (self.root / "arena" / "network-backend.js").write_text(
+            "// backend", encoding="utf-8"
+        )
+        (self.root / "probe" / "relay-framing.js").write_text(
+            "// framing", encoding="utf-8"
+        )
+        (self.root / "arena" / "relay-profile.json").write_text(
+            json.dumps(
+                {
+                    "$comment": ["synthetic"],
+                    "formatVersion": 1,
+                    "mode": "relay-client",
+                    "connectFamily": "-6",
+                    "innerDatagramFloor": 768,
+                    "fragmentSize": 704,
+                    "receiveQueueDepth": 256,
+                    "singleDatagramOverhead": 42,
+                    "keepAliveIntervalSource": "runtime",
+                    "cvars": {
+                        "bot_enable": "0",
+                        "cl_allowDownload": "0",
+                        "cl_motd": "0",
+                        "cl_voip": "0",
+                        "com_basegame": "arena",
+                        "com_legacyprotocol": "0",
+                        "headmodel": "skelebot/default",
+                        "model": "skelebot/default",
+                        "net_enabled": "2",
+                        "r_allowResize": "1",
+                        "sv_pure": "0",
+                    },
+                }
+            ),
+            encoding="utf-8",
+        )
         (self.root / "arena" / "default.cfg").write_text("// cfg\n", encoding="utf-8")
         (self.root / "arena" / "other.cfg").write_text("// other\n", encoding="utf-8")
         (self.root / "arena" / "game-profile.json").write_text(
@@ -684,6 +720,8 @@ class StagingTest(SyntheticRepositoryTest):
         self.assertEqual(
             present,
             [
+                "arena/network-backend.js",
+                "arena/relay-profile.json",
                 "content/baseq3/arena-web-ffa.pk3",
                 "default.cfg",
                 "engine/baseq3/vm/cgame.qvm",
@@ -693,6 +731,7 @@ class StagingTest(SyntheticRepositoryTest):
                 "index.html",
                 "loader.js",
                 "manifests/browser-client.json",
+                "probe/relay-framing.js",
                 "provenance/arena-web-ffa-content-manifest.json",
             ],
         )
@@ -835,6 +874,8 @@ class CommittedProfileTest(unittest.TestCase):
         self.assertEqual(
             sorted(served_files(ROOT, self.profile)),
             [
+                "arena/network-backend.js",
+                "arena/relay-profile.json",
                 "content/baseq3/arena-web-ffa.pk3",
                 "default.cfg",
                 "engine/baseq3/vm/cgame.qvm",
@@ -846,6 +887,7 @@ class CommittedProfileTest(unittest.TestCase):
                 "index.html",
                 "loader.js",
                 "manifests/browser-client.json",
+                "probe/relay-framing.js",
                 "provenance/arena-web-ffa-content-manifest.json",
             ],
         )
@@ -867,12 +909,21 @@ class CommittedProfileTest(unittest.TestCase):
             "ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664",
         )
 
-    def test_the_loader_page_and_script_are_the_only_product_code_served(self) -> None:
+    def test_only_the_declared_product_runtime_sources_are_served(self) -> None:
         files = served_files(ROOT, self.profile)
         loader = sorted(
             name for name, entry in files.items() if entry["kind"] == "loader"
         )
-        self.assertEqual(loader, ["index.html", "loader.js"])
+        self.assertEqual(
+            loader,
+            [
+                "arena/network-backend.js",
+                "arena/relay-profile.json",
+                "index.html",
+                "loader.js",
+                "probe/relay-framing.js",
+            ],
+        )
 
     def test_the_loader_does_not_reuse_the_upstream_emscripten_shell(self) -> None:
         page = (ROOT / "arena/index.html").read_text(encoding="utf-8")

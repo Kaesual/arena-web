@@ -1,15 +1,15 @@
 #!/usr/bin/env bash
 # SPDX-License-Identifier: GPL-2.0-or-later
 #
-# Take the WP5 packet census: one driven session between the containerized
+# Take the WP7 packet re-census: one driven session between the containerized
 # dedicated server and the native test client, captured at the engine/UDP
 # boundary on a private container network.
 #
 # Everything it needs must already exist: the pinned toolchain image, the native
 # client build and the server image. The census itself contacts no network
-# outside the one it creates, and the capture is filtered to the server's own
-# UDP port, so the recorded evidence holds this session's game traffic and
-# nothing else.
+# outside the one it creates. The capture sees every UDP destination in the
+# client's isolated network namespace so second-destination traffic cannot be
+# hidden by a server-port filter.
 
 set -euo pipefail
 export PYTHONDONTWRITEBYTECODE=1

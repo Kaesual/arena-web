@@ -4,17 +4,21 @@
 
 This is the tool the WP6 acceptance means by "a reviewer can recompute the
 decision from committed reports and scripts". It reads
-`records/wp2-routed-measurement.json` and `records/wp5-packet-census.json`,
+`records/wp2-routed-measurement.json` and a packet-census record,
 re-validates the routed record against the committed measurement vector, and
 prints every number `docs/wp6-network-sizing.md` states — the per-direction
 observed maxima, the relay overhead applied to each, the two candidate budgets,
 which packet classes fit at each, the code-level boundary cases the short census
 session could not produce, and the cost of the candidate fragment sizes.
 
-It reads no network and no clock, so two runs on the same bytes agree.
+It reads no network and no clock, so two runs on the same bytes agree. The
+explicit `--post-change` mode verifies the WP7 re-census against the final
+engine pin without rewriting or weakening the immutable WP5/WP6 derivation.
 
     scripts/derive-network-sizing.py            # the readable derivation
     scripts/derive-network-sizing.py --json     # the same numbers as JSON
+    scripts/derive-network-sizing.py --post-change \
+      --census-record records/wp7-packet-census.json
 """
 
 from __future__ import annotations
@@ -40,6 +44,7 @@ from relay_probe import MeasurementPlan  # noqa: E402
 ROUTED_RECORD = Path("records/wp2-routed-measurement.json")
 CENSUS_RECORD = Path("records/wp5-packet-census.json")
 MEASUREMENT_VECTOR = Path("locks/relay-measurement-vector.json")
+BASELINE_LOCK = Path("locks/baseline.json")
 
 
 def _rule(title: str) -> str:
@@ -138,6 +143,12 @@ def render(result: dict) -> str:
             "OUTSTANDING: the mandatory independent protocol/security review "
             "has not happened; WP6 does not close and WP7 does not start"
         )
+
+    if "postChangeVerification" in result:
+        verification = result["postChangeVerification"]
+        lines.append(_rule("WP7 post-change census verification"))
+        for name, passed in verification.items():
+            lines.append(f"  {name}: {passed}")
 
     lines.append(_rule("Budgets"))
     for key, value in budgets.items():
@@ -313,6 +324,20 @@ def main() -> int:
         help="the committed measurement vector the routed record is validated against",
     )
     parser.add_argument(
+        "--post-change",
+        action="store_true",
+        help=(
+            "verify a WP7 census at FRAGMENT_SIZE 704 against the final engine "
+            "commit in the baseline lock"
+        ),
+    )
+    parser.add_argument(
+        "--baseline-lock",
+        type=Path,
+        default=ROOT / BASELINE_LOCK,
+        help="baseline lock supplying the final post-change engine commit",
+    )
+    parser.add_argument(
         "--reserve-bytes",
         type=int,
         default=DEFAULT_RESERVE_BYTES,
@@ -330,12 +355,19 @@ def main() -> int:
         vector = _load_json(arguments.measurement_vector)
         validate_measurement_vector(vector, str(arguments.measurement_vector))
         plan = MeasurementPlan.from_vector(vector)
+        post_change_engine_commit = None
+        if arguments.post_change:
+            baseline = _load_json(arguments.baseline_lock)
+            post_change_engine_commit = baseline.get("engine", {}).get("commit")
+            if not isinstance(post_change_engine_commit, str):
+                raise MetadataError("baseline lock has no engine.commit")
         result = derive(
             _load_json(arguments.routed_record),
             _load_json(arguments.census_record),
             plan=plan,
             reserve_bytes=arguments.reserve_bytes,
             alignment_bytes=arguments.alignment_bytes,
+            post_change_engine_commit=post_change_engine_commit,
         )
     except (MetadataError, NetworkSizingError, ValueError) as error:
         print(f"network sizing failed: {error}", file=sys.stderr)
@@ -345,6 +377,9 @@ def main() -> int:
         print(json.dumps(result, indent=2, sort_keys=True))
     else:
         print(render(result), end="")
+    if arguments.post_change and not result["postChangeVerification"]["allBoundsPass"]:
+        print("post-change census verification failed", file=sys.stderr)
+        return 1
     return 0
 
 

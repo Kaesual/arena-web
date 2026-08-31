@@ -73,7 +73,7 @@ NETCHAN = "netchan"
 # observation approached the engine's own bounds instead of leaving a reader to
 # look them up.
 MAX_PACKETLEN = 1400
-FRAGMENT_SIZE = 1300
+FRAGMENT_SIZE = 704
 
 # ioq3 code/qcommon/qcommon.h:184.
 MAX_MSGLEN = 16384
