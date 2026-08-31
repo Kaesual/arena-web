@@ -62,6 +62,7 @@ from test_relay_probe import make_config, make_vector, run_plan  # noqa: E402
 
 ROUTED_RECORD = ROOT / "records" / "wp2-routed-measurement.json"
 CENSUS_RECORD = ROOT / "records" / "wp5-packet-census.json"
+WP7_CENSUS_RECORD = ROOT / "records" / "wp7-packet-census.json"
 MEASUREMENT_VECTOR = ROOT / "locks" / "relay-measurement-vector.json"
 
 STOCK_FRAGMENT_SIZE = 1300
@@ -810,6 +811,22 @@ class PostChangeCensusVerificationTests(unittest.TestCase):
         self.assertTrue(verification["allBoundsPass"], verification)
         self.assertEqual(result["engine"]["commit"], self.commit)
         self.assertEqual(result["census"]["engineBounds"]["fragmentSize"], 704)
+
+    def test_the_committed_wp7_census_passes_every_post_change_bound(self):
+        self.assertTrue(
+            WP7_CENSUS_RECORD.is_file(),
+            f"{WP7_CENSUS_RECORD} is committed evidence and must exist",
+        )
+        baseline = load(ROOT / "locks" / "baseline.json")
+        result = derive(
+            self.report,
+            load(WP7_CENSUS_RECORD),
+            plan=self.plan,
+            post_change_engine_commit=baseline["engine"]["commit"],
+        )
+        verification = result["postChangeVerification"]
+        self.assertTrue(verification["allBoundsPass"], verification)
+        self.assertTrue(all(verification.values()), verification)
 
     def test_a_census_from_a_different_post_change_engine_is_refused(self):
         with self.assertRaises(NetworkSizingError):

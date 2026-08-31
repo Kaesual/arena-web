@@ -537,5 +537,105 @@ class CommittedCensusRecordTests(unittest.TestCase):
         )
 
 
+class CommittedWp7CensusRecordTests(unittest.TestCase):
+    """The final-pin re-census is separate from immutable WP5 evidence."""
+
+    def setUp(self) -> None:
+        path = ROOT / "records" / "wp7-packet-census.json"
+        self.assertTrue(path.is_file(), f"{path} is committed evidence and must exist")
+        self.record = json.loads(path.read_text(encoding="utf-8"))
+        self.summary = self.record["summary"]
+        self.session = self.record["session"]
+
+    def test_every_required_acceptance_check_passed(self) -> None:
+        failed = [
+            check["check"]
+            for check in self.record["checks"]
+            if check["required"] and not check["passed"]
+        ]
+        self.assertEqual(failed, [])
+
+    def test_the_session_is_bound_to_the_final_engine_and_client_binaries(self) -> None:
+        baseline = json.loads(
+            (ROOT / "locks" / "baseline.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(self.session["engineCommit"], baseline["engine"]["commit"])
+        self.assertEqual(
+            set(self.session["clientArtifacts"]),
+            {"ioquake3", "renderer_opengl1.so", "renderer_opengl2.so"},
+        )
+        for artifact in self.session["clientArtifacts"].values():
+            self.assertRegex(artifact["sha256"], r"\A[0-9a-f]{64}\Z")
+            self.assertGreater(artifact["size"], 0)
+
+    def test_the_current_protocol_and_relay_rate_profile_were_observed(self) -> None:
+        def cvar(arguments: list[str], name: str) -> str:
+            index = arguments.index(name)
+            self.assertEqual(arguments[index - 1], "+set")
+            return arguments[index + 1]
+
+        self.assertEqual(cvar(self.session["clientArguments"], "cl_motd"), "0")
+        self.assertEqual(
+            cvar(self.session["clientArguments"], "com_legacyprotocol"), "0"
+        )
+        self.assertEqual(
+            cvar(self.session["serverArguments"], "com_legacyprotocol"), "0"
+        )
+        self.assertEqual(
+            cvar(self.session["serverArguments"], "sv_rateLimitPerPort"), "1"
+        )
+
+    def test_fragment_geometry_and_all_header_widths_match_the_decision(self) -> None:
+        self.assertEqual(self.summary["engineBounds"]["fragmentSize"], 704)
+        self.assertEqual(
+            self.summary["headerAsymmetry"][CLIENT_TO_SERVER]["headerBytes"], [10]
+        )
+        self.assertEqual(
+            self.summary["headerAsymmetry"][f"{CLIENT_TO_SERVER}-fragmented"][
+                "headerBytes"
+            ],
+            [14],
+        )
+        self.assertEqual(
+            self.summary["headerAsymmetry"][SERVER_TO_CLIENT]["headerBytes"], [8]
+        )
+        self.assertEqual(
+            self.summary["headerAsymmetry"][f"{SERVER_TO_CLIENT}-fragmented"][
+                "headerBytes"
+            ],
+            [12],
+        )
+        envelopes = {
+            message["direction"]: message["largestDatagramBytes"]
+            for message in self.summary["fragmentedMessages"]
+        }
+        self.assertEqual(envelopes[CLIENT_TO_SERVER], 718)
+        self.assertEqual(envelopes[SERVER_TO_CLIENT], 716)
+        gamestates = [
+            message
+            for message in self.summary["fragmentedMessages"]
+            if message["direction"] == SERVER_TO_CLIENT and message["sequence"] == 1
+        ]
+        self.assertEqual([message["fragments"] for message in gamestates], [4, 4])
+
+    def test_every_client_udp_destination_was_the_census_server(self) -> None:
+        # build_records fails the run before this summary exists if the all-UDP
+        # capture contains a datagram outside this exact endpoint pair.
+        self.assertEqual(self.summary["overall"]["unknownConnectionlessCommands"], [])
+        self.assertLessEqual(self.summary["overall"]["maximumUdpPayloadBytes"], 768)
+        commands = set()
+        for direction in (CLIENT_TO_SERVER, SERVER_TO_CLIENT):
+            commands.update(
+                self.summary["byDirection"][direction]["byClass"][CONNECTIONLESS][
+                    "commands"
+                ]
+            )
+        self.assertTrue(
+            {"getinfo", "getstatus", "infoResponse", "statusResponse"}.isdisjoint(
+                commands
+            )
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
