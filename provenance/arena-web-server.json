@@ -3,8 +3,8 @@
   "artifacts": [
     {
       "path": "opt/arena-web/arena/arena-web-ffa.pk3",
-      "sha256": "55a1d51fa99b131c76e5813ee5449fa671c3a584ee251607528868e5a0a05ad7",
-      "size": 24181175
+      "sha256": "ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664",
+      "size": 24484503
     },
     {
       "path": "opt/arena-web/arena/default.cfg",
@@ -18,8 +18,8 @@
     },
     {
       "path": "opt/arena-web/ioq3ded",
-      "sha256": "dbb194f26ec8870e004da56acc11d5caa449dd2a2afd829be957f534cef499d2",
-      "size": 798456
+      "sha256": "428977e43e81018c85f5e2dbd2a6cf01c739be5f4ebc34e3c1513f41aae2aac6",
+      "size": 798664
     }
   ],
   "baselineIdentity": "sha256:1b0f0b6a0675d527dbc8c6a269f4334c9229a171ffab61cb210ad4ed0a295539",
@@ -63,7 +63,7 @@
     }
   ],
   "producer": {
-    "commit": "74087274ff2ff6401c8e729a679116be4c0a776d",
+    "commit": "fb58dd54bfe8eee196efd4d7a41950021ddcd141",
     "name": "arena-web scripts/build-server-image.sh"
   }
 }
