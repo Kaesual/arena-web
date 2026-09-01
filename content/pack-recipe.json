@@ -2,6 +2,22 @@
   "$comment": "Selection input for scripts/build-content-pack.py. See docs/wp3-content-closure.md.",
   "acceptedUnresolved": [
     {
+      "reason": "authoring residue left in models/players/penguin/lower.md3 by its author. cg_players.c registers a custom skin for every player model, and R_AddMD3Surfaces then resolves each surface through that skin alone — a surface the skin does not name falls to tr.defaultShader, never to the md3's own shader name (ioq3 code/renderergl2/tr_mesh.c) — so this name is never looked up",
+      "reference": "/home/niko/Desktop/penguinblend/lambert2SG"
+    },
+    {
+      "reason": "authoring residue left in models/players/liz/head.md3 by its author. cg_players.c registers a custom skin for every player model, and R_AddMD3Surfaces then resolves each surface through that skin alone — a surface the skin does not name falls to tr.defaultShader, never to the md3's own shader name (ioq3 code/renderergl2/tr_mesh.c) — so this name is never looked up",
+      "reference": "/home/ross/Desktop/models/players/liz/h_head"
+    },
+    {
+      "reason": "authoring residue left in models/players/liz/upper.md3 by its author. cg_players.c registers a custom skin for every player model, and R_AddMD3Surfaces then resolves each surface through that skin alone — a surface the skin does not name falls to tr.defaultShader, never to the md3's own shader name (ioq3 code/renderergl2/tr_mesh.c) — so this name is never looked up",
+      "reference": "/home/ross/Desktop/models/players/liz/u_torso"
+    },
+    {
+      "reason": "authoring residue left in models/players/gargoyle/lower.md3 by its author. cg_players.c registers a custom skin for every player model, and R_AddMD3Surfaces then resolves each surface through that skin alone — a surface the skin does not name falls to tr.defaultShader, never to the md3's own shader name (ioq3 code/renderergl2/tr_mesh.c) — so this name is never looked up",
+      "reference": "Material"
+    },
+    {
       "reason": "PunkBuster branding drawn only by the server-browser filter row; no free equivalent exists and none is wanted",
       "reference": "menu/art/pblogo"
     },
@@ -46,6 +62,22 @@
       "reference": "models/players/characters/james/stroggs/lower_red.skin"
     },
     {
+      "reason": "authoring residue left in models/players/kyonshi/lower.md3 by its author. cg_players.c registers a custom skin for every player model, and R_AddMD3Surfaces then resolves each surface through that skin alone — a surface the skin does not name falls to tr.defaultShader, never to the md3's own shader name (ioq3 code/renderergl2/tr_mesh.c) — so this name is never looked up",
+      "reference": "models/players/kyonshiMaterial.001"
+    },
+    {
+      "reason": "authoring residue left in models/players/liz/lower.md3 by its author. cg_players.c registers a custom skin for every player model, and R_AddMD3Surfaces then resolves each surface through that skin alone — a surface the skin does not name falls to tr.defaultShader, never to the md3's own shader name (ioq3 code/renderergl2/tr_mesh.c) — so this name is never looked up",
+      "reference": "models/players/lizl_legs"
+    },
+    {
+      "reason": "authoring residue left in models/players/major/lower.md3 by its author. cg_players.c registers a custom skin for every player model, and R_AddMD3Surfaces then resolves each surface through that skin alone — a surface the skin does not name falls to tr.defaultShader, never to the md3's own shader name (ioq3 code/renderergl2/tr_mesh.c) — so this name is never looked up",
+      "reference": "models/players/majorlegs"
+    },
+    {
+      "reason": "authoring residue left in models/players/major/upper.md3 by its author. cg_players.c registers a custom skin for every player model, and R_AddMD3Surfaces then resolves each surface through that skin alone — a surface the skin does not name falls to tr.defaultShader, never to the md3's own shader name (ioq3 code/renderergl2/tr_mesh.c) — so this name is never looked up",
+      "reference": "models/players/majortorso"
+    },
+    {
       "reason": "optional armour-shard halo; OpenArena's replacement armour model has no separate sphere and the renderer omits the effect",
       "reference": "models/powerups/armor/shard_sphere.md3"
     },
@@ -68,10 +100,6 @@
     {
       "reason": "end-of-match loss music; OpenArena ships no baseq3 music/win or music/loss track",
       "reference": "music/loss.wav"
-    },
-    {
-      "reason": "worldspawn music key of maps/oa_pvomit.bsp; OpenArena 0.8.8 itself ships no such track, so the reference dangles upstream too",
-      "reference": "music/sonic5.wav"
     },
     {
       "reason": "end-of-match win music; OpenArena ships no baseq3 music/win or music/loss track",
@@ -114,6 +142,7 @@
       "reference": "teleportereffect"
     }
   ],
+  "basePackPath": "baseq3/arena-web-ffa-base.pk3",
   "botfileRoots": [
     "botfiles/bots/default_c.c",
     "botfiles/items.c",
@@ -402,7 +431,7 @@
       "reference": "models/weapons2/shotgun/shotgun_flash.md3"
     }
   ],
-  "formatVersion": 1,
+  "formatVersion": 2,
   "generatedMembers": [
     "NOTICE-arena-web.txt",
     "scripts/arenas.txt",
@@ -417,6 +446,7 @@
     "sourceIdentity": "recipe",
     "sourceUrl": "https://github.com/Kaesual/arena-web"
   },
+  "mapPackTemplate": "baseq3/arena-web-ffa-map-{map}.pk3",
   "noticeFile": "NOTICE-arena-web.txt",
   "notices": [
     "COPYING",
@@ -426,19 +456,11 @@
     "NOTICE-arena-web.txt",
     "README"
   ],
-  "packPath": "baseq3/arena-web-ffa.pk3",
   "package": {
-    "id": "arena-web-ffa-oa_pvomit",
-    "name": "arena-web one-map FFA content pack"
+    "id": "arena-web-ffa",
+    "name": "arena-web FFA content pack"
   },
   "profile": {
-    "arena": {
-      "bots": "Skelebot Rai Sly",
-      "fraglimit": "15",
-      "longname": "Projectile Vomit",
-      "map": "oa_pvomit",
-      "type": "ffa"
-    },
     "bots": [
       {
         "aifile": "bots/skelebot_c.c",
@@ -456,8 +478,13 @@
         "name": "Sly"
       }
     ],
-    "map": "oa_pvomit",
     "playerModels": [
+      "assassin/default",
+      "gargoyle/default",
+      "kyonshi/default",
+      "liz/default",
+      "major/default",
+      "penguin/default",
       "skelebot/default"
     ]
   },
@@ -649,23 +676,17 @@
       "template": "gfx/2d/crosshair%c"
     },
     {
-      "expansions": [
-        "levelshots/oa_pvomit"
-      ],
+      "expandsPerMap": "levelshots/{map}",
       "kind": "shader",
       "template": "levelshots/%s"
     },
     {
-      "expansions": [
-        "levelshots/oa_pvomit.tga"
-      ],
+      "expandsPerMap": "levelshots/{map}.tga",
       "kind": "shader",
       "template": "levelshots/%s.tga"
     },
     {
-      "expansions": [
-        "maps/oa_pvomit.bsp"
-      ],
+      "expandsPerMap": "maps/{map}.bsp",
       "kind": "bsp",
       "template": "maps/%s.bsp"
     },

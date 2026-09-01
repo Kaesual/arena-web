@@ -16,7 +16,7 @@
     "runtimeBaseCopyrightFiles is the number of per-package copyright files the",
     "pinned runtime base carries. The baseline's runtime-base record obliges",
     "arena-web to preserve them, and preservation is checked by comparing the",
-    "built image with the base \u2014 a comparison that would pass just as happily if",
+    "built image with the base — a comparison that would pass just as happily if",
     "both sides silently dropped some, which is exactly what a `find` without",
     "-L does here (two of the base's documentation directories are symlinks).",
     "Pinning the count makes that regression fail instead of passing quietly."
@@ -162,7 +162,7 @@
   "formatVersion": 1,
   "gameDirectory": "/opt/arena-web",
   "map": "oa_pvomit",
-  "package": "arena-web-ffa-oa_pvomit",
+  "package": "arena-web-ffa",
   "playerModel": "skelebot/default",
   "port": 27960,
   "runtimeBaseCopyrightFiles": 78,

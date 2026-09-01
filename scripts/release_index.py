@@ -11,6 +11,18 @@ from typing import Any
 
 INDEX_PATH = Path("release/browser-release.json")
 SHA256 = re.compile(r"\A[0-9a-f]{64}\Z")
+
+# The game directory inside the server image, as native/server-profile.json
+# names it and scripts/arena_server.py derives the image tree from.
+SERVER_GAME_DIRECTORY = "opt/arena-web/arena"
+
+# Where the per-map recipe fragments live, and the content-manifest input id
+# prefix under which each one enters the release identity.
+MAP_FRAGMENT_DIRECTORY = "content/maps"
+MAP_FRAGMENT_INPUT_PREFIX = "arena-web-map-"
+
+# How many hex characters of an artifact's own SHA-256 its served name carries.
+SERVED_DIGEST_PREFIX_LENGTH = 16
 AUTHORITY_PATHS = {
     "baseline": "locks/baseline.json",
     "browserAcceptance": "scripts/accept-host-lifecycle.py",
@@ -119,6 +131,50 @@ def _artifact_identity(manifest: dict[str, Any], path: str, what: str) -> str:
     return f"sha256:{digest}"
 
 
+def _map_fragment_inputs(content_inputs: dict[str, str]) -> dict[str, str]:
+    return {
+        identifier[len(MAP_FRAGMENT_INPUT_PREFIX) :]: identity
+        for identifier, identity in content_inputs.items()
+        if identifier.startswith(MAP_FRAGMENT_INPUT_PREFIX)
+    }
+
+
+def _check_map_fragments(root: Path, content_inputs: dict[str, str]) -> None:
+    """The per-map recipe fragments, both ways, against the content manifest.
+
+    The fragments decide what each map archive holds. The root recipe does not
+    list them — that would put the map set inside the base archive's own
+    selection input and move the base's bytes whenever a map was added — so the
+    content manifest's inputs are where they enter the release identity, and
+    this is the check that keeps that set closed: an enumerated fragment that is
+    missing, a fragment on disk that is not enumerated, and a digest that does
+    not match are all failures.
+    """
+    declared = _map_fragment_inputs(content_inputs)
+    directory = root / MAP_FRAGMENT_DIRECTORY
+    on_disk = (
+        {item.name[: -len(".json")] for item in directory.iterdir()
+         if item.is_file() and item.name.endswith(".json")}
+        if directory.is_dir()
+        else set()
+    )
+    if on_disk != set(declared):
+        undeclared = sorted(on_disk - set(declared))
+        missing = sorted(set(declared) - on_disk)
+        _fail(
+            f"authorities.contentManifest: map fragments do not match "
+            f"{MAP_FRAGMENT_DIRECTORY} (undeclared {undeclared}, missing {missing})"
+        )
+    for name in sorted(declared):
+        source = root / MAP_FRAGMENT_DIRECTORY / f"{name}.json"
+        digest, _size = _identity(source)
+        if declared[name] != f"sha256:{digest}":
+            _fail(
+                f"authorities.contentManifest: {MAP_FRAGMENT_DIRECTORY}/{name}.json "
+                "is not the fragment the manifest records"
+            )
+
+
 def validate_release_index(
     root: Path,
     expected_served: dict[str, dict[str, Any]],
@@ -166,6 +222,17 @@ def validate_release_index(
             digest, size = _identity(expected["source"])
         if item["sha256"] != digest or item["size"] != size:
             _fail(f"{INDEX_PATH}.servedFiles: {item['path']} has another identity")
+        # A content archive is served `immutable` for a year under a name that
+        # carries its own digest. A name published with a stale hash over
+        # current bytes would throw in the loader with no recovery path, so the
+        # name is checked against the bytes rather than trusted.
+        if expected["kind"] == "artifact" and expected.get("hashedName"):
+            short = digest[:SERVED_DIGEST_PREFIX_LENGTH]
+            if f"-{short}." not in item["path"].rsplit("/", 1)[-1]:
+                _fail(
+                    f"{INDEX_PATH}.servedFiles: {item['path']} does not carry its "
+                    f"own digest {short}"
+                )
 
     authorities = index["authorities"]
     if not isinstance(authorities, dict) or set(authorities) != set(AUTHORITY_PATHS):
@@ -259,18 +326,37 @@ def validate_release_index(
         if server_inputs.get(identifier) != identity:
             _fail(f"authorities.serverManifest: {identifier} input drift")
 
+    content_recipe = _json_authority(root, authorities, "contentRecipe")
+    _check_map_fragments(root, content_inputs)
+    base_pack = content_recipe.get("basePackPath")
+    map_template = content_recipe.get("mapPackTemplate")
+    if not isinstance(base_pack, str) or not isinstance(map_template, str):
+        _fail("authorities.contentRecipe: has no base pack path or map template")
+    packs = [base_pack] + [
+        map_template.format(map=name)
+        for name in sorted(_map_fragment_inputs(content_inputs))
+    ]
+    # Every archive the client is handed must be the archive the server runs,
+    # byte for byte. With sv_pure 0 and cl_allowDownload 0 on both profiles the
+    # engine performs no content-agreement check at all, so this comparison is
+    # the *only* thing binding the two sides together.
+    for pack in packs:
+        client_identity = _artifact_identity(
+            content_manifest, pack, "authorities.contentManifest"
+        )
+        server_identity_for_pack = _artifact_identity(
+            server_manifest,
+            f"{SERVER_GAME_DIRECTORY}/{pack.rsplit('/', 1)[-1]}",
+            "authorities.serverManifest",
+        )
+        if server_identity_for_pack != client_identity:
+            _fail(f"authorities.serverManifest: {pack} payload drift")
+    # `contentPayloadIdentity` names the *base* archive. The map archives are
+    # covered transitively, through `contentManifestIdentity`, and by the
+    # equality above.
     content_payload_identity = _artifact_identity(
-        content_manifest,
-        "baseq3/arena-web-ffa.pk3",
-        "authorities.contentManifest",
+        content_manifest, base_pack, "authorities.contentManifest"
     )
-    server_payload_identity = _artifact_identity(
-        server_manifest,
-        "opt/arena-web/arena/arena-web-ffa.pk3",
-        "authorities.serverManifest",
-    )
-    if server_payload_identity != content_payload_identity:
-        _fail("authorities.serverManifest: packaged content payload drift")
 
     release = resource_measurement.get("release")
     if not isinstance(release, dict):

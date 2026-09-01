@@ -70,15 +70,20 @@ ENGINE_FILES = {
     "missionpack/vm/ui.qvm": b"missionpack-ui",
     "baseq3/stray.pk3": b"PK\x03\x04 game data in an engine build",
 }
+BASE_PACK = "baseq3/arena-web-ffa-base.pk3"
+MAP_PACK = "baseq3/arena-web-ffa-map-oa_pvomit.pk3"
 CONTENT_FILES = {
-    "baseq3/arena-web-ffa.pk3": b"PK\x03\x04 pretend pack",
+    BASE_PACK: b"PK\x03\x04 pretend base",
+    MAP_PACK: b"PK\x03\x04 pretend map",
     "baseq3/other.pk3": b"PK\x03\x04 another pack",
     "baseq3/vm/stray.qvm": b"gamecode in a content pack",
 }
 
 
-def _manifest(files: dict[str, bytes]) -> dict[str, Any]:
-    return {
+def _manifest(
+    files: dict[str, bytes], inputs: list[dict[str, str]] | None = None
+) -> dict[str, Any]:
+    manifest = {
         "artifacts": [
             {
                 "path": path,
@@ -90,13 +95,24 @@ def _manifest(files: dict[str, bytes]) -> dict[str, Any]:
         "digestAlgorithm": "sha256",
         "formatVersion": 1,
     }
+    if inputs is not None:
+        manifest["inputs"] = inputs
+    return manifest
+
+
+def _served(path: str) -> str:
+    """The served name an artifact must carry: its own digest, as the gate."""
+    digest = hashlib.sha256(CONTENT_FILES[path]).hexdigest()[:16]
+    name = path.rsplit("/", 1)[-1]
+    stem, dot, suffix = name.partition(".")
+    return f"content/baseq3/{stem}-{digest}{dot}{suffix}"
 
 
 def _profile() -> dict[str, Any]:
     return {
         "$comment": ["synthetic"],
         "formatVersion": 1,
-        "package": "arena-web-ffa-oa_pvomit",
+        "package": "arena-web-ffa",
         "basegame": "arena",
         "map": "oa_pvomit",
         "playerModel": "skelebot/default",
@@ -173,29 +189,47 @@ def _profile() -> dict[str, Any]:
             },
             {
                 "manifest": "content",
-                "path": "baseq3/arena-web-ffa.pk3",
-                "served": "content/baseq3/arena-web-ffa.pk3",
+                "path": BASE_PACK,
+                "served": _served(BASE_PACK),
                 "role": "filesystem",
-                "fsPath": "/arena/arena-web-ffa.pk3",
+                "fsPath": "/arena/arena-web-ffa-base.pk3",
+            },
+            {
+                "manifest": "content",
+                "path": MAP_PACK,
+                "served": _served(MAP_PACK),
+                "role": "filesystem",
+                "fsPath": "/arena/arena-web-ffa-map-oa_pvomit.pk3",
             },
         ],
         "engineArguments": [],
     }
 
 
+def _fragment(map_name: str = "oa_pvomit", **arena) -> dict[str, Any]:
+    definition = {
+        "bots": "Skelebot Rai Sly",
+        "fraglimit": "15",
+        "longname": "Projectile Vomit",
+        "map": map_name,
+        "type": "ffa",
+    }
+    definition.update(arena)
+    return {
+        "map": map_name,
+        "arena": definition,
+        "acceptedUnresolved": [],
+        "generatedMembers": ["NOTICE-arena-web.txt"],
+    }
+
+
 def _recipe() -> dict[str, Any]:
     return {
-        "formatVersion": 1,
-        "packPath": "baseq3/arena-web-ffa.pk3",
-        "package": {"id": "arena-web-ffa-oa_pvomit", "name": "synthetic"},
+        "formatVersion": 2,
+        "basePackPath": BASE_PACK,
+        "mapPackTemplate": "baseq3/arena-web-ffa-map-{map}.pk3",
+        "package": {"id": "arena-web-ffa", "name": "synthetic"},
         "profile": {
-            "arena": {
-                "bots": "Skelebot Rai Sly",
-                "fraglimit": "15",
-                "longname": "Projectile Vomit",
-                "map": "oa_pvomit",
-                "type": "ffa",
-            },
             "bots": [
                 {
                     "aifile": "bots/skelebot_c.c",
@@ -205,7 +239,6 @@ def _recipe() -> dict[str, Any]:
                 {"aifile": "bots/rai_c.c", "model": "skelebot/default", "name": "Rai"},
                 {"aifile": "bots/sly_c.c", "model": "skelebot/default", "name": "Sly"},
             ],
-            "map": "oa_pvomit",
             "playerModels": ["skelebot/default"],
         },
     }
@@ -219,6 +252,7 @@ class SyntheticRepository:
         self.profile = _profile()
         self.profile["engineArguments"] = expected_engine_arguments(self.profile)
         self.recipe = _recipe()
+        self.fragments = {"oa_pvomit": _fragment()}
         self.engine_dir = directory / "engine-build"
         self.content_dir = directory / "content-build"
         self.target = directory / "build" / "arena-serve"
@@ -284,8 +318,23 @@ class SyntheticRepository:
         (self.root / "manifests" / "browser-client.json").write_text(
             json.dumps(_manifest(ENGINE_FILES)), encoding="utf-8"
         )
+        # The fragments are written first: the content manifest records each
+        # one's digest, and reading a fragment is gated on that identity.
+        (self.root / "content" / "maps").mkdir(parents=True, exist_ok=True)
+        inputs = []
+        for name, fragment in sorted(self.fragments.items()):
+            path = self.root / "content" / "maps" / f"{name}.json"
+            path.write_text(json.dumps(fragment), encoding="utf-8")
+            inputs.append(
+                {
+                    "id": f"arena-web-map-{name}",
+                    "identity": "sha256:"
+                    + hashlib.sha256(path.read_bytes()).hexdigest(),
+                    "kind": "archive",
+                }
+            )
         (self.root / "provenance" / "arena-web-ffa-content-manifest.json").write_text(
-            json.dumps(_manifest(CONTENT_FILES)), encoding="utf-8"
+            json.dumps(_manifest(CONTENT_FILES, inputs)), encoding="utf-8"
         )
         (self.root / "content" / "pack-recipe.json").write_text(
             json.dumps(self.recipe), encoding="utf-8"
@@ -475,7 +524,7 @@ class ProfileValidationTest(SyntheticRepositoryTest):
             profile["map"] = "q3dm6ish"
             profile["readyMarkers"]["serverSpawned"] = "Server: q3dm6ish"
 
-        self.assertIn("content recipe assembles", self.refuses(change))
+        self.assertIn("records no fragment for map", self.refuses(change))
 
     def test_engine_arguments_that_are_not_the_derivation_are_refused(self) -> None:
         message = self.refuses(
@@ -509,49 +558,82 @@ class ProfileValidationTest(SyntheticRepositoryTest):
 class MultiMapRecipeTest(SyntheticRepositoryTest):
     """A pack may carry several maps; a loader profile starts exactly one."""
 
-    def _pluralize(self, arenas: list[dict[str, Any]]) -> None:
-        recipe = copy.deepcopy(self.repository.recipe)
-        profile = recipe["profile"]
-        arena = profile.pop("arena")
-        profile.pop("map")
-        profile["maps"] = [entry["map"] for entry in arenas]
-        profile["arenas"] = [dict(arena, **entry) for entry in arenas]
-        (self.repository.root / "content" / "pack-recipe.json").write_text(
-            json.dumps(recipe), encoding="utf-8"
-        )
+    def _fragments(self, arenas: list[dict[str, Any]]) -> None:
+        self.repository.fragments = {
+            entry["map"]: _fragment(entry["map"], **entry) for entry in arenas
+        }
+        self.repository.write()
+
+    def _artifacts(self, maps: list[str]) -> None:
+        """The profile declares every published archive, so it grows with the set."""
+        profile = self.repository.profile
+        profile["artifacts"] = [
+            artifact
+            for artifact in profile["artifacts"]
+            if artifact["manifest"] != "content" or artifact["path"] == BASE_PACK
+        ]
+        for name in maps:
+            path = f"baseq3/arena-web-ffa-map-{name}.pk3"
+            CONTENT_FILES.setdefault(path, f"PK\x03\x04 {name}".encode())
+            profile["artifacts"].append(
+                {
+                    "manifest": "content",
+                    "path": path,
+                    "served": _served(path),
+                    "role": "filesystem",
+                    "fsPath": f"/arena/arena-web-ffa-map-{name}.pk3",
+                }
+            )
+        self.repository.write()
 
     def test_a_profile_starting_one_of_several_packaged_maps_is_accepted(self) -> None:
-        self._pluralize(
+        self._fragments(
             [
                 {"map": "oa_shine", "type": "ffa", "fraglimit": "15"},
                 {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
             ]
         )
+        self._artifacts(["oa_pvomit", "oa_shine"])
         self.assertEqual(load_profile(self.repository.root)["map"], "oa_pvomit")
 
     def test_a_map_outside_the_packaged_set_is_refused(self) -> None:
-        self._pluralize([{"map": "oa_shine", "type": "ffa", "fraglimit": "15"}])
+        self._fragments([{"map": "oa_shine", "type": "ffa", "fraglimit": "15"}])
+        self._artifacts(["oa_shine"])
         with self.assertRaises(ArenaRuntimeError) as caught:
             load_profile(self.repository.root)
-        self.assertIn("must be a map the content recipe assembles", str(caught.exception))
+        self.assertIn("records no fragment for map", str(caught.exception))
 
     def test_the_started_arena_is_the_one_that_must_be_ffa(self) -> None:
-        self._pluralize(
+        self._fragments(
             [
                 {"map": "oa_shine", "type": "tourney", "fraglimit": "15"},
                 {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
             ]
         )
+        self._artifacts(["oa_pvomit", "oa_shine"])
         load_profile(self.repository.root)
-        self._pluralize(
+        self._fragments(
             [
                 {"map": "oa_shine", "type": "ffa", "fraglimit": "15"},
                 {"map": "oa_pvomit", "type": "tourney", "fraglimit": "15"},
             ]
         )
+        self._artifacts(["oa_pvomit", "oa_shine"])
         with self.assertRaises(ArenaRuntimeError) as caught:
             load_profile(self.repository.root)
         self.assertIn("only starts an FFA arena", str(caught.exception))
+
+    def test_a_fragment_that_is_not_the_one_the_manifest_records_is_refused(self) -> None:
+        """Reading a fragment is gated on the identity the content manifest
+        records for it, so content cannot join the build without joining the
+        release identity."""
+        path = self.repository.root / "content" / "maps" / "oa_pvomit.json"
+        fragment = json.loads(path.read_text())
+        fragment["arena"]["fraglimit"] = "99"
+        path.write_text(json.dumps(fragment), encoding="utf-8")
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            load_profile(self.repository.root)
+        self.assertIn("content manifest records", str(caught.exception))
 
 
 class ArtifactAllowlistTest(SyntheticRepositoryTest):
@@ -701,10 +783,38 @@ class ArtifactAllowlistTest(SyntheticRepositoryTest):
 
     def test_a_content_pack_outside_the_recipe_is_refused(self) -> None:
         self.assertIn(
-            "recipe's pack",
+            "recipe's archives",
             self.refuses(
                 lambda p: p["artifacts"][3].update(
-                    {"path": "baseq3/other.pk3", "served": "content/baseq3/other.pk3"}
+                    {
+                        "path": "baseq3/other.pk3",
+                        "served": _served("baseq3/other.pk3"),
+                        "fsPath": "/arena/other.pk3",
+                    }
+                )
+            ),
+        )
+
+    def test_a_content_fs_name_that_is_not_the_manifest_name_is_refused(self) -> None:
+        """PK3 load order is by the name the engine sees, and the content build
+        checks cross-archive shader precedence against the manifest names, so
+        the two must be one name."""
+        self.assertIn(
+            "the engine's PK3 load order is by this name",
+            self.refuses(
+                lambda p: p["artifacts"][3].update({"fsPath": "/arena/zz-base.pk3"})
+            ),
+        )
+
+    def test_a_served_name_that_is_not_the_artifact_digest_is_refused(self) -> None:
+        """The gate that keeps an immutable URL honest: a published name with a
+        stale hash over current bytes throws in the loader, and the client has
+        no recovery path."""
+        self.assertIn(
+            "must be 'content/baseq3/",
+            self.refuses(
+                lambda p: p["artifacts"][3].update(
+                    {"served": "content/baseq3/arena-web-ffa-base-0000000000000000.pk3"}
                 )
             ),
         )
@@ -795,7 +905,8 @@ class StagingTest(SyntheticRepositoryTest):
                 "arena/host-lifecycle.js",
                 "arena/network-backend.js",
                 "arena/relay-profile.json",
-                "content/baseq3/arena-web-ffa.pk3",
+                _served(BASE_PACK),
+                _served(MAP_PACK),
                 "default.cfg",
                 "engine/baseq3/vm/cgame.qvm",
                 "engine/ioquake3.js",
@@ -817,7 +928,8 @@ class StagingTest(SyntheticRepositoryTest):
                 len(ENGINE_FILES[name])
                 for name in ("ioquake3.js", "ioquake3.wasm", "baseq3/vm/cgame.qvm")
             )
-            + len(CONTENT_FILES["baseq3/arena-web-ffa.pk3"]),
+            + len(CONTENT_FILES[BASE_PACK])
+            + len(CONTENT_FILES[MAP_PACK]),
         )
 
     def test_staging_is_idempotent(self) -> None:
@@ -832,7 +944,7 @@ class StagingTest(SyntheticRepositoryTest):
         self.assertIn("is not the committed engine artifact", str(caught.exception))
 
     def test_a_content_artifact_that_is_not_the_committed_one_is_refused(self) -> None:
-        (self.repository.content_dir / "baseq3/arena-web-ffa.pk3").write_bytes(b"other")
+        (self.repository.content_dir / BASE_PACK).write_bytes(b"other")
         with self.assertRaises(ArenaRuntimeError) as caught:
             self.repository.stage()
         self.assertIn("is not the committed content artifact", str(caught.exception))
@@ -939,7 +1051,7 @@ class CommittedProfileTest(unittest.TestCase):
 
     def test_it_is_valid_and_agrees_with_the_content_recipe(self) -> None:
         self.assertEqual(self.profile["map"], "oa_pvomit")
-        self.assertEqual(self.profile["package"], "arena-web-ffa-oa_pvomit")
+        self.assertEqual(self.profile["package"], "arena-web-ffa")
 
     def test_it_serves_the_engine_runtime_and_the_audited_pack_and_nothing_else(
         self,
@@ -951,7 +1063,8 @@ class CommittedProfileTest(unittest.TestCase):
                 "arena/host-lifecycle.js",
                 "arena/network-backend.js",
                 "arena/relay-profile.json",
-                "content/baseq3/arena-web-ffa.pk3",
+                "content/baseq3/arena-web-ffa-base-d1fda2196ce4dd3f.pk3",
+                "content/baseq3/arena-web-ffa-map-oa_pvomit-5294b9e8ba50c3d3.pk3",
                 "default.cfg",
                 "engine/baseq3/vm/cgame.qvm",
                 "engine/baseq3/vm/qagame.qvm",
@@ -972,17 +1085,24 @@ class CommittedProfileTest(unittest.TestCase):
         artifacts = {
             name: entry for name, entry in files.items() if entry["kind"] == "artifact"
         }
-        self.assertEqual(len(artifacts), 6)
+        self.assertEqual(len(artifacts), 7)
         for entry in artifacts.values():
             self.assertRegex(entry["sha256"], r"\A[0-9a-f]{64}\Z")
             self.assertGreater(entry["size"], 0)
 
-    def test_the_committed_pack_identity_is_the_one_wp3_accepted(self) -> None:
+    def test_every_content_archive_is_served_under_its_own_digest(self) -> None:
+        """The served name carries the artifact's own hash, and is derived
+        rather than trusted: a name published with a stale hash over current
+        bytes is cached `immutable` for a year and throws in the loader."""
         files = served_files(ROOT, self.profile)
-        self.assertEqual(
-            files["content/baseq3/arena-web-ffa.pk3"]["sha256"],
-            "ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664",
-        )
+        content = {
+            name: entry
+            for name, entry in files.items()
+            if entry["kind"] == "artifact" and entry["manifest"] == "content"
+        }
+        self.assertEqual(len(content), 2)
+        for name, entry in content.items():
+            self.assertIn(f"-{entry['sha256'][:16]}.pk3", name)
 
     def test_only_the_declared_product_runtime_sources_are_served(self) -> None:
         files = served_files(ROOT, self.profile)
@@ -1578,7 +1698,7 @@ class RunComparisonTest(unittest.TestCase):
             "identities": [{"served": "engine/ioquake3.js", "actualSha256": "a" * 64}],
             "engineArguments": ["+map", "oa_pvomit"],
             "markers": {"clientGameLoaded": 1.0},
-            "profile": {"package": "arena-web-ffa-oa_pvomit", "map": "oa_pvomit"},
+            "profile": {"package": "arena-web-ffa", "map": "oa_pvomit"},
         }
         base.update(snapshot)
         return RunResult(index=index, directory=Path("."), snapshot=base)

@@ -6,6 +6,13 @@
 Amended 2026-08-31: the pack additionally carries the weapon models whose
 names the gamecode constructs at runtime; see
 [the amendment section](#amendment-of-2026-08-31-the-names-the-gamecode-constructs-at-runtime).
+**Amended 2026-09-01 (WP-C): the pack is no longer one archive.** It is a base
+archive plus one archive per map, and the base carries seven player
+presentations rather than one; see
+[the archive split](#amendment-of-2026-09-01-the-archive-split). Everything
+below the selected-profile table is WP3's reasoning about *how* content is
+selected and licensed, which the split does not change; the numbers in it are
+WP3's, and the current ones are in the split section.
 
 This document records what the arena-web content pack is: how its members were
 selected, which upstream inputs they come from, how their licences were
@@ -23,6 +30,9 @@ and
 script or committed WP1 manifest was changed.
 
 ## The selected profile
+
+*As WP3 accepted it. The current archive set is in
+[the archive split](#amendment-of-2026-09-01-the-archive-split).*
 
 | Item | Selection |
 | --- | --- |
@@ -834,3 +844,125 @@ at `FRAGMENT_SIZE` 704 and approaches no bound the decision set. The census
 inputs, the routed-path budget and every number in
 [`wp6-network-sizing.md`](wp6-network-sizing.md) are untouched, and the WP6
 decision's inputs therefore remain exactly the two committed records it names.
+
+## Amendment of 2026-09-01: the archive split
+
+The pack is no longer one archive. It is a **base archive** plus **one archive
+per map**, and the base carries seven player presentations instead of one.
+Nothing about how members are selected, licensed or audited changed; what
+changed is how the selected members are divided into distributables.
+
+### Why
+
+A single archive makes every player who returns after a map is added
+re-download the whole pack, because one added map moves the one artifact's
+bytes. The split is what makes the growth additive for the player: an archive's
+bytes, and therefore its URL, must not move when the set grows.
+
+That property does not follow from splitting alone. Six paths by which one
+map's presence reached another archive's bytes were closed for it, and the
+whole thing is held to one mechanical test — build the set, add a map, rebuild,
+and every previously existing archive and the base must be byte-identical.
+
+### The archive set
+
+| Archive | Identity | Members | Uncompressed |
+| --- | --- | --- | --- |
+| `baseq3/arena-web-ffa-base.pk3` | `sha256:d1fda2196ce4dd3f02ba35b40b689dc0f459e3e8976b27e077351e04405ec4cd`, 40,685,574 bytes | 832 (824 assets, 6 notices, 2 generated) | 79.02 MB |
+| `baseq3/arena-web-ffa-map-oa_pvomit.pk3` | `sha256:5294b9e8ba50c3d3a7786b6b97956da09fa55b93300f42703914109cf771ef97`, 1,920,825 bytes | 28 (21 assets, 6 notices, 1 generated) | 5.19 MB |
+
+Every member of both archives is `GPL-2.0-or-later`, as before.
+
+**The map archive is a set difference, not a description.** It is
+`closure(M) \ closure(base)`: everything map `M`'s closure reaches that the
+base's does not. "The assets referenced only by this map" would have been
+set-dependent — whether an asset is referenced only by `M` depends on which
+*other* maps are in the build — and would therefore have moved an existing
+archive's bytes as the set grew.
+
+**Both archives carry the complete notice set.** Each has its own immutable URL
+and is redistributed on its own, so each is a GPL distribution in its own
+right. That is why `provenance/arena-web-ffa-content.json` now records sources
+and members *per archive* rather than once for the whole pack.
+
+### What the split required
+
+1. **A closure per archive, over one shared source set and one shared shader
+   index.** The source set collapses every game path to exactly one member
+   before any closure runs, so a member landing in two archives is
+   byte-identical by construction. The *builders* must be separate, because
+   `ClosureBuilder`'s memos are per run: under one shared builder a member two
+   maps reference would belong to whichever map was walked first, and adding a
+   map that sorted earlier would migrate it out of an archive that already
+   exists.
+2. **A per-archive upstream-source list in the notice.** It was computed from
+   all packaged members, so a new map that introduced a new source rewrote
+   every archive's notice. It shows: `openarena-maps` appears in the map
+   archive's notice and in no other.
+3. **A per-map recipe fragment** (`content/maps/<name>.json`) carrying that
+   map's arena definition, its own accepted unresolved references and its own
+   generated members. The notice records the digest of the archive's *own*
+   selection input, so a single whole-set recipe would have put a whole-set
+   digest inside every archive's bytes.
+4. **Fragment-local acceptances.** `acceptedUnresolved` must be hit exactly —
+   an unhit entry is a stale-acceptance failure — so a globally declared
+   acceptance would be stale in every archive that does not reference it.
+   `music/sonic5.wav` is `oa_pvomit`'s and lives in `oa_pvomit`'s fragment.
+5. **A map-free, count-free package name.** `_notice_text` puts the package
+   name on the notice's first line and the id further down, and they read
+   `arena-web-ffa-oa_pvomit` and "one-map". Both are inside every archive's
+   bytes. They are now `arena-web-ffa` and "arena-web FFA content pack".
+6. **Per-map `scripts/<map>.arena` files.** A whole-set `scripts/arenas.txt`
+   is a base member that names every packaged map. The base still generates
+   that file, because the QVMs open it by name, but it carries **no arena
+   block at all** — that the base names no map is a build gate, not a comment.
+   `G_LoadArenas` reads the per-map `.arena` files straight afterwards.
+
+### The map set is the fragment directory
+
+The root recipe carries no list of maps. It is the base archive's own selection
+input, and its digest is what the base's notice records, so a map set inside it
+would move the base's bytes — and every existing map archive's — whenever a map
+was added. `content/maps/` is the map set.
+
+The fragments do not thereby escape the release identity. The content manifest
+records one input per fragment with its digest
+(`arena-web-map-<name>`), the manifest is an authority whose own digest is a
+`compatibility` member, and `release_index.py` checks that set against the
+directory in **both** directions: an enumerated fragment that is missing, a
+fragment on disk that is not enumerated, and a digest that does not match are
+all failures. `arena_runtime.py` and `arena_server.py` read a fragment only
+after its digest matches the identity the manifest records.
+
+### Served names carry their own digest
+
+A content archive is served under an immutable cache policy, so its served name
+carries the first 16 hex characters of its own SHA-256 while its manifest path
+stays a stable literal. The digest half is **derived, not trusted**: a name
+published with a stale hash over current bytes would be cached for a year, the
+loader would throw on the mismatch, and the client would have no recovery path.
+
+### Seven player presentations, not eleven
+
+The base was to carry the eleven models that ship a preferred source form.
+Running the closure against the pinned archives cut that to seven —
+`assassin`, `gargoyle`, `kyonshi`, `liz`, `major`, `penguin`, `skelebot`:
+
+| Model | Why it is not packaged |
+| --- | --- |
+| `angelyss` | the pinned archives carry `animation.cfg` and three `lower*.md3` and nothing else — no upper, no head, no skin, no icon |
+| `grism` | seven textures and no model at all |
+| `beret` | its default skins map every surface to `models/players/beret/skin1.tga`, whose shader has a second stage on `spec_skin1.tga`, which no pinned archive provides. A stage with a missing image makes `ParseStage` fail, which makes the *whole* shader the default shader, so every beret surface would render untextured |
+| `neko` | `upper_default.skin` maps both its surfaces into `models/players/hnt/`, which holds one file, and `lower_default.skin` names a `claw.tga` that is not shipped |
+
+All four have a preferred source form; what they lack is a working presentation
+in the archives this recipe pins. Fixing either pair means adding a content
+source, which is a recipe decision with its own licence audit.
+
+The eight references the seven kept models leave dangling are authoring residue
+inside the MD3s — absolute paths from the modeller's machine, bare material
+names, and three upstream names missing a path separator. They are accepted
+with the reason that they are never looked up: `cg_players.c` registers a
+custom skin for every player model, and `R_AddMD3Surfaces` then resolves each
+surface through that skin alone, falling to `tr.defaultShader` rather than to
+the MD3's own shader name for a surface the skin does not cover.

@@ -1754,43 +1754,16 @@ def validate_artifact_manifest(
         _fail(f"{path}.artifacts", "must be sorted by path")
 
 
-def validate_content_provenance(
-    value: Any,
-    path: str,
-    *,
-    allowed_licenses: set[str],
-    baseline: dict[str, Any] | None = None,
-    expected_schema: str = CONTENT_SCHEMA,
+def _validate_provenance_archive(
+    archive: dict[str, Any], path: str, *, allowed_licenses: set[str]
 ) -> None:
-    provenance = _object(value, path)
-    _exact_keys(
-        provenance,
-        (
-            "$schema",
-            "baselineIdentity",
-            "formatVersion",
-            "members",
-            "package",
-            "sources",
-        ),
-        path,
-    )
-    if provenance["$schema"] != expected_schema or provenance["formatVersion"] != 1:
-        _fail(path, "has an unsupported schema or formatVersion")
-    baseline_identity = _sha256_digest(
-        provenance["baselineIdentity"], f"{path}.baselineIdentity"
-    )
-    if baseline is not None and baseline_identity != _canonical_json_identity(baseline):
-        _fail(
-            f"{path}.baselineIdentity",
-            "must equal the committed baseline identity",
-        )
-    package = _object(provenance["package"], f"{path}.package")
-    _exact_keys(package, ("id", "name"), f"{path}.package")
-    _string(package["id"], f"{path}.package.id")
-    _string(package["name"], f"{path}.package.name")
+    """Validate one archive's own source and member records.
 
-    sources = _array(provenance["sources"], f"{path}.sources")
+    Every archive is published under its own immutable URL and is therefore a
+    distribution in its own right, which is why the sources and the notice
+    obligations are recorded per archive rather than once for the whole set.
+    """
+    sources = _array(archive["sources"], f"{path}.sources")
     if not sources:
         _fail(f"{path}.sources", "must not be empty")
     source_ids = []
@@ -1841,7 +1814,7 @@ def validate_content_provenance(
     if source_ids != sorted(source_ids):
         _fail(f"{path}.sources", "must be sorted by id")
 
-    members = _array(provenance["members"], f"{path}.members")
+    members = _array(archive["members"], f"{path}.members")
     if not members:
         _fail(f"{path}.members", "must not be empty")
     member_paths = []
@@ -1941,16 +1914,73 @@ def validate_content_provenance(
     member_roles = {member["path"]: member["role"] for member in members}
     for index, member in enumerate(members):
         for notice_index, notice_path in enumerate(member["noticePaths"]):
+            # The notice a member relies on has to be inside the same archive:
+            # each archive is fetched, cached and redistributed on its own, so
+            # a notice in a neighbouring archive would not travel with it.
             if notice_path not in known_member_paths:
                 _fail(
                     f"{path}.members[{index}].noticePaths[{notice_index}]",
-                    "does not name a declared provenance member",
+                    "does not name a member of the same archive",
                 )
             if member_roles[notice_path] != "notice":
                 _fail(
                     f"{path}.members[{index}].noticePaths[{notice_index}]",
                     "must name a member whose role is 'notice'",
                 )
+
+
+def validate_content_provenance(
+    value: Any,
+    path: str,
+    *,
+    allowed_licenses: set[str],
+    baseline: dict[str, Any] | None = None,
+    expected_schema: str = CONTENT_SCHEMA,
+) -> None:
+    provenance = _object(value, path)
+    _exact_keys(
+        provenance,
+        (
+            "$schema",
+            "archives",
+            "baselineIdentity",
+            "formatVersion",
+            "package",
+        ),
+        path,
+    )
+    if provenance["$schema"] != expected_schema or provenance["formatVersion"] != 2:
+        _fail(path, "has an unsupported schema or formatVersion")
+    baseline_identity = _sha256_digest(
+        provenance["baselineIdentity"], f"{path}.baselineIdentity"
+    )
+    if baseline is not None and baseline_identity != _canonical_json_identity(baseline):
+        _fail(
+            f"{path}.baselineIdentity",
+            "must equal the committed baseline identity",
+        )
+    package = _object(provenance["package"], f"{path}.package")
+    _exact_keys(package, ("id", "name"), f"{path}.package")
+    _string(package["id"], f"{path}.package.id")
+    _string(package["name"], f"{path}.package.name")
+
+    archives = _array(provenance["archives"], f"{path}.archives")
+    if not archives:
+        _fail(f"{path}.archives", "must not be empty")
+    archive_paths = []
+    for index, raw_archive in enumerate(archives):
+        archive_path = f"{path}.archives[{index}]"
+        archive = _object(raw_archive, archive_path)
+        _exact_keys(archive, ("members", "path", "sources"), archive_path)
+        archive_paths.append(
+            _relative_path(archive["path"], f"{archive_path}.path")
+        )
+        _validate_provenance_archive(
+            archive, archive_path, allowed_licenses=allowed_licenses
+        )
+    _unique(archive_paths, f"{path}.archives[].path")
+    if archive_paths != sorted(archive_paths):
+        _fail(f"{path}.archives", "must be sorted by path")
 
 
 def _git_output(arguments: list[str], path: str) -> str:

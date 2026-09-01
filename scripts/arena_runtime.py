@@ -80,6 +80,23 @@ REQUIRED_CONFIG_FILE = "default.cfg"
 MANIFEST_NAMES = ("content", "engine")
 MANIFEST_PREFIXES = {"content": "content", "engine": "engine"}
 
+# Where the per-map recipe fragments live, and the content-manifest input id
+# under which each one enters the release identity.
+MAP_FRAGMENT_DIRECTORY = "content/maps"
+MAP_FRAGMENT_INPUT_PREFIX = "arena-web-map-"
+
+# Content archives are served under an immutable cache policy, so their names
+# carry their own digest and a published name is never rewritten. This many
+# hex characters of the artifact's own SHA-256: 64 bits, which is plenty to
+# separate the versions of one archive and short enough to read.
+SERVED_DIGEST_PREFIX_LENGTH = 16
+
+# Which manifests' artifacts are served under a hashed name. Engine artifacts
+# are not: they are fetched once per release beside the profile that names
+# them, and renaming them would move `manifests/browser-client.json`'s own
+# artifact paths, which the browser build writes.
+HASHED_SERVED_MANIFESTS = ("content",)
+
 # "clientEnteredGame" is deliberately not a bot marker: ioq3
 # code/game/g_client.c:1026 prints it for every client that begins, the local
 # player before any bot. Bots are proved by name, from profile.bots.
@@ -342,6 +359,34 @@ def _validate_markers(profile: dict[str, Any]) -> None:
         _string(profile["readyMarkerNotes"][name], f"profile.readyMarkerNotes.{name}")
 
 
+def expected_served_path(
+    manifest_name: str, artifact_path: str, entry: dict[str, Any]
+) -> str:
+    """The served path an artifact must have, digest and all.
+
+    Two things are decoupled here on purpose. The **manifest path** is a stable
+    literal, so the records that name an archive do not move when its bytes
+    change; the **served path** carries the artifact's own digest, so a
+    published URL is immutable and a returning player re-downloads nothing.
+
+    Deriving the digest half rather than trusting it is the point: a name
+    published with a stale hash over current bytes would be cached `immutable`
+    for a year, the loader would throw on the digest mismatch, and the client
+    would have no recovery path.
+    """
+    prefix = MANIFEST_PREFIXES[manifest_name]
+    if manifest_name not in HASHED_SERVED_MANIFESTS:
+        return f"{prefix}/{artifact_path}"
+    digest = _string(entry.get("sha256"), f"{manifest_name} manifest sha256")
+    if not SHA256.fullmatch(digest):
+        _fail(f"{manifest_name} manifest", f"'{artifact_path}' has no SHA-256")
+    directory, _, name = artifact_path.rpartition("/")
+    stem, dot, suffix = name.partition(".")
+    short = digest[:SERVED_DIGEST_PREFIX_LENGTH]
+    hashed = f"{stem}-{short}{dot}{suffix}"
+    return f"{prefix}/{directory}/{hashed}" if directory else f"{prefix}/{hashed}"
+
+
 def _validate_artifacts(
     profile: dict[str, Any], manifests: dict[str, dict[str, dict[str, Any]]]
 ) -> None:
@@ -398,7 +443,9 @@ def _validate_artifacts(
                 )
 
         served = _string(artifact.get("served"), "profile.artifacts[].served")
-        expected_served = f"{MANIFEST_PREFIXES[manifest_name]}/{artifact_path}"
+        expected_served = expected_served_path(
+            manifest_name, artifact_path, manifests[manifest_name][artifact_path]
+        )
         if served != expected_served:
             _fail(
                 f"profile.artifacts[{artifact_path}].served",
@@ -424,6 +471,21 @@ def _validate_artifacts(
             if fs_path in filesystem_paths:
                 _fail("profile.artifacts", f"writes '{fs_path}' twice")
             filesystem_paths.add(fs_path)
+            if manifest_name in HASHED_SERVED_MANIFESTS:
+                # The name the engine sees is this basename, and PK3 load order
+                # is by that name: `FS_AddGameDirectory` sorts ascending and
+                # prepends, so the lowest-named archive wins a shader
+                # definition while the highest wins a file. The content build
+                # checks cross-archive shader precedence against the *manifest*
+                # names, so the two must be the same name or that check would
+                # model an order the engine does not use.
+                expected_name = artifact_path.rsplit("/", 1)[-1]
+                if fs_path.rsplit("/", 1)[-1] != expected_name:
+                    _fail(
+                        f"profile.artifacts[{artifact_path}].fsPath",
+                        f"must end in '{expected_name}': the engine's PK3 load "
+                        "order is by this name",
+                    )
 
     for role in SINGLETON_ROLES:
         if role_counts[role] != 1:
@@ -475,41 +537,68 @@ def _validate_config_files(profile: dict[str, Any], repo_root: Path) -> None:
         )
 
 
-def _recipe_arena_for(
-    recipe_profile: dict[str, Any], map_name: str, what: str
-) -> dict[str, Any]:
-    """The recipe's arena definition for the one map this profile starts.
+def manifest_map_inputs(manifest: dict[str, Any], what: str) -> dict[str, str]:
+    """The content manifest's per-map fragment inputs, as map name -> identity.
 
-    A pack may assemble several maps; a profile starts exactly one of them, and
-    that one has to be in the pack. The committed recipe still spells its single
-    map in the singular, so both spellings are read here —
-    `content_pack.profile_maps` documents why and which work package removes the
-    fallback.
+    The root recipe deliberately carries no list of maps — it is the base
+    archive's own selection input, and a map set in it would move the base's
+    bytes whenever a map was added. The fragments enter the release identity
+    here instead, one manifest input each, and the manifest is an authority
+    whose digest is a `compatibility` member.
     """
-    if "maps" in recipe_profile:
-        packaged = _array(recipe_profile.get("maps"), "recipe.profile.maps")
-    else:
-        packaged = [_string(recipe_profile.get("map"), "recipe.profile.map")]
-    if map_name not in packaged:
-        _fail(what, f"must be a map the content recipe assembles: {sorted(packaged)}")
-    if "arenas" in recipe_profile:
-        arenas = _array(recipe_profile.get("arenas"), "recipe.profile.arenas")
-    else:
-        arenas = [_object(recipe_profile.get("arena"), "recipe.profile.arena")]
-    matches = [
-        arena
-        for arena in arenas
-        if _object(arena, "recipe.profile arena entry").get("map") == map_name
-    ]
-    if len(matches) != 1:
+    inputs = _array(manifest.get("inputs"), f"{what}.inputs")
+    found: dict[str, str] = {}
+    for entry in inputs:
+        record = _object(entry, f"{what}.inputs entry")
+        identifier = _string(record.get("id"), f"{what}.inputs[].id")
+        if not identifier.startswith(MAP_FRAGMENT_INPUT_PREFIX):
+            continue
+        name = identifier[len(MAP_FRAGMENT_INPUT_PREFIX) :]
+        if not MAP_NAME.fullmatch(name):
+            _fail(f"{what}.inputs", f"'{identifier}' is not a map fragment input")
+        found[name] = _string(record.get("identity"), f"{what}.inputs[].identity")
+    return found
+
+
+def load_map_fragment(
+    repo_root: Path, map_name: str, manifest_relative: str
+) -> dict[str, Any]:
+    """One committed per-map recipe fragment, bound to the content manifest.
+
+    Reading the file alone would be fail-open: the fragment decides what its
+    map archive holds, so it is read only after its digest has been checked
+    against the identity the content manifest records for it.
+    """
+    manifest = _object(
+        _load_json(repo_root / manifest_relative, manifest_relative), manifest_relative
+    )
+    identities = manifest_map_inputs(manifest, manifest_relative)
+    if map_name not in identities:
         _fail(
-            "recipe.profile.arena",
-            f"must define map '{map_name}' exactly once, not {len(matches)} times",
+            f"{manifest_relative}.inputs",
+            f"records no fragment for map '{map_name}'",
         )
-    return matches[0]
+    relative = f"{MAP_FRAGMENT_DIRECTORY}/{map_name}.json"
+    source = repo_root / relative
+    if not source.is_file():
+        _fail(relative, "does not exist")
+    digest = f"sha256:{file_sha256(source)}"
+    if digest != identities[map_name]:
+        _fail(
+            relative,
+            f"is {digest}, but the content manifest records "
+            f"{identities[map_name]}",
+        )
+    fragment = _object(_load_json(source, relative), relative)
+    arena = _object(fragment.get("arena"), f"{relative}.arena")
+    if arena.get("map") != map_name:
+        _fail(f"{relative}.arena", f"must define map '{map_name}'")
+    return fragment
 
 
-def _validate_against_recipe(profile: dict[str, Any], recipe: dict[str, Any]) -> None:
+def _validate_against_recipe(
+    profile: dict[str, Any], recipe: dict[str, Any], repo_root: Path
+) -> None:
     """Bind the loader profile to the audited content pack it starts."""
     recipe_profile = _object(recipe.get("profile"), "recipe.profile")
     package = _object(recipe.get("package"), "recipe.package")
@@ -518,7 +607,12 @@ def _validate_against_recipe(profile: dict[str, Any], recipe: dict[str, Any]) ->
         _fail(
             "profile.package", f"must equal the recipe package id '{package.get('id')}'"
         )
-    arena = _recipe_arena_for(recipe_profile, profile["map"], "profile.map")
+    manifest_relative = _string(
+        _object(profile.get("manifests"), "profile.manifests").get("content"),
+        "profile.manifests.content",
+    )
+    fragment = load_map_fragment(repo_root, profile["map"], manifest_relative)
+    arena = fragment["arena"]
     if arena.get("type") != "ffa":
         _fail(
             "recipe.profile.arena.type", "the loader profile only starts an FFA arena"
@@ -547,15 +641,31 @@ def _validate_against_recipe(profile: dict[str, Any], recipe: dict[str, Any]) ->
                 f"'{bot['name']}' is not a bot the content pack packages",
             )
 
-    pack_path = _string(recipe.get("packPath"), "recipe.packPath")
-    content_paths = [
+    # The profile declares *every* published archive, not the subset a given
+    # rotation needs: WP11's integrity property is that the served set is
+    # committed and digest-bound, and a runtime selection from a committed set
+    # is no new trust decision. The set is the base plus one archive per map
+    # fragment the content manifest records.
+    template = _string(recipe.get("mapPackTemplate"), "recipe.mapPackTemplate")
+    manifest = _object(
+        _load_json(repo_root / manifest_relative, manifest_relative), manifest_relative
+    )
+    expected_packs = sorted(
+        [_string(recipe.get("basePackPath"), "recipe.basePackPath")]
+        + [
+            template.format(map=name)
+            for name in manifest_map_inputs(manifest, manifest_relative)
+        ]
+    )
+    content_paths = sorted(
         artifact["path"]
         for artifact in profile["artifacts"]
         if artifact["manifest"] == "content"
-    ]
-    if content_paths != [pack_path]:
+    )
+    if content_paths != expected_packs:
         _fail(
-            "profile.artifacts", f"must serve exactly the recipe's pack '{pack_path}'"
+            "profile.artifacts",
+            f"must serve exactly the recipe's archives {expected_packs}",
         )
 
 
@@ -641,6 +751,7 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
     _validate_against_recipe(
         profile,
         _object(_load_json(repo_root / "content/pack-recipe.json", "recipe"), "recipe"),
+        repo_root,
     )
     load_relay_profile(repo_root)
     profile["_manifests"] = manifests
@@ -672,6 +783,7 @@ def served_files(repo_root: Path, profile: dict[str, Any]) -> dict[str, dict[str
             "artifactPath": artifact["path"],
             "sha256": entry["sha256"],
             "size": entry["size"],
+            "hashedName": artifact["manifest"] in HASHED_SERVED_MANIFESTS,
         }
     return files
 

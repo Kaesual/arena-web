@@ -1585,53 +1585,58 @@ class ContentProvenanceTests(unittest.TestCase):
         self.provenance = {
             "$schema": CONTENT_SCHEMA,
             "baselineIdentity": _canonical_json_identity(self.baseline),
-            "formatVersion": 1,
-            "members": [
+            "formatVersion": 2,
+            "archives": [
                 {
-                    "licenseExpression": "CC-BY-SA-4.0",
-                    "noticePaths": ["notices/map.txt"],
-                    "obligations": [
-                        "attribution",
-                        "license-notice",
-                        "share-alike",
+                    "path": "baseq3/example.pk3",
+                    "members": [
+                        {
+                            "licenseExpression": "CC-BY-SA-4.0",
+                            "noticePaths": ["notices/map.txt"],
+                            "obligations": [
+                                "attribution",
+                                "license-notice",
+                                "share-alike",
+                            ],
+                            "path": "maps/example.bsp",
+                            "role": "asset",
+                            "sha256": "a" * 64,
+                            "size": 456,
+                            "sourceId": "example-map",
+                            "sourcePath": "build/maps/example.bsp",
+                            "transformation": "deterministic q3map2 build",
+                        },
+                        {
+                            "licenseExpression": "CC-BY-SA-4.0",
+                            "noticePaths": [],
+                            "obligations": [
+                                "attribution",
+                                "license-notice",
+                                "share-alike",
+                            ],
+                            "path": "notices/map.txt",
+                            "role": "notice",
+                            "sha256": "b" * 64,
+                            "size": 123,
+                            "sourceId": "example-map",
+                            "sourcePath": "LICENSE.txt",
+                            "transformation": "copied verbatim",
+                        },
                     ],
-                    "path": "maps/example.bsp",
-                    "role": "asset",
-                    "sha256": "a" * 64,
-                    "size": 456,
-                    "sourceId": "example-map",
-                    "sourcePath": "build/maps/example.bsp",
-                    "transformation": "deterministic q3map2 build",
-                },
-                {
-                    "licenseExpression": "CC-BY-SA-4.0",
-                    "noticePaths": [],
-                    "obligations": [
-                        "attribution",
-                        "license-notice",
-                        "share-alike",
+                    "sources": [
+                        {
+                            "id": "example-map",
+                            "licenseEvidenceUrl": "https://example.invalid/LICENSE",
+                            "licenseExpression": "CC-BY-SA-4.0",
+                            "preferredSourceRevision": "git:" + "b" * 40,
+                            "preferredSourceUrl": "https://example.invalid/source.git",
+                            "sourceIdentity": "git:" + "b" * 40,
+                            "sourceUrl": "https://example.invalid/source.git",
+                        }
                     ],
-                    "path": "notices/map.txt",
-                    "role": "notice",
-                    "sha256": "b" * 64,
-                    "size": 123,
-                    "sourceId": "example-map",
-                    "sourcePath": "LICENSE.txt",
-                    "transformation": "copied verbatim",
-                },
-            ],
-            "package": {"id": "prototype-content", "name": "Prototype content"},
-            "sources": [
-                {
-                    "id": "example-map",
-                    "licenseEvidenceUrl": "https://example.invalid/LICENSE",
-                    "licenseExpression": "CC-BY-SA-4.0",
-                    "preferredSourceRevision": "git:" + "b" * 40,
-                    "preferredSourceUrl": "https://example.invalid/source.git",
-                    "sourceIdentity": "git:" + "b" * 40,
-                    "sourceUrl": "https://example.invalid/source.git",
                 }
             ],
+            "package": {"id": "prototype-content", "name": "Prototype content"},
         }
 
     def test_provenance_is_valid(self) -> None:
@@ -1649,20 +1654,20 @@ class ContentProvenanceTests(unittest.TestCase):
     def test_schema_rejects_moving_source_identity(self) -> None:
         schema = _load_json(ROOT / "schemas" / "content-provenance.schema.json")
         candidate = copy.deepcopy(self.provenance)
-        candidate["sources"][0]["sourceIdentity"] = "main"
+        candidate["archives"][0]["sources"][0]["sourceIdentity"] = "main"
         with self.assertRaisesRegex(MetadataError, "schema pattern"):
             _validate_schema_instance(candidate, schema, schema, "provenance")
 
     def test_schema_rejects_parent_source_path(self) -> None:
         schema = _load_json(ROOT / "schemas" / "content-provenance.schema.json")
         candidate = copy.deepcopy(self.provenance)
-        candidate["members"][0]["sourcePath"] = "../../asset.map"
+        candidate["archives"][0]["members"][0]["sourcePath"] = "../../asset.map"
         with self.assertRaisesRegex(MetadataError, "schema pattern"):
             _validate_schema_instance(candidate, schema, schema, "provenance")
 
     def test_member_without_source_is_rejected(self) -> None:
         candidate = copy.deepcopy(self.provenance)
-        candidate["members"][0]["sourceId"] = "missing"
+        candidate["archives"][0]["members"][0]["sourceId"] = "missing"
         with self.assertRaisesRegex(MetadataError, "declared source"):
             validate_content_provenance(
                 candidate, "provenance", allowed_licenses=self.allowed
@@ -1670,7 +1675,7 @@ class ContentProvenanceTests(unittest.TestCase):
 
     def test_non_free_member_license_is_rejected(self) -> None:
         candidate = copy.deepcopy(self.provenance)
-        candidate["members"][0]["licenseExpression"] = "CC-BY-NC-4.0"
+        candidate["archives"][0]["members"][0]["licenseExpression"] = "CC-BY-NC-4.0"
         with self.assertRaisesRegex(MetadataError, "allowed product-input license"):
             validate_content_provenance(
                 candidate, "provenance", allowed_licenses=self.allowed
@@ -1678,7 +1683,7 @@ class ContentProvenanceTests(unittest.TestCase):
 
     def test_missing_required_obligation_is_rejected(self) -> None:
         candidate = copy.deepcopy(self.provenance)
-        candidate["members"][0]["obligations"].remove("attribution")
+        candidate["archives"][0]["members"][0]["obligations"].remove("attribution")
         with self.assertRaisesRegex(MetadataError, "must include"):
             validate_content_provenance(
                 candidate, "provenance", allowed_licenses=self.allowed
@@ -1688,8 +1693,8 @@ class ContentProvenanceTests(unittest.TestCase):
         for expression in ("AGPL-3.0-or-later", "LGPL-2.0-or-later"):
             with self.subTest(expression=expression):
                 candidate = copy.deepcopy(self.provenance)
-                candidate["sources"][0]["licenseExpression"] = expression
-                for member in candidate["members"]:
+                candidate["archives"][0]["sources"][0]["licenseExpression"] = expression
+                for member in candidate["archives"][0]["members"]:
                     member["licenseExpression"] = expression
                 with self.assertRaisesRegex(MetadataError, "copyleft-source"):
                     validate_content_provenance(
@@ -1701,8 +1706,8 @@ class ContentProvenanceTests(unittest.TestCase):
     def test_compound_license_expression_derives_every_obligation(self) -> None:
         expression = "CC-BY-SA-4.0 AND GPL-2.0-or-later"
         candidate = copy.deepcopy(self.provenance)
-        candidate["sources"][0]["licenseExpression"] = expression
-        for member in candidate["members"]:
+        candidate["archives"][0]["sources"][0]["licenseExpression"] = expression
+        for member in candidate["archives"][0]["members"]:
             member["licenseExpression"] = expression
         with self.assertRaisesRegex(MetadataError, "copyleft-source"):
             validate_content_provenance(
@@ -1713,7 +1718,7 @@ class ContentProvenanceTests(unittest.TestCase):
 
     def test_empty_notice_binding_is_rejected(self) -> None:
         candidate = copy.deepcopy(self.provenance)
-        candidate["members"][0]["noticePaths"] = []
+        candidate["archives"][0]["members"][0]["noticePaths"] = []
         with self.assertRaisesRegex(MetadataError, "packaged notice member"):
             validate_content_provenance(
                 candidate, "provenance", allowed_licenses=self.allowed
@@ -1721,16 +1726,16 @@ class ContentProvenanceTests(unittest.TestCase):
 
     def test_dangling_notice_is_rejected(self) -> None:
         candidate = copy.deepcopy(self.provenance)
-        candidate["members"][0]["noticePaths"] = ["notices/missing.txt"]
-        with self.assertRaisesRegex(MetadataError, "declared provenance member"):
+        candidate["archives"][0]["members"][0]["noticePaths"] = ["notices/missing.txt"]
+        with self.assertRaisesRegex(MetadataError, "member of the same archive"):
             validate_content_provenance(
                 candidate, "provenance", allowed_licenses=self.allowed
             )
 
     def test_notice_path_must_name_notice_role(self) -> None:
         candidate = copy.deepcopy(self.provenance)
-        candidate["members"][1]["role"] = "metadata"
-        candidate["members"][1]["noticePaths"] = ["notices/map.txt"]
+        candidate["archives"][0]["members"][1]["role"] = "metadata"
+        candidate["archives"][0]["members"][1]["noticePaths"] = ["notices/map.txt"]
         with self.assertRaisesRegex(MetadataError, "role is 'notice'"):
             validate_content_provenance(
                 candidate, "provenance", allowed_licenses=self.allowed

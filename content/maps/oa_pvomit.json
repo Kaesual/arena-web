@@ -1,0 +1,20 @@
+{
+  "acceptedUnresolved": [
+    {
+      "reason": "worldspawn music key of maps/oa_pvomit.bsp; OpenArena 0.8.8 itself ships no music/sonic5.wav, so the reference dangles upstream",
+      "reference": "music/sonic5.wav"
+    }
+  ],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "15",
+    "longname": "Projectile Vomit",
+    "map": "oa_pvomit",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/oa_pvomit.arena"
+  ],
+  "map": "oa_pvomit"
+}

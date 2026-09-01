@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
 import os
 import shutil
@@ -48,6 +49,7 @@ class ProfileFixture(unittest.TestCase):
             "content/pack-recipe.json",
             "manifests/browser-client.json",
             "provenance/arena-web-ffa-content-manifest.json",
+            "content/maps/oa_pvomit.json",
         ):
             destination = self.root / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -188,7 +190,7 @@ class ProfileTests(ProfileFixture):
         )
         self.reject(
             lambda profile: profile.__setitem__("map", "q3dm17"),
-            "must be a map the content recipe assembles",
+            "records no fragment for map",
         )
 
     def test_a_bot_the_pack_does_not_package_is_refused(self) -> None:
@@ -262,7 +264,8 @@ class TreeTests(unittest.TestCase):
         self.assertEqual(
             sorted(files),
             [
-                "arena/arena-web-ffa.pk3",
+                "arena/arena-web-ffa-base.pk3",
+                "arena/arena-web-ffa-map-oa_pvomit.pk3",
                 "arena/default.cfg",
                 "arena/vm/qagame.qvm",
             ],
@@ -273,7 +276,8 @@ class TreeTests(unittest.TestCase):
         self.assertEqual(
             sorted(files),
             [
-                "arena/arena-web-ffa.pk3",
+                "arena/arena-web-ffa-base.pk3",
+                "arena/arena-web-ffa-map-oa_pvomit.pk3",
                 "arena/default.cfg",
                 "arena/vm/cgame.qvm",
                 "arena/vm/ui.qvm",
@@ -283,13 +287,16 @@ class TreeTests(unittest.TestCase):
     def test_both_sides_use_the_same_committed_identities(self) -> None:
         server = server_tree_files(ROOT, self.profile)
         client = client_tree_files(ROOT, self.profile)
-        pack = "arena/arena-web-ffa.pk3"
-        self.assertEqual(server[pack]["sha256"], client[pack]["sha256"])
         content = read("provenance/arena-web-ffa-content-manifest.json")
-        expected = next(
-            item for item in content["artifacts"] if item["path"].endswith(".pk3")
-        )
-        self.assertEqual(server[pack]["sha256"], expected["sha256"])
+        digests = {
+            item["path"].rsplit("/", 1)[-1]: item["sha256"]
+            for item in content["artifacts"]
+        }
+        packs = [name for name in server if name.endswith(".pk3")]
+        self.assertEqual(len(packs), 2)
+        for pack in packs:
+            self.assertEqual(server[pack]["sha256"], client[pack]["sha256"])
+            self.assertEqual(server[pack]["sha256"], digests[pack.rsplit("/", 1)[-1]])
         engine = read("manifests/browser-client.json")
         for module, relative in (
             ("qagame", "arena/vm/qagame.qvm"),
@@ -312,7 +319,8 @@ class TreeTests(unittest.TestCase):
         self.assertEqual(
             paths,
             [
-                "opt/arena-web/arena/arena-web-ffa.pk3",
+                "opt/arena-web/arena/arena-web-ffa-base.pk3",
+                "opt/arena-web/arena/arena-web-ffa-map-oa_pvomit.pk3",
                 "opt/arena-web/arena/default.cfg",
                 "opt/arena-web/arena/vm/qagame.qvm",
                 "opt/arena-web/ioq3ded",
@@ -370,7 +378,9 @@ class StagingTests(unittest.TestCase):
     def test_a_real_staging_is_verified(self) -> None:
         engine_dir = ROOT / "build/browser/tree/Release"
         content_dir = ROOT / "build/content-pack"
-        if not engine_dir.is_dir() or not content_dir.is_dir():
+        if not engine_dir.is_dir() or not (
+            content_dir / "baseq3/arena-web-ffa-base.pk3"
+        ).is_file():
             self.skipTest("the accepted build outputs are not present")
         verified = stage_tree(
             ROOT,
@@ -379,7 +389,7 @@ class StagingTests(unittest.TestCase):
             engine_dir=engine_dir,
             content_dir=content_dir,
         )
-        self.assertEqual(len(verified), 2)
+        self.assertEqual(len(verified), 3)
         for path in self.target.rglob("*"):
             expected = (
                 STAGED_DIRECTORY_MODE if path.is_dir() else STAGED_FILE_MODE
@@ -402,7 +412,9 @@ class StagingTests(unittest.TestCase):
     def test_a_wrong_mode_is_refused(self) -> None:
         engine_dir = ROOT / "build/browser/tree/Release"
         content_dir = ROOT / "build/content-pack"
-        if not engine_dir.is_dir() or not content_dir.is_dir():
+        if not engine_dir.is_dir() or not (
+            content_dir / "baseq3/arena-web-ffa-base.pk3"
+        ).is_file():
             self.skipTest("the accepted build outputs are not present")
         stage_tree(
             ROOT,
@@ -433,67 +445,94 @@ class DerivationEdgeTests(unittest.TestCase):
 class MultiMapRecipeTests(ProfileFixture):
     """A pack may carry several maps; a server still starts exactly one of them."""
 
-    def _pluralize(self, maps: list[dict]) -> None:
-        path = self.root / "content/pack-recipe.json"
-        # Always start from the committed recipe, so a test may call this more
-        # than once with different arena sets.
-        recipe = read("content/pack-recipe.json")
-        profile = recipe["profile"]
-        arena = profile.pop("arena")
-        profile.pop("map")
-        profile["maps"] = [entry["map"] for entry in maps]
-        profile["arenas"] = [dict(arena, **entry) for entry in maps]
-        path.write_text(
-            json.dumps(recipe, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
+    def _fragments(self, maps: list[dict]) -> None:
+        """Rewrite the fragment set, and the manifest inputs that bind it."""
+        directory = self.root / "content/maps"
+        shutil.rmtree(directory, ignore_errors=True)
+        directory.mkdir(parents=True)
+        base = read("content/maps/oa_pvomit.json")
+        inputs = []
+        for entry in maps:
+            fragment = json.loads(json.dumps(base))
+            fragment["map"] = entry["map"]
+            fragment["arena"] = dict(base["arena"], **entry)
+            fragment["generatedMembers"] = [
+                "NOTICE-arena-web.txt",
+                f"scripts/{entry['map']}.arena",
+            ]
+            path = directory / f"{entry['map']}.json"
+            path.write_text(json.dumps(fragment, indent=2, sort_keys=True) + "\n")
+            inputs.append(
+                {
+                    "id": f"arena-web-map-{entry['map']}",
+                    "identity": "sha256:"
+                    + hashlib.sha256(path.read_bytes()).hexdigest(),
+                    "kind": "archive",
+                }
+            )
+        manifest_path = self.root / "provenance/arena-web-ffa-content-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["inputs"] = [
+            item
+            for item in manifest["inputs"]
+            if not item["id"].startswith("arena-web-map-")
+        ] + inputs
+        manifest["artifacts"] = [
+            item
+            for item in manifest["artifacts"]
+            if not item["path"].startswith("baseq3/arena-web-ffa-map-")
+        ] + [
+            {
+                "path": f"baseq3/arena-web-ffa-map-{entry['map']}.pk3",
+                "sha256": "a" * 64,
+                "size": 1,
+            }
+            for entry in maps
+        ]
+        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
     def test_a_profile_starting_one_of_several_packaged_maps_is_accepted(self) -> None:
-        self._pluralize(
+        self._fragments(
             [
-                {"map": "oa_shine", "type": "ffa", "fraglimit": "20"},
+                {"map": "oa_shine", "type": "ffa", "fraglimit": "15"},
                 {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
             ]
         )
-        profile = load_profile(self.root)
-        self.assertEqual(profile["map"], "oa_pvomit")
+        self.assertEqual(load_profile(self.root)["map"], "oa_pvomit")
 
     def test_a_map_outside_the_packaged_set_is_refused(self) -> None:
-        self._pluralize(
-            [
-                {"map": "oa_shine", "type": "ffa", "fraglimit": "20"},
-                {"map": "am_galmevish", "type": "ffa", "fraglimit": "20"},
-            ]
-        )
-        with self.assertRaisesRegex(
-            ArenaServerError, "must be a map the content recipe assembles"
-        ):
+        self._fragments([{"map": "oa_shine", "type": "ffa", "fraglimit": "15"}])
+        with self.assertRaisesRegex(ArenaServerError, "records no fragment for map"):
             load_profile(self.root)
 
     def test_the_started_arena_is_the_one_that_must_be_ffa(self) -> None:
-        self._pluralize(
+        self._fragments(
             [
-                {"map": "oa_shine", "type": "tourney", "fraglimit": "20"},
+                {"map": "oa_shine", "type": "tourney", "fraglimit": "15"},
                 {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
             ]
         )
         load_profile(self.root)
-        self._pluralize(
+        self._fragments(
             [
-                {"map": "oa_shine", "type": "ffa", "fraglimit": "20"},
+                {"map": "oa_shine", "type": "ffa", "fraglimit": "15"},
                 {"map": "oa_pvomit", "type": "tourney", "fraglimit": "15"},
             ]
         )
         with self.assertRaisesRegex(ArenaServerError, "only starts an FFA arena"):
             load_profile(self.root)
 
-    def test_a_map_defined_by_two_arenas_is_refused(self) -> None:
-        self._pluralize(
-            [
-                {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
-                {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
-            ]
-        )
-        with self.assertRaisesRegex(ArenaServerError, "exactly once"):
+    def test_a_fragment_that_is_not_the_one_the_manifest_records_is_refused(
+        self,
+    ) -> None:
+        """A fragment is read only after its digest matches the identity the
+        content manifest records, so content cannot join the build without
+        joining the release identity."""
+        path = self.root / "content/maps/oa_pvomit.json"
+        fragment = json.loads(path.read_text())
+        fragment["arena"]["fraglimit"] = "99"
+        path.write_text(json.dumps(fragment))
+        with self.assertRaisesRegex(ArenaServerError, "content manifest records"):
             load_profile(self.root)
 
 

@@ -40,6 +40,14 @@
         "upstreamStatus": "not-submitted"
       },
       {
+        "id": "arena-browser-memory-growth",
+        "paths": [
+          "cmake/platforms/emscripten.cmake"
+        ],
+        "rationale": "The Emscripten client linked a fixed heap with no growth, so the shipped module aborts rather than slows down once a content set exceeds it; starting at the same figure and allowing growth to Emscripten's own default maximum charges the extra memory only to the sessions that use it.",
+        "upstreamStatus": "not-submitted"
+      },
+      {
         "id": "arena-browser-relay-boundary",
         "paths": [
           "code/client/cl_main.c",
@@ -80,7 +88,7 @@
       }
     ],
     "branch": "web",
-    "commit": "596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
+    "commit": "d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
     "id": "ioq3",
     "kind": "git",
     "licenseComponents": [
@@ -89,8 +97,8 @@
         "id": "curl-headers",
         "license": {
           "distribution": "product-source-and-binaries",
-          "evidenceIdentity": "git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/596e56a6bf58f41e1ad9cc1685c7c11a75dba87a/code/thirdparty/curl-8.15.0/include/curl/curl.h",
+          "evidenceIdentity": "git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/d594b1cc9bfc5b58ccebffd4d840a13782cb6592/code/thirdparty/curl-8.15.0/include/curl/curl.h",
           "expression": "curl"
         },
         "paths": [
@@ -143,8 +151,8 @@
         "id": "ioq3-core",
         "license": {
           "distribution": "product-source-and-binaries",
-          "evidenceIdentity": "git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/596e56a6bf58f41e1ad9cc1685c7c11a75dba87a/COPYING.txt",
+          "evidenceIdentity": "git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/d594b1cc9bfc5b58ccebffd4d840a13782cb6592/COPYING.txt",
           "expression": "GPL-2.0-or-later"
         },
         "paths": [
@@ -157,8 +165,8 @@
         "id": "lcc-build-tool",
         "license": {
           "distribution": "build-tool-source-submodule-only",
-          "evidenceIdentity": "git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/596e56a6bf58f41e1ad9cc1685c7c11a75dba87a/code/tools/lcc/COPYRIGHT",
+          "evidenceIdentity": "git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/d594b1cc9bfc5b58ccebffd4d840a13782cb6592/code/tools/lcc/COPYRIGHT",
           "expression": "LicenseRef-LCC-1998"
         },
         "paths": [
@@ -201,8 +209,8 @@
         "id": "minizip",
         "license": {
           "distribution": "product-source-and-binaries",
-          "evidenceIdentity": "git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/596e56a6bf58f41e1ad9cc1685c7c11a75dba87a/code/qcommon/unzip.c",
+          "evidenceIdentity": "git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/d594b1cc9bfc5b58ccebffd4d840a13782cb6592/code/qcommon/unzip.c",
           "expression": "Zlib AND Info-ZIP"
         },
         "paths": [
@@ -218,8 +226,8 @@
         "id": "mumble-link",
         "license": {
           "distribution": "product-source-and-binaries",
-          "evidenceIdentity": "git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/596e56a6bf58f41e1ad9cc1685c7c11a75dba87a/code/client/libmumblelink.c",
+          "evidenceIdentity": "git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/d594b1cc9bfc5b58ccebffd4d840a13782cb6592/code/client/libmumblelink.c",
           "expression": "Zlib"
         },
         "paths": [
@@ -248,8 +256,8 @@
         "id": "opus",
         "license": {
           "distribution": "product-source-and-binaries",
-          "evidenceIdentity": "git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/596e56a6bf58f41e1ad9cc1685c7c11a75dba87a/code/thirdparty/opus-1.5.2/include/opus.h",
+          "evidenceIdentity": "git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/d594b1cc9bfc5b58ccebffd4d840a13782cb6592/code/thirdparty/opus-1.5.2/include/opus.h",
           "expression": "BSD-3-Clause"
         },
         "paths": [
@@ -277,8 +285,8 @@
         "id": "public-domain-md5",
         "license": {
           "distribution": "product-source-and-binaries",
-          "evidenceIdentity": "git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/596e56a6bf58f41e1ad9cc1685c7c11a75dba87a/code/qcommon/md5.c",
+          "evidenceIdentity": "git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/d594b1cc9bfc5b58ccebffd4d840a13782cb6592/code/qcommon/md5.c",
           "expression": "LicenseRef-Public-Domain-Colin-Plumb-MD5"
         },
         "paths": [
@@ -291,8 +299,8 @@
         "id": "public-domain-updater",
         "license": {
           "distribution": "product-source-and-binaries",
-          "evidenceIdentity": "git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/596e56a6bf58f41e1ad9cc1685c7c11a75dba87a/code/sys/sys_autoupdater.c",
+          "evidenceIdentity": "git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/d594b1cc9bfc5b58ccebffd4d840a13782cb6592/code/sys/sys_autoupdater.c",
           "expression": "LicenseRef-Public-Domain-ioquake3-Autoupdater"
         },
         "paths": [
@@ -305,8 +313,8 @@
         "id": "puff",
         "license": {
           "distribution": "product-source-and-binaries",
-          "evidenceIdentity": "git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/596e56a6bf58f41e1ad9cc1685c7c11a75dba87a/code/renderercommon/puff.h",
+          "evidenceIdentity": "git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/d594b1cc9bfc5b58ccebffd4d840a13782cb6592/code/renderercommon/puff.h",
           "expression": "Zlib"
         },
         "paths": [
@@ -320,8 +328,8 @@
         "id": "qvm-libc",
         "license": {
           "distribution": "product-source-and-binaries",
-          "evidenceIdentity": "git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/596e56a6bf58f41e1ad9cc1685c7c11a75dba87a/code/game/bg_lib.c",
+          "evidenceIdentity": "git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/d594b1cc9bfc5b58ccebffd4d840a13782cb6592/code/game/bg_lib.c",
           "expression": "BSD-3-Clause AND LicenseRef-Patrick-Powell-Snprintf"
         },
         "paths": [
@@ -334,8 +342,8 @@
         "id": "sdl-headers",
         "license": {
           "distribution": "product-source-and-binaries",
-          "evidenceIdentity": "git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/596e56a6bf58f41e1ad9cc1685c7c11a75dba87a/code/thirdparty/SDL2-2.32.8/include/SDL_copying.h",
+          "evidenceIdentity": "git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/d594b1cc9bfc5b58ccebffd4d840a13782cb6592/code/thirdparty/SDL2-2.32.8/include/SDL_copying.h",
           "expression": "Zlib"
         },
         "paths": [
@@ -348,8 +356,8 @@
         "id": "sdl-prebuilt-libraries",
         "license": {
           "distribution": "product-source-and-binaries",
-          "evidenceIdentity": "git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/596e56a6bf58f41e1ad9cc1685c7c11a75dba87a/code/thirdparty/SDL2-2.32.8/include/SDL_copying.h",
+          "evidenceIdentity": "git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/d594b1cc9bfc5b58ccebffd4d840a13782cb6592/code/thirdparty/SDL2-2.32.8/include/SDL_copying.h",
           "expression": "Zlib"
         },
         "paths": [
@@ -362,8 +370,8 @@
         "id": "snd-adpcm",
         "license": {
           "distribution": "product-source-and-binaries",
-          "evidenceIdentity": "git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/596e56a6bf58f41e1ad9cc1685c7c11a75dba87a/code/client/snd_adpcm.c",
+          "evidenceIdentity": "git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/d594b1cc9bfc5b58ccebffd4d840a13782cb6592/code/client/snd_adpcm.c",
           "expression": "HPND"
         },
         "paths": [
@@ -376,8 +384,8 @@
         "id": "zlib",
         "license": {
           "distribution": "product-source-and-binaries",
-          "evidenceIdentity": "git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/596e56a6bf58f41e1ad9cc1685c7c11a75dba87a/code/thirdparty/zlib-1.3.1/zlib.h",
+          "evidenceIdentity": "git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+          "evidenceUrl": "https://github.com/Kaesual/ioq3/blob/d594b1cc9bfc5b58ccebffd4d840a13782cb6592/code/thirdparty/zlib-1.3.1/zlib.h",
           "expression": "Zlib"
         },
         "paths": [
@@ -387,7 +395,7 @@
       }
     ],
     "preferredSource": {
-      "revision": "596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
+      "revision": "d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
       "status": "available",
       "url": "https://github.com/Kaesual/ioq3.git"
     },
@@ -578,7 +586,7 @@
   ],
   "upstreamEvidence": {
     "compatibilityGate": "WP1 must produce two clean, byte-identical builds with Emscripten 6.0.8. Failure stops for a reviewed compatibility decision; it does not silently fall back to 3.1.58.",
-    "ioq3Commit": "596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
+    "ioq3Commit": "d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
     "ioq3WorkflowPath": ".github/workflows/build.yml",
     "mapping": "The moving v13 action and Emscripten 3.1.58 are reference evidence only. arena-web deliberately targets the current official 6.0.8 image to share the maintained WebAssembly toolchain generation already used by the sibling Luanti browser port.",
     "targetEmscriptenVersion": "6.0.8",

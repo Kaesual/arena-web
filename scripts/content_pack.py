@@ -225,6 +225,10 @@ class ClosureReport:
     accepted_unresolved: list[str] = field(default_factory=list)
     stale_acceptances: list[str] = field(default_factory=list)
     shader_files: set[str] = field(default_factory=set)
+    # Which shader file the closure resolved each shader *name* to. The set of
+    # files above cannot answer that, and cross-archive shader precedence
+    # (§4.2) is a property of names, not of files.
+    shader_names: dict[str, str] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
@@ -265,22 +269,46 @@ class ShaderIndex:
 
 
 class ClosureBuilder:
-    """Expand every required reference of the profile into concrete members."""
+    """Expand every required reference of the profile into concrete members.
 
-    def __init__(self, sources: SourceSet, recipe: dict[str, Any]) -> None:
+    One builder produces one archive. The three per-run memos below —
+    ``_seen``, ``report.members`` and ``_accepted_hit`` — are why an archive
+    needs its own builder rather than a shared one: under a shared builder a
+    member two maps reference would belong to whichever map was walked first,
+    so adding a map that sorts earlier would migrate that member out of an
+    archive that already exists. The ``SourceSet`` and the ``ShaderIndex``
+    stay shared, which is what makes the same game path resolve to the same
+    bytes in every archive.
+
+    ``shaders``, ``accepted_unresolved`` and ``generated_members`` may be
+    supplied per archive; omitted, they come from the recipe, which is the
+    single-archive behaviour.
+    """
+
+    def __init__(
+        self,
+        sources: SourceSet,
+        recipe: dict[str, Any],
+        *,
+        shaders: ShaderIndex | None = None,
+        accepted_unresolved: Iterable[dict[str, Any]] | None = None,
+        generated_members: Iterable[str] | None = None,
+    ) -> None:
         self.sources = sources
         self.recipe = recipe
-        self.shaders = ShaderIndex(sources)
+        self.shaders = ShaderIndex(sources) if shaders is None else shaders
         self.report = ClosureReport()
         self._seen: set[tuple[str, str]] = set()
+        if accepted_unresolved is None:
+            accepted_unresolved = recipe.get("acceptedUnresolved", [])
         self._accepted = {
             _game_path(entry["reference"]): entry["reason"]
-            for entry in recipe.get("acceptedUnresolved", [])
+            for entry in accepted_unresolved
         }
         self._accepted_hit: set[str] = set()
-        self._generated = {
-            _game_path(path) for path in recipe.get("generatedMembers", ())
-        }
+        if generated_members is None:
+            generated_members = recipe.get("generatedMembers", ())
+        self._generated = {_game_path(path) for path in generated_members}
         # The exclusion is global, not per-source: a path that one source
         # declares as differently licensed must not slip in because a
         # higher-precedence source happens to provide the same path.
@@ -365,11 +393,16 @@ class ClosureBuilder:
         # name up in the shader text, then falls back to R_FindImageFile with
         # the *original* name.
         stripped = re.sub(r"\.[^./]*$", "", reference)
-        found = self.shaders.lookup(stripped) or self.shaders.lookup(reference)
+        found = self.shaders.lookup(stripped)
+        name = stripped
+        if found is None:
+            found = self.shaders.lookup(reference)
+            name = reference
         if found is not None:
             shader_file, images = found
             self._take(shader_file, f"shader {reference}")
             self.report.shader_files.add(shader_file)
+            self.report.shader_names.setdefault(_game_path(name), shader_file)
             for image in images:
                 self.add(image, "image", f"shader {reference}")
             return
@@ -473,14 +506,15 @@ def load_recipe(path: Path) -> dict[str, Any]:
     recipe = _load_json(path)
     if not isinstance(recipe, dict):
         _fail(str(path), "must be an object")
-    if recipe.get("formatVersion") != 1:
+    if recipe.get("formatVersion") != 2:
         _fail(str(path), "has an unsupported formatVersion")
     # derivedReferences is required, not optional: without it the builder would
     # silently drop closure root 1b and emit a smaller pack with a clean exit,
     # which is exactly the fail-open shape the category exists to close.
     for key in (
         "package",
-        "packPath",
+        "basePackPath",
+        "mapPackTemplate",
         "profile",
         "sources",
         "notices",
@@ -492,49 +526,104 @@ def load_recipe(path: Path) -> dict[str, Any]:
     return recipe
 
 
-# The recipe carries a *set* of maps and a matching set of arena definitions.
-# Both are still spelled in the singular by the committed recipe, which packages
-# exactly one map; `profile_maps` and `profile_arenas` are the one place that
-# difference is resolved, so everything downstream sees only the plural form.
-#
-# The singular spelling is not a permanent second dialect. It exists so the
-# pipeline can be generalized without rewriting content/pack-recipe.json, which
-# is a release-index authority: changing that file re-identifies the content
-# manifest, the pack payload, the server manifest and the server image at once.
-# WP-C reissues all of those anyway and replaces `map`/`arena` with `maps`/
-# `arenas` there; these two functions lose their fallback in the same change.
+# One fragment carries everything about one map that the archive for that map
+# must depend on, and nothing else: its arena definition, its own accepted
+# unresolved references and its own generated members. Keeping them here rather
+# than in three whole-set lists is what makes an archive's bytes independent of
+# which other maps are in the build.
+MAP_FRAGMENT_KEYS = ("acceptedUnresolved", "arena", "generatedMembers", "map")
+MAP_FRAGMENT_DIRECTORY = "content/maps"
 
 
-def profile_maps(profile: dict[str, Any]) -> list[str]:
-    """The maps this pack assembles, in recipe order."""
-    if "maps" in profile:
-        maps = profile["maps"]
-        if not isinstance(maps, list) or not maps:
-            raise ContentError("profile.maps must be a non-empty array")
-        if not all(isinstance(name, str) and name for name in maps):
-            raise ContentError("profile.maps must contain non-empty map names")
-        if len(set(maps)) != len(maps):
-            raise ContentError(f"profile.maps names a map twice: {maps}")
-        return list(maps)
-    name = profile.get("map")
-    if not isinstance(name, str) or not name:
-        raise ContentError("profile must declare maps (or the single-map map)")
-    return [name]
+def map_fragment_path(map_name: str) -> str:
+    return f"{MAP_FRAGMENT_DIRECTORY}/{map_name}.json"
 
 
-def profile_arenas(profile: dict[str, Any]) -> list[dict[str, Any]]:
-    """The arena definitions this pack generates, in recipe order."""
-    if "arenas" in profile:
-        arenas = profile["arenas"]
-        if not isinstance(arenas, list) or not arenas:
-            raise ContentError("profile.arenas must be a non-empty array")
-        if not all(isinstance(arena, dict) for arena in arenas):
-            raise ContentError("profile.arenas must contain arena objects")
-        return list(arenas)
-    arena = profile.get("arena")
-    if not isinstance(arena, dict):
-        raise ContentError("profile must declare arenas (or the single-map arena)")
-    return [arena]
+def map_pack_path(recipe: dict[str, Any], map_name: str) -> str:
+    """The manifest path of one map's archive, derived rather than listed.
+
+    A per-map archive path in a flat recipe list would be one more whole-set
+    field for a map to be added to and forgotten in. The template is checked
+    once, in `load_map_fragments`.
+    """
+    return recipe["mapPackTemplate"].format(map=map_name)
+
+
+MAP_FRAGMENT_NAME = re.compile(r"\A[a-z0-9][a-z0-9_-]*\Z")
+
+# One content-manifest input id per map fragment. The fragments are the content
+# that decides what a map archive holds, so they must sit inside the release
+# identity; this is the id under which each one does.
+MAP_FRAGMENT_INPUT_PREFIX = "arena-web-map-"
+
+
+def map_fragment_input_id(map_name: str) -> str:
+    return f"{MAP_FRAGMENT_INPUT_PREFIX}{map_name}"
+
+
+def load_map_fragments(root: Path) -> dict[str, dict[str, Any]]:
+    """Load and validate every per-map recipe fragment.
+
+    **The fragment directory is the map set.** The root recipe deliberately
+    holds no list of maps: it is the base archive's own selection input, and its
+    digest is what the base's notice carries, so a map set inside it would move
+    the base's bytes — and every existing map archive's — whenever a map was
+    added. That is precisely what §8.1's acceptance test forbids.
+
+    The fragments do not thereby escape the release identity. The content
+    manifest records one input per fragment with its digest
+    (`map_fragment_input_id`), the manifest is an authority whose own digest is
+    a `compatibility` member, and `release_index.validate_release_index` checks
+    that set against this directory in both directions. Content cannot join the
+    build without joining the identity; it merely joins it one authority further
+    down than the root recipe.
+    """
+    directory = root / MAP_FRAGMENT_DIRECTORY
+    fragments: dict[str, dict[str, Any]] = {}
+    if not directory.is_dir():
+        return fragments
+    for item in sorted(directory.iterdir()):
+        if item.is_dir():
+            raise ContentError(
+                f"{MAP_FRAGMENT_DIRECTORY} holds a directory, {item.name}; it may "
+                "contain only one JSON fragment per map"
+            )
+        if not item.name.endswith(".json"):
+            raise ContentError(
+                f"{MAP_FRAGMENT_DIRECTORY}/{item.name} is not a .json fragment"
+            )
+        map_name = item.name[: -len(".json")]
+        if not MAP_FRAGMENT_NAME.fullmatch(map_name):
+            raise ContentError(
+                f"{MAP_FRAGMENT_DIRECTORY}/{item.name} is not named after a map"
+            )
+        relative = map_fragment_path(map_name)
+        fragment = _load_json(item)
+        if not isinstance(fragment, dict) or set(fragment) != set(MAP_FRAGMENT_KEYS):
+            raise ContentError(
+                f"{relative} must have exactly the fields {list(MAP_FRAGMENT_KEYS)}"
+            )
+        if fragment["map"] != map_name:
+            raise ContentError(
+                f"{relative} declares map {fragment['map']!r}, but its file name "
+                f"says {map_name!r}"
+            )
+        arena = fragment["arena"]
+        if not isinstance(arena, dict) or arena.get("map") != map_name:
+            raise ContentError(f"{relative} arena must define map {map_name!r}")
+        for key in ("acceptedUnresolved", "generatedMembers"):
+            if not isinstance(fragment[key], list):
+                raise ContentError(f"{relative} {key} must be an array")
+        fragments[map_name] = fragment
+    return fragments
+
+
+def check_map_pack_template(recipe: dict[str, Any]) -> None:
+    template = recipe.get("mapPackTemplate")
+    if not isinstance(template, str) or template.count("{map}") != 1:
+        raise ContentError(
+            f"recipe mapPackTemplate {template!r} must contain '{{map}}' exactly once"
+        )
 
 
 def recipe_sources(recipe: dict[str, Any]) -> list[RecipeSource]:
@@ -578,47 +667,80 @@ def write_pk3(members: dict[str, bytes], output: Path) -> None:
     output.write_bytes(buffer.getvalue())
 
 
+@dataclass
+class AssembledArchive:
+    """One finished archive, with everything its own records need.
+
+    `recipe_input` and `recipe_identity` are this archive's *own* committed
+    selection input — `content/base.json` for the base and
+    `content/maps/<name>.json` for a map. They are per archive, not per build,
+    because the generated notice carries them: a whole-set digest inside an
+    archive's bytes would move every archive whenever any part of the set moved.
+    """
+
+    path: str
+    members: dict[str, bytes]
+    origins: dict[str, tuple[str, str, str]]
+    recipe_input: str
+    recipe_identity: str
+
+
 def provenance_sources(
-    recipe: dict[str, Any], used_source_ids: set[str]
+    recipe: dict[str, Any],
+    used_source_ids: set[str],
+    *,
+    generated_identity: str | None = None,
 ) -> list[dict[str, Any]]:
-    """Return the sorted provenance source records the pack actually used."""
+    """Return the sorted provenance source records one archive actually used.
+
+    `generated_identity` replaces the product's own source identity with the
+    digest of the selection input that produced *this* archive.
+    """
     records = []
+    generated_id = recipe["generatedSource"]["id"]
     for record in list(recipe["sources"]) + [recipe["generatedSource"]]:
         if record["id"] not in used_source_ids:
             continue
+        identity = record["sourceIdentity"]
+        revision = record["preferredSourceRevision"]
+        if record["id"] == generated_id and generated_identity is not None:
+            identity = generated_identity
+            revision = generated_identity
         records.append(
             {
                 "id": record["id"],
                 "licenseEvidenceUrl": record["licenseEvidenceUrl"],
                 "licenseExpression": record["licenseExpression"],
-                "preferredSourceRevision": record["preferredSourceRevision"],
+                "preferredSourceRevision": revision,
                 "preferredSourceUrl": record["preferredSourceUrl"],
-                "sourceIdentity": record["sourceIdentity"],
+                "sourceIdentity": identity,
                 "sourceUrl": record["sourceUrl"],
             }
         )
     return sorted(records, key=lambda item: item["id"])
 
 
-def build_provenance(
-    recipe: dict[str, Any],
-    baseline: dict[str, Any],
-    members: dict[str, bytes],
-    origins: dict[str, tuple[str, str, str]],
+def archive_provenance(
+    recipe: dict[str, Any], archive: AssembledArchive
 ) -> dict[str, Any]:
-    """Return the content-provenance record for one assembled pack."""
+    """The provenance record of one archive: its own sources and members."""
     notice_paths = tuple(sorted(recipe["notices"]))
-    missing_notices = [path for path in notice_paths if path not in members]
+    missing_notices = [path for path in notice_paths if path not in archive.members]
     if missing_notices:
         raise ContentError(
-            f"declared notice members are not packaged: {missing_notices}"
+            f"{archive.path}: declared notice members are not packaged: "
+            f"{missing_notices}"
         )
-    source_records = provenance_sources(recipe, {origins[path][0] for path in members})
+    source_records = provenance_sources(
+        recipe,
+        {archive.origins[path][0] for path in archive.members},
+        generated_identity=archive.recipe_identity,
+    )
     licenses = {record["id"]: record["licenseExpression"] for record in source_records}
 
     member_records = []
-    for path in sorted(members):
-        source_id, source_path, transformation = origins[path]
+    for path in sorted(archive.members):
+        source_id, source_path, transformation = archive.origins[path]
         expression = licenses[source_id]
         obligations = {"license-notice"}
         if any(
@@ -642,20 +764,33 @@ def build_provenance(
                 "obligations": sorted(obligations),
                 "path": path,
                 "role": role,
-                "sha256": hashlib.sha256(members[path]).hexdigest(),
-                "size": len(members[path]),
+                "sha256": hashlib.sha256(archive.members[path]).hexdigest(),
+                "size": len(archive.members[path]),
                 "sourceId": source_id,
                 "sourcePath": source_path,
                 "transformation": transformation,
             }
         )
     return {
-        "$schema": CONTENT_SCHEMA,
-        "baselineIdentity": _canonical_json_identity(baseline),
-        "formatVersion": 1,
         "members": member_records,
-        "package": {"id": recipe["package"]["id"], "name": recipe["package"]["name"]},
+        "path": archive.path,
         "sources": source_records,
+    }
+
+
+def build_provenance(
+    recipe: dict[str, Any],
+    baseline: dict[str, Any],
+    archives: Iterable[AssembledArchive],
+) -> dict[str, Any]:
+    """Return the content-provenance record for one assembled archive set."""
+    records = [archive_provenance(recipe, archive) for archive in archives]
+    return {
+        "$schema": CONTENT_SCHEMA,
+        "archives": sorted(records, key=lambda item: item["path"]),
+        "baselineIdentity": _canonical_json_identity(baseline),
+        "formatVersion": 2,
+        "package": {"id": recipe["package"]["id"], "name": recipe["package"]["name"]},
     }
 
 
@@ -670,6 +805,121 @@ def validate_provenance(provenance: dict[str, Any], baseline: dict[str, Any]) ->
         )
     except MetadataError as error:
         raise ContentError(str(error)) from error
+
+
+def subtract_closure(
+    archive: ClosureReport, base: ClosureReport, *, keep: Iterable[str] = ()
+) -> dict[str, SourceMember]:
+    """``closure(M) \\ closure(base)`` — the members only this archive carries.
+
+    Stated as a set difference rather than as "the assets referenced only by
+    this map", because the latter is set-dependent: whether an asset is
+    referenced only by ``M`` depends on which *other* maps are in the build,
+    so adding a map would move an existing archive's bytes.
+
+    ``keep`` survives the subtraction. It is the notice set: every archive is
+    published under its own URL and redistributed on its own, so each one
+    carries the complete notices even though the base carries them too.
+    """
+    kept = {_game_path(path) for path in keep}
+    return {
+        path: member
+        for path, member in archive.members.items()
+        if path not in base.members or path in kept
+    }
+
+
+def check_duplicate_members(
+    archives: dict[str, dict[str, bytes]], *, exempt: Iterable[str] = ()
+) -> None:
+    """Every member two archives share must be byte-identical.
+
+    One shared ``SourceSet`` already guarantees this for upstream members —
+    every game path collapses to exactly one ``SourceMember`` before any
+    closure runs — so this is an assertion, not a rule the assembly has to
+    obey. It earns its place because ``FS_AddFileToList``
+    (ioq3 code/qcommon/files.c) de-duplicates a listing by *file name*, first
+    in search-path order winning, so a diverging copy would silently mask the
+    other rather than fail.
+
+    ``exempt`` names the members that are generated per archive and therefore
+    carry different bytes under the same path on purpose.
+    """
+    exempted = {_game_path(path) for path in exempt}
+    digests: dict[str, tuple[str, str]] = {}
+    offenders: list[str] = []
+    for archive in sorted(archives):
+        for path, data in sorted(archives[archive].items()):
+            if _game_path(path) in exempted:
+                continue
+            digest = hashlib.sha256(data).hexdigest()
+            previous = digests.get(path)
+            if previous is None:
+                digests[path] = (archive, digest)
+            elif previous[1] != digest:
+                offenders.append(
+                    f"{path} is sha256:{previous[1]} in {previous[0]} and "
+                    f"sha256:{digest} in {archive}"
+                )
+    if offenders:
+        raise ContentError(
+            "the same member has different bytes in two archives: "
+            + "; ".join(offenders)
+        )
+
+
+def check_shader_resolution(
+    archives: dict[str, dict[str, bytes]], resolved: dict[str, str]
+) -> None:
+    """No shader name may resolve differently at run time than in the closure.
+
+    The closure resolves a shader name through one ``ShaderIndex`` over the
+    whole source set. At run time the engine resolves it over the *packaged*
+    files spread across several archives, and the two orders are not the same
+    one: ``FS_AddGameDirectory`` sorts PK3s ascending and prepends each, so
+    ``FS_ListFilteredFiles`` walks them descending, and
+    ``ScanAndLoadShaderFiles`` concatenates the buffers in reverse of that
+    listing — which makes the **lowest**-named PK3 win a shader name, while
+    inside one PK3 the alphabetically highest file still wins.
+
+    So a name whose index winner sits in a map archive, and which some file the
+    base packages for an unrelated name also defines, would render from the
+    base's definition and not from the audited one. Nothing reports it. This is
+    the check §4.2 asks for, and the archive keys must be the PK3 names the
+    engine sees, not the manifest paths.
+    """
+    winner: dict[str, tuple[str, str]] = {}
+    for archive in sorted(archives):
+        members = archives[archive]
+        files = [
+            path
+            for path in members
+            if path.startswith("scripts/") and path.endswith(".shader")
+        ]
+        for path in shader_file_precedence(sorted(files)):
+            try:
+                definitions = parse_shader_file(members[path].decode("latin-1"))
+            except AssetFormatError as error:  # pragma: no cover - parsed already
+                raise ContentError(f"{archive}: {path}: {error}") from error
+            for definition in definitions:
+                winner.setdefault(_game_path(definition.name), (archive, path))
+    offenders = []
+    for name, shader_file in sorted(resolved.items()):
+        found = winner.get(name)
+        if found is None:
+            offenders.append(
+                f"{name!r} resolves to {shader_file}, which no archive packages"
+            )
+        elif found[1] != shader_file:
+            offenders.append(
+                f"{name!r} was closed against {shader_file} but {found[0]} "
+                f"defines it in {found[1]}, which wins at run time"
+            )
+    if offenders:
+        raise ContentError(
+            "cross-archive shader precedence disagrees with the closure: "
+            + "; ".join(offenders)
+        )
 
 
 def iter_forbidden(paths: Iterable[str]) -> list[str]:

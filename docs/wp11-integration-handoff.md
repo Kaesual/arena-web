@@ -10,7 +10,7 @@ field below. The immutable public Git commit containing this document and
 release source. Mutable branch names and local container tags are not release
 identities.
 
-The only supported profile is `arena-web-ffa-oa_pvomit`: FFA on
+The only supported profile is `arena-web-ffa`: FFA on
 `oa_pvomit`, frag limit 15, no time limit, eight slots and three server bots.
 The accepted browser is Chrome for Testing 152.0.7977.64 on Fedora Linux 44
 `x86_64`; the dedicated server is Linux `amd64`. These are deliberately narrow
@@ -19,7 +19,7 @@ prototype bounds, not a wider platform or capacity claim.
 ## 1. Browser manifest, digests and public layout
 
 The release index is outside the browser root to avoid hashing itself. Its
-`servedFiles` array is the complete, path-sorted browser root: exactly 17
+`servedFiles` array is the complete, path-sorted browser root: exactly 18
 relative files, each with byte length and SHA-256. The staging validator checks
 that list against both repository source and the generated artifact manifests;
 an extra, missing, symlinked or changed file fails the release.
@@ -31,7 +31,23 @@ The primary immutable identities are:
 | Baseline lock | `sha256:cc45026e109df38a3b019192ed8b6807bae8bc787119b2b89fe5c7a6f28c05f1` |
 | Browser artifact manifest | `sha256:0585e09b211c3c2baa48cb03e9d9d9f2ce70e95599d5da76c16d4db40594ec56` |
 | Content artifact manifest | `sha256:1961f1e45ca7d4a39325c99fe5843486184d52006a41902424d817c230fe69fd` |
-| Packaged PK3 | `sha256:ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664`, 24,484,503 bytes |
+| Base content archive | `sha256:PLACEHOLDER_BASE`, PLACEHOLDER_BASE_SIZE bytes |
+| `oa_pvomit` map archive | `sha256:PLACEHOLDER_MAP`, PLACEHOLDER_MAP_SIZE bytes |
+
+**The content is a set of archives, not one PK3.** A base archive carries
+everything not tied to a map — the gamecode's own closure, the seven player
+presentations, the bots and the notices — and one archive per map carries that
+map and what only it reaches. Each is served under a name containing the first
+16 hex characters of its own SHA-256 under an immutable cache policy, so a
+published URL is never rewritten and a returning player re-downloads only what
+actually changed. The client fetches the base plus the archives for the maps it
+will play; the dedicated server carries every archive.
+
+**`contentPayloadIdentity` now names the base archive.** The field name did not
+change and no consumer sees an error, so it is called out here: it used to mean
+"the content", and it now means "the base payload". The map archives are
+covered through `contentManifestIdentity`, and every archive is additionally
+bound byte-for-byte to its counterpart in the server manifest.
 
 Run these commands from the immutable checkout after the generated browser and
 content directories have been reproduced:
@@ -241,7 +257,7 @@ baseline          sha256:cc45026e109df38a3b019192ed8b6807bae8bc787119b2b89fe5c7a
 ioq3               git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a
 browser manifest   sha256:0585e09b211c3c2baa48cb03e9d9d9f2ce70e95599d5da76c16d4db40594ec56
 content manifest   sha256:1961f1e45ca7d4a39325c99fe5843486184d52006a41902424d817c230fe69fd
-content PK3        sha256:ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664
+content base       sha256:PLACEHOLDER_BASE
 server manifest    sha256:41ea01e5450651bfae0c4fbdd62e2632209d40d2603bebc9dbe6ad9cb558a000
 server image ID    sha256:c26e24996457a9d21a816b2805bb460b7783b2dd1d3c236d20fbe3c88c4b128b
 ```
@@ -342,7 +358,7 @@ complete shipped-code/content provenance manifest:
 | --- | --- |
 | Original loader, scripts and documentation | repository `LICENSE`, GPL-2.0-or-later, at the immutable release commit |
 | Engine, QVMs and Emscripten runtime | `locks/baseline.json`, `manifests/browser-client.json` and the complete linked closure/notice table in `docs/wp1-build-evidence.md` |
-| Content PK3 | `content/pack-recipe.json`, member-level `provenance/arena-web-ffa-content.json`, `provenance/arena-web-ffa-content-manifest.json` and `docs/wp3-content-closure.md` |
+| Content archives | `content/pack-recipe.json`, the per-map fragments under `content/maps/` that its content manifest records by digest, member-level `provenance/arena-web-ffa-content.json`, `provenance/arena-web-ffa-content-manifest.json` and `docs/wp3-content-closure.md` |
 | Native server and base | `provenance/arena-web-server.json`, `native/server-profile.json` and the redistributed-runtime-base record in `locks/baseline.json` |
 
 The browser distribution must expose a durable adjacent **Source and
@@ -364,9 +380,11 @@ Corresponding source is the public ioq3 commit
 `596e56a6bf58f41e1ad9cc1685c7c11a75dba87a`, this repository at the browser
 manifest's producer/release commits, emsdk commit
 `e5bd3d0874e302a18f13c5b41f5bacf9a40c8e59`, the digest-pinned SDL port
-archive and IJG source archive. The PK3 already contains all six required
+archive and IJG source archive. Each archive already contains all six required
 notice members (`COPYING`, `CREDITS`, `CREDITS-0.8.5`, `CREDITS-0.8.8`,
-`README`, `NOTICE-arena-web.txt`); do not repack them out, and offer the six
+`README`, `NOTICE-arena-web.txt`) — **every archive carries the complete set**,
+because each is published under its own URL and redistributed on its own; do
+not repack them out, and offer the six
 digest-pinned preferred OpenArena source archives plus the recipe/assembly
 scripts. The server image must retain all 78 Debian per-package copyright
 files and the runtime base's complete-corresponding-source/public-archive and

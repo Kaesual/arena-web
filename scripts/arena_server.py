@@ -28,7 +28,13 @@ import shutil
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-from arena_runtime import file_sha256, manifest_index
+from arena_runtime import (
+    ArenaRuntimeError,
+    file_sha256,
+    load_map_fragment,
+    manifest_index,
+    manifest_map_inputs,
+)
 
 PROFILE_SOURCE = "native/server-profile.json"
 CONFIG_SOURCE_DIRECTORY = "native"
@@ -282,41 +288,9 @@ def _validate_against_browser_profile(
         _fail("profile.bots", "must be the browser slice's bots, in the same order")
 
 
-def _recipe_arena_for(
-    recipe_profile: dict[str, Any], map_name: str, what: str
-) -> dict[str, Any]:
-    """The recipe's arena definition for the one map this profile starts.
-
-    A pack may assemble several maps; a profile starts exactly one of them, and
-    that one has to be in the pack. The committed recipe still spells its single
-    map in the singular, so both spellings are read here —
-    `content_pack.profile_maps` documents why and which work package removes the
-    fallback.
-    """
-    if "maps" in recipe_profile:
-        packaged = _array(recipe_profile.get("maps"), "recipe.profile.maps")
-    else:
-        packaged = [_string(recipe_profile.get("map"), "recipe.profile.map")]
-    if map_name not in packaged:
-        _fail(what, f"must be a map the content recipe assembles: {sorted(packaged)}")
-    if "arenas" in recipe_profile:
-        arenas = _array(recipe_profile.get("arenas"), "recipe.profile.arenas")
-    else:
-        arenas = [_object(recipe_profile.get("arena"), "recipe.profile.arena")]
-    matches = [
-        arena
-        for arena in arenas
-        if _object(arena, "recipe.profile arena entry").get("map") == map_name
-    ]
-    if len(matches) != 1:
-        _fail(
-            "recipe.profile.arena",
-            f"must define map '{map_name}' exactly once, not {len(matches)} times",
-        )
-    return matches[0]
-
-
-def _validate_against_recipe(profile: dict[str, Any], recipe: dict[str, Any]) -> None:
+def _validate_against_recipe(
+    profile: dict[str, Any], recipe: dict[str, Any], repo_root: Path
+) -> None:
     """Bind the native profile to the audited content pack it starts."""
     recipe_profile = _object(recipe.get("profile"), "recipe.profile")
     package = _object(recipe.get("package"), "recipe.package")
@@ -324,7 +298,11 @@ def _validate_against_recipe(profile: dict[str, Any], recipe: dict[str, Any]) ->
         _fail(
             "profile.package", f"must equal the recipe package id '{package.get('id')}'"
         )
-    arena = _recipe_arena_for(recipe_profile, profile["map"], "profile.map")
+    try:
+        fragment = load_map_fragment(repo_root, profile["map"], CONTENT_MANIFEST)
+    except ArenaRuntimeError as error:
+        _fail("profile.map", str(error))
+    arena = fragment["arena"]
     if arena.get("type") != "ffa":
         _fail("recipe.profile.arena.type", "the native profile only starts an FFA arena")
     if profile["cvars"].get("fraglimit") != arena.get("fraglimit"):
@@ -448,7 +426,7 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
     )
     _validate_against_browser_profile(profile, browser)
     recipe = _object(_load_json(repo_root / RECIPE_SOURCE, RECIPE_SOURCE), "recipe")
-    _validate_against_recipe(profile, recipe)
+    _validate_against_recipe(profile, recipe, repo_root)
 
     for key, expected in (
         ("serverArguments", expected_server_arguments(profile)),
@@ -472,9 +450,27 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
     return profile
 
 
-def _content_pack_path(repo_root: Path) -> str:
+def _content_pack_paths(repo_root: Path) -> list[str]:
+    """Every archive the server image carries: the base plus one per map.
+
+    The dedicated server holds the whole supported map set and downloads
+    nothing, so it carries every archive the content manifest names. Which of
+    them a given rotation touches is a launch-time question, not a packaging
+    one.
+    """
     recipe = _object(_load_json(repo_root / RECIPE_SOURCE, RECIPE_SOURCE), "recipe")
-    return _string(recipe.get("packPath"), "recipe.packPath")
+    template = _string(recipe.get("mapPackTemplate"), "recipe.mapPackTemplate")
+    manifest = _object(
+        _load_json(repo_root / CONTENT_MANIFEST, CONTENT_MANIFEST), CONTENT_MANIFEST
+    )
+    try:
+        maps = manifest_map_inputs(manifest, CONTENT_MANIFEST)
+    except ArenaRuntimeError as error:
+        _fail(CONTENT_MANIFEST, str(error))
+    return sorted(
+        [_string(recipe.get("basePackPath"), "recipe.basePackPath")]
+        + [template.format(map=name) for name in maps]
+    )
 
 
 def _game_tree(
@@ -482,16 +478,16 @@ def _game_tree(
 ) -> dict[str, dict[str, Any]]:
     """The game directory one side needs, as ``relative path -> expected entry``."""
     basegame = profile["basegame"]
-    pack_path = _content_pack_path(repo_root)
     files: dict[str, dict[str, Any]] = {}
-    entry = profile["_manifests"]["content"][pack_path]
-    files[f"{basegame}/{PurePosixPath(pack_path).name}"] = {
-        "kind": "artifact",
-        "manifest": "content",
-        "artifactPath": pack_path,
-        "sha256": entry["sha256"],
-        "size": entry["size"],
-    }
+    for pack_path in _content_pack_paths(repo_root):
+        entry = profile["_manifests"]["content"][pack_path]
+        files[f"{basegame}/{PurePosixPath(pack_path).name}"] = {
+            "kind": "artifact",
+            "manifest": "content",
+            "artifactPath": pack_path,
+            "sha256": entry["sha256"],
+            "size": entry["size"],
+        }
     for module in modules:
         artifact_path = QVM_ARTIFACT.format(module=module)
         entry = profile["_manifests"]["engine"][artifact_path]

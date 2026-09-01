@@ -30,8 +30,14 @@ from content_pack import (  # noqa: E402
     file_sha256,
     iter_forbidden,
     load_recipe,
-    profile_arenas,
-    profile_maps,
+    AssembledArchive,
+    ClosureReport,
+    ShaderIndex,
+    check_duplicate_members,
+    check_shader_resolution,
+    load_map_fragments,
+    map_pack_path,
+    subtract_closure,
     provenance_sources,
     recipe_sources,
     validate_provenance,
@@ -515,9 +521,21 @@ class ProvenanceTests(unittest.TestCase):
         "scripts/bots.txt": ("arena-web", "content/pack-recipe.json", "generated"),
     }
 
+    def archive(self, members=None, origins=None, path="baseq3/base.pk3"):
+        return AssembledArchive(
+            path=path,
+            members=self.MEMBERS if members is None else members,
+            origins=self.ORIGINS if origins is None else origins,
+            recipe_input="content/pack-recipe.json",
+            recipe_identity="sha256:" + "1" * 64,
+        )
+
     def test_roles_obligations_and_notice_binding(self) -> None:
-        provenance = build_provenance(self.RECIPE, BASELINE, self.MEMBERS, self.ORIGINS)
-        by_path = {member["path"]: member for member in provenance["members"]}
+        provenance = build_provenance(self.RECIPE, BASELINE, [self.archive()])
+        self.assertEqual(len(provenance["archives"]), 1)
+        by_path = {
+            member["path"]: member for member in provenance["archives"][0]["members"]
+        }
         self.assertEqual(by_path["COPYING"]["role"], "notice")
         self.assertEqual(by_path["COPYING"]["noticePaths"], [])
         self.assertEqual(by_path["gfx/a.tga"]["role"], "asset")
@@ -537,7 +555,7 @@ class ProvenanceTests(unittest.TestCase):
         }
         origins = {path: self.ORIGINS[path] for path in members}
         with self.assertRaisesRegex(ContentError, "notice members are not packaged"):
-            build_provenance(self.RECIPE, BASELINE, members, origins)
+            build_provenance(self.RECIPE, BASELINE, [self.archive(members, origins)])
 
     def test_only_used_sources_are_declared(self) -> None:
         records = provenance_sources(self.RECIPE, {"upstream"})
@@ -546,7 +564,7 @@ class ProvenanceTests(unittest.TestCase):
     def test_a_disallowed_licence_is_rejected(self) -> None:
         recipe = json.loads(json.dumps(self.RECIPE))
         recipe["sources"][0]["licenseExpression"] = "CC-BY-NC-4.0"
-        provenance = build_provenance(recipe, BASELINE, self.MEMBERS, self.ORIGINS)
+        provenance = build_provenance(recipe, BASELINE, [self.archive()])
         with self.assertRaises(ContentError):
             validate_provenance(provenance, BASELINE)
 
@@ -657,6 +675,19 @@ class QvmReferenceTests(unittest.TestCase):
             self.assertNotIn(name, ("model", "sarge"))
 
 
+def _committed_provenance() -> dict:
+    return _load_json(ROOT / "provenance" / "arena-web-ffa-content.json")
+
+
+def _all_members(provenance: dict) -> list[dict]:
+    """Every member of every archive, which is what the whole-set checks read."""
+    return [
+        member
+        for archive in provenance["archives"]
+        for member in archive["members"]
+    ]
+
+
 class BuildGateTests(unittest.TestCase):
     """The gates in build-content-pack.py, exercised through its own module.
 
@@ -674,8 +705,15 @@ class BuildGateTests(unittest.TestCase):
         spec.loader.exec_module(module)
         cls.module = module
         cls.recipe = load_recipe(RECIPE_PATH)
+        cls.fragments = load_map_fragments(ROOT)
 
-    def _build(self, recipe: dict, archive_dir: Path, output: Path) -> int:
+    def _build(
+        self,
+        recipe: dict,
+        archive_dir: Path,
+        output: Path,
+        fragments: dict | None = None,
+    ) -> int:
         arguments = argparse.Namespace(
             archive_dir=archive_dir,
             output_dir=output,
@@ -683,14 +721,23 @@ class BuildGateTests(unittest.TestCase):
             manifest_output=output / "m.json",
             producer_commit="0" * 40,
         )
+        if fragments is None:
+            fragments = self.fragments
         with tempfile.TemporaryDirectory() as raw:
             fake_root = Path(raw)
             (fake_root / "content").mkdir()
+            (fake_root / "content" / "maps").mkdir()
             (fake_root / "locks").mkdir()
             (fake_root / "content" / "pack-recipe.json").write_text(
                 json.dumps(recipe, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
                 encoding="utf-8",
             )
+            for name, fragment in fragments.items():
+                (fake_root / "content" / "maps" / f"{name}.json").write_text(
+                    json.dumps(fragment, indent=2, sort_keys=True, ensure_ascii=False)
+                    + "\n",
+                    encoding="utf-8",
+                )
             (fake_root / "locks" / "baseline.json").write_bytes(
                 (ROOT / "locks" / "baseline.json").read_bytes()
             )
@@ -722,8 +769,9 @@ class BuildGateTests(unittest.TestCase):
     def test_an_expansion_without_a_declared_kind_stops_the_build(self) -> None:
         recipe = json.loads(json.dumps(self.recipe))
         for entry in recipe["templateExpansions"]:
-            if entry["template"] == "maps/%s.bsp":
+            if entry.get("expansions") and "kind" in entry:
                 entry.pop("kind")
+                break
         with tempfile.TemporaryDirectory() as raw:
             output = Path(raw)
             with self.assertRaisesRegex(ContentError, "declaring which"):
@@ -738,534 +786,270 @@ class BuildGateTests(unittest.TestCase):
                 with self.assertRaisesRegex(ContentError, "literal 'recipe'"):
                     self._build(recipe, output, output)
 
-    def test_an_inconsistent_profile_stops_the_build(self) -> None:
-        cases = (
-            (["profile", "arena", "map"], "elsewhere", "is not its map set"),
-            (["profile", "bots", 0, "model"], "nobody/default", "does not package"),
-            (["profile", "arena", "bots"], "Nobody", "does not list"),
-        )
-        for path, value, message in cases:
-            recipe = json.loads(json.dumps(self.recipe))
-            target = recipe
-            for key in path[:-1]:
-                target = target[key]
-            target[path[-1]] = value
-            with tempfile.TemporaryDirectory() as raw:
-                output = Path(raw)
-                with self.assertRaisesRegex(ContentError, message):
-                    self._build(recipe, output, output)
+    def test_a_map_template_carrying_a_whole_set_list_stops_the_build(self) -> None:
+        """The three `%s` map templates are derived per map, never listed.
 
-    def test_a_map_template_that_is_not_the_map_set_stops_the_build(self) -> None:
+        WP-A kept them as three flat lists every packaged map had to be added
+        to, so a map could join one and be forgotten in the others. Under
+        per-map archives they are expanded from the archive's own map, and a
+        recipe that still carries a list is refused rather than half-honoured.
+        """
         for template in ("maps/%s.bsp", "levelshots/%s", "levelshots/%s.tga"):
             recipe = json.loads(json.dumps(self.recipe))
             for entry in recipe["templateExpansions"]:
                 if entry["template"] == template:
-                    entry["expansions"] = []
+                    entry["expansions"] = ["maps/oa_pvomit.bsp"]
             with tempfile.TemporaryDirectory() as raw:
                 output = Path(raw)
-                with self.assertRaisesRegex(ContentError, "not to the profile's maps"):
+                with self.assertRaisesRegex(ContentError, "must not"):
                     self._build(recipe, output, output)
 
-    def test_a_second_map_missing_from_a_template_stops_the_build(self) -> None:
+    def test_a_map_template_without_its_per_map_shape_stops_the_build(self) -> None:
         recipe = json.loads(json.dumps(self.recipe))
-        profile = recipe["profile"]
-        arena = profile.pop("arena")
-        profile.pop("map")
-        profile["maps"] = ["oa_pvomit", "oa_shine"]
-        profile["arenas"] = [arena, dict(arena, map="oa_shine")]
-        # Only the BSP list learns about the second map; the two levelshot
-        # lists still name one. That is the flat-list trap this gate closes.
         for entry in recipe["templateExpansions"]:
-            if entry["template"] == "maps/%s.bsp":
-                entry["expansions"] = ["maps/oa_pvomit.bsp", "maps/oa_shine.bsp"]
+            if entry["template"] == "levelshots/%s":
+                entry["expandsPerMap"] = "levelshots/{map}.jpg"
         with tempfile.TemporaryDirectory() as raw:
             output = Path(raw)
-            with self.assertRaisesRegex(ContentError, "levelshots/%s"):
+            with self.assertRaisesRegex(ContentError, "must declare expandsPerMap"):
                 self._build(recipe, output, output)
 
-    def test_a_second_arena_must_repeat_the_profile_bots(self) -> None:
+    def test_a_non_map_template_declaring_a_per_map_shape_stops_the_build(self) -> None:
         recipe = json.loads(json.dumps(self.recipe))
-        profile = recipe["profile"]
-        arena = profile.pop("arena")
-        profile.pop("map")
-        profile["maps"] = ["oa_pvomit", "oa_shine"]
-        profile["arenas"] = [arena, dict(arena, map="oa_shine", bots="Skelebot")]
+        for entry in recipe["templateExpansions"]:
+            if entry["template"] not in self.module.MAP_TEMPLATES:
+                entry["expandsPerMap"] = "x/{map}"
+                break
         with tempfile.TemporaryDirectory() as raw:
             output = Path(raw)
-            with self.assertRaisesRegex(ContentError, "does not list"):
-                self._build(recipe, output, output)
-
-    def test_a_map_without_an_arena_stops_the_build(self) -> None:
-        recipe = json.loads(json.dumps(self.recipe))
-        profile = recipe["profile"]
-        arena = profile.pop("arena")
-        profile.pop("map")
-        profile["maps"] = ["oa_pvomit", "oa_shine"]
-        profile["arenas"] = [arena]
-        with tempfile.TemporaryDirectory() as raw:
-            output = Path(raw)
-            with self.assertRaisesRegex(ContentError, "is not its map set"):
+            with self.assertRaisesRegex(ContentError, "must not\\n?.*expandsPerMap|not a map template"):
                 self._build(recipe, output, output)
 
     def test_an_arena_missing_a_generated_field_stops_the_build(self) -> None:
-        recipe = json.loads(json.dumps(self.recipe))
-        recipe["profile"]["arena"].pop("longname")
+        fragments = json.loads(json.dumps(self.fragments))
+        fragments["oa_pvomit"]["arena"].pop("longname")
         with tempfile.TemporaryDirectory() as raw:
             output = Path(raw)
             with self.assertRaisesRegex(ContentError, r"is missing \['longname'\]"):
-                self._build(recipe, output, output)
+                self._build(self.recipe, output, output, fragments)
 
     def test_an_arena_value_that_breaks_the_generated_grammar_stops_the_build(
         self,
     ) -> None:
         for value in ('a "quoted" name', "a {braced} name", "a // comment", "two\nlines"):
-            recipe = json.loads(json.dumps(self.recipe))
-            recipe["profile"]["arena"]["longname"] = value
+            fragments = json.loads(json.dumps(self.fragments))
+            fragments["oa_pvomit"]["arena"]["longname"] = value
             with tempfile.TemporaryDirectory() as raw:
                 output = Path(raw)
                 with self.assertRaisesRegex(ContentError, "cannot carry unambiguously"):
-                    self._build(recipe, output, output)
+                    self._build(self.recipe, output, output, fragments)
 
     def test_an_empty_arena_value_stops_the_build(self) -> None:
-        recipe = json.loads(json.dumps(self.recipe))
-        recipe["profile"]["arena"]["longname"] = ""
+        fragments = json.loads(json.dumps(self.fragments))
+        fragments["oa_pvomit"]["arena"]["longname"] = ""
         with tempfile.TemporaryDirectory() as raw:
             output = Path(raw)
             with self.assertRaisesRegex(ContentError, "must be a non-empty string"):
+                self._build(self.recipe, output, output, fragments)
+
+    def test_a_fragment_whose_arena_names_another_map_stops_the_build(self) -> None:
+        fragments = json.loads(json.dumps(self.fragments))
+        fragments["oa_pvomit"]["arena"]["map"] = "elsewhere"
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "must define map"):
+                self._build(self.recipe, output, output, fragments)
+
+    def test_a_bot_model_the_profile_does_not_package_stops_the_build(self) -> None:
+        recipe = json.loads(json.dumps(self.recipe))
+        recipe["profile"]["bots"][0]["model"] = "nobody/default"
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "does not package"):
                 self._build(recipe, output, output)
 
-    def test_the_arena_text_limit_is_read_from_the_pinned_engine(self) -> None:
+    def test_an_engine_constant_is_read_from_the_pinned_tree(self) -> None:
         # The gamecode's own value, not a number restated here.
-        self.assertEqual(self.module._max_arenas_text(ROOT / "ioq3"), 8192)
+        self.assertEqual(
+            self.module._engine_constant(
+                ROOT / "ioq3", "MAX_BOTS_TEXT", self.module._GAMECODE_HEADER
+            ),
+            8192,
+        )
         with tempfile.TemporaryDirectory() as raw:
             fake = Path(raw) / "code" / "game"
             fake.mkdir(parents=True)
-            (fake / "bg_public.h").write_text("#define MAX_ARENAS 1024\n")
+            (fake / "bg_public.h").write_text("#define MAX_BOTS 1024\n")
             with self.assertRaisesRegex(ContentError, "no longer defines"):
-                self.module._max_arenas_text(Path(raw))
+                self.module._engine_constant(
+                    Path(raw), "MAX_BOTS_TEXT", self.module._GAMECODE_HEADER
+                )
 
-    def test_an_arena_file_the_engine_would_drop_stops_the_build(self) -> None:
-        """Every reader drops the whole file at MAX_ARENAS_TEXT, silently."""
+    def test_a_bot_file_the_engine_would_drop_stops_the_build(self) -> None:
+        """G_LoadBotsFromFile drops the whole file at MAX_BOTS_TEXT, and then
+        no bot connects at all — which §4.5 measured."""
         recipe = json.loads(json.dumps(self.recipe))
-        profile = recipe["profile"]
-        arena = profile.pop("arena")
-        profile.pop("map")
-        # ~106 bytes per block at this bot roster, so 80 blocks overruns 8192.
-        names = [f"oa_pvomit{index:03d}" for index in range(80)]
-        profile["maps"] = names
-        profile["arenas"] = [dict(arena, map=name) for name in names]
-        metadata = self.module._generated_metadata(recipe)
-        self.assertGreaterEqual(len(metadata["scripts/arenas.txt"].encode()), 8192)
-        with self.assertRaisesRegex(ContentError, "silently ignores"):
-            self.module._check_generated_metadata(
-                metadata, recipe, {f"maps/{name}.bsp": b"1" for name in names},
-                ROOT / "ioq3",
-            )
+        bot = recipe["profile"]["bots"][0]
+        recipe["profile"]["bots"] = [
+            dict(bot, name=f"Bot{index:03d}") for index in range(200)
+        ]
+        metadata = self.module._base_metadata(recipe)
+        self.assertGreaterEqual(len(metadata["scripts/bots.txt"].encode()), 8192)
+        with self.assertRaisesRegex(ContentError, "no bot connects"):
+            self.module._check_base_metadata(metadata, recipe, {}, ROOT / "ioq3")
 
-    def test_the_committed_arena_file_has_room_for_the_v1_map_set(self) -> None:
-        """The committed recipe is nowhere near the cap, and the v1 set is not either."""
-        limit = self.module._max_arenas_text(ROOT / "ioq3")
-        one = len(
-            self.module._generated_metadata(self.recipe)["scripts/arenas.txt"].encode()
-        )
-        self.assertLess(one, limit)
-        # 31 v1 maps at the committed bot roster; §13.1 of the plan.
-        self.assertLess(one * 31, limit)
-
-    def test_the_generated_arenas_file_carries_one_block_per_map(self) -> None:
-        recipe = json.loads(json.dumps(self.recipe))
-        profile = recipe["profile"]
-        arena = profile.pop("arena")
-        profile.pop("map")
-        profile["maps"] = ["oa_pvomit", "oa_shine"]
-        profile["arenas"] = [arena, dict(arena, map="oa_shine", longname="Shine")]
-        metadata = self.module._generated_metadata(recipe)
-        blocks = parse_key_value_blocks(metadata["scripts/arenas.txt"])
-        self.assertEqual([block["map"] for block in blocks], ["oa_pvomit", "oa_shine"])
-        self.assertEqual(blocks[1]["longname"], "Shine")
-
-    def test_one_arena_still_generates_the_bytes_it_generated_before(self) -> None:
-        metadata = self.module._generated_metadata(self.recipe)
+    def test_the_base_arena_file_names_no_map(self) -> None:
+        """The byte-stability property of the whole split, as a gate."""
+        metadata = self.module._base_metadata(self.recipe)
         self.assertEqual(
-            metadata["scripts/arenas.txt"],
-            '{\nmap\t\t"oa_pvomit"\nlongname\t\t"Projectile Vomit"\n'
-            'bots\t\t"Skelebot Rai Sly"\nfraglimit\t\t"15"\ntype\t\t"ffa"\n}\n',
+            parse_key_value_blocks(metadata["scripts/arenas.txt"]), []
         )
+        named = dict(metadata)
+        named["scripts/arenas.txt"] += '{\nmap\t\t"oa_pvomit"\n}\n'
+        with self.assertRaisesRegex(ContentError, "must not depend on which maps"):
+            self.module._check_base_metadata(named, self.recipe, {}, ROOT / "ioq3")
 
-    @staticmethod
-    def _derived_entry(recipe: dict, reference: str) -> dict:
-        for entry in recipe["derivedReferences"]:
-            if entry["reference"] == reference:
-                return entry
-        raise AssertionError(f"recipe has no derived reference {reference}")
+    def test_the_arena_file_listing_budget_comes_from_the_engine(self) -> None:
+        """G_LoadArenas truncates the .arena listing silently, so it is a gate."""
+        self.module._check_arena_file_listing(ROOT / "ioq3", ["oa_pvomit.arena"])
+        many = [f"a_very_long_map_name_{index:04d}.arena" for index in range(40)]
+        with self.assertRaisesRegex(ContentError, "without a word"):
+            self.module._check_arena_file_listing(ROOT / "ioq3", many)
 
-    def test_the_committed_derived_references_verify_against_the_pinned_tree(
-        self,
-    ) -> None:
-        references = baseq3_references(ROOT / "ioq3")
-        static = self.module._static_reference_paths(references)
-        sites = self.module._reconcile_construction_sites(self.recipe, ROOT / "ioq3")
-        models = self.module._weapon_world_models(ROOT / "ioq3")
-        self.assertEqual(len(sites), 5)
-        self.assertIn(
-            ("code/q3_ui/ui_players.c", "_flash.md3"),
-            {(site["file"], site["appends"]) for site in sites},
+    def test_the_map_metadata_is_one_arena_for_its_own_map(self) -> None:
+        metadata = self.module._map_metadata(self.fragments["oa_pvomit"])
+        self.assertEqual(list(metadata), ["scripts/oa_pvomit.arena"])
+        blocks = parse_key_value_blocks(metadata["scripts/oa_pvomit.arena"])
+        self.assertEqual([block["map"] for block in blocks], ["oa_pvomit"])
+        self.module._check_map_metadata(
+            "oa_pvomit", metadata, {"maps/oa_pvomit.bsp": b"1"}
         )
-        self.assertEqual(len(models), 10)
-        self.assertIn("models/weapons2/grapple/grapple.md3", models)
-        included = self.module._check_derived_references(
-            self.recipe, sites, models, static
-        )
-        self.assertEqual(len(included), 13)
-        included_references = {entry["reference"] for entry in included}
-        self.assertIn("models/weapons2/rocketl/rocketl_hand.md3", included_references)
-        self.assertIn("models/weapons2/bfg/bfg_hand.md3", included_references)
-        self.assertNotIn(
-            "models/weapons2/grapple/grapple_barrel.md3", included_references
-        )
-        self.assertNotIn(
-            "models/weapons2/machinegun/machinegun_hand.md3", included_references
-        )
+        with self.assertRaisesRegex(ContentError, "does not carry"):
+            self.module._check_map_metadata("oa_pvomit", metadata, {})
 
-    def test_the_suffix_scan_is_bounded_to_the_compiled_translation_units(
-        self,
-    ) -> None:
-        scanned = self.module._scan_derived_suffix_sites(ROOT / "ioq3")
-        self.assertEqual(
-            scanned,
-            {
-                ("code/cgame/cg_weapons.c", "_flash.md3"),
-                ("code/cgame/cg_weapons.c", "_barrel.md3"),
-                ("code/cgame/cg_weapons.c", "_hand.md3"),
-                ("code/q3_ui/ui_players.c", "_barrel.md3"),
-                ("code/q3_ui/ui_players.c", "_flash.md3"),
+
+class MapFragmentTests(unittest.TestCase):
+    """The per-map recipe fragments: the directory *is* the map set."""
+
+    def _fragment(self, **overrides) -> dict:
+        fragment = {
+            "map": "a_map",
+            "arena": {
+                "map": "a_map",
+                "longname": "A Map",
+                "bots": "Skelebot",
+                "fraglimit": "15",
+                "type": "ffa",
             },
-        )
-        # The missionpack UI performs the same surgery but is not compiled
-        # into the baseq3 QVMs, so it must not appear.
-        self.assertNotIn(
-            ("code/ui/ui_players.c", "_flash.md3"),
-            scanned,
-        )
-
-    def test_an_invalid_construction_site_stops_the_build(self) -> None:
-        cases = (
-            ({"lines": [1, 3]}, "does not construct"),
-            ({"file": "code/cgame/cg_invented.c"}, "cannot read constructing"),
-            ({"lines": [400000, 400002]}, "the recipe names"),
-            ({"file": "../outside.c"}, "outside the engine tree"),
-            # The overlapping-range attack: cg_weapons.c:658-668 contains all
-            # three suffixes, so a range that wide must be refused outright.
-            ({"lines": [658, 668]}, "cites 11 lines"),
-            # The citation-drift attack the re-verification found: a 5-line
-            # range shifted off the true flash site still contains a strip, a
-            # suffix and two traps, so only the span bound refuses it.
-            ({"lines": [659, 663]}, "cites 5 lines"),
-            # A three-line window shifted by one line drops a marker in each
-            # direction: up loses the registration trap, down loses the strip.
-            ({"lines": [657, 659]}, "does not construct"),
-            ({"lines": [659, 661]}, "does not construct"),
-        )
-        for override, message in cases:
-            recipe = json.loads(json.dumps(self.recipe))
-            recipe["derivedConstructionSites"][0].update(override)
-            with tempfile.TemporaryDirectory() as raw:
-                output = Path(raw)
-                with self.assertRaisesRegex(ContentError, message):
-                    self._build(recipe, output, output)
-
-    def test_an_unparseable_weapon_entry_stops_the_build(self) -> None:
-        # _WEAPON_ITEM_RE skipping an entry it cannot match must not silently
-        # shrink the derivation space: the builder requires the pinned count.
-        with tempfile.TemporaryDirectory() as raw:
-            fake_engine = Path(raw)
-            (fake_engine / "code" / "game").mkdir(parents=True)
-            (fake_engine / "code" / "game" / "bg_misc.c").write_text(
-                "{\n"
-                '"weapon_gauntlet",\n'
-                '"sound/misc/w_pkup.wav",\n'
-                '{ "models/weapons2/gauntlet/gauntlet.md3",\n'
-                "0, 0, 0},\n"
-                "}\n",
-                encoding="utf-8",
-            )
-            with self.assertRaisesRegex(ContentError, "expected 10"):
-                self.module._weapon_world_models(fake_engine)
-
-    def test_an_undeclared_or_invented_construction_site_stops_the_build(
-        self,
-    ) -> None:
-        # Dropping a site the pinned sources contain fails the reverse
-        # direction of the site reconciliation.
-        recipe = json.loads(json.dumps(self.recipe))
-        recipe["derivedConstructionSites"] = [
-            site
-            for site in recipe["derivedConstructionSites"]
-            if site["file"] != "code/q3_ui/ui_players.c"
-        ]
-        with tempfile.TemporaryDirectory() as raw:
-            output = Path(raw)
-            with self.assertRaisesRegex(ContentError, "does not declare"):
-                self._build(recipe, output, output)
-        # Declaring real constructing code in a file the baseq3 QVMs do not
-        # compile fails the forward direction: the missionpack ui_players.c
-        # carries the same surgery, but it is outside the compiled set.
-        recipe = json.loads(json.dumps(self.recipe))
-        recipe["derivedConstructionSites"].append(
-            {
-                "appends": "_flash.md3",
-                "file": "code/ui/ui_players.c",
-                "lines": [97, 99],
-            }
-        )
-        with tempfile.TemporaryDirectory() as raw:
-            output = Path(raw)
-            with self.assertRaisesRegex(ContentError, "do not contain"):
-                self._build(recipe, output, output)
-
-    def test_an_entry_citing_an_undeclared_construction_stops_the_build(
-        self,
-    ) -> None:
-        recipe = json.loads(json.dumps(self.recipe))
-        entry = self._derived_entry(
-            recipe, "models/weapons2/lightning/lightning_flash.md3"
-        )
-        entry["construction"]["lines"] = [657, 660]
-        with tempfile.TemporaryDirectory() as raw:
-            output = Path(raw)
-            with self.assertRaisesRegex(ContentError, "declared construction site"):
-                self._build(recipe, output, output)
-
-    def test_a_derived_reference_must_be_derivable_from_its_base(self) -> None:
-        recipe = json.loads(json.dumps(self.recipe))
-        entry = self._derived_entry(
-            recipe, "models/weapons2/lightning/lightning_flash.md3"
-        )
-        entry["constructedFrom"] = "models/weapons2/plasma/plasma.md3"
-        with tempfile.TemporaryDirectory() as raw:
-            output = Path(raw)
-            with self.assertRaisesRegex(ContentError, "extension replaced"):
-                self._build(recipe, output, output)
-
-    def test_a_derived_base_outside_the_weapon_items_stops_the_build(self) -> None:
-        recipe = json.loads(json.dumps(self.recipe))
-        entry = self._derived_entry(
-            recipe, "models/weapons2/lightning/lightning_flash.md3"
-        )
-        entry["constructedFrom"] = "models/weapons2/invented/invented.md3"
-        entry["reference"] = "models/weapons2/invented/invented_flash.md3"
-        entry["members"] = [entry["reference"]]
-        with tempfile.TemporaryDirectory() as raw:
-            output = Path(raw)
-            with self.assertRaisesRegex(ContentError, "not a weapon world model"):
-                self._build(recipe, output, output)
-
-    def test_a_recipe_without_the_derived_category_is_rejected(self) -> None:
-        recipe = json.loads(json.dumps(self.recipe))
-        del recipe["derivedReferences"]
-        with tempfile.TemporaryDirectory() as raw:
-            output = Path(raw)
-            with self.assertRaisesRegex(MetadataError, "derivedReferences"):
-                self._build(recipe, output, output)
-
-    def test_the_reverse_reconciliation_covers_the_derivation_space(self) -> None:
-        class Sources:
-            def __init__(self, paths: set[str]) -> None:
-                self._paths = {path.lower() for path in paths}
-
-            def __contains__(self, path: str) -> bool:
-                return path.lower() in self._paths
-
-        sites = [{"appends": "_hand.md3", "file": "f.c", "lines": [1, 3]}]
-        models = ["models/weapons2/rocketl/rocketl.md3"]
-        name = "models/weapons2/rocketl/rocketl_hand.md3"
-        reconcile = self.module._reconcile_derivation_space
-        # A constructible name a pinned archive provides, with no entry: fail.
-        with self.assertRaisesRegex(ContentError, "neither includes nor excludes"):
-            reconcile([], sites, models, set(), Sources({name}))
-        # Absent upstream: nothing to declare.
-        reconcile([], sites, models, set(), Sources(set()))
-        # Statically extracted: the ordinary closure owns it.
-        reconcile([], sites, models, {name}, Sources({name}))
-        # An exclusion satisfies the space...
-        excluded = [{"reference": name, "excludedReason": "outside the profile"}]
-        reconcile(excluded, sites, models, set(), Sources({name}))
-        # ...but a stale exclusion of a file no source provides fails.
-        with self.assertRaisesRegex(ContentError, "stale"):
-            reconcile(excluded, sites, models, set(), Sources(set()))
-
-    def test_a_statically_visible_name_is_refused_in_the_derived_category(
-        self,
-    ) -> None:
-        # The live example: cg_weapons.c holds the shotgun_hand fallback as a
-        # path-shaped literal, so it is not a derived reference and an entry
-        # claiming so misdescribes the closure.
-        recipe = json.loads(json.dumps(self.recipe))
-        recipe["derivedReferences"].append(
-            {
-                "constructedFrom": "models/weapons2/shotgun/shotgun.md3",
-                "construction": {
-                    "appends": "_hand.md3",
-                    "file": "code/cgame/cg_weapons.c",
-                    "lines": [666, 668],
-                },
-                "kind": "model",
-                "members": ["models/weapons2/shotgun/shotgun_hand.md3"],
-                "reference": "models/weapons2/shotgun/shotgun_hand.md3",
-            }
-        )
-        with tempfile.TemporaryDirectory() as raw:
-            output = Path(raw)
-            with self.assertRaisesRegex(ContentError, "itself statically"):
-                self._build(recipe, output, output)
-
-    def test_a_malformed_derived_entry_stops_the_build(self) -> None:
-        base = self._derived_entry(
-            self.recipe, "models/weapons2/lightning/lightning_flash.md3"
-        )
-        cases = (
-            ({"excludedReason": "both included and excluded at once"}, "unexpected fields"),
-            ({"members": None}, "unexpected fields"),
-            ({"kind": "weapon"}, "unknown kind"),
-        )
-        for override, message in cases:
-            recipe = json.loads(json.dumps(self.recipe))
-            entry = self._derived_entry(
-                recipe, "models/weapons2/lightning/lightning_flash.md3"
-            )
-            entry.update(json.loads(json.dumps(override)))
-            if entry.get("members") is None and "members" in entry:
-                del entry["members"]
-            with tempfile.TemporaryDirectory() as raw:
-                output = Path(raw)
-                with self.assertRaisesRegex(ContentError, message):
-                    self._build(recipe, output, output)
-        recipe = json.loads(json.dumps(self.recipe))
-        recipe["derivedReferences"].append(json.loads(json.dumps(base)))
-        with tempfile.TemporaryDirectory() as raw:
-            output = Path(raw)
-            with self.assertRaisesRegex(ContentError, "declared twice"):
-                self._build(recipe, output, output)
-        # Duplicate detection keys on the reference alone, so the same
-        # reference under a second kind is still a duplicate.
-        recipe = json.loads(json.dumps(self.recipe))
-        duplicate = json.loads(json.dumps(base))
-        duplicate["kind"] = "file"
-        recipe["derivedReferences"].append(duplicate)
-        with tempfile.TemporaryDirectory() as raw:
-            output = Path(raw)
-            with self.assertRaisesRegex(ContentError, "declared twice"):
-                self._build(recipe, output, output)
-        recipe = json.loads(json.dumps(self.recipe))
-        entry = self._derived_entry(
-            recipe, "models/weapons2/grapple/grapple_barrel.md3"
-        )
-        entry["excludedReason"] = "   "
-        with tempfile.TemporaryDirectory() as raw:
-            output = Path(raw)
-            with self.assertRaisesRegex(ContentError, "without a reason"):
-                self._build(recipe, output, output)
-
-    def test_a_derived_member_the_closure_did_not_package_stops_the_build(
-        self,
-    ) -> None:
-        entries = [
-            {
-                "reference": "models/weapons2/x/x_flash.md3",
-                "members": ["models/weapons2/x/x_flash.md3"],
-            }
-        ]
-        with self.assertRaisesRegex(ContentError, "did not package"):
-            self.module._check_derived_members(entries, {})
-        self.module._check_derived_members(
-            entries, {"models/weapons2/x/x_flash.md3": object()}
-        )
-
-    def test_a_packaged_excluded_reference_stops_the_build(self) -> None:
-        # The exclusion is a build property: an excluded reference that ends
-        # up in the closure anyway is refused, not merely caught by the
-        # committed-record tests.
-        entries = [
-            {
-                "reference": "models/weapons2/x/x_hand.md3",
-                "excludedReason": "outside the profile",
-            }
-        ]
-        self.module._check_derived_members(entries, {})
-        with self.assertRaisesRegex(ContentError, "packaged anyway"):
-            self.module._check_derived_members(
-                entries, {"models/weapons2/x/x_hand.md3": object()}
-            )
-
-    def test_generated_metadata_must_agree_with_the_members(self) -> None:
-        recipe = {
-            "profile": {
-                "map": "m",
-                "bots": [{"name": "B", "model": "x/default", "aifile": "bots/x_c.c"}],
-            }
+            "acceptedUnresolved": [],
+            "generatedMembers": ["NOTICE-arena-web.txt"],
         }
-        metadata = {
-            "scripts/arenas.txt": '{\nmap\t\t"m"\n}\n',
-            "scripts/bots.txt": (
-                '{\nname\t\t"B"\nmodel\t\t"x/default"\naifile\t\t"bots/x_c.c"\n}\n'
-            ),
+        fragment.update(overrides)
+        return fragment
+
+    def _write(self, root: Path, name: str, fragment: dict) -> None:
+        directory = root / "content" / "maps"
+        directory.mkdir(parents=True, exist_ok=True)
+        (directory / f"{name}.json").write_text(
+            json.dumps(fragment, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+
+    def test_the_committed_fragment_set_loads(self) -> None:
+        fragments = load_map_fragments(ROOT)
+        self.assertEqual(sorted(fragments), ["oa_pvomit"])
+        self.assertEqual(fragments["oa_pvomit"]["arena"]["map"], "oa_pvomit")
+
+    def test_no_fragment_directory_is_an_empty_map_set(self) -> None:
+        """A base with no map at all is a legal product, not an error."""
+        with tempfile.TemporaryDirectory() as raw:
+            self.assertEqual(load_map_fragments(Path(raw)), {})
+
+    def test_a_fragment_named_after_another_map_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._write(root, "a_map", self._fragment(map="other"))
+            with self.assertRaisesRegex(ContentError, "its file name"):
+                load_map_fragments(root)
+
+    def test_a_fragment_with_the_wrong_field_set_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            fragment = self._fragment()
+            fragment["extra"] = 1
+            self._write(root, "a_map", fragment)
+            with self.assertRaisesRegex(ContentError, "exactly the fields"):
+                load_map_fragments(root)
+
+    def test_a_non_json_file_in_the_fragment_directory_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._write(root, "a_map", self._fragment())
+            (root / "content" / "maps" / "notes.txt").write_text("x")
+            with self.assertRaisesRegex(ContentError, "not a .json fragment"):
+                load_map_fragments(root)
+
+    def test_an_arena_for_another_map_is_rejected(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            fragment = self._fragment()
+            fragment["arena"]["map"] = "other"
+            self._write(root, "a_map", fragment)
+            with self.assertRaisesRegex(ContentError, "must define map"):
+                load_map_fragments(root)
+
+    def test_the_map_pack_path_is_derived_from_the_template(self) -> None:
+        recipe = {"mapPackTemplate": "baseq3/p-{map}.pk3"}
+        self.assertEqual(map_pack_path(recipe, "a_map"), "baseq3/p-a_map.pk3")
+
+
+class ArchiveSetTests(unittest.TestCase):
+    """§6.1's invariants, over a finished archive set."""
+
+    def test_a_member_two_archives_disagree_on_is_refused(self) -> None:
+        archives = {
+            "base.pk3": {"gfx/a.tga": b"one"},
+            "map.pk3": {"gfx/a.tga": b"two"},
         }
-        members = {
-            "maps/m.bsp": b"1",
-            "models/players/x/lower.md3": b"2",
-            "botfiles/bots/x_c.c": b"3",
+        with self.assertRaisesRegex(ContentError, "different bytes in two archives"):
+            check_duplicate_members(archives)
+        check_duplicate_members(archives, exempt=["gfx/a.tga"])
+        check_duplicate_members({"base.pk3": {"gfx/a.tga": b"one"},
+                                 "map.pk3": {"gfx/a.tga": b"one"}})
+
+    def test_a_shader_name_the_runtime_resolves_elsewhere_is_refused(self) -> None:
+        """The lowest-named PK3 wins a shader name; the closure must agree."""
+        base = b"models/x/skin\n{\n{\nmap models/x/skin.tga\n}\n}\n"
+        other = b"models/x/skin\n{\n{\nmap models/x/other.tga\n}\n}\n"
+        archives = {
+            "arena-web-ffa-base.pk3": {"scripts/a.shader": base},
+            "arena-web-ffa-map-m.pk3": {"scripts/z.shader": other},
         }
-        engine = ROOT / "ioq3"
-        self.module._check_generated_metadata(metadata, recipe, members, engine)
-        with self.assertRaisesRegex(ContentError, "not a packaged member"):
-            self.module._check_generated_metadata(
-                metadata, recipe, {"maps/m.bsp": b"1"}, engine
-            )
-        wrong_map = dict(metadata, **{"scripts/arenas.txt": '{\nmap\t\t"o"\n}\n'})
-        with self.assertRaisesRegex(ContentError, "profile map"):
-            self.module._check_generated_metadata(wrong_map, recipe, members, engine)
+        # Closed against the base's file, which is also the run-time winner.
+        check_shader_resolution(archives, {"models/x/skin": "scripts/a.shader"})
+        # Closed against the map's file, which the base's would beat.
+        with self.assertRaisesRegex(ContentError, "wins at run time"):
+            check_shader_resolution(archives, {"models/x/skin": "scripts/z.shader"})
 
+    def test_a_shader_no_archive_packages_is_refused(self) -> None:
+        with self.assertRaisesRegex(ContentError, "no archive packages"):
+            check_shader_resolution({"base.pk3": {}}, {"x": "scripts/a.shader"})
 
-class MapSetTests(unittest.TestCase):
-    """The recipe's map set, in both the singular and the plural spelling."""
+    def test_the_subtraction_keeps_the_notice_set(self) -> None:
+        def report(paths):
+            found = ClosureReport()
+            for path in paths:
+                found.members[path] = object()
+            return found
 
-    def test_the_singular_spelling_is_the_one_map_set(self) -> None:
-        profile = {"map": "a", "arena": {"map": "a", "type": "ffa"}}
-        self.assertEqual(profile_maps(profile), ["a"])
-        self.assertEqual(profile_arenas(profile), [{"map": "a", "type": "ffa"}])
-
-    def test_the_plural_spelling_keeps_the_recipe_order(self) -> None:
-        profile = {
-            "maps": ["b", "a"],
-            "arenas": [{"map": "b"}, {"map": "a"}],
-        }
-        self.assertEqual(profile_maps(profile), ["b", "a"])
-        self.assertEqual(profile_arenas(profile), [{"map": "b"}, {"map": "a"}])
-
-    def test_a_map_name_that_is_not_a_non_empty_string_is_rejected(self) -> None:
-        for maps in (["a", ""], ["a", None], ["a", 3]):
-            with self.assertRaisesRegex(ContentError, "non-empty map names"):
-                profile_maps({"maps": maps})
-
-    def test_an_arena_that_is_not_an_object_is_rejected(self) -> None:
-        with self.assertRaisesRegex(ContentError, "must contain arena objects"):
-            profile_arenas({"arenas": [{"map": "a"}, "b"]})
-
-    def test_a_map_named_twice_is_rejected(self) -> None:
-        with self.assertRaisesRegex(ContentError, "names a map twice"):
-            profile_maps({"maps": ["a", "a"]})
-
-    def test_a_profile_without_either_spelling_is_rejected(self) -> None:
-        with self.assertRaisesRegex(ContentError, "must declare maps"):
-            profile_maps({})
-        with self.assertRaisesRegex(ContentError, "must declare arenas"):
-            profile_arenas({})
-
-    def test_an_empty_map_set_is_rejected(self) -> None:
-        with self.assertRaisesRegex(ContentError, "non-empty"):
-            profile_maps({"maps": []})
-        with self.assertRaisesRegex(ContentError, "non-empty"):
-            profile_arenas({"arenas": []})
+        base = report(["copying", "gfx/a.tga"])
+        archive = report(["copying", "gfx/a.tga", "maps/m.bsp"])
+        self.assertEqual(
+            sorted(subtract_closure(archive, base)), ["maps/m.bsp"]
+        )
+        self.assertEqual(
+            sorted(subtract_closure(archive, base, keep=["COPYING"])),
+            ["copying", "maps/m.bsp"],
+        )
 
 
 class CommittedRecipeTests(unittest.TestCase):
@@ -1287,7 +1071,11 @@ class CommittedRecipeTests(unittest.TestCase):
 
     def test_every_template_expansion_is_declared_or_explained(self) -> None:
         for entry in self.recipe["templateExpansions"]:
-            if not entry["expansions"]:
+            if "expandsPerMap" in entry:
+                # A map template is derived from the archive's own map, so it
+                # carries neither a whole-set list nor a reason for having none.
+                continue
+            if not entry.get("expansions"):
                 self.assertIn("reason", entry, entry["template"])
                 self.assertGreater(len(entry["reason"]), 30, entry["template"])
 
@@ -1301,7 +1089,7 @@ class CommittedRecipeTests(unittest.TestCase):
 
     def test_every_expanding_template_declares_the_kind_it_expands_to(self) -> None:
         for entry in self.recipe["templateExpansions"]:
-            if entry["expansions"]:
+            if entry.get("expansions"):
                 self.assertIn("kind", entry, entry["template"])
                 self.assertIn(
                     entry["kind"],
@@ -1325,8 +1113,8 @@ class CommittedRecipeTests(unittest.TestCase):
             registered |= {name for _kind, name in module.registrations}
         for name in ("white", "menuback", "powerups/quad", "viewBloodBlend"):
             self.assertIn(name, registered)
-        provenance = _load_json(ROOT / "provenance" / "arena-web-ffa-content.json")
-        paths = {member["path"].lower() for member in provenance["members"]}
+        provenance = _committed_provenance()
+        paths = {member["path"].lower() for member in _all_members(provenance)}
         self.assertIn("scripts/newmenu.shader", paths)
 
     def test_every_derived_reference_is_included_or_excluded_with_a_reason(
@@ -1341,8 +1129,8 @@ class CommittedRecipeTests(unittest.TestCase):
                 self.assertTrue(entry["members"], entry["reference"])
 
     def test_the_committed_provenance_packages_every_derived_member(self) -> None:
-        provenance = _load_json(ROOT / "provenance" / "arena-web-ffa-content.json")
-        paths = {member["path"].lower() for member in provenance["members"]}
+        provenance = _committed_provenance()
+        paths = {member["path"].lower() for member in _all_members(provenance)}
         for entry in self.recipe["derivedReferences"]:
             if "excludedReason" in entry:
                 self.assertNotIn(entry["reference"].lower(), paths)
@@ -1350,9 +1138,21 @@ class CommittedRecipeTests(unittest.TestCase):
             for member in entry["members"]:
                 self.assertIn(member.lower(), paths)
 
-    def test_the_committed_provenance_has_the_amended_member_count(self) -> None:
-        provenance = _load_json(ROOT / "provenance" / "arena-web-ffa-content.json")
-        self.assertEqual(len(provenance["members"]), 698)
+    def test_the_committed_provenance_covers_every_published_archive(self) -> None:
+        provenance = _committed_provenance()
+        manifest = _load_json(
+            ROOT / "provenance" / "arena-web-ffa-content-manifest.json"
+        )
+        self.assertEqual(
+            sorted(archive["path"] for archive in provenance["archives"]),
+            sorted(item["path"] for item in manifest["artifacts"]),
+        )
+        # Each archive is published under its own URL and redistributed on its
+        # own, so each carries the complete notice set.
+        for archive in provenance["archives"]:
+            paths = {member["path"] for member in archive["members"]}
+            for notice in self.recipe["notices"]:
+                self.assertIn(notice, paths, archive["path"])
 
     def test_the_committed_manifest_binds_the_recipe_by_digest(self) -> None:
         # The committed manifest's arena-web input identity is the recipe's
@@ -1382,22 +1182,23 @@ class CommittedRecipeTests(unittest.TestCase):
         self.assertEqual(manifest["baselineInputIds"], ["ioq3"])
 
     def test_committed_provenance_matches_the_pack_profile(self) -> None:
-        provenance = _load_json(ROOT / "provenance" / "arena-web-ffa-content.json")
+        provenance = _committed_provenance()
         self.assertEqual(provenance["package"]["id"], self.recipe["package"]["id"])
-        paths = {member["path"] for member in provenance["members"]}
-        self.assertIn(f"maps/{self.recipe['profile']['map']}.bsp", paths)
-        self.assertIn(f"maps/{self.recipe['profile']['map']}.aas", paths)
+        paths = {member["path"] for member in _all_members(provenance)}
+        for name in load_map_fragments(ROOT):
+            self.assertIn(f"maps/{name}.bsp", paths)
+            self.assertIn(f"maps/{name}.aas", paths)
         self.assertFalse(iter_forbidden(paths))
         for notice in self.recipe["notices"]:
             self.assertIn(notice, paths)
-        roles = {member["path"]: member["role"] for member in provenance["members"]}
+        roles = {member["path"]: member["role"] for member in _all_members(provenance)}
         for notice in self.recipe["notices"]:
             self.assertEqual(roles[notice], "notice")
 
     def test_committed_provenance_declares_one_allowed_licence(self) -> None:
-        provenance = _load_json(ROOT / "provenance" / "arena-web-ffa-content.json")
+        provenance = _committed_provenance()
         allowed = set(BASELINE["licensePolicy"]["productInputAllowedExpressions"])
-        expressions = {member["licenseExpression"] for member in provenance["members"]}
+        expressions = {member["licenseExpression"] for member in _all_members(provenance)}
         self.assertEqual(expressions, {"GPL-2.0-or-later"})
         self.assertTrue(expressions <= allowed)
 
