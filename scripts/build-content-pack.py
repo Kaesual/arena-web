@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: GPL-2.0-or-later
 """Assemble the audited arena-web content pack and emit its committed identities.
 
-The closure roots are the pinned `baseq3` QVM references plus the one map, one
-player presentation and bot data the recipe names. Everything else follows from
-the content itself. The PK3 goes to a gitignored build directory; the provenance
+The closure roots are the pinned `baseq3` QVM references plus the maps, player
+presentations and bot data the recipe names. Everything else follows from the
+content itself. The PK3 goes to a gitignored build directory; the provenance
 record, artifact manifest and closure report are the reviewable outputs.
 """
 
@@ -26,6 +26,8 @@ from content_pack import (
     file_sha256,
     iter_forbidden,
     load_recipe,
+    profile_arenas,
+    profile_maps,
     recipe_sources,
     provenance_sources,
     validate_provenance,
@@ -88,6 +90,12 @@ _DERIVED_REGISTRATION_TRAP = "trap_R_RegisterModel"
 # such spelling; a future engine pin must be re-checked when it moves.
 _SUFFIX_LITERAL_RE = re.compile(r'"(_[A-Za-z0-9]+\.md3)"')
 
+# `#define MAX_ARENAS_TEXT 8192` as the pinned gamecode spells it. Read from the
+# tree rather than hard-coded, so an engine pin that changes it cannot leave this
+# gate silently permissive.
+_MAX_ARENAS_TEXT_RE = re.compile(r"^#define\s+MAX_ARENAS_TEXT\s+(\d+)\s*$", re.M)
+
+
 # One bg_itemlist weapon entry: classname, pickup sound, then world_model[0].
 _WEAPON_ITEM_RE = re.compile(r'"(weapon_\w+)"\s*,\s*"[^"]*"\s*,\s*\{\s*"([^"]+)"')
 
@@ -103,13 +111,62 @@ def _encode(value: Any) -> str:
     return json.dumps(value, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
 
+# The keys `_generated_metadata` writes into every `scripts/arenas.txt` block,
+# in the order it writes them.
+ARENA_FIELDS = ("map", "longname", "bots", "fraglimit", "type")
+
+# What may not appear in an arena value. The generated file is read back by
+# `parse_key_value_blocks`, which is a Python regex, and at run time by the
+# gamecode's `COM_Parse`, which is not: braces would open or close a block for
+# one reader and not the other, a quote would end a token, and `//` starts a
+# comment the two strip differently. Upstream longnames are ordinary text, so
+# this rejects rather than escapes — an arena value that needs any of these is a
+# decision, not an encoding problem.
+_ARENA_VALUE_FORBIDDEN = ('"', "{", "}", "//", "/*", "\n", "\r", "\t")
+
+
+def _check_arena_fields(arena: dict[str, Any]) -> None:
+    """Require an arena to carry exactly the fields the generator writes."""
+    if not isinstance(arena, dict):
+        raise ContentError(f"profile arena {arena!r} is not an object")
+    missing = [key for key in ARENA_FIELDS if key not in arena]
+    if missing:
+        raise ContentError(f"profile arena {arena!r} is missing {missing}")
+    for key in ARENA_FIELDS:
+        value = arena[key]
+        if not isinstance(value, str) or not value:
+            raise ContentError(
+                f"profile arena field {key!r} must be a non-empty string, "
+                f"not {value!r}"
+            )
+        for token in _ARENA_VALUE_FORBIDDEN:
+            if token in value:
+                raise ContentError(
+                    f"profile arena field {key!r} contains {token!r}, which the "
+                    "generated scripts/arenas.txt cannot carry unambiguously"
+                )
+
+
 def _check_profile(recipe: dict[str, Any]) -> None:
-    """Reject a profile whose parts disagree before anything is assembled."""
+    """Reject a profile whose parts disagree before anything is assembled.
+
+    Every packaged map needs exactly one arena definition and every arena
+    definition needs its map: `scripts/arenas.txt` is generated from the arenas,
+    so an arena without a map would name a level the pack does not carry, and a
+    map without an arena would be invisible to every reader of that file.
+    """
     profile = recipe["profile"]
-    arena = profile["arena"]
-    if arena["map"] != profile["map"]:
+    maps = profile_maps(profile)
+    arenas = profile_arenas(profile)
+    for arena in arenas:
+        _check_arena_fields(arena)
+    arena_maps = [arena["map"] for arena in arenas]
+    if len(set(arena_maps)) != len(arena_maps):
+        raise ContentError(f"profile declares two arenas for one map: {arena_maps}")
+    if sorted(arena_maps) != sorted(maps):
         raise ContentError(
-            f"profile.arena.map {arena['map']!r} is not profile.map {profile['map']!r}"
+            f"the profile's arenas name {sorted(arena_maps)}, which is not its "
+            f"map set {sorted(maps)}"
         )
     packaged_models = set(profile["playerModels"])
     for bot in profile["bots"]:
@@ -118,12 +175,14 @@ def _check_profile(recipe: dict[str, Any]) -> None:
                 f"bot {bot['name']!r} uses model {bot['model']!r}, which the profile "
                 f"does not package: {sorted(packaged_models)}"
             )
-    declared = arena["bots"].split()
     actual = [bot["name"] for bot in profile["bots"]]
-    if declared != actual:
-        raise ContentError(
-            f"profile.arena.bots {declared} does not list the profile's bots {actual}"
-        )
+    for arena in arenas:
+        declared = arena["bots"].split()
+        if declared != actual:
+            raise ContentError(
+                f"arena {arena['map']!r} bots {declared} does not list the "
+                f"profile's bots {actual}"
+            )
 
 
 def _reconcile_templates(
@@ -157,7 +216,41 @@ def _reconcile_templates(
                 f"recipe template {template!r} expands without declaring which "
                 "kind of reference its expansions are"
             )
+    _check_map_templates(declared, recipe)
     return declared
+
+
+# The `%s` the gamecode fills with a map name, and the path each one produces.
+# They are three flat lists in the recipe that every packaged map contributes
+# to, so with more than one map a name can silently be added to one and
+# forgotten in the others; `_check_map_templates` is what makes that a build
+# failure rather than a missing levelshot in one menu.
+MAP_TEMPLATES = {
+    "maps/%s.bsp": "maps/{map}.bsp",
+    "levelshots/%s": "levelshots/{map}",
+    "levelshots/%s.tga": "levelshots/{map}.tga",
+}
+
+
+def _check_map_templates(
+    declared: dict[str, dict[str, Any]], recipe: dict[str, Any]
+) -> None:
+    """Require each map template to expand to exactly the profile's map set."""
+    maps = profile_maps(recipe["profile"])
+    for template, shape in sorted(MAP_TEMPLATES.items()):
+        entry = declared.get(template)
+        if entry is None:
+            raise ContentError(
+                f"the pinned QVMs no longer use the map template {template!r}; "
+                "the closure roots and this check disagree about how a map is named"
+            )
+        expected = sorted(shape.format(map=name) for name in maps)
+        if sorted(entry["expansions"]) != expected:
+            raise ContentError(
+                f"recipe template {template!r} expands to "
+                f"{sorted(entry['expansions'])}, not to the profile's maps "
+                f"{expected}"
+            )
 
 
 def _static_reference_paths(references: dict[str, Any]) -> set[str]:
@@ -515,20 +608,54 @@ def _check_derived_members(
                 )
 
 
+def _max_arenas_text(engine_root: Path) -> int:
+    """The pinned gamecode's `scripts/arenas.txt` buffer size, in bytes."""
+    header = engine_root / "code" / "game" / "bg_public.h"
+    match = _MAX_ARENAS_TEXT_RE.search(header.read_text(encoding="latin-1"))
+    if match is None:
+        raise ContentError(
+            f"{header} no longer defines MAX_ARENAS_TEXT; the arena-file size "
+            "gate cannot be derived from the pinned engine"
+        )
+    return int(match.group(1))
+
+
 def _check_generated_metadata(
-    metadata: dict[str, str], recipe: dict[str, Any], members: dict[str, bytes]
+    metadata: dict[str, str],
+    recipe: dict[str, Any],
+    members: dict[str, bytes],
+    engine_root: Path,
 ) -> None:
     """Read the generated arena and bot files back and check what they name."""
+    # Every reader of scripts/arenas.txt loads it into a fixed `char
+    # buf[MAX_ARENAS_TEXT]` and *drops the whole file* when it does not fit —
+    # `G_LoadArenasFromFile` (ioq3 code/game/g_bot.c), and the two
+    # `UI_LoadArenasFromFile` copies in code/ui and code/q3_ui. The failure is
+    # one red console line and zero parsed arenas, which no assembled-pack
+    # property would catch, so the size is a build gate. The file grows with the
+    # map count *and* with the bot roster, because every arena block repeats the
+    # whole bot list.
+    limit = _max_arenas_text(engine_root)
+    arenas_bytes = len(metadata["scripts/arenas.txt"].encode("utf-8"))
+    if arenas_bytes >= limit:
+        raise ContentError(
+            f"generated scripts/arenas.txt is {arenas_bytes} bytes, and every "
+            f"reader drops a file of MAX_ARENAS_TEXT ({limit}) bytes or more; "
+            "the pack would ship an arena list the engine silently ignores"
+        )
     arenas = parse_key_value_blocks(metadata["scripts/arenas.txt"])
-    if len(arenas) != 1 or arenas[0]["map"] != recipe["profile"]["map"]:
+    named = [arena["map"] for arena in arenas]
+    if sorted(named) != sorted(profile_maps(recipe["profile"])):
         raise ContentError(
-            f"generated scripts/arenas.txt does not name exactly the profile map: {arenas}"
+            f"generated scripts/arenas.txt does not name exactly the profile maps: "
+            f"{named}"
         )
-    if f"maps/{arenas[0]['map']}.bsp" not in members:
-        raise ContentError(
-            f"generated scripts/arenas.txt names map {arenas[0]['map']!r}, "
-            "which is not a packaged member"
-        )
+    for map_name in named:
+        if f"maps/{map_name}.bsp" not in members:
+            raise ContentError(
+                f"generated scripts/arenas.txt names map {map_name!r}, "
+                "which is not a packaged member"
+            )
     bots = parse_key_value_blocks(metadata["scripts/bots.txt"])
     if len(bots) != len(recipe["profile"]["bots"]):
         raise ContentError("generated scripts/bots.txt lost or gained a bot")
@@ -549,19 +676,25 @@ def _check_generated_metadata(
 
 
 def _generated_metadata(recipe: dict[str, Any]) -> dict[str, str]:
-    """Return the product-owned arena and bot definitions of the FFA profile.
+    """Return the product-owned arena and bot definitions of the profile.
 
     The upstream `scripts/arenas.txt` and `scripts/bots.txt` describe the whole
-    OpenArena release. This pack ships one map and the bots that play it, so it
-    carries its own two files instead of a list whose entries it cannot honour.
+    OpenArena release. This pack ships the maps the profile names and the bots
+    that play them, so it carries its own two files instead of a list whose
+    entries it cannot honour. The arena blocks are written in the profile's own
+    order and separated exactly as the upstream file separates them, so a
+    single-arena profile still produces the byte sequence it produced before
+    the profile could hold more than one.
     """
     profile = recipe["profile"]
-    arena = profile["arena"]
-    lines = ["{"]
-    for key in ("map", "longname", "bots", "fraglimit", "type"):
-        lines.append(f'{key}\t\t"{arena[key]}"')
-    lines.append("}")
-    arenas = "\n".join(lines) + "\n"
+    arena_blocks = []
+    for arena in profile_arenas(profile):
+        lines = ["{"]
+        for key in ("map", "longname", "bots", "fraglimit", "type"):
+            lines.append(f'{key}\t\t"{arena[key]}"')
+        lines.append("}")
+        arena_blocks.append("\n".join(lines))
+    arenas = "\n\n".join(arena_blocks) + "\n"
 
     blocks = []
     for bot in profile["bots"]:
@@ -664,6 +797,7 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
     )
     builder = ClosureBuilder(sources, recipe)
     profile = recipe["profile"]
+    map_names = profile_maps(profile)
 
     # 1. Everything the pinned baseq3 QVMs can name, by two independent
     #    readings of the same MISSIONPACK-filtered text: path-shaped string
@@ -697,11 +831,18 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
             f"derived reference ({construction['file']}:{construction['lines'][0]})",
         )
 
-    # 2. The one map.
-    map_name = profile["map"]
-    builder.add(f"maps/{map_name}.bsp", "bsp", "profile map")
-    builder.add(f"maps/{map_name}.aas", "file", "profile map bot navigation")
-    builder.add(f"levelshots/{map_name}", "image", "profile map levelshot")
+    # 2. Every packaged map. The BSP pulls its own shaders, entity models and
+    #    entity sounds; the AAS is the bot navigation botlib loads whenever
+    #    bot_enable is set, and no packaged member references it, so it is
+    #    named here directly.
+    for map_name in map_names:
+        builder.add(f"maps/{map_name}.bsp", "bsp", f"profile map {map_name}")
+        builder.add(
+            f"maps/{map_name}.aas", "file", f"profile map {map_name} bot navigation"
+        )
+        builder.add(
+            f"levelshots/{map_name}", "image", f"profile map {map_name} levelshot"
+        )
 
     # 3. The one player presentation, and each bot's.
     for selection in profile["playerModels"]:
@@ -762,7 +903,7 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
             "generated from the committed recipe by scripts/build-content-pack.py",
         )
 
-    _check_generated_metadata(metadata, recipe, members)
+    _check_generated_metadata(metadata, recipe, members, engine_root)
     forbidden = iter_forbidden(members)
     if forbidden:
         raise ContentError(f"assembled pack contains forbidden members: {forbidden}")
@@ -818,7 +959,7 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
 
     report_lines = [
         f"package: {recipe['package']['id']}",
-        f"map: {map_name}",
+        f"maps: {' '.join(map_names)}",
         f"members: {len(members)}",
         f"pack: sha256:{manifest['artifacts'][0]['sha256']} ({manifest['artifacts'][0]['size']} bytes)",
         f"shader files: {len(report.shader_files)}",

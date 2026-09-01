@@ -506,6 +506,54 @@ class ProfileValidationTest(SyntheticRepositoryTest):
         self.assertEqual(names, sorted(names))
 
 
+class MultiMapRecipeTest(SyntheticRepositoryTest):
+    """A pack may carry several maps; a loader profile starts exactly one."""
+
+    def _pluralize(self, arenas: list[dict[str, Any]]) -> None:
+        recipe = copy.deepcopy(self.repository.recipe)
+        profile = recipe["profile"]
+        arena = profile.pop("arena")
+        profile.pop("map")
+        profile["maps"] = [entry["map"] for entry in arenas]
+        profile["arenas"] = [dict(arena, **entry) for entry in arenas]
+        (self.repository.root / "content" / "pack-recipe.json").write_text(
+            json.dumps(recipe), encoding="utf-8"
+        )
+
+    def test_a_profile_starting_one_of_several_packaged_maps_is_accepted(self) -> None:
+        self._pluralize(
+            [
+                {"map": "oa_shine", "type": "ffa", "fraglimit": "15"},
+                {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
+            ]
+        )
+        self.assertEqual(load_profile(self.repository.root)["map"], "oa_pvomit")
+
+    def test_a_map_outside_the_packaged_set_is_refused(self) -> None:
+        self._pluralize([{"map": "oa_shine", "type": "ffa", "fraglimit": "15"}])
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            load_profile(self.repository.root)
+        self.assertIn("must be a map the content recipe assembles", str(caught.exception))
+
+    def test_the_started_arena_is_the_one_that_must_be_ffa(self) -> None:
+        self._pluralize(
+            [
+                {"map": "oa_shine", "type": "tourney", "fraglimit": "15"},
+                {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
+            ]
+        )
+        load_profile(self.repository.root)
+        self._pluralize(
+            [
+                {"map": "oa_shine", "type": "ffa", "fraglimit": "15"},
+                {"map": "oa_pvomit", "type": "tourney", "fraglimit": "15"},
+            ]
+        )
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            load_profile(self.repository.root)
+        self.assertIn("only starts an FFA arena", str(caught.exception))
+
+
 class ArtifactAllowlistTest(SyntheticRepositoryTest):
     def _artifact(self, **overrides: Any) -> dict[str, Any]:
         artifact = {

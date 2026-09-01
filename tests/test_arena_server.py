@@ -188,7 +188,7 @@ class ProfileTests(ProfileFixture):
         )
         self.reject(
             lambda profile: profile.__setitem__("map", "q3dm17"),
-            "the map the content recipe assembles",
+            "must be a map the content recipe assembles",
         )
 
     def test_a_bot_the_pack_does_not_package_is_refused(self) -> None:
@@ -426,6 +426,75 @@ class DerivationEdgeTests(unittest.TestCase):
         profile["cvars"] = {"zz_last": "1", "aa_first": "2"}
         arguments = expected_server_arguments(profile)
         self.assertEqual(arguments[:6], ["+set", "aa_first", "2", "+set", "zz_last", "1"])
+
+
+
+
+class MultiMapRecipeTests(ProfileFixture):
+    """A pack may carry several maps; a server still starts exactly one of them."""
+
+    def _pluralize(self, maps: list[dict]) -> None:
+        path = self.root / "content/pack-recipe.json"
+        # Always start from the committed recipe, so a test may call this more
+        # than once with different arena sets.
+        recipe = read("content/pack-recipe.json")
+        profile = recipe["profile"]
+        arena = profile.pop("arena")
+        profile.pop("map")
+        profile["maps"] = [entry["map"] for entry in maps]
+        profile["arenas"] = [dict(arena, **entry) for entry in maps]
+        path.write_text(
+            json.dumps(recipe, indent=2, sort_keys=True) + "\n", encoding="utf-8"
+        )
+
+    def test_a_profile_starting_one_of_several_packaged_maps_is_accepted(self) -> None:
+        self._pluralize(
+            [
+                {"map": "oa_shine", "type": "ffa", "fraglimit": "20"},
+                {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
+            ]
+        )
+        profile = load_profile(self.root)
+        self.assertEqual(profile["map"], "oa_pvomit")
+
+    def test_a_map_outside_the_packaged_set_is_refused(self) -> None:
+        self._pluralize(
+            [
+                {"map": "oa_shine", "type": "ffa", "fraglimit": "20"},
+                {"map": "am_galmevish", "type": "ffa", "fraglimit": "20"},
+            ]
+        )
+        with self.assertRaisesRegex(
+            ArenaServerError, "must be a map the content recipe assembles"
+        ):
+            load_profile(self.root)
+
+    def test_the_started_arena_is_the_one_that_must_be_ffa(self) -> None:
+        self._pluralize(
+            [
+                {"map": "oa_shine", "type": "tourney", "fraglimit": "20"},
+                {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
+            ]
+        )
+        load_profile(self.root)
+        self._pluralize(
+            [
+                {"map": "oa_shine", "type": "ffa", "fraglimit": "20"},
+                {"map": "oa_pvomit", "type": "tourney", "fraglimit": "15"},
+            ]
+        )
+        with self.assertRaisesRegex(ArenaServerError, "only starts an FFA arena"):
+            load_profile(self.root)
+
+    def test_a_map_defined_by_two_arenas_is_refused(self) -> None:
+        self._pluralize(
+            [
+                {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
+                {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
+            ]
+        )
+        with self.assertRaisesRegex(ArenaServerError, "exactly once"):
+            load_profile(self.root)
 
 
 if __name__ == "__main__":

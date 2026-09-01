@@ -282,17 +282,49 @@ def _validate_against_browser_profile(
         _fail("profile.bots", "must be the browser slice's bots, in the same order")
 
 
+def _recipe_arena_for(
+    recipe_profile: dict[str, Any], map_name: str, what: str
+) -> dict[str, Any]:
+    """The recipe's arena definition for the one map this profile starts.
+
+    A pack may assemble several maps; a profile starts exactly one of them, and
+    that one has to be in the pack. The committed recipe still spells its single
+    map in the singular, so both spellings are read here —
+    `content_pack.profile_maps` documents why and which work package removes the
+    fallback.
+    """
+    if "maps" in recipe_profile:
+        packaged = _array(recipe_profile.get("maps"), "recipe.profile.maps")
+    else:
+        packaged = [_string(recipe_profile.get("map"), "recipe.profile.map")]
+    if map_name not in packaged:
+        _fail(what, f"must be a map the content recipe assembles: {sorted(packaged)}")
+    if "arenas" in recipe_profile:
+        arenas = _array(recipe_profile.get("arenas"), "recipe.profile.arenas")
+    else:
+        arenas = [_object(recipe_profile.get("arena"), "recipe.profile.arena")]
+    matches = [
+        arena
+        for arena in arenas
+        if _object(arena, "recipe.profile arena entry").get("map") == map_name
+    ]
+    if len(matches) != 1:
+        _fail(
+            "recipe.profile.arena",
+            f"must define map '{map_name}' exactly once, not {len(matches)} times",
+        )
+    return matches[0]
+
+
 def _validate_against_recipe(profile: dict[str, Any], recipe: dict[str, Any]) -> None:
     """Bind the native profile to the audited content pack it starts."""
     recipe_profile = _object(recipe.get("profile"), "recipe.profile")
-    arena = _object(recipe_profile.get("arena"), "recipe.profile.arena")
     package = _object(recipe.get("package"), "recipe.package")
     if profile["package"] != package.get("id"):
         _fail(
             "profile.package", f"must equal the recipe package id '{package.get('id')}'"
         )
-    if profile["map"] != recipe_profile.get("map") or profile["map"] != arena.get("map"):
-        _fail("profile.map", "must equal the map the content recipe assembles")
+    arena = _recipe_arena_for(recipe_profile, profile["map"], "profile.map")
     if arena.get("type") != "ffa":
         _fail("recipe.profile.arena.type", "the native profile only starts an FFA arena")
     if profile["cvars"].get("fraglimit") != arena.get("fraglimit"):

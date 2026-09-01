@@ -2,8 +2,8 @@
 """Deterministic assembly of the audited arena-web content pack.
 
 The pack is not a curated file list: it is the transitive closure of what the
-pinned ioquake3 `baseq3` QVM sources reference, plus the one map, one player
-presentation and bot data named by the committed recipe. Every member is read
+pinned ioquake3 `baseq3` QVM sources reference, plus the maps, player
+presentations and bot data named by the committed recipe. Every member is read
 out of a digest-verified upstream archive in the same run that writes it, so
 the bytes in the pack are derived from bytes this code checked itself.
 
@@ -490,6 +490,51 @@ def load_recipe(path: Path) -> dict[str, Any]:
     if not recipe["sources"]:
         _fail(f"{path}.sources", "must not be empty")
     return recipe
+
+
+# The recipe carries a *set* of maps and a matching set of arena definitions.
+# Both are still spelled in the singular by the committed recipe, which packages
+# exactly one map; `profile_maps` and `profile_arenas` are the one place that
+# difference is resolved, so everything downstream sees only the plural form.
+#
+# The singular spelling is not a permanent second dialect. It exists so the
+# pipeline can be generalized without rewriting content/pack-recipe.json, which
+# is a release-index authority: changing that file re-identifies the content
+# manifest, the pack payload, the server manifest and the server image at once.
+# WP-C reissues all of those anyway and replaces `map`/`arena` with `maps`/
+# `arenas` there; these two functions lose their fallback in the same change.
+
+
+def profile_maps(profile: dict[str, Any]) -> list[str]:
+    """The maps this pack assembles, in recipe order."""
+    if "maps" in profile:
+        maps = profile["maps"]
+        if not isinstance(maps, list) or not maps:
+            raise ContentError("profile.maps must be a non-empty array")
+        if not all(isinstance(name, str) and name for name in maps):
+            raise ContentError("profile.maps must contain non-empty map names")
+        if len(set(maps)) != len(maps):
+            raise ContentError(f"profile.maps names a map twice: {maps}")
+        return list(maps)
+    name = profile.get("map")
+    if not isinstance(name, str) or not name:
+        raise ContentError("profile must declare maps (or the single-map map)")
+    return [name]
+
+
+def profile_arenas(profile: dict[str, Any]) -> list[dict[str, Any]]:
+    """The arena definitions this pack generates, in recipe order."""
+    if "arenas" in profile:
+        arenas = profile["arenas"]
+        if not isinstance(arenas, list) or not arenas:
+            raise ContentError("profile.arenas must be a non-empty array")
+        if not all(isinstance(arena, dict) for arena in arenas):
+            raise ContentError("profile.arenas must contain arena objects")
+        return list(arenas)
+    arena = profile.get("arena")
+    if not isinstance(arena, dict):
+        raise ContentError("profile must declare arenas (or the single-map arena)")
+    return [arena]
 
 
 def recipe_sources(recipe: dict[str, Any]) -> list[RecipeSource]:

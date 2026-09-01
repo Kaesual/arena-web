@@ -30,6 +30,8 @@ from content_pack import (  # noqa: E402
     file_sha256,
     iter_forbidden,
     load_recipe,
+    profile_arenas,
+    profile_maps,
     provenance_sources,
     recipe_sources,
     validate_provenance,
@@ -41,6 +43,7 @@ from metadata import (  # noqa: E402
     _load_json,
     validate_baseline,
 )
+from game_assets import parse_key_value_blocks  # noqa: E402
 from qvm_references import (  # noqa: E402
     ALWAYS_UNDEFINED,
     ReferenceError,
@@ -737,7 +740,7 @@ class BuildGateTests(unittest.TestCase):
 
     def test_an_inconsistent_profile_stops_the_build(self) -> None:
         cases = (
-            (["profile", "arena", "map"], "elsewhere", "is not profile.map"),
+            (["profile", "arena", "map"], "elsewhere", "is not its map set"),
             (["profile", "bots", 0, "model"], "nobody/default", "does not package"),
             (["profile", "arena", "bots"], "Nobody", "does not list"),
         )
@@ -751,6 +754,143 @@ class BuildGateTests(unittest.TestCase):
                 output = Path(raw)
                 with self.assertRaisesRegex(ContentError, message):
                     self._build(recipe, output, output)
+
+    def test_a_map_template_that_is_not_the_map_set_stops_the_build(self) -> None:
+        for template in ("maps/%s.bsp", "levelshots/%s", "levelshots/%s.tga"):
+            recipe = json.loads(json.dumps(self.recipe))
+            for entry in recipe["templateExpansions"]:
+                if entry["template"] == template:
+                    entry["expansions"] = []
+            with tempfile.TemporaryDirectory() as raw:
+                output = Path(raw)
+                with self.assertRaisesRegex(ContentError, "not to the profile's maps"):
+                    self._build(recipe, output, output)
+
+    def test_a_second_map_missing_from_a_template_stops_the_build(self) -> None:
+        recipe = json.loads(json.dumps(self.recipe))
+        profile = recipe["profile"]
+        arena = profile.pop("arena")
+        profile.pop("map")
+        profile["maps"] = ["oa_pvomit", "oa_shine"]
+        profile["arenas"] = [arena, dict(arena, map="oa_shine")]
+        # Only the BSP list learns about the second map; the two levelshot
+        # lists still name one. That is the flat-list trap this gate closes.
+        for entry in recipe["templateExpansions"]:
+            if entry["template"] == "maps/%s.bsp":
+                entry["expansions"] = ["maps/oa_pvomit.bsp", "maps/oa_shine.bsp"]
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "levelshots/%s"):
+                self._build(recipe, output, output)
+
+    def test_a_second_arena_must_repeat_the_profile_bots(self) -> None:
+        recipe = json.loads(json.dumps(self.recipe))
+        profile = recipe["profile"]
+        arena = profile.pop("arena")
+        profile.pop("map")
+        profile["maps"] = ["oa_pvomit", "oa_shine"]
+        profile["arenas"] = [arena, dict(arena, map="oa_shine", bots="Skelebot")]
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "does not list"):
+                self._build(recipe, output, output)
+
+    def test_a_map_without_an_arena_stops_the_build(self) -> None:
+        recipe = json.loads(json.dumps(self.recipe))
+        profile = recipe["profile"]
+        arena = profile.pop("arena")
+        profile.pop("map")
+        profile["maps"] = ["oa_pvomit", "oa_shine"]
+        profile["arenas"] = [arena]
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "is not its map set"):
+                self._build(recipe, output, output)
+
+    def test_an_arena_missing_a_generated_field_stops_the_build(self) -> None:
+        recipe = json.loads(json.dumps(self.recipe))
+        recipe["profile"]["arena"].pop("longname")
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, r"is missing \['longname'\]"):
+                self._build(recipe, output, output)
+
+    def test_an_arena_value_that_breaks_the_generated_grammar_stops_the_build(
+        self,
+    ) -> None:
+        for value in ('a "quoted" name', "a {braced} name", "a // comment", "two\nlines"):
+            recipe = json.loads(json.dumps(self.recipe))
+            recipe["profile"]["arena"]["longname"] = value
+            with tempfile.TemporaryDirectory() as raw:
+                output = Path(raw)
+                with self.assertRaisesRegex(ContentError, "cannot carry unambiguously"):
+                    self._build(recipe, output, output)
+
+    def test_an_empty_arena_value_stops_the_build(self) -> None:
+        recipe = json.loads(json.dumps(self.recipe))
+        recipe["profile"]["arena"]["longname"] = ""
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "must be a non-empty string"):
+                self._build(recipe, output, output)
+
+    def test_the_arena_text_limit_is_read_from_the_pinned_engine(self) -> None:
+        # The gamecode's own value, not a number restated here.
+        self.assertEqual(self.module._max_arenas_text(ROOT / "ioq3"), 8192)
+        with tempfile.TemporaryDirectory() as raw:
+            fake = Path(raw) / "code" / "game"
+            fake.mkdir(parents=True)
+            (fake / "bg_public.h").write_text("#define MAX_ARENAS 1024\n")
+            with self.assertRaisesRegex(ContentError, "no longer defines"):
+                self.module._max_arenas_text(Path(raw))
+
+    def test_an_arena_file_the_engine_would_drop_stops_the_build(self) -> None:
+        """Every reader drops the whole file at MAX_ARENAS_TEXT, silently."""
+        recipe = json.loads(json.dumps(self.recipe))
+        profile = recipe["profile"]
+        arena = profile.pop("arena")
+        profile.pop("map")
+        # ~106 bytes per block at this bot roster, so 80 blocks overruns 8192.
+        names = [f"oa_pvomit{index:03d}" for index in range(80)]
+        profile["maps"] = names
+        profile["arenas"] = [dict(arena, map=name) for name in names]
+        metadata = self.module._generated_metadata(recipe)
+        self.assertGreaterEqual(len(metadata["scripts/arenas.txt"].encode()), 8192)
+        with self.assertRaisesRegex(ContentError, "silently ignores"):
+            self.module._check_generated_metadata(
+                metadata, recipe, {f"maps/{name}.bsp": b"1" for name in names},
+                ROOT / "ioq3",
+            )
+
+    def test_the_committed_arena_file_has_room_for_the_v1_map_set(self) -> None:
+        """The committed recipe is nowhere near the cap, and the v1 set is not either."""
+        limit = self.module._max_arenas_text(ROOT / "ioq3")
+        one = len(
+            self.module._generated_metadata(self.recipe)["scripts/arenas.txt"].encode()
+        )
+        self.assertLess(one, limit)
+        # 31 v1 maps at the committed bot roster; §13.1 of the plan.
+        self.assertLess(one * 31, limit)
+
+    def test_the_generated_arenas_file_carries_one_block_per_map(self) -> None:
+        recipe = json.loads(json.dumps(self.recipe))
+        profile = recipe["profile"]
+        arena = profile.pop("arena")
+        profile.pop("map")
+        profile["maps"] = ["oa_pvomit", "oa_shine"]
+        profile["arenas"] = [arena, dict(arena, map="oa_shine", longname="Shine")]
+        metadata = self.module._generated_metadata(recipe)
+        blocks = parse_key_value_blocks(metadata["scripts/arenas.txt"])
+        self.assertEqual([block["map"] for block in blocks], ["oa_pvomit", "oa_shine"])
+        self.assertEqual(blocks[1]["longname"], "Shine")
+
+    def test_one_arena_still_generates_the_bytes_it_generated_before(self) -> None:
+        metadata = self.module._generated_metadata(self.recipe)
+        self.assertEqual(
+            metadata["scripts/arenas.txt"],
+            '{\nmap\t\t"oa_pvomit"\nlongname\t\t"Projectile Vomit"\n'
+            'bots\t\t"Skelebot Rai Sly"\nfraglimit\t\t"15"\ntype\t\t"ffa"\n}\n',
+        )
 
     @staticmethod
     def _derived_entry(recipe: dict, reference: str) -> dict:
@@ -1075,14 +1215,57 @@ class BuildGateTests(unittest.TestCase):
             "models/players/x/lower.md3": b"2",
             "botfiles/bots/x_c.c": b"3",
         }
-        self.module._check_generated_metadata(metadata, recipe, members)
+        engine = ROOT / "ioq3"
+        self.module._check_generated_metadata(metadata, recipe, members, engine)
         with self.assertRaisesRegex(ContentError, "not a packaged member"):
             self.module._check_generated_metadata(
-                metadata, recipe, {"maps/m.bsp": b"1"}
+                metadata, recipe, {"maps/m.bsp": b"1"}, engine
             )
         wrong_map = dict(metadata, **{"scripts/arenas.txt": '{\nmap\t\t"o"\n}\n'})
         with self.assertRaisesRegex(ContentError, "profile map"):
-            self.module._check_generated_metadata(wrong_map, recipe, members)
+            self.module._check_generated_metadata(wrong_map, recipe, members, engine)
+
+
+class MapSetTests(unittest.TestCase):
+    """The recipe's map set, in both the singular and the plural spelling."""
+
+    def test_the_singular_spelling_is_the_one_map_set(self) -> None:
+        profile = {"map": "a", "arena": {"map": "a", "type": "ffa"}}
+        self.assertEqual(profile_maps(profile), ["a"])
+        self.assertEqual(profile_arenas(profile), [{"map": "a", "type": "ffa"}])
+
+    def test_the_plural_spelling_keeps_the_recipe_order(self) -> None:
+        profile = {
+            "maps": ["b", "a"],
+            "arenas": [{"map": "b"}, {"map": "a"}],
+        }
+        self.assertEqual(profile_maps(profile), ["b", "a"])
+        self.assertEqual(profile_arenas(profile), [{"map": "b"}, {"map": "a"}])
+
+    def test_a_map_name_that_is_not_a_non_empty_string_is_rejected(self) -> None:
+        for maps in (["a", ""], ["a", None], ["a", 3]):
+            with self.assertRaisesRegex(ContentError, "non-empty map names"):
+                profile_maps({"maps": maps})
+
+    def test_an_arena_that_is_not_an_object_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ContentError, "must contain arena objects"):
+            profile_arenas({"arenas": [{"map": "a"}, "b"]})
+
+    def test_a_map_named_twice_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ContentError, "names a map twice"):
+            profile_maps({"maps": ["a", "a"]})
+
+    def test_a_profile_without_either_spelling_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ContentError, "must declare maps"):
+            profile_maps({})
+        with self.assertRaisesRegex(ContentError, "must declare arenas"):
+            profile_arenas({})
+
+    def test_an_empty_map_set_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ContentError, "non-empty"):
+            profile_maps({"maps": []})
+        with self.assertRaisesRegex(ContentError, "non-empty"):
+            profile_arenas({"arenas": []})
 
 
 class CommittedRecipeTests(unittest.TestCase):
