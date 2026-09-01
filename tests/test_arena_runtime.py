@@ -109,6 +109,8 @@ def _profile() -> dict[str, Any]:
             "headmodel": "skelebot/default",
             "model": "skelebot/default",
             "net_enabled": "0",
+            "r_allowResize": "1",
+            "r_fullscreen": "0",
             "sv_maxclients": "8",
             "sv_pure": "0",
         },
@@ -122,6 +124,8 @@ def _profile() -> dict[str, Any]:
                 "headmodel",
                 "model",
                 "net_enabled",
+                "r_allowResize",
+                "r_fullscreen",
                 "sv_maxclients",
                 "sv_pure",
             )
@@ -230,6 +234,9 @@ class SyntheticRepository:
             "<!doctype html>", encoding="utf-8"
         )
         (self.root / "arena" / "loader.js").write_text("// loader", encoding="utf-8")
+        (self.root / "arena" / "canvas-resize.js").write_text(
+            "// resize", encoding="utf-8"
+        )
         (self.root / "arena" / "network-backend.js").write_text(
             "// backend", encoding="utf-8"
         )
@@ -259,6 +266,7 @@ class SyntheticRepository:
                         "model": "skelebot/default",
                         "net_enabled": "2",
                         "r_allowResize": "1",
+                        "r_fullscreen": "0",
                         "sv_pure": "0",
                     },
                 }
@@ -411,6 +419,18 @@ class ProfileValidationTest(SyntheticRepositoryTest):
         self.assertIn(
             "offline",
             self.refuses(lambda p: p["cvars"].update({"net_enabled": "1"})),
+        )
+
+    def test_disabling_runtime_resize_is_refused(self) -> None:
+        self.assertIn(
+            "runtime resize",
+            self.refuses(lambda p: p["cvars"].update({"r_allowResize": "0"})),
+        )
+
+    def test_sdl_fullscreen_is_refused_because_html_owns_it(self) -> None:
+        self.assertIn(
+            "HTML stage",
+            self.refuses(lambda p: p["cvars"].update({"r_fullscreen": "1"})),
         )
 
     def test_a_player_model_that_disagrees_with_the_model_cvar_is_refused(self) -> None:
@@ -720,6 +740,7 @@ class StagingTest(SyntheticRepositoryTest):
         self.assertEqual(
             present,
             [
+                "arena/canvas-resize.js",
                 "arena/network-backend.js",
                 "arena/relay-profile.json",
                 "content/baseq3/arena-web-ffa.pk3",
@@ -874,6 +895,7 @@ class CommittedProfileTest(unittest.TestCase):
         self.assertEqual(
             sorted(served_files(ROOT, self.profile)),
             [
+                "arena/canvas-resize.js",
                 "arena/network-backend.js",
                 "arena/relay-profile.json",
                 "content/baseq3/arena-web-ffa.pk3",
@@ -917,6 +939,7 @@ class CommittedProfileTest(unittest.TestCase):
         self.assertEqual(
             loader,
             [
+                "arena/canvas-resize.js",
                 "arena/network-backend.js",
                 "arena/relay-profile.json",
                 "index.html",
@@ -1702,6 +1725,19 @@ class ScoreTest(unittest.TestCase):
         run = self._run()
         run.snapshot["render"] = {"cssWidth": 640, "cssHeight": 480}
         self.assertFalse(
+            self._checks(run)["engine-arguments-are-the-committed-profile"].passed
+        )
+
+    def test_a_later_render_size_does_not_rewrite_the_startup_arguments(self) -> None:
+        run = self._run()
+        run.snapshot["render"] = {
+            "startupCssWidth": 1280,
+            "startupCssHeight": 577,
+            "cssWidth": 960,
+            "cssHeight": 540,
+            "resizeEvents": 1,
+        }
+        self.assertTrue(
             self._checks(run)["engine-arguments-are-the-committed-profile"].passed
         )
 

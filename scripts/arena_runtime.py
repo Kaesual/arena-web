@@ -38,6 +38,7 @@ LOADER_SOURCE_DIRECTORY = "arena"
 RUNTIME_SOURCE_FILES = {
     "index.html": "arena/index.html",
     "loader.js": "arena/loader.js",
+    "arena/canvas-resize.js": "arena/canvas-resize.js",
     "arena/network-backend.js": "arena/network-backend.js",
     "arena/relay-profile.json": "arena/relay-profile.json",
     "probe/relay-framing.js": "probe/relay-framing.js",
@@ -143,6 +144,7 @@ RELAY_PROFILE_CVARS = {
     "model": "skelebot/default",
     "net_enabled": "2",
     "r_allowResize": "1",
+    "r_fullscreen": "0",
     "sv_pure": "0",
 }
 
@@ -306,6 +308,13 @@ def _validate_cvars(profile: dict[str, Any]) -> None:
         )
     if cvars.get("net_enabled") != "0":
         _fail("profile.cvars.net_enabled", "must be '0': the vertical slice is offline")
+    if cvars.get("r_allowResize") != "1":
+        _fail("profile.cvars.r_allowResize", "must be '1': runtime resize is supported")
+    if cvars.get("r_fullscreen") != "0":
+        _fail(
+            "profile.cvars.r_fullscreen",
+            "must be '0': the HTML stage, not SDL, owns browser fullscreen",
+        )
     if cvars.get("model") != profile["playerModel"]:
         _fail("profile.cvars.model", "must equal profile.playerModel")
     if cvars.get("headmodel") != profile["playerModel"]:

@@ -28,6 +28,11 @@
 // audio. There is no settings persistence, OPFS or account integration.
 
 import {
+  measureCanvas,
+  observeCanvasResize,
+  renderSizeArguments as canvasRenderSizeArguments,
+} from "./arena/canvas-resize.js";
+import {
   ArenaNetworkSession,
   INNER_DATAGRAM_FLOOR,
   PathBudgetError,
@@ -40,8 +45,6 @@ const ENGINE_LOG_LIMIT = 40000;
 const FRAME_SAMPLE_LIMIT = 30000;
 const EVENT_LIMIT = 10000;
 const LONG_FRAME_MS = 50;
-const MINIMUM_RENDER_WIDTH = 320;
-const MINIMUM_RENDER_HEIGHT = 240;
 
 const ARTIFACT_ROLES = new Set(["module-script", "module-wasm", "filesystem"]);
 
@@ -99,6 +102,7 @@ let relayBackend = null;
 let engineStarted = false;
 let relayReconnectReady = false;
 let relayReconnectRunning = false;
+let canvasResizeBridge = null;
 
 const frameDeltas = [];
 const startedAt = performance.now();
@@ -414,6 +418,7 @@ function parseRelayProfile(profile) {
     model: "skelebot/default",
     net_enabled: "2",
     r_allowResize: "1",
+    r_fullscreen: "0",
     sv_pure: "0",
   };
   exactKeys(profile.cvars, Object.keys(requiredCvars), `${RELAY_PROFILE_URL}: cvars`);
@@ -573,16 +578,36 @@ function recordEngineLine(line, stream, markers, botNames) {
 // (ioq3 code/renderergl2/tr_init.c R_GetModeInfo); the floor matches the
 // integer truncation SDL applies when it reports the canvas CSS size
 // (SDL_emscriptenvideo.c Emscripten_CreateWindow).
-function renderSizeArguments() {
-  const rect = elements.canvas.getBoundingClientRect();
-  const width = Math.max(MINIMUM_RENDER_WIDTH, Math.floor(rect.width));
-  const height = Math.max(MINIMUM_RENDER_HEIGHT, Math.floor(rect.height));
+function initialRenderSizeArguments() {
+  const size = measureCanvas(elements.canvas);
   report.render = {
-    cssWidth: width,
-    cssHeight: height,
-    devicePixelRatio: globalThis.devicePixelRatio ?? 1,
+    ...size,
+    startupCssWidth: size.cssWidth,
+    startupCssHeight: size.cssHeight,
+    resizeEvents: 0,
+    observerSupported: false,
   };
-  return ["+set", "r_mode", "-1", "+set", "r_customwidth", String(width), "+set", "r_customheight", String(height)];
+  return canvasRenderSizeArguments(size);
+}
+
+function installCanvasResizeBridge() {
+  canvasResizeBridge?.disconnect();
+  canvasResizeBridge = observeCanvasResize(elements.canvas, {
+    onResize: (size) => {
+      report.render = {
+        ...report.render,
+        ...size,
+        resizeEvents: (report.render?.resizeEvents ?? 0) + 1,
+      };
+      note("canvas-resize", {
+        cssWidth: size.cssWidth,
+        cssHeight: size.cssHeight,
+        devicePixelRatio: size.devicePixelRatio,
+      });
+    },
+  });
+  report.render.observerSupported = canvasResizeBridge.supported;
+  note("canvas-resize-observer", canvasResizeBridge.supported);
 }
 
 function startFrameSampling() {
@@ -714,7 +739,7 @@ async function boot(profile, artifacts, networkBackend = null) {
   const profileArguments = networkBackend
     ? relayEngineArguments(relayProfile, relayRuntimeConfiguration)
     : profile.engineArguments;
-  const engineArguments = [...profileArguments, ...renderSizeArguments()];
+  const engineArguments = [...profileArguments, ...initialRenderSizeArguments()];
   // The record is a copy: Emscripten's callMain unshifts the program name onto
   // the array it is given, so handing the engine this exact array would edit
   // the evidence.
@@ -776,9 +801,12 @@ async function boot(profile, artifacts, networkBackend = null) {
     onRuntimeInitialized: () => {
       report.timings.runtimeInitializedMs = since();
       note("runtime-initialized", null);
+      installCanvasResizeBridge();
     },
     onAbort: (what) => fail(new LoaderError(`engine aborted: ${what}`)),
     onExit: (code) => {
+      canvasResizeBridge?.disconnect();
+      canvasResizeBridge = null;
       note("engine-exit", code);
       report.status = "exited";
     },

@@ -26,6 +26,7 @@
     "model": "skelebot/default",
     "net_enabled": "2",
     "r_allowResize": "1",
+    "r_fullscreen": "0",
     "sv_pure": "0"
   }
 }

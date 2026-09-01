@@ -664,6 +664,116 @@ def run_once(
         except TimeoutError:
             pass
 
+        # The loader's ResizeObserver closes the browser-only gap where a CSS
+        # or element-fullscreen change resizes the canvas without a native
+        # window resize. Device emulation gives this automated round two exact
+        # viewport sizes; the headed witnessed round still owns real
+        # compositor fullscreen behaviour.
+        initial_render = _snapshot(session).get("render") or {}
+        initial_resize_events = int(initial_render.get("resizeEvents") or 0)
+        initial_width = int(initial_render.get("cssWidth") or window[0])
+        initial_height = int(initial_render.get("cssHeight") or window[1])
+        target_width = initial_width - 160 if initial_width > 480 else initial_width + 160
+        target_height = initial_height - 90 if initial_height > 330 else initial_height + 90
+        target_mode = f"MODE: -1, {target_width} x {target_height}"
+        initial_mode = (
+            f"MODE: -1, {initial_render.get('cssWidth')} x {initial_render.get('cssHeight')}"
+        )
+        initial_mode_count = int(
+            _evaluate(
+                session,
+                "window.arenaWeb.engineLog().filter((line) => "
+                f"line.includes({json.dumps(initial_mode)})).length",
+            )
+            or 0
+        )
+        resize_observed = False
+        resize_adopted = False
+        restored = False
+        restore_adopted = False
+        try:
+            session.call(
+                "Emulation.setDeviceMetricsOverride",
+                {
+                    "width": target_width,
+                    "height": target_height,
+                    "deviceScaleFactor": 1,
+                    "mobile": False,
+                },
+            )
+            wait_until(
+                lambda: (
+                    (current := _snapshot(session).get("render") or {}).get("cssWidth")
+                    == target_width
+                    and current.get("cssHeight") == target_height
+                    and int(current.get("resizeEvents") or 0) > initial_resize_events
+                ),
+                timeout=20,
+                description="the loader observing the resized canvas",
+            )
+            resize_observed = True
+            wait_until(
+                lambda: _evaluate(
+                    session,
+                    f"window.arenaWeb.engineLog().some((line) => line.includes({json.dumps(target_mode)}))",
+                ),
+                timeout=20,
+                description="the engine adopting the resized canvas",
+            )
+            resize_adopted = True
+        except TimeoutError:
+            pass
+        finally:
+            session.call("Emulation.clearDeviceMetricsOverride")
+
+        try:
+            wait_until(
+                lambda: (
+                    (current := _snapshot(session).get("render") or {}).get("cssWidth")
+                    == initial_render.get("cssWidth")
+                    and current.get("cssHeight") == initial_render.get("cssHeight")
+                ),
+                timeout=20,
+                description="the canvas returning to its initial size",
+            )
+            restored = True
+            wait_until(
+                lambda: int(
+                    _evaluate(
+                        session,
+                        "window.arenaWeb.engineLog().filter((line) => "
+                        f"line.includes({json.dumps(initial_mode)})).length",
+                    )
+                    or 0
+                )
+                > initial_mode_count,
+                timeout=20,
+                description="the engine returning to the initial canvas size",
+            )
+            restore_adopted = True
+        except TimeoutError:
+            pass
+        result.checks.extend(
+            [
+                Check(
+                    "loader-observed-runtime-resize",
+                    resize_observed,
+                    f"initial {initial_render.get('cssWidth')}x{initial_render.get('cssHeight')}, "
+                    f"target {target_width}x{target_height}",
+                ),
+                Check(
+                    "engine-adopted-runtime-resize",
+                    resize_adopted,
+                    f"expected engine marker '{target_mode}'",
+                ),
+                Check(
+                    "canvas-returned-to-initial-size",
+                    restored and restore_adopted,
+                    f"expected {initial_render.get('cssWidth')}x{initial_render.get('cssHeight')}",
+                ),
+            ]
+        )
+
         # Input the browser treats as real. Nothing here claims that the player
         # moved: it claims that trusted key and mouse events reach a running
         # client without breaking it.
@@ -852,16 +962,18 @@ def _score(result: RunResult, expected: Expectations) -> None:
     # F5: the arguments the engine actually received are the committed ones,
     # plus exactly the render-size suffix the loader derives from its canvas.
     render = snapshot.get("render") or {}
+    startup_width = render.get("startupCssWidth", render.get("cssWidth"))
+    startup_height = render.get("startupCssHeight", render.get("cssHeight"))
     expected_arguments = list(expected.engine_arguments) + [
         "+set",
         "r_mode",
         "-1",
         "+set",
         "r_customwidth",
-        str(render.get("cssWidth")),
+        str(startup_width),
         "+set",
         "r_customheight",
-        str(render.get("cssHeight")),
+        str(startup_height),
     ]
     result.checks.append(
         Check(

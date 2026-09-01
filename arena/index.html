@@ -42,13 +42,16 @@
     position: relative;
     width: 100vw;
     height: 100vh;
+    min-width: 320px;
+    min-height: 240px;
     background: #000;
   }
 
   /*
     SDL2's Emscripten video driver owns the canvas backing-store size and
     addresses this element as the hard-coded selector "#canvas"
-    (SDL_emscriptenvideo.c). The loader owns only its CSS box.
+    (SDL_emscriptenvideo.c). The loader owns its CSS box and forwards box-size
+    changes into SDL's existing window-resize path.
   */
   #canvas {
     display: block;
