@@ -48,6 +48,110 @@ if ! diff --recursive --brief "${first}" "${second}"; then
 fi
 printf 'two clean assemblies are byte-identical\n'
 
+# The property the split exists for, as a mechanical test rather than an
+# argument: adding a map must leave every archive that already existed, and the
+# base, byte for byte where they were. Reproducibility above does not imply it —
+# it compares two builds of the *same* map set, and every way one map's presence
+# could reach another archive's bytes lives in the difference between two
+# different sets.
+grown_map=am_galmevish
+grown_fragment="${repo_dir}/content/maps/${grown_map}.json"
+if [[ -e "${grown_fragment}" ]]; then
+  printf 'refusing to run the growth check: %s already exists\n' \
+    "${grown_fragment}" >&2
+  exit 1
+fi
+# The release index is a statement about the *published* archive set, and this
+# check deliberately assembles an unpublished one — so the index's own fragment
+# gate would refuse the assembly, correctly. It is set aside for the duration
+# and restored by the same trap that removes the scratch fragment.
+release_index="${repo_dir}/release/browser-release.json"
+held_index="${verify_dir}/browser-release.held.json"
+cleanup_growth() {
+  rm -f "${grown_fragment}"
+  if [[ -f "${held_index}" && ! -f "${release_index}" ]]; then
+    mv "${held_index}" "${release_index}"
+  fi
+}
+trap cleanup_growth EXIT
+if [[ -f "${release_index}" ]]; then
+  mv "${release_index}" "${held_index}"
+fi
+
+# A map from the already pinned sources, so the check measures set growth and
+# not a new upstream input. Its six sky acceptances are §13.4's class 1.
+cat > "${grown_fragment}" <<'JSON'
+{
+  "acceptedUnresolved": [
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_bk"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_dn"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_ft"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_lf"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_rt"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_up"
+    }
+  ],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "20",
+    "longname": "GalMevish",
+    "map": "am_galmevish",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/am_galmevish.arena"
+  ],
+  "map": "am_galmevish"
+}
+JSON
+
+printf '\n=== clean assembly with %s added ===\n' "${grown_map}"
+"${repo_dir}/scripts/build-content-pack.sh" \
+  --output-dir "${verify_dir}/assembly-grown" \
+  --allow-dirty-worktree
+
+cleanup_growth
+trap - EXIT
+
+printf '\n=== comparing the archives that already existed ===\n'
+moved=0
+for archive in "${first}"/baseq3/*.pk3; do
+  name="$(basename "${archive}")"
+  grown="${verify_dir}/assembly-grown/baseq3/${name}"
+  if [[ ! -f "${grown}" ]]; then
+    printf '%s vanished when a map was added\n' "${name}" >&2
+    moved=1
+  elif ! cmp -s "${archive}" "${grown}"; then
+    printf '%s moved when a map was added\n' "${name}" >&2
+    moved=1
+  else
+    printf 'unmoved  %s\n' "${name}"
+  fi
+done
+if [[ "${moved}" -ne 0 ]]; then
+  printf 'adding a map moved an archive that already existed\n' >&2
+  exit 1
+fi
+printf 'adding a map left every existing archive and the base byte-identical\n'
+
 # The committed records are the evidence of an accepted assembly. A rebuild from
 # a later commit records its own producing commit, so everything except
 # `producer` must still agree exactly.

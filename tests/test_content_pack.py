@@ -705,7 +705,7 @@ class BuildGateTests(unittest.TestCase):
         spec.loader.exec_module(module)
         cls.module = module
         cls.recipe = load_recipe(RECIPE_PATH)
-        cls.fragments = load_map_fragments(ROOT)
+        cls.fragments = load_map_fragments(ROOT, cls.recipe)
 
     def _build(
         self,
@@ -921,15 +921,136 @@ class BuildGateTests(unittest.TestCase):
         self.assertEqual(list(metadata), ["scripts/oa_pvomit.arena"])
         blocks = parse_key_value_blocks(metadata["scripts/oa_pvomit.arena"])
         self.assertEqual([block["map"] for block in blocks], ["oa_pvomit"])
+        engine = ROOT / "ioq3"
         self.module._check_map_metadata(
-            "oa_pvomit", metadata, {"maps/oa_pvomit.bsp": b"1"}
+            "oa_pvomit", metadata, {"maps/oa_pvomit.bsp": b"1"}, engine
         )
         with self.assertRaisesRegex(ContentError, "does not carry"):
-            self.module._check_map_metadata("oa_pvomit", metadata, {})
+            self.module._check_map_metadata("oa_pvomit", metadata, {}, engine)
+        oversized = {
+            list(metadata)[0]: '{\nmap\t\t"oa_pvomit"\nlongname\t\t"'
+            + "x" * 9000
+            + '"\n}\n'
+        }
+        with self.assertRaisesRegex(ContentError, "MAX_ARENAS_TEXT"):
+            self.module._check_map_metadata("oa_pvomit", oversized, {}, engine)
+
+
+class ArchiveSetGateTests(unittest.TestCase):
+    """`_check_archive_set` — the gates that only the finished set can decide.
+
+    They live in one function so that a test can reach all four without
+    assembling gigabytes of upstream content: the reviewable risk is not that
+    the individual checks are wrong, it is that a call site quietly disappears.
+    """
+
+    @classmethod
+    def setUpClass(cls) -> None:
+        spec = importlib.util.spec_from_file_location(
+            "build_content_pack_gate", ROOT / "scripts" / "build-content-pack.py"
+        )
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        cls.module = module
+
+    def _recipe(self, **overrides) -> dict:
+        recipe = {"noticeFile": "NOTICE-arena-web.txt", "derivedReferences": []}
+        recipe.update(overrides)
+        return recipe
+
+    def _archive(self, path, members):
+        return AssembledArchive(
+            path=path,
+            members=members,
+            origins={},
+            recipe_input="content/pack-recipe.json",
+            recipe_identity="sha256:" + "1" * 64,
+        )
+
+    def _report(self, shader_names=None):
+        found = ClosureReport()
+        found.shader_names.update(shader_names or {})
+        return (found, {})
+
+    def _run(self, archives, reports=None, fragments=(), recipe=None):
+        self.module._check_archive_set(
+            recipe or self._recipe(),
+            archives,
+            reports or {"base": self._report()},
+            {name: {} for name in fragments},
+            ROOT / "ioq3",
+        )
+
+    def test_the_committed_shape_passes(self) -> None:
+        self._run(
+            [self._archive("baseq3/base.pk3", {"gfx/a.tga": b"one"})],
+            fragments=("oa_pvomit",),
+        )
+
+    def test_a_member_two_archives_disagree_on_is_refused(self) -> None:
+        with self.assertRaisesRegex(ContentError, "different bytes in two archives"):
+            self._run(
+                [
+                    self._archive("baseq3/a-base.pk3", {"gfx/a.tga": b"one"}),
+                    self._archive("baseq3/a-map-m.pk3", {"gfx/a.tga": b"two"}),
+                ]
+            )
+
+    def test_the_notice_each_archive_generates_is_exempt(self) -> None:
+        self._run(
+            [
+                self._archive("baseq3/a-base.pk3", {"NOTICE-arena-web.txt": b"one"}),
+                self._archive("baseq3/a-map-m.pk3", {"NOTICE-arena-web.txt": b"two"}),
+            ]
+        )
+
+    def test_a_shader_the_runtime_resolves_elsewhere_is_refused(self) -> None:
+        base = b"models/x/skin\n{\n{\nmap models/x/skin.tga\n}\n}\n"
+        other = b"models/x/skin\n{\n{\nmap models/x/other.tga\n}\n}\n"
+        archives = [
+            self._archive("a-base.pk3", {"scripts/a.shader": base}),
+            self._archive("a-map-m.pk3", {"scripts/z.shader": other}),
+        ]
+        reports = {"base": self._report({"models/x/skin": "scripts/a.shader"})}
+        self._run(archives, reports)
+        reports = {"base": self._report({"models/x/skin": "scripts/z.shader"})}
+        with self.assertRaisesRegex(ContentError, "wins at run time"):
+            self._run(archives, reports)
+
+    def test_too_many_arena_files_to_list_are_refused(self) -> None:
+        with self.assertRaisesRegex(ContentError, "without a word"):
+            self._run(
+                [self._archive("baseq3/base.pk3", {})],
+                fragments=[f"a_very_long_map_name_{index:04d}" for index in range(40)],
+            )
+
+    def test_an_excluded_derived_reference_in_any_archive_is_refused(self) -> None:
+        recipe = self._recipe(
+            derivedReferences=[
+                {
+                    "reference": "models/weapons2/x/x_hand.md3",
+                    "excludedReason": "outside the profile",
+                }
+            ]
+        )
+        self._run([self._archive("baseq3/base.pk3", {})], recipe=recipe)
+        with self.assertRaisesRegex(ContentError, "packages it anyway"):
+            self._run(
+                [
+                    self._archive("baseq3/base.pk3", {}),
+                    self._archive(
+                        "baseq3/map.pk3", {"models/weapons2/x/x_hand.md3": b"1"}
+                    ),
+                ],
+                recipe=recipe,
+            )
 
 
 class MapFragmentTests(unittest.TestCase):
     """The per-map recipe fragments: the directory *is* the map set."""
+
+    def setUp(self) -> None:
+        self.recipe = {"noticeFile": "NOTICE-arena-web.txt"}
 
     def _fragment(self, **overrides) -> dict:
         fragment = {
@@ -942,7 +1063,7 @@ class MapFragmentTests(unittest.TestCase):
                 "type": "ffa",
             },
             "acceptedUnresolved": [],
-            "generatedMembers": ["NOTICE-arena-web.txt"],
+            "generatedMembers": ["NOTICE-arena-web.txt", "scripts/a_map.arena"],
         }
         fragment.update(overrides)
         return fragment
@@ -955,21 +1076,21 @@ class MapFragmentTests(unittest.TestCase):
         )
 
     def test_the_committed_fragment_set_loads(self) -> None:
-        fragments = load_map_fragments(ROOT)
+        fragments = load_map_fragments(ROOT, load_recipe(RECIPE_PATH))
         self.assertEqual(sorted(fragments), ["oa_pvomit"])
         self.assertEqual(fragments["oa_pvomit"]["arena"]["map"], "oa_pvomit")
 
     def test_no_fragment_directory_is_an_empty_map_set(self) -> None:
         """A base with no map at all is a legal product, not an error."""
         with tempfile.TemporaryDirectory() as raw:
-            self.assertEqual(load_map_fragments(Path(raw)), {})
+            self.assertEqual(load_map_fragments(Path(raw), self.recipe), {})
 
     def test_a_fragment_named_after_another_map_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
             root = Path(raw)
             self._write(root, "a_map", self._fragment(map="other"))
             with self.assertRaisesRegex(ContentError, "its file name"):
-                load_map_fragments(root)
+                load_map_fragments(root, self.recipe)
 
     def test_a_fragment_with_the_wrong_field_set_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -978,7 +1099,7 @@ class MapFragmentTests(unittest.TestCase):
             fragment["extra"] = 1
             self._write(root, "a_map", fragment)
             with self.assertRaisesRegex(ContentError, "exactly the fields"):
-                load_map_fragments(root)
+                load_map_fragments(root, self.recipe)
 
     def test_a_non_json_file_in_the_fragment_directory_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -986,7 +1107,7 @@ class MapFragmentTests(unittest.TestCase):
             self._write(root, "a_map", self._fragment())
             (root / "content" / "maps" / "notes.txt").write_text("x")
             with self.assertRaisesRegex(ContentError, "not a .json fragment"):
-                load_map_fragments(root)
+                load_map_fragments(root, self.recipe)
 
     def test_an_arena_for_another_map_is_rejected(self) -> None:
         with tempfile.TemporaryDirectory() as raw:
@@ -995,7 +1116,7 @@ class MapFragmentTests(unittest.TestCase):
             fragment["arena"]["map"] = "other"
             self._write(root, "a_map", fragment)
             with self.assertRaisesRegex(ContentError, "must define map"):
-                load_map_fragments(root)
+                load_map_fragments(root, self.recipe)
 
     def test_the_map_pack_path_is_derived_from_the_template(self) -> None:
         recipe = {"mapPackTemplate": "baseq3/p-{map}.pk3"}
@@ -1029,6 +1150,45 @@ class ArchiveSetTests(unittest.TestCase):
         # Closed against the map's file, which the base's would beat.
         with self.assertRaisesRegex(ContentError, "wins at run time"):
             check_shader_resolution(archives, {"models/x/skin": "scripts/z.shader"})
+
+    def test_a_file_two_map_archives_share_is_ranked_where_the_engine_ranks_it(
+        self,
+    ) -> None:
+        """`FS_AddFileToList` keeps only the first occurrence of a name.
+
+        So a shader file two map archives both carry is listed once, at the
+        position of the *highest*-named archive — which is earlier in the
+        listing, and therefore loses to everything after it. A model that
+        credited it to its lowest archive would call this safe.
+        """
+        shared = b"n\n{\n{\nmap x/shared.tga\n}\n}\n"
+        other = b"n\n{\n{\nmap x/other.tga\n}\n}\n"
+        archives = {
+            "a-base.pk3": {},
+            "a-map-alpha.pk3": {"scripts/aaa.shader": other,
+                                "scripts/common.shader": shared},
+            "a-map-zulu.pk3": {"scripts/common.shader": shared},
+        }
+        # The listing is [zulu/common, alpha/aaa] — alpha's common.shader is
+        # deduped away — and the last entry wins, so `aaa.shader` does.
+        check_shader_resolution(archives, {"n": "scripts/aaa.shader"})
+        with self.assertRaisesRegex(ContentError, "wins at run time"):
+            check_shader_resolution(archives, {"n": "scripts/common.shader"})
+
+    def test_the_archive_order_is_the_engine_comparator(self) -> None:
+        """`FS_PathCmp` uppercases before comparing, so `_` sorts after every
+        letter; Python's `sorted()` puts it before every lower-case one. Map
+        names may contain `_` — `oa_pvomit` does."""
+        definition = b"n\n{\n{\nmap x/a.tga\n}\n}\n"
+        archives = {
+            "a-map-oa_pvomit.pk3": {"scripts/p.shader": definition},
+            "a-map-oab.pk3": {"scripts/z.shader": definition},
+        }
+        # Engine order: oab < oa_pvomit, so oa_pvomit is listed first and
+        # `z.shader` in oab wins. Python order would say the opposite.
+        check_shader_resolution(archives, {"n": "scripts/z.shader"})
+        with self.assertRaisesRegex(ContentError, "wins at run time"):
+            check_shader_resolution(archives, {"n": "scripts/p.shader"})
 
     def test_a_shader_no_archive_packages_is_refused(self) -> None:
         with self.assertRaisesRegex(ContentError, "no archive packages"):
@@ -1185,7 +1345,7 @@ class CommittedRecipeTests(unittest.TestCase):
         provenance = _committed_provenance()
         self.assertEqual(provenance["package"]["id"], self.recipe["package"]["id"])
         paths = {member["path"] for member in _all_members(provenance)}
-        for name in load_map_fragments(ROOT):
+        for name in load_map_fragments(ROOT, self.recipe):
             self.assertIn(f"maps/{name}.bsp", paths)
             self.assertIn(f"maps/{name}.aas", paths)
         self.assertFalse(iter_forbidden(paths))

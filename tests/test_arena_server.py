@@ -522,6 +522,22 @@ class MultiMapRecipeTests(ProfileFixture):
         with self.assertRaisesRegex(ArenaServerError, "only starts an FFA arena"):
             load_profile(self.root)
 
+    def test_an_archive_the_content_manifest_lacks_is_refused(self) -> None:
+        """The recipe derives the archive set from the fragments; if the content
+        manifest does not carry one of them, the server tree cannot be built and
+        must say so rather than raise a KeyError."""
+        manifest_path = self.root / "provenance/arena-web-ffa-content-manifest.json"
+        manifest = json.loads(manifest_path.read_text())
+        manifest["artifacts"] = [
+            item
+            for item in manifest["artifacts"]
+            if not item["path"].startswith("baseq3/arena-web-ffa-map-")
+        ]
+        manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
+        profile = load_profile(self.root)
+        with self.assertRaisesRegex(ArenaServerError, "declares no artifact"):
+            server_tree_files(self.root, profile)
+
     def test_a_fragment_that_is_not_the_one_the_manifest_records_is_refused(
         self,
     ) -> None:

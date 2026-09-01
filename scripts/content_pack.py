@@ -561,7 +561,17 @@ def map_fragment_input_id(map_name: str) -> str:
     return f"{MAP_FRAGMENT_INPUT_PREFIX}{map_name}"
 
 
-def load_map_fragments(root: Path) -> dict[str, dict[str, Any]]:
+def arena_file_path(map_name: str) -> str:
+    """The per-map arena file `G_LoadArenas` picks up from `scripts/*.arena`."""
+    return f"scripts/{map_name}.arena"
+
+
+def generated_map_members(recipe: dict[str, Any], map_name: str) -> tuple[str, ...]:
+    """Exactly what a map archive generates rather than packages."""
+    return (recipe["noticeFile"], arena_file_path(map_name))
+
+
+def load_map_fragments(root: Path, recipe: dict[str, Any]) -> dict[str, dict[str, Any]]:
     """Load and validate every per-map recipe fragment.
 
     **The fragment directory is the map set.** The root recipe deliberately
@@ -583,6 +593,15 @@ def load_map_fragments(root: Path) -> dict[str, dict[str, Any]]:
     if not directory.is_dir():
         return fragments
     for item in sorted(directory.iterdir()):
+        if item.is_symlink():
+            # A symlink's target may sit outside the repository, so the digest
+            # the content manifest records would be of content the release does
+            # not contain — content joining the build without joining the
+            # identity, which is the one thing this directory may not allow.
+            raise ContentError(
+                f"{MAP_FRAGMENT_DIRECTORY}/{item.name} is a symlink; a fragment "
+                "must be a file in this repository"
+            )
         if item.is_dir():
             raise ContentError(
                 f"{MAP_FRAGMENT_DIRECTORY} holds a directory, {item.name}; it may "
@@ -614,6 +633,16 @@ def load_map_fragments(root: Path) -> dict[str, dict[str, Any]]:
         for key in ("acceptedUnresolved", "generatedMembers"):
             if not isinstance(fragment[key], list):
                 raise ContentError(f"{relative} {key} must be an array")
+        # `generatedMembers` satisfies a reference *without packaging anything*,
+        # so an unbounded list is a silent suppression list: naming this map's
+        # own AAS there would drop bot navigation with no unresolved reference
+        # and no failing gate. A map archive generates exactly two members.
+        expected_generated = sorted(generated_map_members(recipe, map_name))
+        if sorted(fragment["generatedMembers"]) != expected_generated:
+            raise ContentError(
+                f"{relative} generatedMembers is {sorted(fragment['generatedMembers'])}, "
+                f"and a map archive generates exactly {expected_generated}"
+            )
         fragments[map_name] = fragment
     return fragments
 
@@ -853,9 +882,13 @@ def check_duplicate_members(
             if _game_path(path) in exempted:
                 continue
             digest = hashlib.sha256(data).hexdigest()
-            previous = digests.get(path)
+            # Keyed the way the engine looks a member up: FS_AddFileToList
+            # de-duplicates with Q_stricmp and FS_FOpenFileRead hashes the
+            # lower-cased name, so two case variants are one member to it.
+            key = _game_path(path)
+            previous = digests.get(key)
             if previous is None:
-                digests[path] = (archive, digest)
+                digests[key] = (archive, digest)
             elif previous[1] != digest:
                 offenders.append(
                     f"{path} is sha256:{previous[1]} in {previous[0]} and "
@@ -868,6 +901,69 @@ def check_duplicate_members(
         )
 
 
+def _fs_path_key(name: str) -> tuple[int, ...]:
+    """Sort key matching the engine's ``FS_PathCmp``.
+
+    Not ``sorted()``: ``FS_PathCmp`` (ioq3 code/qcommon/files.c) uppercases
+    ASCII letters and folds ``\\`` and ``:`` to ``/`` before comparing, so it
+    orders ``_`` (0x5F) *after* every letter while Python orders it before every
+    lower-case one. PK3 names may contain ``_`` — ``oa_pvomit`` does — so the
+    two disagree on exactly the names this pack produces.
+    """
+    folded = []
+    for character in name:
+        code = ord(character)
+        if 0x61 <= code <= 0x7A:
+            code -= 0x20
+        elif character in ("\\", ":"):
+            code = ord("/")
+        folded.append(code)
+    return tuple(folded)
+
+
+def _engine_shader_listing(archives: dict[str, dict[str, bytes]]) -> list[tuple[str, str]]:
+    """The `scripts/*.shader` listing the engine would build, in its own order.
+
+    Three engine behaviours decide it, and none of them is the obvious one:
+
+    * ``FS_AddGameDirectory`` sorts PK3s ascending by ``FS_PathCmp`` and
+      *prepends* each to the search chain, so ``FS_ListFilteredFiles`` walks
+      them **descending**;
+    * inside one PK3 the members are walked in ``buildBuffer`` order, which is
+      the ZIP's stored order and is *not* re-sorted by the engine — so the
+      comparator there is ``write_pk3``'s plain ``sorted()``, not
+      ``FS_PathCmp``. The two disagree on ``_`` against a letter, and
+      ``scripts/weapon_rocketlauncher.shader`` versus
+      ``scripts/weaponry.shader`` is a live pair in the base archive;
+    * ``FS_AddFileToList`` keeps only the **first** occurrence of a name,
+      case-insensitively, and ``FS_ListFiles`` strips the directory — so a
+      shader file two archives both carry appears once, at the position of the
+      **highest**-named archive.
+
+    ``ScanAndLoadShaderFiles`` then concatenates the buffers in reverse of this
+    listing and ``FindShaderInShaderText`` takes the first hit, so the winner of
+    a shader name is the **last** listing entry that defines it.
+    """
+    listing: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for archive in sorted(archives, key=_fs_path_key, reverse=True):
+        members = archives[archive]
+        files = [
+            path
+            for path in members
+            if path.lower().startswith("scripts/") and path.lower().endswith(".shader")
+        ]
+        # `write_pk3` stores members with plain `sorted()`, and the engine
+        # walks that order as stored.
+        for path in sorted(files):
+            base_name = path.rsplit("/", 1)[-1].lower()
+            if base_name in seen:
+                continue
+            seen.add(base_name)
+            listing.append((archive, path))
+    return listing
+
+
 def check_shader_resolution(
     archives: dict[str, dict[str, bytes]], resolved: dict[str, str]
 ) -> None:
@@ -875,34 +971,27 @@ def check_shader_resolution(
 
     The closure resolves a shader name through one ``ShaderIndex`` over the
     whole source set. At run time the engine resolves it over the *packaged*
-    files spread across several archives, and the two orders are not the same
-    one: ``FS_AddGameDirectory`` sorts PK3s ascending and prepends each, so
-    ``FS_ListFilteredFiles`` walks them descending, and
-    ``ScanAndLoadShaderFiles`` concatenates the buffers in reverse of that
-    listing — which makes the **lowest**-named PK3 win a shader name, while
-    inside one PK3 the alphabetically highest file still wins.
+    files spread across several archives, in the order
+    ``_engine_shader_listing`` reconstructs — which is not the same order, and
+    is not even a function of one archive at a time.
 
-    So a name whose index winner sits in a map archive, and which some file the
-    base packages for an unrelated name also defines, would render from the
-    base's definition and not from the audited one. Nothing reports it. This is
-    the check §4.2 asks for, and the archive keys must be the PK3 names the
-    engine sees, not the manifest paths.
+    So a name whose index winner sits in a map archive, and which some file
+    another archive packages for an unrelated name also defines, would render
+    from that other definition and not from the audited one. Nothing reports it.
+    This is the check §4.2 asks for, and the archive keys must be the PK3 names
+    the engine sees, not the manifest paths.
     """
     winner: dict[str, tuple[str, str]] = {}
-    for archive in sorted(archives):
-        members = archives[archive]
-        files = [
-            path
-            for path in members
-            if path.startswith("scripts/") and path.endswith(".shader")
-        ]
-        for path in shader_file_precedence(sorted(files)):
-            try:
-                definitions = parse_shader_file(members[path].decode("latin-1"))
-            except AssetFormatError as error:  # pragma: no cover - parsed already
-                raise ContentError(f"{archive}: {path}: {error}") from error
-            for definition in definitions:
-                winner.setdefault(_game_path(definition.name), (archive, path))
+    for archive, path in _engine_shader_listing(archives):
+        try:
+            definitions = parse_shader_file(
+                archives[archive][path].decode("latin-1")
+            )
+        except AssetFormatError as error:  # pragma: no cover - parsed already
+            raise ContentError(f"{archive}: {path}: {error}") from error
+        for definition in definitions:
+            # Later in the listing wins, so a plain assignment is the rule.
+            winner[_game_path(definition.name)] = (archive, path)
     offenders = []
     for name, shader_file in sorted(resolved.items()):
         found = winner.get(name)

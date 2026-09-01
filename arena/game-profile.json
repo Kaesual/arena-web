@@ -128,14 +128,14 @@
     {
       "manifest": "content",
       "path": "baseq3/arena-web-ffa-base.pk3",
-      "served": "content/baseq3/arena-web-ffa-base-d1fda2196ce4dd3f.pk3",
+      "served": "content/baseq3/arena-web-ffa-base-6c3341ef87d16c75.pk3",
       "role": "filesystem",
       "fsPath": "/arena/arena-web-ffa-base.pk3"
     },
     {
       "manifest": "content",
       "path": "baseq3/arena-web-ffa-map-oa_pvomit.pk3",
-      "served": "content/baseq3/arena-web-ffa-map-oa_pvomit-5294b9e8ba50c3d3.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-oa_pvomit-304a2266a08ebe2f.pk3",
       "role": "filesystem",
       "fsPath": "/arena/arena-web-ffa-map-oa_pvomit.pk3"
     }

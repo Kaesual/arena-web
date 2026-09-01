@@ -480,6 +480,12 @@ def _game_tree(
     basegame = profile["basegame"]
     files: dict[str, dict[str, Any]] = {}
     for pack_path in _content_pack_paths(repo_root):
+        if pack_path not in profile["_manifests"]["content"]:
+            _fail(
+                CONTENT_MANIFEST,
+                f"declares no artifact '{pack_path}'; the recipe's archive set "
+                "and the content manifest disagree",
+            )
         entry = profile["_manifests"]["content"][pack_path]
         files[f"{basegame}/{PurePosixPath(pack_path).name}"] = {
             "kind": "artifact",

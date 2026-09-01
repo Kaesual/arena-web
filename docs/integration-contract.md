@@ -50,15 +50,16 @@ container tag is not an identity.
 
 | Input | Accepted identity |
 | --- | --- |
-| Baseline lock | `sha256:cc45026e109df38a3b019192ed8b6807bae8bc787119b2b89fe5c7a6f28c05f1` |
-| ioq3 engine | `git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a` |
-| Browser loader producer | `git:7af8628e8ce43a0f5c7dd6b7bddba4b78eccdfcc` |
-| Browser artifact manifest | `sha256:0585e09b211c3c2baa48cb03e9d9d9f2ce70e95599d5da76c16d4db40594ec56` |
-| Content artifact manifest | `sha256:1961f1e45ca7d4a39325c99fe5843486184d52006a41902424d817c230fe69fd` |
-| Content PK3 | `sha256:ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664` |
-| Server artifact manifest | `sha256:41ea01e5450651bfae0c4fbdd62e2632209d40d2603bebc9dbe6ad9cb558a000` |
-| Server image producer/build checkout | `git:bba1260902b266e1b8eabad915926e11598ff0c8` |
-| Accepted native server image ID | `sha256:c26e24996457a9d21a816b2805bb460b7783b2dd1d3c236d20fbe3c88c4b128b` |
+| Baseline lock | `sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287` |
+| ioq3 engine | `git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592` |
+| Browser loader producer | `git:95f45b537dd0bb8b4a542b97d0f4281eefa7604a` |
+| Browser artifact manifest | `sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047` |
+| Content artifact manifest | `sha256:7785b2a65104257d1f0cd67d9b59771dc259726155acc54bdae0451cef92dfc5` |
+| Content base archive | `sha256:6c3341ef87d16c75b7d3fb5f368d9f935dac304c1dd7667f96b64dd73912bb03` |
+| Content map archives | covered transitively through the content artifact manifest, and each bound byte-for-byte to its counterpart in the server manifest |
+| Server artifact manifest | `sha256:580654c261a364ad71a0ae5e92b6ad291032ae8f97e5f4276e557ea3a6081281` |
+| Server image producer/build checkout | `git:95f45b537dd0bb8b4a542b97d0f4281eefa7604a` |
+| Accepted native server image ID | `sha256:73ba426831ffee51811d24d6ead5a241723a1aa1bc446ecf3d6405dbb806bd2f` |
 
 The image value is the reproducible container configuration/image ID observed
 after loading the accepted single-platform image, not a promise that every
@@ -73,9 +74,9 @@ accepted browser, content and native builds, and run
 `scripts/build-server-image.sh`. Compare the generated
 `build/server-image/artifact-manifest.json` byte-for-byte with this release's
 `provenance/arena-web-server.json`; require manifest identity
-`sha256:41ea01e5450651bfae0c4fbdd62e2632209d40d2603bebc9dbe6ad9cb558a000`
+`sha256:580654c261a364ad71a0ae5e92b6ad291032ae8f97e5f4276e557ea3a6081281`
 and loaded image ID
-`sha256:c26e24996457a9d21a816b2805bb460b7783b2dd1d3c236d20fbe3c88c4b128b`.
+`sha256:73ba426831ffee51811d24d6ead5a241723a1aa1bc446ecf3d6405dbb806bd2f`.
 
 A rebuild from the current documentation commit or any other later commit has
 a new image ID even when all four runtime files are byte-identical, because its
@@ -133,7 +134,8 @@ engine/ioquake3.wasm
 engine/baseq3/vm/cgame.qvm
 engine/baseq3/vm/qagame.qvm
 engine/baseq3/vm/ui.qvm
-content/baseq3/arena-web-ffa.pk3
+content/baseq3/arena-web-ffa-base-6c3341ef87d16c75.pk3
+content/baseq3/arena-web-ffa-map-oa_pvomit-304a2266a08ebe2f.pk3
 ```
 
 The staging check refuses an extra, missing, symlinked or changed file. It
@@ -151,7 +153,10 @@ verification and WebTransport for multiplayer. Loopback HTTP is suitable only
 for local development.
 
 Serve `.wasm` as `application/wasm`, JavaScript as a JavaScript media type, JSON
-as `application/json`, HTML as `text/html`, and the PK3 as an opaque binary.
+as `application/json`, HTML as `text/html`, and each PK3 as an opaque
+binary. The content archives carry their own SHA-256 in their file names and
+never change under a published name, so serve them
+`Cache-Control: public, max-age=31536000, immutable`.
 The loader imports the verified module from a `blob:` URL and instantiates the
 verified WebAssembly bytes itself. A restrictive Content Security Policy must
 therefore be tested with those two mechanisms and must allow the configured
@@ -506,13 +511,14 @@ licences** link and meet all of these obligations:
   including the ioquake3/component notices, Emscripten, musl, LLVM
   compiler-rt, IJG and SDL terms. That WP1 section records where the inventory
   originated; repository-local notices for this release resolve at the current
-  engine pin `596e56a6bf58f41e1ad9cc1685c7c11a75dba87a`, as the authoritative
+  engine pin `d594b1cc9bfc5b58ccebffd4d840a13782cb6592`, as the authoritative
   baseline lock requires;
 - offer the corresponding public source identified in
   [`wp1-build-evidence.md`](wp1-build-evidence.md#corresponding-source): the
   current pinned ioq3 fork, this repository's build orchestration, the pinned
   Emscripten source and the pinned SDL port archive;
-- preserve the six notices already packaged inside the PK3 and offer the
+- preserve the six notices already packaged inside **every** archive — each
+  is published under its own URL and redistributed on its own — and offer the
   digest-pinned preferred content sources and assembly source described in
   [`wp3-content-closure.md`](wp3-content-closure.md#attribution-and-source-offer-obligations-a-distributor-must-meet);
 - distribute the server image with all 78 per-package Debian copyright files

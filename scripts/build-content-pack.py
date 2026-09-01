@@ -173,11 +173,14 @@ def _check_profile(recipe: dict[str, Any], fragments: dict[str, Any]) -> None:
 
     An arena's `bots` value is deliberately *not* required to equal the
     profile's roster any more. Requiring it made every map archive depend on the
-    base's bot list, so adding a bot would have moved every archive's bytes —
-    and it checked something no reader consumes: outside `GT_SINGLE_PLAYER`
-    nothing in the pinned gamecode reads arena data at all (ioq3
-    code/game/g_bot.c). What survives is the value gate below, which is about
-    the generated file staying parseable.
+    base's bot list, so adding a bot would have moved every archive's bytes.
+    What it protected is narrow: the game module reads arena data only inside
+    `GT_SINGLE_PLAYER` (ioq3 code/game/g_bot.c `G_InitBots`), and this profile
+    is `GT_FFA` with bots supplied by `+addbot`. The packaged `q3_ui` *does*
+    read `arena.bots` — `ui_startserver.c` and `ui_splevel.c` seed skirmish
+    slots from it — but this product launches straight into a game and never
+    enters those menus. What survives is the value gate below, which is about
+    the generated file staying parseable at all.
     """
     profile = recipe["profile"]
     models = profile["playerModels"]
@@ -263,10 +266,15 @@ def _check_map_templates(declared: dict[str, dict[str, Any]]) -> None:
                 f"recipe template {template!r} is expanded per map and must not "
                 "also carry a whole-set expansions list"
             )
-        if "kind" not in entry:
+        kind = entry.get("kind")
+        if kind not in DERIVED_REFERENCE_KINDS:
+            # This value *is* used, at the map closure root; `expandsPerMap` is
+            # only checked. A wrong kind for `maps/%s.bsp` would be masked by
+            # the explicit bsp root beside it and package the map without ever
+            # following its shader lump.
             raise ContentError(
-                f"recipe template {template!r} expands per map without declaring "
-                "which kind of reference its expansions are"
+                f"recipe template {template!r} expands per map as kind {kind!r}, "
+                f"which is not one of {list(DERIVED_REFERENCE_KINDS)}"
             )
     for template, entry in sorted(declared.items()):
         if template in MAP_TEMPLATES:
@@ -663,9 +671,13 @@ def _check_arena_file_listing(engine_root: Path, arena_files: list[str]) -> None
     (code/qcommon/files.c). Nothing reports the truncation, so a map set that
     outgrew the buffer would ship with the last arenas silently absent.
 
-    This replaces WP-A's `MAX_ARENAS_TEXT` gate rather than joining it: that
-    gate measured a `scripts/arenas.txt` this pack no longer generates, and the
-    failure it guarded against was at least loud.
+    It *joins* WP-A's `MAX_ARENAS_TEXT` gate rather than replacing it — an
+    earlier draft of this comment claimed the pack no longer generates
+    `scripts/arenas.txt`, which is wrong: the base still generates it, empty of
+    arena blocks, and every map archive generates one `.arena` file. Those are
+    still read into `char buf[MAX_ARENAS_TEXT]` and dropped whole on overflow,
+    so `_check_arena_text_size` keeps that bound; this function adds the one the
+    listing imposes, which is the silent failure of the two.
     """
     source = engine_root / _GAMECODE_BOTS
     match = _ARENA_DIRLIST_RE.search(source.read_text(encoding="latin-1"))
@@ -682,6 +694,29 @@ def _check_arena_file_listing(engine_root: Path, arena_files: list[str]) -> None
             f"bytes, and G_LoadArenas lists them into {limit} bytes and truncates "
             "the remainder without a word"
         )
+
+
+def _check_arena_text_size(
+    engine_root: Path, metadata: dict[str, str], what: str
+) -> None:
+    """Every generated arena file must fit the buffer its readers give it.
+
+    `G_LoadArenasFromFile` and both `UI_LoadArenasFromFile` copies read a file
+    into a fixed `char buf[MAX_ARENAS_TEXT]` and, when it does not fit, drop the
+    *whole* file rather than truncate it (ioq3 code/game/g_bot.c,
+    code/q3_ui/ui_gameinfo.c). One red console line, zero parsed arenas, and no
+    property of the assembled archive would show it.
+    """
+    limit = _engine_constant(engine_root, "MAX_ARENAS_TEXT", _GAMECODE_HEADER)
+    for path, text in sorted(metadata.items()):
+        if not path.endswith((".arena", "arenas.txt")):
+            continue
+        size = len(text.encode("utf-8"))
+        if size >= limit:
+            raise ContentError(
+                f"{what}: generated {path} is {size} bytes, and every reader "
+                f"drops a file of MAX_ARENAS_TEXT ({limit}) bytes or more"
+            )
 
 
 def _check_base_metadata(
@@ -705,6 +740,7 @@ def _check_base_metadata(
     # (ioq3 code/game/g_bot.c). Unlike the arena data this one is load-bearing:
     # without it no bot connects at all, which §4.5 measured. The file grows
     # with the bot roster, so the size is a build gate.
+    _check_arena_text_size(engine_root, metadata, "the base archive")
     limit = _engine_constant(engine_root, "MAX_BOTS_TEXT", _GAMECODE_HEADER)
     bots_bytes = len(metadata["scripts/bots.txt"].encode("utf-8"))
     if bots_bytes >= limit:
@@ -733,9 +769,13 @@ def _check_base_metadata(
 
 
 def _check_map_metadata(
-    map_name: str, metadata: dict[str, str], members: dict[str, bytes]
+    map_name: str,
+    metadata: dict[str, str],
+    members: dict[str, bytes],
+    engine_root: Path,
 ) -> None:
     """Read one map archive's generated `.arena` file back."""
+    _check_arena_text_size(engine_root, metadata, f"the {map_name} archive")
     path = arena_file_path(map_name)
     arenas = parse_key_value_blocks(metadata[path])
     named = [arena["map"] for arena in arenas]
@@ -1003,6 +1043,53 @@ def _closure_report_lines(name: str, report: Any, members: dict[str, bytes]) -> 
     return lines
 
 
+def _check_archive_set(
+    recipe: dict[str, Any],
+    archives: list[AssembledArchive],
+    reports: dict[str, Any],
+    fragments: dict[str, Any],
+    engine_root: Path,
+) -> None:
+    """Everything that is only decidable once the whole archive set exists.
+
+    These four are deliberately one function rather than four calls in `build`:
+    each is about the *set*, none of them can be exercised by looking at one
+    archive, and keeping them together gives them a single place a test can
+    reach without assembling gigabytes of upstream content.
+    """
+    # The keys are the names the engine sees, not the manifest paths, because
+    # PK3 load order is by that name. `arena_runtime` binds the two together.
+    by_engine_name = {
+        Path(archive.path).name: archive.members for archive in archives
+    }
+    # §6.1 invariant 3: a member two archives share must be byte-identical,
+    # exempting the notice each archive generates for itself.
+    check_duplicate_members(by_engine_name, exempt=(recipe["noticeFile"],))
+    # §6.1 invariant 2, in its honest form: the run-time winner of every shader
+    # name the closure resolved must be the file the closure resolved it to.
+    resolved: dict[str, str] = {}
+    for report, _members in reports.values():
+        resolved.update(report.shader_names)
+    check_shader_resolution(by_engine_name, resolved)
+    # The `.arena` names must all fit the listing buffer G_LoadArenas gives them.
+    _check_arena_file_listing(
+        engine_root,
+        [arena_file_path(name).rpartition("/")[2] for name in fragments],
+    )
+    # An excluded derived reference must be absent from *every* archive, not
+    # only from the base whose closure declared it.
+    for archive in archives:
+        for entry in recipe["derivedReferences"]:
+            if (
+                "excludedReason" in entry
+                and _game_path(entry["reference"]) in archive.members
+            ):
+                raise ContentError(
+                    f"derived reference {entry['reference']!r} is excluded but "
+                    f"{archive.path} packages it anyway"
+                )
+
+
 def build(root: Path, arguments: argparse.Namespace) -> int:
     baseline = validate_baseline(
         _load_json(root / "locks" / "baseline.json"), "baseline"
@@ -1014,7 +1101,7 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
     # is what the base's notice carries. Each map fragment is its map archive's,
     # so a map's notice carries only its own. Neither reaches the other's bytes.
     recipe_digest = f"sha256:{file_sha256(recipe_path)}"
-    fragments = load_map_fragments(root)
+    fragments = load_map_fragments(root, recipe)
     fragment_digests = {
         name: f"sha256:{file_sha256(root / map_fragment_path(name))}"
         for name in fragments
@@ -1141,7 +1228,7 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
         if name == "base":
             _check_base_metadata(metadata, recipe, members, engine_root)
         else:
-            _check_map_metadata(name, metadata, members)
+            _check_map_metadata(name, metadata, members, engine_root)
         forbidden = iter_forbidden(members)
         if forbidden:
             raise ContentError(
@@ -1158,26 +1245,7 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
         )
         reports[name] = (report, members)
 
-    by_engine_name = {
-        Path(archive.path).name: archive.members for archive in archives
-    }
-    # §6.1's invariants 2 and 3, over the finished set.
-    check_duplicate_members(by_engine_name, exempt=(recipe["noticeFile"],))
-    resolved: dict[str, str] = {}
-    for report, _members in reports.values():
-        resolved.update(report.shader_names)
-    check_shader_resolution(by_engine_name, resolved)
-    _check_arena_file_listing(
-        engine_root,
-        [arena_file_path(name).rpartition("/")[2] for name in fragments],
-    )
-    for archive in archives:
-        for entry in recipe["derivedReferences"]:
-            if "excludedReason" in entry and _game_path(entry["reference"]) in archive.members:
-                raise ContentError(
-                    f"derived reference {entry['reference']!r} is excluded but "
-                    f"{archive.path} packages it anyway"
-                )
+    _check_archive_set(recipe, archives, reports, fragments, engine_root)
 
     provenance = build_provenance(recipe, baseline, archives)
     validate_provenance(provenance, baseline)

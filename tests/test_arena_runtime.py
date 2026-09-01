@@ -1063,8 +1063,11 @@ class CommittedProfileTest(unittest.TestCase):
                 "arena/host-lifecycle.js",
                 "arena/network-backend.js",
                 "arena/relay-profile.json",
-                "content/baseq3/arena-web-ffa-base-d1fda2196ce4dd3f.pk3",
-                "content/baseq3/arena-web-ffa-map-oa_pvomit-5294b9e8ba50c3d3.pk3",
+                *sorted(
+                    artifact["served"]
+                    for artifact in self.profile["artifacts"]
+                    if artifact["manifest"] == "content"
+                ),
                 "default.cfg",
                 "engine/baseq3/vm/cgame.qvm",
                 "engine/baseq3/vm/qagame.qvm",

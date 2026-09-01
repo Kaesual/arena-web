@@ -152,12 +152,26 @@ def _check_map_fragments(root: Path, content_inputs: dict[str, str]) -> None:
     """
     declared = _map_fragment_inputs(content_inputs)
     directory = root / MAP_FRAGMENT_DIRECTORY
-    on_disk = (
-        {item.name[: -len(".json")] for item in directory.iterdir()
-         if item.is_file() and item.name.endswith(".json")}
-        if directory.is_dir()
-        else set()
-    )
+    on_disk: set[str] = set()
+    if directory.is_dir():
+        for item in sorted(directory.iterdir()):
+            # Every entry counts, not only the well-formed ones: ignoring a
+            # stray file here would make this validator and the build disagree
+            # about what the directory means, and the build is the stricter of
+            # the two. A symlink is refused outright — its target may be
+            # outside the repository, so the digest recorded for it would be of
+            # content the release does not contain.
+            if item.is_symlink():
+                _fail(
+                    f"authorities.contentManifest: {MAP_FRAGMENT_DIRECTORY}/"
+                    f"{item.name} is a symlink"
+                )
+            if not item.is_file() or not item.name.endswith(".json"):
+                _fail(
+                    f"authorities.contentManifest: {MAP_FRAGMENT_DIRECTORY}/"
+                    f"{item.name} is not a map fragment"
+                )
+            on_disk.add(item.name[: -len(".json")])
     if on_disk != set(declared):
         undeclared = sorted(on_disk - set(declared))
         missing = sorted(set(declared) - on_disk)

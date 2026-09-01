@@ -26,6 +26,14 @@ class ReleaseIndexTests(unittest.TestCase):
         index = json.loads(index_path.read_text(encoding="utf-8"))
         paths = {"release/browser-release.json"}
         paths.update(entry["path"] for entry in index["authorities"].values())
+        # The per-map fragments are content-determining data the content
+        # manifest records by digest, and the index checks that set against the
+        # directory both ways, so a minimal checkout has to carry them.
+        paths.update(
+            item.relative_to(ROOT).as_posix()
+            for item in (ROOT / "content/maps").iterdir()
+            if item.is_file()
+        )
         for relative in sorted(paths):
             destination = checkout / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
@@ -49,10 +57,57 @@ class ReleaseIndexTests(unittest.TestCase):
         expected = served_files(ROOT, load_profile(ROOT))
         validate_release_index(ROOT, expected)
         index = json.loads((ROOT / "release/browser-release.json").read_text())
-        self.assertEqual(len(index["servedFiles"]), 17)
+        self.assertEqual(len(index["servedFiles"]), 18)
         self.assertEqual(
             [entry["path"] for entry in index["servedFiles"]], sorted(expected)
         )
+
+    def _fragment_path(self, checkout: Path) -> Path:
+        return checkout / "content/maps/oa_pvomit.json"
+
+    def test_a_fragment_the_content_manifest_does_not_record_is_refused(self) -> None:
+        """The map set may not grow outside the release identity."""
+        with tempfile.TemporaryDirectory() as directory:
+            checkout = self._minimal_checkout(directory)
+            (checkout / "content/maps/invented.json").write_text("{}")
+            with self.assertRaisesRegex(ReleaseIndexError, "map fragments do not match"):
+                validate_release_index(checkout, served_files(ROOT, load_profile(ROOT)))
+
+    def test_a_recorded_fragment_that_is_missing_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            checkout = self._minimal_checkout(directory)
+            self._fragment_path(checkout).unlink()
+            with self.assertRaisesRegex(ReleaseIndexError, "map fragments do not match"):
+                validate_release_index(checkout, served_files(ROOT, load_profile(ROOT)))
+
+    def test_a_fragment_whose_bytes_moved_is_refused(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            checkout = self._minimal_checkout(directory)
+            path = self._fragment_path(checkout)
+            path.write_text(path.read_text() + "\n")
+            with self.assertRaisesRegex(
+                ReleaseIndexError, "is not the fragment the manifest records"
+            ):
+                validate_release_index(checkout, served_files(ROOT, load_profile(ROOT)))
+
+    def test_a_stray_file_in_the_fragment_directory_is_refused(self) -> None:
+        """The validator and the build must agree on what the directory means."""
+        with tempfile.TemporaryDirectory() as directory:
+            checkout = self._minimal_checkout(directory)
+            (checkout / "content/maps/notes.txt").write_text("x")
+            with self.assertRaisesRegex(ReleaseIndexError, "is not a map fragment"):
+                validate_release_index(checkout, served_files(ROOT, load_profile(ROOT)))
+
+    def test_a_symlinked_fragment_is_refused(self) -> None:
+        """A symlink's target may be outside the repository, so its digest
+        would be of content the release does not carry."""
+        with tempfile.TemporaryDirectory() as directory:
+            checkout = self._minimal_checkout(directory)
+            (checkout / "content/maps/linked.json").symlink_to(
+                self._fragment_path(checkout)
+            )
+            with self.assertRaisesRegex(ReleaseIndexError, "is a symlink"):
+                validate_release_index(checkout, served_files(ROOT, load_profile(ROOT)))
 
     def test_changed_authority_is_refused(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

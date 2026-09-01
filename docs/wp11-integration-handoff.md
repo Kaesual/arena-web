@@ -28,11 +28,11 @@ The primary immutable identities are:
 
 | Input | Identity |
 | --- | --- |
-| Baseline lock | `sha256:cc45026e109df38a3b019192ed8b6807bae8bc787119b2b89fe5c7a6f28c05f1` |
-| Browser artifact manifest | `sha256:0585e09b211c3c2baa48cb03e9d9d9f2ce70e95599d5da76c16d4db40594ec56` |
-| Content artifact manifest | `sha256:1961f1e45ca7d4a39325c99fe5843486184d52006a41902424d817c230fe69fd` |
-| Base content archive | `sha256:PLACEHOLDER_BASE`, PLACEHOLDER_BASE_SIZE bytes |
-| `oa_pvomit` map archive | `sha256:PLACEHOLDER_MAP`, PLACEHOLDER_MAP_SIZE bytes |
+| Baseline lock | `sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287` |
+| Browser artifact manifest | `sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047` |
+| Content artifact manifest | `sha256:7785b2a65104257d1f0cd67d9b59771dc259726155acc54bdae0451cef92dfc5` |
+| Base content archive | `sha256:6c3341ef87d16c75b7d3fb5f368d9f935dac304c1dd7667f96b64dd73912bb03`, 40,913,889 bytes |
+| `oa_pvomit` map archive | `sha256:304a2266a08ebe2f3b63117214dd9cf2489b974c2036d6cf05309555e3ce95d3`, 1,923,375 bytes |
 
 **The content is a set of archives, not one PK3.** A base archive carries
 everything not tied to a map — the gamecode's own closure, the seven player
@@ -87,7 +87,7 @@ must not parse UI text or engine logs. Every `snapshot()` is a defensive copy;
 mutating it cannot change the loader. It contains the public `status`, bounded
 `error`, final `exit`, `progress`, surface/fullscreen state and safe relay
 counters. It contains no authorization value. Progress has exactly
-`{phase, loadedBytes, totalBytes, fraction}`: `phase` is `loading` until all six
+`{phase, loadedBytes, totalBytes, fraction}`: `phase` is `loading` until all seven
 declared runtime artifacts verify and `verified` afterward; `fraction` is
 clamped to 0..1, and byte totals become exact once artifact manifests have been
 read.
@@ -180,9 +180,9 @@ The exact server identities are:
 
 | Input | Identity |
 | --- | --- |
-| OCI configuration/image ID | `sha256:c26e24996457a9d21a816b2805bb460b7783b2dd1d3c236d20fbe3c88c4b128b` |
-| Server artifact manifest | `sha256:41ea01e5450651bfae0c4fbdd62e2632209d40d2603bebc9dbe6ad9cb558a000` |
-| Server profile | `sha256:147066a98a8c3eb587b752e3fc373ef7191f9354be3fdc148addf56e1b5759c3` |
+| OCI configuration/image ID | `sha256:73ba426831ffee51811d24d6ead5a241723a1aa1bc446ecf3d6405dbb806bd2f` |
+| Server artifact manifest | `sha256:580654c261a364ad71a0ae5e92b6ad291032ae8f97e5f4276e557ea3a6081281` |
+| Server profile | `sha256:6d48c19238b1874bf30d276a8419ec771007f13739f0e69c447b33d412a69472` |
 
 The image is `linux/amd64`, user/group `65534:65534`, workdir
 `/opt/arena-web`, environment `HOME=/var/lib/arena`, entrypoint
@@ -198,7 +198,7 @@ label: the GPL arena/engine and mixed-license Debian runtime retain the
 component-level authorities in section 9.
 
 Reproduce that exact image from clean public checkout
-`bba1260902b266e1b8eabad915926e11598ff0c8` after reproducing its browser,
+`95f45b537dd0bb8b4a542b97d0f4281eefa7604a` after reproducing its browser,
 content and native inputs, then run `scripts/build-server-image.sh`. Its
 generated `build/server-image/artifact-manifest.json` must equal the committed
 `provenance/arena-web-server.json` byte-for-byte and the loaded image must have
@@ -224,7 +224,7 @@ read-only and mount an initially empty, `rw,noexec,nosuid,nodev`, mode-1777,
 64-MiB tmpfs at `/var/lib/arena`. That home holds only ephemeral engine config
 and `games.log`. There is **no persistent path or volume** in this release; no
 world, save, secret or host file is required. The read-only image is
-106,856,397 bytes; the measured container writable layer after stop was 12,554
+125,209,549 bytes; the measured container writable layer after stop was 12,554
 bytes and is disposable.
 
 Readiness is the native binary UDP query, no more than once per second from a
@@ -244,7 +244,7 @@ one-second checks make the observation failed.
 Send `SIGTERM` or `SIGINT` to the entrypoint and allow 10 seconds before a
 forced kill. The normal signal path sends the final server message, closes the
 VM/network and exits with code 1; code 1 is therefore success only when the
-manager requested this stop. The measured graceful exit took 0.119 seconds.
+manager requested this stop. The measured graceful exit took 0.137 seconds.
 Any unsolicited exit, including code 1, is failure.
 
 ## 5. Indivisible compatibility identity
@@ -253,13 +253,13 @@ The following tuple is one unit and must not be mixed with an earlier or later
 loader, profile, QVM, pack, binary or relay profile:
 
 ```text
-baseline          sha256:cc45026e109df38a3b019192ed8b6807bae8bc787119b2b89fe5c7a6f28c05f1
-ioq3               git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a
-browser manifest   sha256:0585e09b211c3c2baa48cb03e9d9d9f2ce70e95599d5da76c16d4db40594ec56
-content manifest   sha256:1961f1e45ca7d4a39325c99fe5843486184d52006a41902424d817c230fe69fd
-content base       sha256:PLACEHOLDER_BASE
-server manifest    sha256:41ea01e5450651bfae0c4fbdd62e2632209d40d2603bebc9dbe6ad9cb558a000
-server image ID    sha256:c26e24996457a9d21a816b2805bb460b7783b2dd1d3c236d20fbe3c88c4b128b
+baseline          sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287
+ioq3               git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592
+browser manifest   sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047
+content manifest   sha256:7785b2a65104257d1f0cd67d9b59771dc259726155acc54bdae0451cef92dfc5
+content base       sha256:6c3341ef87d16c75b7d3fb5f368d9f935dac304c1dd7667f96b64dd73912bb03
+server manifest    sha256:580654c261a364ad71a0ae5e92b6ad291032ae8f97e5f4276e557ea3a6081281
+server image ID    sha256:73ba426831ffee51811d24d6ead5a241723a1aa1bc446ecf3d6405dbb806bd2f
 ```
 
 `release/browser-release.json.compatibility` repeats these values and its
@@ -322,15 +322,15 @@ for this exact eight-slot/two-human/three-bot prototype is:
 
 | Resource | Limit | Busy observed maximum | Remaining safety margin |
 | --- | ---: | ---: | ---: |
-| CPU | 1 core | 0.045801-core peak sample | 0.954199 core; 21.834x |
-| Memory | 268,435,456 bytes | 29,810,688-byte peak cgroup; 30,998,528-byte process HWM | 238,624,768 bytes; 9.005x against cgroup peak |
+| CPU | 1 core | 0.041056-core peak sample | 0.958944 core; 24.357x |
+| Memory | 268,435,456 bytes | 29,724,672-byte peak cgroup; 31,039,488-byte process HWM | 238,501,888 bytes; 8.968x against cgroup peak |
 | Writable home | 67,108,864 bytes | 1,272 bytes | 67,107,592 bytes; 52,758.541x |
 | Processes | 128 PIDs | constrained successfully by the probe | guard, not a measured demand claim |
 
 Startup readiness was 1.751 seconds. The ten-second idle phase averaged
-0.020994 cores. The 30-second two-native-client phase, with movement, weapon,
+0.020647 cores. The 30-second two-native-client phase, with movement, weapon,
 fire, chat and respawn traffic while all three bots remained active, averaged
-0.038415 cores. These values preserve large practical headroom, but are
+0.032544 cores. These values preserve large practical headroom, but are
 capacity guards only—not an SLO, autoscaling rule, production concurrency
 claim or evidence for more than two humans.
 
@@ -377,7 +377,7 @@ records in `locks/baseline.json`; none may be replaced by an aggregate blanket
 licence.
 
 Corresponding source is the public ioq3 commit
-`596e56a6bf58f41e1ad9cc1685c7c11a75dba87a`, this repository at the browser
+`d594b1cc9bfc5b58ccebffd4d840a13782cb6592`, this repository at the browser
 manifest's producer/release commits, emsdk commit
 `e5bd3d0874e302a18f13c5b41f5bacf9a40c8e59`, the digest-pinned SDL port
 archive and IJG source archive. Each archive already contains all six required
@@ -396,11 +396,14 @@ offer creates a new release and requires a newly checked index.
 
 ## Producer acceptance evidence
 
-The final producer state passed all 809 deterministic tests and the strict
-17-file stage/index check. Two clean browser builds at producer checkout
-`7af8628e8ce43a0f5c7dd6b7bddba4b78eccdfcc` produced the same browser manifest
-and bytes. Two clean native-server builds and two image builds at producer
-checkout `bba1260902b266e1b8eabad915926e11598ff0c8` produced the same binary,
+The final producer state passed all 841 deterministic tests and the strict
+18-file stage/index check. Two clean browser builds at producer checkout
+`95f45b537dd0bb8b4a542b97d0f4281eefa7604a` produced the same browser manifest
+and bytes. Three clean content assemblies at that checkout produced the same
+archives, and a fourth with one map added left every archive that already
+existed byte-identical — the property the archive split exists for, checked
+mechanically by `scripts/verify-content-pack.sh` rather than argued. Two clean native-server builds and two image builds at producer
+checkout `95f45b537dd0bb8b4a542b97d0f4281eefa7604a` produced the same binary,
 server manifest and OCI image ID. The image verifier checked the exact OCI
 configuration, complete added filesystem, unchanged runtime-base remainder and
 all 78 per-package copyright files.
@@ -431,7 +434,7 @@ major or minor finding.
 ## Minimal consumer acceptance
 
 A consumer need only: validate the immutable checkout; stage and hash-check the
-17-file tree; verify the loaded image ID; observe exact server readiness; use
+18-file tree; verify the loaded image ID; observe exact server readiness; use
 one real gesture to reach browser `running` plus relay `open`; exercise focus
 and enter/leave fullscreen; call `stop()` and receive the real final settlement;
 and make the complete Source and licences link durable. This is a smoke test,
