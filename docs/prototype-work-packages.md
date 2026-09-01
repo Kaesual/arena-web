@@ -18,7 +18,11 @@ protocol/security reviews, and routed real-browser acceptance passed on
 amendment below: two isolated local browser contexts, five minutes of concurrent
 play, reconnect of both clients and the reduced network-evidence gate. The Mini
 round passed, including the operator-accepted KDE/Wayland pointer-lock variation,
-and **WP8 is complete**. WP9 has not started.
+and **WP8 is complete**. The operator authorized WP9-Mini on 2026-09-01 as a
+public, self-contained integration contract for the game client and game
+server, with all environment-specific hosting, deployment and product
+implementation kept out of scope. The contract passed its independent read-only
+review, and **WP9-Mini is complete**.
 
 This document turns the reviewed direction in
 [`initial-plan.md`](initial-plan.md) into coherent, testable increments. It
@@ -62,13 +66,14 @@ is a plan change; adding another platform is later scope.
 | WP6 | Measured network-sizing decision | WP2, WP5 | ✅ Complete — a reviewed, recomputable sizing decision: the routed budget refutes intact datagrams, and the selected strategy is a symmetric `FRAGMENT_SIZE` reduction to **704** at the record-backed 768-byte floor, with profile bounds for the out-of-band classes the engine never fragments, a fail-closed emitted-size check on both endpoints at `Sys_SendPacket`, and an original ten-threshold WP8 table later replaced by the explicit Mini acceptance amendment. Built: [`wp6-network-sizing.md`](wp6-network-sizing.md), the `scripts/derive-network-sizing.py` derivation that recomputes every number from the two committed records (with a suite that requires doctored records to flip its verdicts), and implementation-ready WP7/WP8 contracts. The operator decided all five open points on 2026-08-30 and the three review extensions the same day; the mandatory independent protocol/security review returned fix-first, and its four MAJOR findings — the unlisted 1,038-byte `getmotd`, the unenforced server-browser exclusion, the one-directional fail-closed machinery and the shared relay address — were resolved and confirmed by a re-verification pass that found no decided value had drifted |
 | WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | ✅ Complete — the bounded WebTransport backend and fresh-authorization reconnect path use the existing engine send/receive boundary; exact final-pin browser/server rebuilds, 61,322-datagram re-census, independent engine and protocol/security reviews, and the routed real-browser acceptance all passed; see [`wp7-routed-acceptance-2026-09-01.md`](wp7-routed-acceptance-2026-09-01.md) |
 | WP8 | Two-browser multiplayer acceptance | WP5, WP7 | ✅ Complete — the authorized Mini round reused WP7's exact accepted artifacts, added more than five minutes of local normal/incognito play and a witnessed player-vs-player frag, reconnected A and B independently, and passed its reduced 96,879-datagram network gate; see [`wp8-mini-acceptance-2026-09-01.md`](wp8-mini-acceptance-2026-09-01.md) |
-| WP9 | Public product-integration blueprint | WP8 | Not started — the WP8 prerequisite is satisfied; begin only under separate authorization |
+| WP9 | Public browser/server integration contract | WP8 | ✅ Complete — [`integration-contract.md`](integration-contract.md) publishes the immutable release tuple, browser launch/relay handoff, server lifecycle/readiness and distribution obligations without implementing a hosting product; its independent GPT-5.6-Sol review passed with no open findings |
 
 WP1, WP2 and WP3 are independent after WP0 and may be scheduled separately.
 WP4 and WP5 may proceed independently after WP3. WP7 began only after WP6 had
 selected the transport and sizing strategy from measured evidence. WP8 remained
 a separate acceptance increment after WP7 and closed under its authorized Mini
-amendment. WP9 has not started.
+amendment. WP9-Mini began under separate operator authorization and completed
+after its documentation review on 2026-09-01.
 
 ```mermaid
 flowchart LR
@@ -278,13 +283,12 @@ identity and artifact comparison.
 
 ## WP2 — Relay conformance probe and routed-path measurement
 
-**State:** deterministic part implemented, routed acceptance pending. The
-evidence is [`wp2-relay-probe.md`](wp2-relay-probe.md) and the published
-contract is
+**State:** complete. The evidence is
+[`wp2-relay-probe.md`](wp2-relay-probe.md) and the published contract is
 [`relay-datagram-contract.md`](relay-datagram-contract.md). The specification,
-the browser probe, the in-memory adapter and the deterministic tests exist; no
-measurement against a real endpoint has been taken, and the payload budget WP6
-needs has not been derived.
+browser probe, in-memory adapter and deterministic tests passed, followed by
+the accepted routed measurement on 2026-08-30. Its committed 1,024-byte routed
+maximum and 768-byte conservative inner floor became WP6's measured path input.
 
 The guided readiness check recorded in
 [`wp2-routed-readiness-2026-08-30.md`](wp2-routed-readiness-2026-08-30.md) found
@@ -297,10 +301,11 @@ session termination, and the zero-length boundary is exercised in both
 directions. The amendment is recorded in the evidence document; the committed
 measurement vector is unchanged.
 
-What is still missing is not code. The routed round waits on the operator-
-supplied runtime values the evidence document lists and on the integration
-provisioning of the readiness report's steps 5 to 7 — the byte-exact UDP echo
-destination, the single-use authorizations and the endpoint trust input.
+The routed round received the byte-exact UDP echo destination, single-use
+authorizations and endpoint trust input at runtime. Five pinned-browser
+sessions passed, including concurrent isolation, terminal in-band refusal and
+zero-length datagrams in both directions. Those environment-specific values
+were discarded; only the public, redacted measurement record remains.
 
 ### Outcome
 
@@ -1265,48 +1270,75 @@ only its plan and evidence. Any observed datagram over the selected budget, or
 any reassembly failure, reopens WP6 rather than being waived here.
 
 
-## WP9 — Product-integration blueprint
+## WP9-Mini — Public browser/server integration contract
 
-**State:** Not started. WP8 has closed the technical vertical slice; begin WP9
-only under separate operator authorization.
+**State:** Complete. Separately authorized by the operator on 2026-09-01 after
+WP8-Mini closed the technical vertical slice.
 
-### Outcome envelope
+### Authorized amendment and outcome
 
-A public, implementation-ready design describes how the proven artifacts can
-be hosted and operated without folding unrelated product features into the
-prototype.
+The original broad product-integration blueprint is replaced by one small
+public handoff. [`integration-contract.md`](integration-contract.md) must let an
+external consumer publish the exact browser tree, run and probe its matching
+dedicated server, supply the runtime relay inputs and reconnect authorization,
+and meet the source/licence obligations without knowledge of another
+repository or a particular environment.
 
-### Design topics
+The existing checked JSON profiles and manifests remain the machine-readable
+sources of truth. WP9-Mini documents their relationships and lifecycle; it does
+not create a duplicate catalogue or release schema.
 
-- Browser launch and error UX.
-- Persistent settings and content caching.
-- Immutable artifact publication and cache invalidation.
-- Server catalogue and launch metadata boundaries.
-- Authentication-token handoff through the public relay contract.
-- Consequences of all relayed players sharing one server-visible base IPv4 for
-  query rate limits, bans and abuse controls. **Unscheduled direction of
-  travel, recorded by WP6 and deliberately not coupled to WP7:** giving the
-  relay's server-facing leg a per-player **virtual IPv6 source address** — the
-  address model the wider stack already uses — would restore per-address
-  rate-limit bucketing exactly as upstream designed it, making WP7's cvar
-  unnecessary, and would dissolve the qport-only client demultiplexing that WP6
-  records as a residual hazard. It is a relay and topology change outside this
-  repository, and it is the clean fix that WP7's cvar deliberately is not.
-- Health/probe behavior and native-server lifecycle/resource contracts.
-- Source, license, notice and artifact delivery obligations.
-- Separation between public reusable components and environment-specific
-  deployment configuration.
+### Required coverage
+
+- The indivisible engine/browser/content/server identity tuple and immutable
+  publication/cache-invalidation rule.
+- The exact staged browser tree, same-origin/secure-context hosting boundary,
+  lack of a cross-origin-isolation requirement and lack of persistent settings.
+- The host-facing `arenaWeb.configureRelay`, state observation and reconnect
+  surface, including a fresh opaque one-time authorization for every attempt.
+- The native image platform, entrypoint, exact profile-derived arguments,
+  confinement, IPv4 UDP endpoint, disposable home, logs and supported slot
+  shape.
+- A binary `getstatus` readiness contract, process liveness and the engine's
+  graceful signal handling, including its expected status-1 exit after an
+  operator-sent `SIGTERM`/`SIGINT`.
+- The virtual-destination-to-native-endpoint boundary, shared relay-visible
+  address consequences and the managed-relay-only condition on
+  `sv_rateLimitPerPort=1`.
+- The browser, content, server-image, notice and corresponding-source delivery
+  obligations.
+- One cheap consumer smoke-test checklist, incorporating the unchanged WP7/WP8
+  evidence instead of repeating their gameplay and network rounds.
 
 ### Explicit non-goals
 
-- Implementing the hosting application or deployment.
-- Accounts, progression, moderation or a general id Tech 3 platform.
-- Reopening the proven transport strategy without new measurements.
+- Changes to a hosting application, deployment automation, game-server manager
+  or product UI.
+- Implementing catalogue, account, authorization issuance, persistence,
+  content caching, progression or moderation features.
+- Production SLOs, numeric resource limits, autoscaling or support claims for
+  untested browsers and platforms.
+- A new relay implementation, real server-facing per-player IPv6 or reopening
+  the proven datagram strategy without new measurements.
+- Rebuilding unchanged artifacts or repeating WP7/WP8's routed acceptance.
 
-### Review
+### Acceptance and review
 
-Architecture, security, licensing and operability review before any product
-integration implementation is scheduled.
+- `scripts/check.sh`, documentation links and Markdown hygiene pass.
+- The complete documentation diff receives a read-only architecture, security,
+  licensing and operability review.
+- Every finding is fixed or recorded as an explicit blocker before the state
+  and delivery map move to complete.
+
+The independent GPT-5.6-Sol review found that the engine `running` marker had
+been conflated with an open relay, the README still described WP2's routed
+measurement as pending, and the accepted server image's historical producer
+checkout and later-producer comparison were not explicit enough. The same
+closure pass clarified WP8's historical status line. The contract now requires
+an independent relay-state check, records the early-close transition, names the
+exact historical build and comparison procedure, and distinguishes a later
+producer-only rebuild from a new content tuple. The reviewer re-read the
+complete current diff and returned **PASS with no open findings**.
 
 ## Review checkpoints
 
@@ -1328,8 +1360,12 @@ integration implementation is scheduled.
    2026-08-30. The re-verification pass then **passed**. **This gate is
    closed.** WP7 was then explicitly authorized, implemented, reviewed and
    accepted on 2026-09-01.
-4. **Vertical-slice closure:** completed by WP8-Mini on 2026-09-01. WP9 and all
-   hosting integration remain separate, not-started work.
+4. **Vertical-slice closure:** completed by WP8-Mini on 2026-09-01. Hosting
+   implementation remains separate; the public integration handoff began only
+   after the operator separately authorized WP9-Mini on the same date.
+5. **Public integration handoff:** completed by WP9-Mini on 2026-09-01. The
+   self-contained browser/server contract passed its independent architecture,
+   security, licensing and operability review with no open findings.
 
 ## Scheduled follow-up outside the numbered packages
 
@@ -1341,7 +1377,7 @@ loader/engine canvas-size propagation.
 
 ## Input still needed from the operator
 
-No additional input is needed for the completed WP0–WP8 increments. WP7's
+No additional input is needed for the completed WP0–WP9 increments. WP7's
 routed acceptance received a runtime-only fresh-token issuer and a route to its
 matching rebuilt native server; those inputs were discarded after the accepted
 round. WP8-Mini was explicitly authorized on 2026-09-01 with local normal and
@@ -1349,4 +1385,4 @@ incognito contexts on the accepted KDE/Wayland workstation. The operator
 provided the witnessed gameplay, frag and bidirectional reconnect confirmations
 and explicitly accepted the reported KDE/Wayland pointer-lock variation.
 Product naming, additional platforms and production deployment choices belong
-to later separately authorized work.
+to consumer-owned or later separately authorized work.

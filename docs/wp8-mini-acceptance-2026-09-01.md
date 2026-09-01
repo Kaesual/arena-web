@@ -185,4 +185,5 @@ packet geometry.
 
 The acceptance environment was restored to its pre-run state. Temporary
 acceptance resources and every retained runtime-sensitive input or packet-level
-artifact were deleted. WP9 has not started.
+artifact were deleted. WP9 had not started when this acceptance report closed;
+later integration documentation does not alter this evidence.

@@ -16,7 +16,7 @@ reviewer obtains and verifies it.
 
 | Role | Version or revision | Immutable identity | Platform |
 | --- | --- | --- | --- |
-| Engine and bundled `baseq3` gamecode | ioq3 fork `92351b8f0543448b9defaac25c552274eecbf15b` (`web`), on upstream base `588393618dbc82e7207c21c6ddecca229944a03a` | Git commit and submodule pin | source |
+| Engine and bundled `baseq3` gamecode | ioq3 fork `968eeb44294aa0003c430430cf32a6540f9a81e4` (`web`), on upstream base `588393618dbc82e7207c21c6ddecca229944a03a` | Git commit and submodule pin | source |
 | WebAssembly builder | Emscripten `6.0.8` | `sha256:8714ed3a9fb585e662c931259a996bac36a57a8dd34b81e8277436fd77364475` | `linux/amd64` |
 | Native builder base | Ubuntu `24.04` | `sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316` | `linux/amd64` |
 | Server runtime base | Debian `13-slim` (trixie, `13.6`) | `sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f` | `linux/amd64` |
@@ -83,10 +83,13 @@ surfaces came out saturated white. The diagnosis and the fix are in
 [`wp1-build-evidence.md`](wp1-build-evidence.md); this section is about what the
 lock had to grow to hold it.
 
-The pin is now `92351b8f0543448b9defaac25c552274eecbf15b` on the fork's `web`
-branch. `main` in that fork continues to mirror upstream and is where the
-upstream base lives, exactly as the sibling Luanti port keeps an upstream mirror
-branch and a patch-carrying work branch apart.
+At the time of this amendment the pin became
+`92351b8f0543448b9defaac25c552274eecbf15b` on the fork's `web` branch. WP7
+subsequently extended the enumerated series for the browser relay boundary,
+network sizing and managed-relay rate buckets and reissued the baseline at the
+current pin `968eeb44294aa0003c430430cf32a6540f9a81e4`. The validation model
+described below did not change. `main` in that fork continues to mirror
+upstream and is where the upstream base lives.
 
 Two fields carry the claim, and they are meaningless apart:
 
@@ -125,15 +128,19 @@ the container check uses.
 **Repository-local license evidence moves with the pin.** Every
 `licenseComponents[].license` whose `evidenceIdentity` is a `git:` identity must
 equal the pinned engine commit; that gate is unchanged, so those identities and
-their `evidenceUrl`s now name `92351b8f…` rather than the upstream base. The
-alternative — letting such evidence stay at the base, since the patch changes
+their `evidenceUrl`s moved to `92351b8f…` in the first amendment and now name
+`968eeb44294…`. The alternative — letting such evidence stay at the base,
+since the patch changes
 none of it — would have given the gate two acceptable answers, and a gate with
 two answers is a weaker gate. Pointing the evidence at the exact tree that is
 built keeps one answer and stays true: `COPYING.txt`, every bundled
 third-party notice and every per-file exception are byte-identical at the two
-commits, because the series touches one renderer source file and nothing else.
+original amendment commits, because that amendment touched one renderer source
+file and nothing else. The later enumerated network patches likewise touch no
+licence-evidence path.
 `upstreamEvidence.ioq3Commit` follows the same rule for the same reason; the
-workflow file it cites is likewise byte-identical at both commits.
+workflow file it cites is likewise byte-identical at the upstream base and all
+named fork pins.
 
 What this amendment does not do: it does not turn the engine into a place for
 product features. The fork carries an enumerated series of small,

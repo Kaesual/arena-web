@@ -2,9 +2,10 @@
 
 # Routed datagram contract: the game-destination subset
 
-**Status:** WP2 deterministic part, amended 2026-08-30 to the in-band session
-profile. Normative for this repository's conformance probe and its tests; routed
-acceptance against a real endpoint is pending.
+**Status:** Normative, amended 2026-08-30 to the in-band session profile. WP2's
+deterministic suite and routed probe passed on 2026-08-30; the matching browser
+client then passed routed multiplayer and reconnect acceptance in WP7 and WP8
+on 2026-09-01.
 
 This document specifies the part of a WebTransport-to-UDP relay protocol that a
 browser client needs in order to exchange datagrams with **one** game
@@ -46,8 +47,8 @@ Not fixed here, and therefore supplied at runtime:
   it is an opaque, short-lived, single-use string; nothing here parses it, and
   its issuance policy is out of scope for this repository;
 - whether an idle session requires a keep-alive at all, and at what interval.
-  The datagram is specified below; sending one periodically is not implemented
-  here;
+  The datagram is specified below; the standalone measurement probe sends none,
+  while the game client accepts an integration-supplied interval;
 - the endpoint, its trust input, the virtual destination address and its UDP
   port. The virtual client address is not configuration at all: the relay
   assigns it during session setup.

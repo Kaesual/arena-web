@@ -252,9 +252,12 @@ approved packages in
    and play FFA for at least 10–15 minutes while observing loss, ordering,
    latency, reconnect behavior, frame timing and server-side address behavior.
 6. **Prepare product integration.** Only after the vertical slice passes,
-   specify persistent settings, content caching, launch UX, catalogue and
-   account integration, health/probe behavior, server resource limits and
-   production packaging.
+   publish the self-contained browser/server integration boundary. The
+   operator narrowed this step on 2026-09-01 to WP9-Mini: immutable artifact
+   publication, launch and relay handoff, server lifecycle/readiness and the
+   public source/licence obligations are specified here; persistent settings,
+   catalogue/accounts, deployment and product UI remain consumer-owned and are
+   not implemented in this repository.
 
 ## Inputs the work-package breakdown must resolve
 

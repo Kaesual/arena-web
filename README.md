@@ -23,6 +23,9 @@ release.
   findings, decisions, risks and prototype sequence.
 - `docs/prototype-work-packages.md` contains the approved, dependency-ordered
   prototype increments and evidence gates.
+- `docs/integration-contract.md` is the public handoff for hosting the exact
+  browser tree, running and probing the matching dedicated-server image, and
+  supplying the relay configuration and one-time authorization at launch.
 - `docs/immutable-baseline.md` records WP0's exact toolchain, browser,
   acceptance-platform, metadata and relay-trust contracts.
 - `docs/wp1-build-evidence.md` records the accepted browser build: its inputs,
@@ -61,8 +64,8 @@ release.
   browser/server rebuild, packet re-census and routed real-browser round without
   retaining environment-specific runtime values.
 - `probe/` is the standalone browser conformance probe for that contract, and
-  `docs/wp2-relay-probe.md` records what it implements and what its routed
-  acceptance still needs.
+  `docs/wp2-relay-probe.md` records its implementation and accepted routed
+  measurement.
 - `LICENSE` applies GPL-2.0-or-later to original arena-web code and
   documentation. Pinned components and content retain their own licenses.
 
@@ -71,6 +74,11 @@ shared relay server implementation and
 environment-specific deployment remain outside this public repository. Large
 upstream asset archives and generated build products should not be committed
 here merely for convenience.
+
+Consumers integrating the accepted vertical slice should begin with
+[`docs/integration-contract.md`](docs/integration-contract.md). It maps every
+required value to its machine-readable source of truth and keeps catalogue,
+account, deployment and product-UI decisions outside this repository.
 
 ## Checkout
 
