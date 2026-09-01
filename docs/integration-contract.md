@@ -561,7 +561,7 @@ tuple; do not diff `compatibility` alone and conclude nothing else moved.
 | engine build outputs (`ioquake3.js`/`.wasm`, QVMs) | browser manifest, server manifest, server image |
 | browser loader/shell bytes (`loader.js`, `index.html`, shell JS) | one `servedFiles` entry and nothing else — they are in no manifest and no authority, so `compatibility` stays bit-identical |
 | base pack content (QVM closure, player models, bots, notices) | content manifest, content payload, server manifest, server image |
-| **a map added to or removed from the supported set** | three `compatibility` members — `contentManifestIdentity`, `serverManifestIdentity`, `serverImageId` — plus the browser profile, the content member provenance, the resource measurement and `servedFiles`. `contentPayloadIdentity` does **not** move |
+| **a map added to or removed from the supported set** | three `compatibility` members — `contentManifestIdentity`, `serverManifestIdentity`, `serverImageId` — plus the browser profile, the content member provenance, the resource measurement and `servedFiles`. `contentPayloadIdentity` does **not** move, subject to the one condition below |
 | the rotation a server plays | nothing |
 | which archives a client fetches | nothing — a runtime selection from the already published set |
 | relay profile | the relay-profile authority and the release index |
@@ -575,6 +575,17 @@ seven members stand still, and a consumer's update reduces to re-reading the
 profile, fetching only the archives that are new to it, and updating three
 digests. Served content names carry the first 16 hex of their own SHA-256, so
 they may be cached immutably and a name collision cannot silently change content.
+
+**The one condition on that row.** Base stability holds for a map assembled
+from upstream sources this release already pins. A map that requires a *new*
+source edits `content/pack-recipe.json`, which is both an authority and the base
+archive's own selection input; the base's notice carries that file's digest, so
+the base's bytes change and `contentPayloadIdentity` moves with them. That is a
+full content reissue rather than an additive one. Every previously published
+archive URL still resolves and its bytes are still what they were, but the base
+is a new object and must be fetched again. A producer must say which of the two
+a release is; a consumer must not infer additivity from the fact that maps were
+added.
 
 Adding a map remains a tuple event that needs a new release, and it is
 deliberately batched: prepare many maps, publish few times.
