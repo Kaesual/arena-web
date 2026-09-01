@@ -563,7 +563,7 @@ tuple; do not diff `compatibility` alone and conclude nothing else moved.
 | base pack content (QVM closure, player models, bots, notices) | content manifest, content payload, server manifest, server image |
 | **a map added to or removed from the supported set** | three `compatibility` members — `contentManifestIdentity`, `serverManifestIdentity`, `serverImageId` — plus the browser profile, the content member provenance, the resource measurement and `servedFiles`. `contentPayloadIdentity` does **not** move, subject to the one condition below |
 | the rotation a server plays | nothing |
-| which archives a client fetches | nothing — a runtime selection from the already published set |
+| which archives a client fetches | nothing — a runtime selection from the already published set. **Note the present state:** that selection is not built yet, so the loader fetches *every* archive the profile declares. The row states the identity consequence, not today's behaviour |
 | relay profile | the relay-profile authority and the release index |
 | product presentation, launch selector | nothing |
 
@@ -592,7 +592,7 @@ archive it used to sit in, so that archive's bytes and URL move as well. A
 producer must state which of the two kinds a release is; **a consumer must not
 infer additivity from the fact that maps were added**.
 
-**The known upcoming full reissue.** The next content release moves a shader
+**The full reissue that moved the base.** The release published on 2026-09-01 moved a shader
 authority into the base, and it is worth stating why, because the cause is not
 visible from the outside. Engine shader precedence runs opposite to file lookup:
 the base wins shader *definitions*, while a map archive wins file *lookups*. Two
@@ -601,10 +601,15 @@ order, which no closure model over the source set predicts, and with a single ma
 the case could not arise. Packing every `scripts/*.shader` into the base makes the
 base the sole shader authority and removes the cross-archive case entirely.
 
-It is a one-time move: the shader file set comes from the pinned sources, not from
-the map set, so additivity resumes with the release after it. In that one release
-**both** currently published archives change bytes and URL — the base gains the
-shader files, and the one published map archive loses the three it carried.
+It was a one-time move: the shader file set comes from the pinned sources, not
+from the map set, so additivity resumes with the next release. In that release
+**both** previously published archives changed bytes and URL — the base gained
+the shader files, and the one published map archive lost the three it carried.
+Four of the seven members moved with it; `baselineIdentity`,
+`browserManifestIdentity` and `engineCommit` stood still. Releases after it add
+maps additively again: the base and every existing archive stay byte-identical,
+which the producer asserts on every build by assembling the set, adding a map,
+reassembling and comparing bytes.
 
 Adding a map remains a tuple event that needs a new release, and it is
 deliberately batched: prepare many maps, publish few times.
