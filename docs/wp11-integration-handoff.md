@@ -208,7 +208,7 @@ read-only and mount an initially empty, `rw,noexec,nosuid,nodev`, mode-1777,
 64-MiB tmpfs at `/var/lib/arena`. That home holds only ephemeral engine config
 and `games.log`. There is **no persistent path or volume** in this release; no
 world, save, secret or host file is required. The read-only image is
-106,856,513 bytes; the measured container writable layer after stop was 12,551
+106,856,397 bytes; the measured container writable layer after stop was 12,554
 bytes and is disposable.
 
 Readiness is the native binary UDP query, no more than once per second from a
@@ -228,7 +228,7 @@ one-second checks make the observation failed.
 Send `SIGTERM` or `SIGINT` to the entrypoint and allow 10 seconds before a
 forced kill. The normal signal path sends the final server message, closes the
 VM/network and exits with code 1; code 1 is therefore success only when the
-manager requested this stop. The measured graceful exit took 0.118 seconds.
+manager requested this stop. The measured graceful exit took 0.119 seconds.
 Any unsolicited exit, including code 1, is failure.
 
 ## 5. Indivisible compatibility identity
@@ -306,15 +306,15 @@ for this exact eight-slot/two-human/three-bot prototype is:
 
 | Resource | Limit | Busy observed maximum | Remaining safety margin |
 | --- | ---: | ---: | ---: |
-| CPU | 1 core | 0.046234-core peak sample | 0.953766 core; 21.629x |
-| Memory | 268,435,456 bytes | 29,761,536-byte peak cgroup; 31,125,504-byte process HWM | 238,673,920 bytes; 9.02x against cgroup peak |
+| CPU | 1 core | 0.045801-core peak sample | 0.954199 core; 21.834x |
+| Memory | 268,435,456 bytes | 29,810,688-byte peak cgroup; 30,998,528-byte process HWM | 238,624,768 bytes; 9.005x against cgroup peak |
 | Writable home | 67,108,864 bytes | 1,272 bytes | 67,107,592 bytes; 52,758.541x |
 | Processes | 128 PIDs | constrained successfully by the probe | guard, not a measured demand claim |
 
 Startup readiness was 1.751 seconds. The ten-second idle phase averaged
-0.020938 cores. The 30-second two-native-client phase, with movement, weapon,
+0.020994 cores. The 30-second two-native-client phase, with movement, weapon,
 fire, chat and respawn traffic while all three bots remained active, averaged
-0.037439 cores. These values preserve large practical headroom, but are
+0.038415 cores. These values preserve large practical headroom, but are
 capacity guards only—not an SLO, autoscaling rule, production concurrency
 claim or evidence for more than two humans.
 

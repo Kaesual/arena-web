@@ -57,8 +57,8 @@
     },
     "integrationHandoff": {
       "path": "docs/wp11-integration-handoff.md",
-      "sha256": "807f1af086b9eace4983e2da79d75b0ab5162bdd8e331ba610728cf6e0082a70",
-      "size": 20215
+      "sha256": "9e3e96eaf133e6e4a1c83625c40c2e47e9145c9a9efa284272921d4e925c286c",
+      "size": 20216
     },
     "projectLicense": {
       "path": "LICENSE",
@@ -72,8 +72,8 @@
     },
     "resourceMeasurement": {
       "path": "records/wp11-server-resources.json",
-      "sha256": "b15e5b837bf53381bd95a9fc714109a950b24f4c09f6e6d3799b935e341224ea",
-      "size": 3093
+      "sha256": "127023da0502a89f6decc9cc4140ce761f686c56cd147325b2ced8ac0f873ce8",
+      "size": 3092
     },
     "serverAssembly": {
       "path": "scripts/build-server-image.sh",

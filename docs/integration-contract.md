@@ -374,9 +374,9 @@ instead and is not this accepted profile.
 
 The accepted prototype guard is one CPU core, 256 MiB memory, 128 PIDs and the
 64-MiB home tmpfs. Under a representative two-client/three-bot busy phase the
-observed maxima were 0.046234 CPU cores, 29,761,536 bytes cgroup memory,
-31,125,504 bytes process HWM and 1,272 bytes in the home. That leaves 21.629x
-CPU, 9.02x cgroup-memory and 52,758.541x home-space headroom. The full record
+observed maxima were 0.045801 CPU cores, 29,810,688 bytes cgroup memory,
+30,998,528 bytes process HWM and 1,272 bytes in the home. That leaves 21.834x
+CPU, 9.005x cgroup-memory and 52,758.541x home-space headroom. The full record
 is [`records/wp11-server-resources.json`](../records/wp11-server-resources.json).
 These are conservative capacity guards for the accepted two-human prototype,
 not an SLO, a production capacity promise or evidence for five humans.
@@ -418,7 +418,7 @@ VM and network state, and then exits with status 1. A process manager must treat
 that non-zero status as an expected operator stop when it sent the signal; the
 same status without a requested stop remains a failure. The accepted harness
 allows ten seconds before forcing termination; the measured graceful path took
-0.118 seconds. There is no persistent world to flush, restore or migrate.
+0.119 seconds. There is no persistent world to flush, restore or migrate.
 
 Remote administration is deliberately disabled: the profile is LAN-dedicated,
 publishes no master-server heartbeat, and sets the RCON, private-server and game
