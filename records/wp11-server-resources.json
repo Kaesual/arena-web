@@ -88,8 +88,8 @@
   },
   "release": {
     "engineCommit": "596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-    "serverArtifactManifest": "sha256:b96535dbce067fb42f05a0c59fe037704c2b96d15551343a4b598d5d06685444",
-    "serverImageId": "sha256:3055a88ed1fb352d9e1e32364d81c3fe915f03e1bf3241d64f96760875f78e98",
+    "serverArtifactManifest": "sha256:41ea01e5450651bfae0c4fbdd62e2632209d40d2603bebc9dbe6ad9cb558a000",
+    "serverImageId": "sha256:c26e24996457a9d21a816b2805bb460b7783b2dd1d3c236d20fbe3c88c4b128b",
     "serverManifestCommit": "ca779bbd88153b44a7c401a7446a6e4e94535603"
   },
   "scope": "eight-slot prototype capacity guard for the accepted two-human, three-bot profile; not an SLO or larger-capacity claim"

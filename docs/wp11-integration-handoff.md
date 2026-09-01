@@ -164,8 +164,8 @@ The exact server identities are:
 
 | Input | Identity |
 | --- | --- |
-| OCI configuration/image ID | `sha256:3055a88ed1fb352d9e1e32364d81c3fe915f03e1bf3241d64f96760875f78e98` |
-| Server artifact manifest | `sha256:b96535dbce067fb42f05a0c59fe037704c2b96d15551343a4b598d5d06685444` |
+| OCI configuration/image ID | `sha256:c26e24996457a9d21a816b2805bb460b7783b2dd1d3c236d20fbe3c88c4b128b` |
+| Server artifact manifest | `sha256:41ea01e5450651bfae0c4fbdd62e2632209d40d2603bebc9dbe6ad9cb558a000` |
 | Server profile | `sha256:147066a98a8c3eb587b752e3fc373ef7191f9354be3fdc148addf56e1b5759c3` |
 
 The image is `linux/amd64`, user/group `65534:65534`, workdir
@@ -174,6 +174,22 @@ The image is `linux/amd64`, user/group `65534:65534`, workdir
 27960. A registry publication needs its own immutable registry manifest digest
 and must load to the image ID above; `arena-web-server:latest` is only a local
 build tag.
+
+The build verifier reads the finished image and requires that complete OCI
+configuration plus the exact title, engine, baseline and producer labels. It
+also requires that there is no blanket `org.opencontainers.image.licenses`
+label: the GPL arena/engine and mixed-license Debian runtime retain the
+component-level authorities in section 9.
+
+Reproduce that exact image from clean public checkout
+`bba1260902b266e1b8eabad915926e11598ff0c8` after reproducing its browser,
+content and native inputs, then run `scripts/build-server-image.sh`. Its
+generated `build/server-image/artifact-manifest.json` must equal the committed
+`provenance/arena-web-server.json` byte-for-byte and the loaded image must have
+the image ID above. A later checkout deliberately produces another image ID
+because the immutable OCI producer label changes; compare all manifest content
+and input fields in that case, allowing only the documented producer difference,
+and publish it as a new release rather than as this one.
 
 Pass the exact `native/server-profile.json.serverArguments` array in its
 committed order. In command-line notation it is:
@@ -226,8 +242,8 @@ ioq3               git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a
 browser manifest   sha256:0585e09b211c3c2baa48cb03e9d9d9f2ce70e95599d5da76c16d4db40594ec56
 content manifest   sha256:1961f1e45ca7d4a39325c99fe5843486184d52006a41902424d817c230fe69fd
 content PK3        sha256:ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664
-server manifest    sha256:b96535dbce067fb42f05a0c59fe037704c2b96d15551343a4b598d5d06685444
-server image ID    sha256:3055a88ed1fb352d9e1e32364d81c3fe915f03e1bf3241d64f96760875f78e98
+server manifest    sha256:41ea01e5450651bfae0c4fbdd62e2632209d40d2603bebc9dbe6ad9cb558a000
+server image ID    sha256:c26e24996457a9d21a816b2805bb460b7783b2dd1d3c236d20fbe3c88c4b128b
 ```
 
 `release/browser-release.json.compatibility` repeats these values and its

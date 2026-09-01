@@ -33,7 +33,7 @@
   "inputs": [
     {
       "id": "arena-web-browser-client",
-      "identity": "sha256:fbe3e1f0c6189246a9b62571d7ab8ad75ea29f8a50f6fb2b7fcaaf404f1778d8",
+      "identity": "sha256:0585e09b211c3c2baa48cb03e9d9d9f2ce70e95599d5da76c16d4db40594ec56",
       "kind": "artifact-manifest"
     },
     {
@@ -63,7 +63,7 @@
     }
   ],
   "producer": {
-    "commit": "3526e2ce3c46d692cc1d56113be81b7c6e986406",
+    "commit": "bba1260902b266e1b8eabad915926e11598ff0c8",
     "name": "arena-web scripts/build-server-image.sh"
   }
 }

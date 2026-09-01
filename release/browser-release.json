@@ -57,8 +57,8 @@
     },
     "integrationHandoff": {
       "path": "docs/wp11-integration-handoff.md",
-      "sha256": "27f584e092054ee2a20083bb4a19bbd921efd3347034fad8756481dedd66319b",
-      "size": 19219
+      "sha256": "807f1af086b9eace4983e2da79d75b0ab5162bdd8e331ba610728cf6e0082a70",
+      "size": 20215
     },
     "projectLicense": {
       "path": "LICENSE",
@@ -72,7 +72,7 @@
     },
     "resourceMeasurement": {
       "path": "records/wp11-server-resources.json",
-      "sha256": "8991af3c2450069d6f7cc357914a13f63188bb5b0e5741f9a3015d31ea73d6ef",
+      "sha256": "b15e5b837bf53381bd95a9fc714109a950b24f4c09f6e6d3799b935e341224ea",
       "size": 3093
     },
     "serverAssembly": {
@@ -87,7 +87,7 @@
     },
     "serverManifest": {
       "path": "provenance/arena-web-server.json",
-      "sha256": "b96535dbce067fb42f05a0c59fe037704c2b96d15551343a4b598d5d06685444",
+      "sha256": "41ea01e5450651bfae0c4fbdd62e2632209d40d2603bebc9dbe6ad9cb558a000",
       "size": 2206
     },
     "serverProfile": {
@@ -108,8 +108,8 @@
     "contentManifestIdentity": "sha256:1961f1e45ca7d4a39325c99fe5843486184d52006a41902424d817c230fe69fd",
     "contentPayloadIdentity": "sha256:ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664",
     "engineCommit": "596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-    "serverImageId": "sha256:3055a88ed1fb352d9e1e32364d81c3fe915f03e1bf3241d64f96760875f78e98",
-    "serverManifestIdentity": "sha256:b96535dbce067fb42f05a0c59fe037704c2b96d15551343a4b598d5d06685444"
+    "serverImageId": "sha256:c26e24996457a9d21a816b2805bb460b7783b2dd1d3c236d20fbe3c88c4b128b",
+    "serverManifestIdentity": "sha256:41ea01e5450651bfae0c4fbdd62e2632209d40d2603bebc9dbe6ad9cb558a000"
   },
   "digestAlgorithm": "sha256",
   "formatVersion": 1,
