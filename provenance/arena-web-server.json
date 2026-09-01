@@ -22,7 +22,7 @@
       "size": 798664
     }
   ],
-  "baselineIdentity": "sha256:529f7d3cc6ef174e2d83d46b429e7e309b1f2f72003b8a218b7333480504ba6f",
+  "baselineIdentity": "sha256:cc45026e109df38a3b019192ed8b6807bae8bc787119b2b89fe5c7a6f28c05f1",
   "baselineInputIds": [
     "ioq3",
     "native-builder-base",
@@ -43,7 +43,7 @@
     },
     {
       "id": "ioq3",
-      "identity": "git:557f7c8d5286fdccd1b01403e0074bd06be56e70",
+      "identity": "git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
       "kind": "git"
     },
     {

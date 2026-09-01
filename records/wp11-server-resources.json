@@ -1,0 +1,96 @@
+{
+  "candidateAndAcceptedLimits": {
+    "cpuCores": 1,
+    "memoryBytes": 268435456,
+    "pids": 128,
+    "writableHomeBytes": 67108864,
+    "writableHomePath": "/var/lib/arena"
+  },
+  "formatVersion": 1,
+  "headroom": {
+    "cpuCores": 0.955797,
+    "cpuFactor": 22.623,
+    "memoryBytes": 238899200,
+    "memoryFactor": 9.088,
+    "writableHomeBytes": 67107592,
+    "writableHomeFactor": 52758.541
+  },
+  "lifecycle": {
+    "gracefulExitCode": 1,
+    "gracefulStopSeconds": 0.131,
+    "healthIntervalSeconds": 1,
+    "postReadyFailureThreshold": 3,
+    "startupDeadlineSeconds": 20,
+    "stopTimeoutSeconds": 10,
+    "unexpectedExitCode": 137,
+    "witnessed": [
+      "preparing",
+      "ready",
+      "failed",
+      "missing"
+    ]
+  },
+  "measuredAt": "2026-09-01",
+  "measurement": {
+    "busy": {
+      "cpuSeconds": 1.128984,
+      "durationSeconds": 30.0,
+      "meanCpuCores": 0.037633,
+      "peakCgroupMemoryBytes": 29536256,
+      "peakProcessHwmBytes": 31059968,
+      "peakProcessRssBytes": 31059968,
+      "peakSampleCpuCores": 0.044203,
+      "peakWritableHomeBytes": 1272,
+      "samples": 53
+    },
+    "containerWritableLayerBytesAfterStop": 12551,
+    "healthFields": {
+      "challenge": "a11ce55",
+      "fraglimit": "15",
+      "g_gametype": "0",
+      "mapname": "oa_pvomit",
+      "sv_maxclients": "8",
+      "timelimit": "0"
+    },
+    "idle": {
+      "cpuSeconds": 0.205077,
+      "durationSeconds": 10.0,
+      "meanCpuCores": 0.020507,
+      "peakCgroupMemoryBytes": 29392896,
+      "peakProcessHwmBytes": 31051776,
+      "peakProcessRssBytes": 31051776,
+      "peakSampleCpuCores": 0.022541,
+      "peakWritableHomeBytes": 1272,
+      "samples": 18
+    },
+    "maximums": {
+      "peakCgroupMemoryBytes": 29536256,
+      "peakProcessRssBytes": 31059968,
+      "peakSampleCpuCores": 0.044203,
+      "peakWritableHomeBytes": 1272
+    },
+    "readOnlyImageBytes": 106856513,
+    "startupReadySeconds": 1.751
+  },
+  "observations": {
+    "failed": "the owned process exited unexpectedly, missed its startup deadline, or failed three consecutive post-ready checks",
+    "missing": "no owned runtime exists",
+    "preparing": "a desired process is running within the startup deadline but has no valid readiness reply",
+    "ready": "the exact binary getstatus profile passes; after readiness, fewer than three consecutive one-second checks have failed"
+  },
+  "profile": {
+    "bots": 3,
+    "busyTraffic": "ordinary native-client movement, weapon selection, fire, chat and respawn commands",
+    "humans": 2,
+    "map": "oa_pvomit",
+    "slots": 8,
+    "udpPort": 27960
+  },
+  "release": {
+    "engineCommit": "557f7c8d5286fdccd1b01403e0074bd06be56e70",
+    "serverArtifactManifest": "sha256:21733e3e64bc7bc520ed8b610fd9033f148b17cde3cc18d1b8a0d48f9646d953",
+    "serverImageId": "sha256:c73ba3ee395d57f661d2a4884b287c7a638bbe7f25269169865fc18bc1c901bf",
+    "serverManifestCommit": "6b467b8b434222210fd6f1f17886317f80724bc4"
+  },
+  "scope": "eight-slot prototype capacity guard for the accepted two-human, three-bot profile; not an SLO or larger-capacity claim"
+}

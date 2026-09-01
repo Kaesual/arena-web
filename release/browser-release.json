@@ -1,0 +1,193 @@
+{
+  "authorities": {
+    "baseline": {
+      "path": "locks/baseline.json",
+      "sha256": "cc45026e109df38a3b019192ed8b6807bae8bc787119b2b89fe5c7a6f28c05f1",
+      "size": 23362
+    },
+    "browserBuild": {
+      "path": "scripts/build-browser.sh",
+      "sha256": "ab49c61a2c6c0828b74d62aaba5aa5cfbd5ccc13b72e8420f982005259a8bb9e",
+      "size": 6539
+    },
+    "browserLicenseClosure": {
+      "path": "docs/wp1-build-evidence.md",
+      "sha256": "1336253fd8dd0d4f4e032787b96bf8fb4454333e0bbb7d79d5b116c1b2f3dd6b",
+      "size": 36934
+    },
+    "browserManifest": {
+      "path": "manifests/browser-client.json",
+      "sha256": "9b1bb5c8e402bd4efb0e5de4b193ce6b86b2d7668d425cf07d15adc16de7b244",
+      "size": 2493
+    },
+    "browserProfile": {
+      "path": "arena/game-profile.json",
+      "sha256": "70f7edd2fb2f6e3c9f14b38aedb695a302b0cf6207d195c64fbe8b9b711018a3",
+      "size": 6357
+    },
+    "contentAssembly": {
+      "path": "scripts/build-content-pack.sh",
+      "sha256": "e6326d4106b793f3886683ab094695f1a679d6e0f4c1a40c8ae3cc75e76408ec",
+      "size": 3604
+    },
+    "contentLicenseClosure": {
+      "path": "docs/wp3-content-closure.md",
+      "sha256": "018c1cc8a4f3f160ea8c5a8313fd3e1e944881dde0785c978d965e6d21f0303d",
+      "size": 53488
+    },
+    "contentManifest": {
+      "path": "provenance/arena-web-ffa-content-manifest.json",
+      "sha256": "1961f1e45ca7d4a39325c99fe5843486184d52006a41902424d817c230fe69fd",
+      "size": 1862
+    },
+    "contentMemberProvenance": {
+      "path": "provenance/arena-web-ffa-content.json",
+      "sha256": "c7f9d21cbd610bf2bd4e29a55d27745c3939dffbd68b6df8b071556912843340",
+      "size": 486898
+    },
+    "contentRecipe": {
+      "path": "content/pack-recipe.json",
+      "sha256": "c08f8dac2a1b6c002d45e6c1dcb0d36a7863e2a30b91402f1139383ae361f033",
+      "size": 31432
+    },
+    "integrationHandoff": {
+      "path": "docs/wp11-integration-handoff.md",
+      "sha256": "53b415d6bdc4586eff553d69a32a41afc806176b92c5c1b10394d5fee058e898",
+      "size": 19083
+    },
+    "projectLicense": {
+      "path": "LICENSE",
+      "sha256": "7475cb433459e193b49a57835ac0b381fff8289c7b92b3a0f92a9602f7ca0834",
+      "size": 15643
+    },
+    "relayProfile": {
+      "path": "arena/relay-profile.json",
+      "sha256": "89faaee83f08d8e59587701d163479633b82c6fa31466759867c08a9e1564a8b",
+      "size": 1027
+    },
+    "resourceMeasurement": {
+      "path": "records/wp11-server-resources.json",
+      "sha256": "ecd511cef5acd7720afec185b2fe1b980ce6258fd3321666f504c6980f1f2025",
+      "size": 3092
+    },
+    "serverAssembly": {
+      "path": "scripts/build-server-image.sh",
+      "sha256": "6ccdb7fad381b0aefed1a362da00877a5aba14ff032acffa72e76d278901050b",
+      "size": 6616
+    },
+    "serverContainer": {
+      "path": "native/server.Containerfile",
+      "sha256": "e1884376defe09378c48708161f86cd2619237a6c930f7b268528234f33daafe",
+      "size": 2790
+    },
+    "serverManifest": {
+      "path": "provenance/arena-web-server.json",
+      "sha256": "50770dc844d4c526ec394c2e1e232249596c04282d1d430fff0fec172872da6d",
+      "size": 2206
+    },
+    "serverProfile": {
+      "path": "native/server-profile.json",
+      "sha256": "147066a98a8c3eb587b752e3fc373ef7191f9354be3fdc148addf56e1b5759c3",
+      "size": 7876
+    }
+  },
+  "browserRoot": ".",
+  "compatibility": {
+    "baselineIdentity": "sha256:cc45026e109df38a3b019192ed8b6807bae8bc787119b2b89fe5c7a6f28c05f1",
+    "browserManifestIdentity": "sha256:9b1bb5c8e402bd4efb0e5de4b193ce6b86b2d7668d425cf07d15adc16de7b244",
+    "contentManifestIdentity": "sha256:1961f1e45ca7d4a39325c99fe5843486184d52006a41902424d817c230fe69fd",
+    "contentPayloadIdentity": "sha256:ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664",
+    "engineCommit": "596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
+    "serverImageId": "sha256:c73ba3ee395d57f661d2a4884b287c7a638bbe7f25269169865fc18bc1c901bf",
+    "serverManifestIdentity": "sha256:50770dc844d4c526ec394c2e1e232249596c04282d1d430fff0fec172872da6d"
+  },
+  "digestAlgorithm": "sha256",
+  "formatVersion": 1,
+  "servedFiles": [
+    {
+      "path": "arena/canvas-resize.js",
+      "sha256": "d4bac7fd6be4af314cb9903210bfb594cca3c3c4a957a2abf68708a729f94e8c",
+      "size": 2560
+    },
+    {
+      "path": "arena/host-lifecycle.js",
+      "sha256": "b005bcb8fb62ceac55be413017a56c4ea84b80ec606841cf96d28636d8b3262b",
+      "size": 2782
+    },
+    {
+      "path": "arena/network-backend.js",
+      "sha256": "74d054ffe152fafbec6edc40fab64b9d0723328aa113f47237ee99c881cc7879",
+      "size": 27862
+    },
+    {
+      "path": "arena/relay-profile.json",
+      "sha256": "89faaee83f08d8e59587701d163479633b82c6fa31466759867c08a9e1564a8b",
+      "size": 1027
+    },
+    {
+      "path": "content/baseq3/arena-web-ffa.pk3",
+      "sha256": "ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664",
+      "size": 24484503
+    },
+    {
+      "path": "default.cfg",
+      "sha256": "e23065a8856260b2d76c71375fbdaa16f730d0d45316b2a1c57a6b9c0650eb46",
+      "size": 2941
+    },
+    {
+      "path": "engine/baseq3/vm/cgame.qvm",
+      "sha256": "12d597a49bc351149d7459692a0311cc5e186cf4f376c703ddaa6cfa27a602e4",
+      "size": 343304
+    },
+    {
+      "path": "engine/baseq3/vm/qagame.qvm",
+      "sha256": "449fbd197d34ec3f51006438fc2bf961cdabdf38101b6a17d33f107ad4186805",
+      "size": 488108
+    },
+    {
+      "path": "engine/baseq3/vm/ui.qvm",
+      "sha256": "23ba9181726e108be05a0096a9f49f3c7643d4ff8888267a6948c4a4e8389c33",
+      "size": 307164
+    },
+    {
+      "path": "engine/ioquake3.js",
+      "sha256": "7c83e0394cf35d2f19f1bfeb5286c6d7ba10a8f0c361db4c23246218284ea093",
+      "size": 266778
+    },
+    {
+      "path": "engine/ioquake3.wasm",
+      "sha256": "f65fdab36aa0c54cbfcb1f1be352ddd77e623f7d4d216ea851f69192aca18191",
+      "size": 2319477
+    },
+    {
+      "path": "game-profile.json",
+      "sha256": "70f7edd2fb2f6e3c9f14b38aedb695a302b0cf6207d195c64fbe8b9b711018a3",
+      "size": 6357
+    },
+    {
+      "path": "index.html",
+      "sha256": "772544fd2947ae7fcb839382ae43922c903b4a4f35be8f1e7ed494761cd94819",
+      "size": 3791
+    },
+    {
+      "path": "loader.js",
+      "sha256": "fb0384002339994cb84a2c034daf8745578e28a9b6e92de852c0df5cecfb48c9",
+      "size": 41464
+    },
+    {
+      "path": "manifests/browser-client.json",
+      "sha256": "9b1bb5c8e402bd4efb0e5de4b193ce6b86b2d7668d425cf07d15adc16de7b244",
+      "size": 2493
+    },
+    {
+      "path": "probe/relay-framing.js",
+      "sha256": "235897744d49cb706141369439aa3a0a75632790fca3ee7a46a5ba320976329b",
+      "size": 15799
+    },
+    {
+      "path": "provenance/arena-web-ffa-content-manifest.json",
+      "sha256": "1961f1e45ca7d4a39325c99fe5843486184d52006a41902424d817c230fe69fd",
+      "size": 1862
+    }
+  ]
+}

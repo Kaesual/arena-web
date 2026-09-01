@@ -26,6 +26,11 @@ release.
 - `docs/integration-contract.md` is the public handoff for hosting the exact
   browser tree, running and probing the matching dedicated-server image, and
   supplying the relay configuration and one-time authorization at launch.
+- `docs/wp11-integration-handoff.md` is the compact, self-contained nine-point
+  release contract for a browser/server consumer. Its machine entry point is
+  `release/browser-release.json`, which binds the complete 17-file browser
+  tree, compatibility tuple, profiles, resource record and licence/provenance
+  authorities.
 - `docs/immutable-baseline.md` records WP0's exact toolchain, browser,
   acceptance-platform, metadata and relay-trust contracts.
 - `docs/wp1-build-evidence.md` records the accepted browser build: its inputs,
@@ -52,7 +57,8 @@ release.
   `docs/wp5-packet-census.md` records the build, the image and the packet
   census.
 - `records/` holds the machine-readable measurement records the work packages
-  produce: the WP5 packet census and the WP2 routed datagram measurement.
+  produce: the WP5 packet census, the WP2 routed datagram measurement and the
+  WP11 server-resource guard.
 - `docs/wp6-network-sizing.md` is the network-sizing decision those two records
   feed: which ioquake3 datagrams fit through the measured browser path, the
   code-level sizes a short session cannot produce, and the proposed transport
@@ -81,9 +87,12 @@ upstream asset archives and generated build products should not be committed
 here merely for convenience.
 
 Consumers integrating the accepted vertical slice should begin with
-[`docs/integration-contract.md`](docs/integration-contract.md). It maps every
-required value to its machine-readable source of truth and keeps catalogue,
-account, deployment and product-UI decisions outside this repository.
+[`docs/wp11-integration-handoff.md`](docs/wp11-integration-handoff.md), then use
+[`release/browser-release.json`](release/browser-release.json) as the immutable
+machine entry point. The broader
+[`docs/integration-contract.md`](docs/integration-contract.md) explains the
+same boundary in context. Catalogue, account, deployment and product-UI
+decisions remain outside this repository.
 
 ## Checkout
 

@@ -8,8 +8,11 @@ browser client, run its matching dedicated server and connect the two through a
 compatible relay. It does not prescribe a hosting product, deployment system or
 user interface.
 
-`arena-web` deliberately has several small machine-readable sources of truth
-rather than one release file that repeats all of them:
+The complete WP11 consumer handoff is
+[`wp11-integration-handoff.md`](wp11-integration-handoff.md). The machine entry
+point is [`release/browser-release.json`](../release/browser-release.json): it
+binds the exact browser tree and the smaller authorities below without placing
+a self-hashing file inside that tree.
 
 | Question | Source of truth |
 | --- | --- |
@@ -19,15 +22,12 @@ rather than one release file that repeats all of them:
 | Which fixed relay profile does the browser enforce? | [`arena/relay-profile.json`](../arena/relay-profile.json) and the [relay datagram contract](relay-datagram-contract.md) |
 | Which server files are accepted? | [`provenance/arena-web-server.json`](../provenance/arena-web-server.json) |
 | How is the server started? | [`native/server-profile.json`](../native/server-profile.json) |
+| Which numeric limits and health states were measured? | [`records/wp11-server-resources.json`](../records/wp11-server-resources.json) |
 | Which public sources, toolchains and licences apply? | [`locks/baseline.json`](../locks/baseline.json), the manifests above and the member-level records under [`provenance/`](../provenance/) |
 
-An integration must consume those files together from one reviewed release
-checkout and must run `scripts/check.sh` before packaging them. Values below
-are explanations of that checked contract, not competing defaults. Reproducing
-the already accepted historical server image uses its separately recorded
-producer checkout only for the build, then compares the generated manifest
-back to this release checkout as described below; it is not permission to mix
-release metadata from two revisions.
+An integration must consume those files together from the one immutable WP11
+release checkout and run `scripts/check.sh` before packaging them. Values below
+explain that checked contract; they are not competing defaults.
 
 ## Supported profile and accepted release
 
@@ -50,13 +50,15 @@ container tag is not an identity.
 
 | Input | Accepted identity |
 | --- | --- |
-| ioq3 engine | `git:968eeb44294aa0003c430430cf32a6540f9a81e4` |
-| Browser loader, network backend and checked runtime profiles | `git:1d0f032ad294804275553c1e33ca306ce2baf7b7` |
-| Browser artifact manifest | `sha256:8abd6b7a6f7d278ad95c753a5db9f1eff6be8ff08645c2f8ac4d91d7665e3f09` |
-| Content artifact manifest | `sha256:f1e5453e6ecab0b251512cadee8f1a16de446bcc11c9038c93961f045765c7e1` |
-| Server artifact manifest | `sha256:640933d6beecd79b88c02d73301de0ab60b7b3037937a690fc4a33f10aeefa1f` |
-| Server image producer/build checkout | `git:fb58dd54bfe8eee196efd4d7a41950021ddcd141` |
-| Accepted native server image ID | `sha256:ab6cd95dfed886778be5e5063a9f3669313fed3787d6a71b696e3a170d4f07bf` |
+| Baseline lock | `sha256:cc45026e109df38a3b019192ed8b6807bae8bc787119b2b89fe5c7a6f28c05f1` |
+| ioq3 engine | `git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a` |
+| Browser loader producer | `git:a695c23c4da373955d558df687e3c04d3baae214` |
+| Browser artifact manifest | `sha256:1e2795ff7f6c2221855716da0770b8a3f75b1b267cc7e4690846f5be20745b70` |
+| Content artifact manifest | `sha256:756b8df5e1d02346267f73e5bacf11dbf2fc4e9457b07f5768ed9a94bfcb299c` |
+| Content PK3 | `sha256:ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664` |
+| Server artifact manifest | `sha256:21733e3e64bc7bc520ed8b610fd9033f148b17cde3cc18d1b8a0d48f9646d953` |
+| Server image producer/build checkout | `git:b949d1d2dde58d121467d7d2c40e4138b0d6d4bf` |
+| Accepted native server image ID | `sha256:c73ba3ee395d57f661d2a4884b287c7a638bbe7f25269169865fc18bc1c901bf` |
 
 The image value is the reproducible container configuration/image ID observed
 after loading the accepted single-platform image, not a promise that every
@@ -65,17 +67,15 @@ must be pinned by its own immutable manifest digest and must additionally load
 to the accepted image ID. An archive transfer must likewise verify the loaded
 image ID rather than trusting its filename.
 
-The accepted image records its producing repository commit in an OCI label. To
-reproduce that historical image, build all accepted inputs and run
-`scripts/build-server-image.sh` from a separate clean checkout at
-`fb58dd54bfe8eee196efd4d7a41950021ddcd141`. That checkout predates the commit
-which copied the resulting server manifest into `provenance/`, so its committed
-copy is not the comparison target. Instead, compare its newly generated
-`build/server-image/artifact-manifest.json` byte-for-byte with
-`provenance/arena-web-server.json` from this release checkout, require the
-manifest identity `sha256:640933d6beecd79b88c02d73301de0ab60b7b3037937a690fc4a33f10aeefa1f`,
-and require the loaded image ID
-`sha256:ab6cd95dfed886778be5e5063a9f3669313fed3787d6a71b696e3a170d4f07bf`.
+The image records its producer in an OCI label. Reproduce it from a clean
+checkout at `b949d1d2dde58d121467d7d2c40e4138b0d6d4bf`, after reproducing the
+accepted browser, content and native builds, and run
+`scripts/build-server-image.sh`. Compare the generated
+`build/server-image/artifact-manifest.json` byte-for-byte with this release's
+`provenance/arena-web-server.json`; require manifest identity
+`sha256:21733e3e64bc7bc520ed8b610fd9033f148b17cde3cc18d1b8a0d48f9646d953`
+and loaded image ID
+`sha256:c73ba3ee395d57f661d2a4884b287c7a638bbe7f25269169865fc18bc1c901bf`.
 
 A rebuild from the current documentation commit or any other later commit has
 a new image ID even when all four runtime files are byte-identical, because its
@@ -86,13 +86,16 @@ identity. Its generated manifest must match every content and input field in
 requires its own reviewed manifest. Neither case may be silently called the
 already accepted image.
 
-The [WP7 acceptance report](wp7-routed-acceptance-2026-09-01.md) binds this
-tuple to the final packet census and routed two-browser result. The
+The [WP7 acceptance report](wp7-routed-acceptance-2026-09-01.md) binds the
+compatible protocol/content ancestor to the final packet census and routed
+two-browser result. The
 [WP8-Mini report](wp8-mini-acceptance-2026-09-01.md) adds five minutes of
 concurrent play and reconnect of both clients without changing an owning input.
 The [WP10 report](wp10-canvas-resize-acceptance-2026-09-01.md) accepts runtime
-canvas resize and HTML fullscreen under the updated loader/profile identity;
-the engine, content and server artifacts remain unchanged.
+canvas resize and HTML fullscreen. WP11 reissues browser/server identities for
+the Emscripten-only host-stop export and binds their focused lifecycle/resource
+evidence in the handoff above; its server payload bytes and content PK3 remain
+unchanged.
 
 ## Browser artifact publication
 
@@ -110,7 +113,7 @@ python3 scripts/stage-arena.py --target build/arena-serve --check
 
 The target must remain under the checkout's gitignored `build/` directory while
 the repository scripts create or verify it. A publisher then transfers that
-verified directory as one unit. The current tree contains exactly these 16
+verified directory as one unit. The current tree contains exactly these 17
 files:
 
 ```text
@@ -119,6 +122,7 @@ loader.js
 default.cfg
 game-profile.json
 arena/canvas-resize.js
+arena/host-lifecycle.js
 arena/network-backend.js
 arena/relay-profile.json
 probe/relay-framing.js
@@ -227,10 +231,12 @@ particular deployment.
 
 ### User activation and observable state
 
-The player must activate the page's real **Start** button. The gesture grants
-audio activation and allows later pointer lock; replacing it with a synthetic
-click is unsupported. The canvas fills its page and derives an engine
-resolution of at least 320 by 240 CSS pixels from its live box.
+The built-in **Start** button and a same-origin host both use
+`arenaWeb.start()`. The call must occur directly in a transient user-activation
+event; it is accepted exactly once from `ready`. It rejects a duplicate without
+starting second work. The gesture grants audio activation and allows later
+pointer lock. The canvas fills its page and derives an engine resolution of at
+least 320 by 240 CSS pixels from its live box.
 
 After startup, a `ResizeObserver` forwards changes of that CSS box into SDL's
 existing Emscripten resize path. ioq3 then adopts the new custom resolution
@@ -242,23 +248,38 @@ they do not restart the game or relay session. `snapshot().render`
 retains the startup CSS dimensions and separately reports the current CSS
 dimensions, observer availability and observed-event count for diagnostics.
 
-The supported host-facing observation API is read-only:
+The supported host-facing API is:
 
 ```js
 globalThis.arenaWeb.snapshot()
-globalThis.arenaWeb.engineLog()
+globalThis.arenaWeb.subscribe(listener) // synchronous immediate snapshot; returns unsubscribe
+globalThis.arenaWeb.start()
+globalThis.arenaWeb.stop()
+globalThis.arenaWeb.whenSettled()
+globalThis.arenaWeb.focusSurface()
+globalThis.arenaWeb.setFullscreen(engaged)
 ```
 
-The important `snapshot().status` transitions are engine/UI milestones, not a
-complete transport state machine:
+`snapshot()` is a defensive copy and reports exact loading byte progress.
+`stop()` is idempotent before Start, during static/relay/engine loading and
+while running: it aborts attempt work, closes the relay without Reconnect,
+requests the real engine quit and, once engine boot began, waits for the actual
+Emscripten exit. Every stop call returns the same Promise. `whenSettled()` also
+returns one stable Promise and resolves exactly once with
+`{status, exitCode, reason}` for `failed` or `exited`; reconnect never settles
+it. The full call/return/error semantics are normative in the
+[WP11 handoff](wp11-integration-handoff.md#2-exact-browser-lifecycle-boundary).
+
+The important `snapshot().status` transitions are engine/UI milestones rather
+than the transport state machine:
 
 ```text
 starting -> ready -> booting -> running
-                         \-> failed
-                 \-> reconnect-ready
+    |          |        |         |
+    +----------+--------+---------+-> stopping -> exited
+                       \-> reconnect-ready
 running -> reconnect-ready -> reconnecting -> running
-                                      \-> reconnect-ready or failed
-running -> exited
+any nonterminal state -> failed
 ```
 
 `ready` means every static artifact was fetched and verified. In relay mode,
@@ -268,7 +289,7 @@ mean the assigned transport is still open: a relay that closes during engine
 boot can expose `reconnect-ready` before the later engine marker writes
 `running`. An integration must therefore require both
 `snapshot().status === "running"` and `snapshot().relay.state === "open"` for a
-currently playable relay client. `failed` is terminal for this page load.
+currently playable relay client. `failed` and `exited` are terminal.
 
 When an established relay session ends, the engine stays alive, the overlay
 offers **Reconnect**, and the next attempt invokes `tokenProvider` again. A
@@ -279,8 +300,15 @@ transport failures expose the reconnect path and spend a fresh authorization.
 A failure during the initial open leaves the page in `failed`; retrying that
 case requires a reload and another fresh authorization.
 
-`report` is exposed for acceptance diagnostics, but an integration must treat
-it as read-only and must not depend on unlisted counters as a product API. The
+The stable runtime surface is the canvas selected by
+`[data-runtime-surface="arena-web"]`. It is the focus/pointer-lock target; its
+surrounding stage is the fullscreen element. The focus and fullscreen methods
+return explicit `{ok, ... , reason}` results and do not bypass browser
+activation policy.
+
+`report` and `engineLog()` are exposed for acceptance diagnostics, but an
+integration must treat them as read-only and must not depend on unlisted
+counters as a product API. The
 surrounding product owns localization and any catalogue or account UX; the
 client page retains its own exact loading, failure and reconnect messages.
 `engineLog()` is diagnostic, not presentation data: it may contain
@@ -317,7 +345,7 @@ The runtime should apply the same confinement used by acceptance:
 drop all Linux capabilities
 set no-new-privileges
 use a read-only root filesystem
-mount an empty rw,noexec,nosuid,nodev tmpfs with mode 1777 at /var/lib/arena
+mount an empty 64-MiB rw,noexec,nosuid,nodev tmpfs with mode 1777 at /var/lib/arena
 ```
 
 The home tmpfs contains disposable engine configuration and the game VM's
@@ -336,13 +364,14 @@ untrusted direct-UDP path arbitrary source ports could evade address buckets
 and exhaust their finite pool; that topology must use the upstream default
 instead and is not this accepted profile.
 
-The profile provides eight total slots and starts three bots. Ordinary server
-behavior may remove bots as human slots are needed, so “three bots” is not a
-five-human capacity guarantee. Only two concurrent humans were accepted. No
-numeric production CPU, memory, tmpfs-size, player-capacity or SLO guarantee
-has been measured. A hosting system may impose resource controls, but it must
-validate its chosen limits separately and must not present the prototype
-observations as production guarantees.
+The accepted prototype guard is one CPU core, 256 MiB memory, 128 PIDs and the
+64-MiB home tmpfs. Under a representative two-client/three-bot busy phase the
+observed maxima were 0.044203 CPU cores, 29,536,256 bytes cgroup memory,
+31,059,968 bytes process HWM and 1,272 bytes in the home. That leaves 22.623x
+CPU, 9.088x cgroup-memory and 52,758.541x home-space headroom. The full record
+is [`records/wp11-server-resources.json`](../records/wp11-server-resources.json).
+These are conservative capacity guards for the accepted two-human prototype,
+not an SLO, a production capacity promise or evidence for five humans.
 
 ### Readiness, liveness and stop
 
@@ -367,22 +396,40 @@ connectionless queries; probes that continuously rotate ephemeral source ports
 would defeat the point of the per-port bucket and consume its finite table.
 `getstatus` also returns the current player list; a readiness implementation
 must not retain or publish that unneeded, user-controlled tail.
-Readiness becomes false after a timeout, a malformed response or a profile
-mismatch. A transient failed query need not by itself kill a still-live
-process; restart policy belongs to the hosting environment.
+Startup has a 20-second deadline. After the first good reply, three consecutive
+failed one-second checks produce `failed`; one or two misses remain `ready`.
+The complete observation vocabulary is `missing` (no owned runtime),
+`preparing` (running inside the startup window without a valid reply), `ready`
+(the exact check passed and the post-ready threshold has not been crossed) and
+`failed` (unexpected process exit, missed startup deadline or threshold
+crossing).
 
 The image entrypoint receives container signals directly. On `SIGTERM` or
 `SIGINT`, the pinned engine sends its final server message, shuts down the game
 VM and network state, and then exits with status 1. A process manager must treat
 that non-zero status as an expected operator stop when it sent the signal; the
 same status without a requested stop remains a failure. The accepted harness
-allows ten seconds before forcing termination. There is no persistent world to
-flush, restore or migrate.
+allows ten seconds before forcing termination; the measured graceful path took
+0.131 seconds. There is no persistent world to flush, restore or migrate.
 
 Remote administration is deliberately disabled: the profile is LAN-dedicated,
 publishes no master-server heartbeat, and sets the RCON, private-server and game
 passwords empty. Lifecycle belongs to the container/process manager, not to a
 network admin command.
+
+## First public access policy
+
+The accepted Arena profile is guest-playable. A consumer may authorize a guest
+or an authenticated user only for a server it deliberately published and
+currently observes as `ready`; Arena has no account, character, saved-login or
+persistent-state prerequisite. Ordinary platform-wide ban, rate-limit and abuse
+policy may run before authorization.
+
+Each one-time authorization names exactly one virtual destination. No new value
+is issued for an unpublished, stopped, missing, preparing or failed server, and
+every reconnect obtains a new value. A policy change governs new attempts;
+WP11 adds no live-session revocation. The browser never receives the actual UDP
+server endpoint.
 
 ## Relay route and catalogue boundary
 
@@ -451,7 +498,7 @@ licences** link and meet all of these obligations:
   including the ioquake3/component notices, Emscripten, musl, LLVM
   compiler-rt, IJG and SDL terms. That WP1 section records where the inventory
   originated; repository-local notices for this release resolve at the current
-  engine pin `968eeb44294aa0003c430430cf32a6540f9a81e4`, as the authoritative
+  engine pin `596e56a6bf58f41e1ad9cc1685c7c11a75dba87a`, as the authoritative
   baseline lock requires;
 - offer the corresponding public source identified in
   [`wp1-build-evidence.md`](wp1-build-evidence.md#corresponding-source): the
@@ -468,8 +515,8 @@ licences** link and meet all of these obligations:
   code are GPL-2.0-or-later, while linked runtime components retain their own
   compatible licences. Do not apply one blanket label to every component.
 
-The PK3 already carries its notices; the browser engine notice bundle is **not**
-part of the 16-file staged tree and must be published alongside it. The server
+The PK3 already carries its notices; the browser engine notice set is **not**
+part of the 17-file staged tree and must be published alongside it. The server
 image already carries the runtime-base copyright files, but a public image
 listing still needs a source/licence link. A release is not publication-ready
 until those links and files exist.

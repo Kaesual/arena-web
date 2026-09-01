@@ -754,4 +754,12 @@ def verify_staged(repo_root: Path, target: Path) -> dict[str, Any]:
         else:
             if file_sha256(path) != file_sha256(entry["source"]):
                 _fail(f"staged {served}", f"differs from {entry['source']}")
+    release_index = repo_root / "release/browser-release.json"
+    if release_index.is_file():
+        from release_index import ReleaseIndexError, validate_release_index
+
+        try:
+            validate_release_index(repo_root, expected, staged_root=target)
+        except ReleaseIndexError as error:
+            _fail("release index", str(error))
     return {"servedFiles": sorted(expected)}

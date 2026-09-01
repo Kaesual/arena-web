@@ -16,7 +16,7 @@ reviewer obtains and verifies it.
 
 | Role | Version or revision | Immutable identity | Platform |
 | --- | --- | --- | --- |
-| Engine and bundled `baseq3` gamecode | ioq3 fork `557f7c8d5286fdccd1b01403e0074bd06be56e70` (`web`), on upstream base `588393618dbc82e7207c21c6ddecca229944a03a` | Git commit and submodule pin | source |
+| Engine and bundled `baseq3` gamecode | ioq3 fork `596e56a6bf58f41e1ad9cc1685c7c11a75dba87a` (`web`), on upstream base `588393618dbc82e7207c21c6ddecca229944a03a` | Git commit and submodule pin | source |
 | WebAssembly builder | Emscripten `6.0.8` | `sha256:8714ed3a9fb585e662c931259a996bac36a57a8dd34b81e8277436fd77364475` | `linux/amd64` |
 | Native builder base | Ubuntu `24.04` | `sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316` | `linux/amd64` |
 | Server runtime base | Debian `13-slim` (trixie, `13.6`) | `sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f` | `linux/amd64` |
@@ -87,7 +87,7 @@ At the time of this amendment the pin became
 `92351b8f0543448b9defaac25c552274eecbf15b` on the fork's `web` branch. WP7
 subsequently extended the enumerated series for the browser relay boundary,
 network sizing and managed-relay rate buckets and reissued the baseline at the
-current pin `557f7c8d5286fdccd1b01403e0074bd06be56e70`. WP11 adds only the host-requested graceful-quit handoff needed by the embedding lifecycle. The validation model
+current pin `596e56a6bf58f41e1ad9cc1685c7c11a75dba87a`. WP11 adds only the host-requested graceful-quit handoff needed by the embedding lifecycle. The validation model
 described below did not change. `main` in that fork continues to mirror
 upstream and is where the upstream base lives.
 
@@ -504,7 +504,7 @@ inspectable with:
 
 ```bash
 sha256sum locks/baseline.json
-# sha256:529f7d3cc6ef174e2d83d46b429e7e309b1f2f72003b8a218b7333480504ba6f
+# sha256:cc45026e109df38a3b019192ed8b6807bae8bc787119b2b89fe5c7a6f28c05f1
 ```
 
 The container check first verifies the lock against the host checkout's ioq3

@@ -2291,4 +2291,19 @@ def validate_repository(root: Path, *, verify_git: bool = True) -> list[Path]:
             else:
                 _fail(str(path), f"uses unknown schema {schema!r}")
             validated.append(path)
+
+    release_index_path = root / "release" / "browser-release.json"
+    if release_index_path.is_file():
+        # The release index deliberately lives outside locks/manifests/
+        # provenance: it binds the complete served tree and those authorities,
+        # rather than being another artifact manifest with a self-hash.
+        from arena_runtime import ArenaRuntimeError, load_profile, served_files
+        from release_index import ReleaseIndexError, validate_release_index
+
+        try:
+            expected_served = served_files(root, load_profile(root))
+            validate_release_index(root, expected_served)
+        except (ArenaRuntimeError, ReleaseIndexError) as error:
+            _fail(str(release_index_path), str(error))
+        validated.append(release_index_path)
     return validated
