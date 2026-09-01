@@ -57,14 +57,17 @@ release.
 - `docs/relay-datagram-contract.md` is the public routed datagram contract: the
   protocol subset and byte-exact framing a browser needs to reach one game
   destination through a compatible relay.
+- `docs/wp7-routed-acceptance-2026-09-01.md` records the accepted final-pin
+  browser/server rebuild, packet re-census and routed real-browser round without
+  retaining environment-specific runtime values.
 - `probe/` is the standalone browser conformance probe for that contract, and
   `docs/wp2-relay-probe.md` records what it implements and what its routed
   acceptance still needs.
 - `LICENSE` applies GPL-2.0-or-later to original arena-web code and
   documentation. Pinned components and content retain their own licenses.
 
-The browser shell and the dedicated-server image will live in this repository as
-later work packages add them. The shared relay server implementation and
+The browser shell and the dedicated-server image live in this repository. The
+shared relay server implementation and
 environment-specific deployment remain outside this public repository. Large
 upstream asset archives and generated build products should not be committed
 here merely for convenience.

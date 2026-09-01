@@ -11,9 +11,11 @@ as the analysis proposed, and recomputable from the committed records. The
 mandatory independent protocol/security review returned **fix-first**; its four
 MAJOR findings were resolved, the three extensions it produced were settled by
 the operator the same day, and a re-verification pass then **passed**, finding
-no decided value had drifted. **WP6 is complete.** WP7 and WP8 carry
-implementation-ready contracts. The operator explicitly authorized WP7 on
-2026-08-31; implementation is in progress. WP8 remains blocked on WP7.
+no decided value had drifted. **WP6 and WP7 are complete.** WP7's final-pin
+browser/server builds, packet re-census, independent engine and
+protocol/security reviews, and routed real-browser acceptance passed on
+2026-09-01. WP8's contract is implementation-ready and is now unblocked, but it
+has not been authorized or started.
 
 This document turns the reviewed direction in
 [`initial-plan.md`](initial-plan.md) into coherent, testable increments. It
@@ -55,14 +57,14 @@ is a plan change; adding another platform is later scope.
 | WP4 | One-map offline browser arena with bots | WP1, WP3 | ✅ Complete — the witnessed round of 2026-08-30 passed every gameplay, input, focus, audio, console and clean-relaunch check (report in the evidence documents); the known browser-renderer defect class (white lightmapped surfaces mitigated by the reviewed `r_vertexLight` workaround and guarded by a near-white regression check; distance-graded entity shading; frame flicker) is recorded as decided while the timeboxed root-cause hunt continues on scratch builds. Closure accepted the operator-chosen Brave/KDE variation (the pinned Chrome is exercised by the automated harness on every gate run) and recorded one new accepted limitation: runtime resize and fullscreen-after-start do not update the engine resolution. **Post-closure, 2026-08-30:** the defect class is resolved — white lightmapped surfaces root-caused to a GLSL ES `mediump` precision default and fixed in the engine (workaround removed), entity shading reclassified as renderergl2's normal native look rather than a browser defect, and frame flicker confirmed resolved by the operator on the real display, who also confirmed light-strip parity with the native reference images. Two pre-existing content gaps the operator reported at the same time — the machine gun's missing barrel model and the lightning gun's missing beam art — are recorded in the evidence document as an open content follow-up. **Post-closure, 2026-08-31:** that follow-up is closed by WP3's content amendment, which also corrects the recorded lightning-beam cause — the beam art was always packed; the missing `lightning_flash.md3` gated the beam path — as a dated note in the evidence document |
 | WP5 | Matching native server and packet census | WP0, WP3 | ✅ Complete — the pinned native toolchain, the reproducible dedicated server, the runtime-base server image and a 41,833-datagram census of a driven session are built, reviewed and green, and the witnessed round of 2026-08-30 closed the one outstanding acceptance word with a player kill against a bot (report and native reference images in the evidence documents) |
 | WP6 | Measured network-sizing decision | WP2, WP5 | ✅ Complete — a reviewed, recomputable sizing decision: the routed budget refutes intact datagrams, and the selected strategy is a symmetric `FRAGMENT_SIZE` reduction to **704** at the record-backed 768-byte floor, with profile bounds for the out-of-band classes the engine never fragments, a fail-closed emitted-size check on both endpoints at `Sys_SendPacket`, and ten frozen WP8 thresholds. Built: [`wp6-network-sizing.md`](wp6-network-sizing.md), the `scripts/derive-network-sizing.py` derivation that recomputes every number from the two committed records (with a suite that requires doctored records to flip its verdicts), and implementation-ready WP7/WP8 contracts. The operator decided all five open points on 2026-08-30 and the three review extensions the same day; the mandatory independent protocol/security review returned fix-first, and its four MAJOR findings — the unlisted 1,038-byte `getmotd`, the unenforced server-browser exclusion, the one-directional fail-closed machinery and the shared relay address — were resolved and confirmed by a re-verification pass that found no decided value had drifted |
-| WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | 🚧 In progress — explicitly authorized 2026-08-31; the implementation uses the existing engine send/receive boundary, with ioq3 fragmentation remaining the only fragmentation layer |
-| WP8 | Two-browser multiplayer acceptance | WP5, WP7 | Contract complete, thresholds frozen 2026-08-30; blocked on WP7 |
+| WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | ✅ Complete — the bounded WebTransport backend and fresh-authorization reconnect path use the existing engine send/receive boundary; exact final-pin browser/server rebuilds, 61,322-datagram re-census, independent engine and protocol/security reviews, and the routed real-browser acceptance all passed; see [`wp7-routed-acceptance-2026-09-01.md`](wp7-routed-acceptance-2026-09-01.md) |
+| WP8 | Two-browser multiplayer acceptance | WP5, WP7 | Contract complete and thresholds frozen 2026-08-30; unblocked by WP7, but not authorized or started |
 | WP9 | Public product-integration blueprint | WP8 | Scope gate |
 
 WP1, WP2 and WP3 are independent after WP0 and may be scheduled separately.
-WP4 and WP5 may proceed independently after WP3. WP7 must not be approved or
-implemented until WP6 has selected the transport and sizing strategy from
-measured evidence.
+WP4 and WP5 may proceed independently after WP3. WP7 began only after WP6 had
+selected the transport and sizing strategy from measured evidence. WP8 remains
+a separate approval and implementation increment after WP7.
 
 ```mermaid
 flowchart LR
@@ -788,7 +790,7 @@ covers connectionless and netchan traffic and measures the correct boundary.
 **State:** ✅ Complete. The operator decided every point on 2026-08-30, the
 independent protocol/security review returned fix-first, its four MAJOR findings
 were resolved, and the re-verification pass confirmed them with no decided value
-drifted. WP7 is blocked only on explicit approval to start.
+drifted. The operator subsequently authorized WP7 on 2026-08-31.
 
 ### Result
 
@@ -895,16 +897,18 @@ work begins.
 ### Review
 
 Mandatory independent protocol/security review. Any finding affecting the
-strategy, bounds or census reopens WP6 and keeps WP7 blocked.
+strategy, bounds or census would reopen WP6 and invalidate WP7's closure.
 
 ## WP7 — Browser backend and matching server rebuild
 
-**State:** 🚧 In progress, explicitly authorized by the operator on
-2026-08-31. WP6's mandatory independent protocol/security review and
-re-verification passed before implementation began. The selected shape remains
-strategy 2: the symmetric fragment-size reduction at `FRAGMENT_SIZE = 704`,
-sized to the record-backed 768-byte inner budget, with the profile bounds. The
-values below are decided, not proposed.
+**State:** ✅ Complete on 2026-09-01. The operator authorized implementation on
+2026-08-31 after WP6's mandatory independent protocol/security review and
+re-verification had passed. The finished implementation retains strategy 2:
+the symmetric fragment-size reduction at `FRAGMENT_SIZE = 704`, sized to the
+record-backed 768-byte inner budget, with the profile bounds. Exact final-pin
+browser and server rebuilds, both mandatory independent reviews, the packet
+re-census and the routed real-browser round passed. The public evidence is
+[`wp7-routed-acceptance-2026-09-01.md`](wp7-routed-acceptance-2026-09-01.md).
 
 The implementation seam is the existing engine send/receive boundary:
 `Sys_SendPacket` hands emitted browser datagrams to the product backend and
@@ -1160,7 +1164,8 @@ fragmentation layer was added beneath the engine's own.
 ## WP8 — Two-browser multiplayer acceptance
 
 **State:** Acceptance contract, drafted by WP6, with its numeric thresholds
-**frozen by the operator on 2026-08-30**. WP8 may be approved once WP7 closes.
+**frozen by the operator on 2026-08-30**. WP7 is closed, so WP8 is ready for a
+separate explicit approval; it has not been authorized or started.
 
 ### Outcome
 
@@ -1309,8 +1314,8 @@ integration implementation is scheduled.
    extensions it produced — `cl_motd 0`, the refusal-counter split and a
    cvar-gated port-aware rate-limit bucket in WP7's scope — were settled on
    2026-08-30. The re-verification pass then **passed**. **This gate is
-   closed.** WP7 is not blocked by any remaining review or decision; it starts
-   when the coordinator and operator explicitly approve it.
+   closed.** WP7 was then explicitly authorized, implemented, reviewed and
+   accepted on 2026-09-01.
 4. **Vertical-slice closure:** WP8 reviews the complete two-client evidence
    before WP9 or any hosting integration begins.
 
@@ -1324,15 +1329,11 @@ loader/engine canvas-size propagation.
 
 ## Input still needed from the operator
 
-No additional input is needed to review or begin WP0 if the Linux x86_64
-Chrome-for-Testing default is acceptable. Before WP2's routed-path acceptance,
-the operator must provide or approve a compatible integration relay endpoint,
-a browser-compatible trust mechanism, a UDP echo destination, two distinct
-virtual addresses and enough fresh single-use allowances for every session.
-Before WP7/WP8 routed acceptance, the integration environment must provide a
-fresh-token issuer or equivalent harness and host the matching rebuilt native
-server behind an exact virtual-address/UDP-port route. Before WP8, the operator
-must also provide or approve access to two independent client networks for the
-privacy and multiplayer acceptance. Product naming, additional platforms and
+No additional input is needed for the completed WP0–WP7 increments. WP7's
+routed acceptance received a runtime-only fresh-token issuer and a route to its
+matching rebuilt native server; those inputs were discarded after the accepted
+round. Before WP8, the operator must explicitly authorize the package and
+provide or approve access to two independent client networks for the privacy
+and multiplayer acceptance. Product naming, additional platforms and
 production deployment choices are deliberately not prerequisites for this
 prototype.

@@ -4,7 +4,8 @@
 
 **Status:** **complete and closed.** The decision is made, the independent
 protocol/security review has passed on re-verification, and no open decisions
-remain. WP7 is blocked only on explicit approval to start.
+remain. WP7 was subsequently approved and closed on 2026-09-01; its result does
+not change any sizing decision recorded here.
 
 The operator selected every open point on 2026-08-30,
 each one exactly as this analysis proposed: strategy 2 with its profile bounds,
@@ -39,8 +40,8 @@ citation against the pin, and found no decided value had drifted. Its eleven
 remaining findings were documentation consistency rather than substance and are
 folded in here; one of them corrected a claim in the opposite direction from the
 way it was first reported, which is recorded at the point it applies. **WP6 is
-closed.** WP7 is now blocked only on the coordinator's and operator's explicit
-approval to start it.
+closed.** WP7 later received explicit approval and passed; see
+[`wp7-routed-acceptance-2026-09-01.md`](wp7-routed-acceptance-2026-09-01.md).
 
 WP2 measured what a browser can push through the relay. WP5 measured what the
 game actually puts on the wire. This document puts the two together, adds the
