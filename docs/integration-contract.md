@@ -53,7 +53,7 @@ container tag is not an identity.
 | Baseline lock | `sha256:cc45026e109df38a3b019192ed8b6807bae8bc787119b2b89fe5c7a6f28c05f1` |
 | ioq3 engine | `git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a` |
 | Browser loader producer | `git:a695c23c4da373955d558df687e3c04d3baae214` |
-| Browser artifact manifest | `sha256:fbe3e1f0c6189246a9b62571d7ab8ad75ea29f8a50f6fb2b7fcaaf404f1778d8` |
+| Browser artifact manifest | `sha256:0585e09b211c3c2baa48cb03e9d9d9f2ce70e95599d5da76c16d4db40594ec56` |
 | Content artifact manifest | `sha256:1961f1e45ca7d4a39325c99fe5843486184d52006a41902424d817c230fe69fd` |
 | Content PK3 | `sha256:ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664` |
 | Server artifact manifest | `sha256:b96535dbce067fb42f05a0c59fe037704c2b96d15551343a4b598d5d06685444` |
