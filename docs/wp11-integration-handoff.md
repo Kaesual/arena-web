@@ -29,7 +29,7 @@ The primary immutable identities are:
 | Input | Identity |
 | --- | --- |
 | Baseline lock | `sha256:cc45026e109df38a3b019192ed8b6807bae8bc787119b2b89fe5c7a6f28c05f1` |
-| Browser artifact manifest | `sha256:1e2795ff7f6c2221855716da0770b8a3f75b1b267cc7e4690846f5be20745b70` |
+| Browser artifact manifest | `sha256:fbe3e1f0c6189246a9b62571d7ab8ad75ea29f8a50f6fb2b7fcaaf404f1778d8` |
 | Content artifact manifest | `sha256:756b8df5e1d02346267f73e5bacf11dbf2fc4e9457b07f5768ed9a94bfcb299c` |
 | Packaged PK3 | `sha256:ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664`, 24,484,503 bytes |
 
@@ -221,7 +221,7 @@ loader, profile, QVM, pack, binary or relay profile:
 ```text
 baseline          sha256:cc45026e109df38a3b019192ed8b6807bae8bc787119b2b89fe5c7a6f28c05f1
 ioq3               git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a
-browser manifest   sha256:1e2795ff7f6c2221855716da0770b8a3f75b1b267cc7e4690846f5be20745b70
+browser manifest   sha256:fbe3e1f0c6189246a9b62571d7ab8ad75ea29f8a50f6fb2b7fcaaf404f1778d8
 content manifest   sha256:756b8df5e1d02346267f73e5bacf11dbf2fc4e9457b07f5768ed9a94bfcb299c
 content PK3        sha256:ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664
 server manifest    sha256:21733e3e64bc7bc520ed8b610fd9033f148b17cde3cc18d1b8a0d48f9646d953

@@ -28,13 +28,13 @@
     },
     {
       "path": "ioquake3.js",
-      "sha256": "7c83e0394cf35d2f19f1bfeb5286c6d7ba10a8f0c361db4c23246218284ea093",
-      "size": 266778
+      "sha256": "a180b0ddc60608841f60c73426419fa79ecb1c3d5bf9c47a436b899ef011756e",
+      "size": 266885
     },
     {
       "path": "ioquake3.wasm",
-      "sha256": "f65fdab36aa0c54cbfcb1f1be352ddd77e623f7d4d216ea851f69192aca18191",
-      "size": 2319477
+      "sha256": "897962a7eccc1785f7c7dd186a7189fa979074ebce03dc093f1138d233b89059",
+      "size": 2319487
     },
     {
       "path": "missionpack/vm/cgame.qvm",
@@ -77,7 +77,7 @@
     }
   ],
   "producer": {
-    "commit": "a695c23c4da373955d558df687e3c04d3baae214",
+    "commit": "ecd96c985280a06da759dac72afbc1ef506a25bc",
     "name": "arena-web scripts/build-browser.sh"
   }
 }
