@@ -128,14 +128,63 @@
     {
       "manifest": "content",
       "path": "baseq3/arena-web-ffa-base.pk3",
-      "served": "content/baseq3/arena-web-ffa-base-6c3341ef87d16c75.pk3",
+      "served": "content/baseq3/arena-web-ffa-base-caa003fcd7a79d34.pk3",
       "role": "filesystem",
       "fsPath": "/arena/arena-web-ffa-base.pk3"
     },
     {
       "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-am_galmevish.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-am_galmevish-5dd57747e2f7d6de.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-am_galmevish.pk3"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-am_galmevish2.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-am_galmevish2-1d6de81a82a739c7.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-am_galmevish2.pk3"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-am_spacecont.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-am_spacecont-2962ec77faf8b02d.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-am_spacecont.pk3"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-am_underworks2.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-am_underworks2-e41fb0669c74341d.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-am_underworks2.pk3"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-czest1dm.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-czest1dm-322f6b1ffef9e3d0.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-czest1dm.pk3"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-czest1tourney.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-czest1tourney-ec7d74e3a8892c2b.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-czest1tourney.pk3"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-mlca1.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-mlca1-2e785c0fd463ce0e.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-mlca1.pk3"
+    },
+    {
+      "manifest": "content",
       "path": "baseq3/arena-web-ffa-map-oa_pvomit.pk3",
-      "served": "content/baseq3/arena-web-ffa-map-oa_pvomit-304a2266a08ebe2f.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-oa_pvomit-9a4b9caf4ddd4405.pk3",
       "role": "filesystem",
       "fsPath": "/arena/arena-web-ffa-map-oa_pvomit.pk3"
     }

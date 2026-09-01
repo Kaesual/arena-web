@@ -19,7 +19,7 @@ prototype bounds, not a wider platform or capacity claim.
 ## 1. Browser manifest, digests and public layout
 
 The release index is outside the browser root to avoid hashing itself. Its
-`servedFiles` array is the complete, path-sorted browser root: exactly 18
+`servedFiles` array is the complete, path-sorted browser root: exactly 25
 relative files, each with byte length and SHA-256. The staging validator checks
 that list against both repository source and the generated artifact manifests;
 an extra, missing, symlinked or changed file fails the release.
@@ -30,9 +30,9 @@ The primary immutable identities are:
 | --- | --- |
 | Baseline lock | `sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287` |
 | Browser artifact manifest | `sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047` |
-| Content artifact manifest | `sha256:7785b2a65104257d1f0cd67d9b59771dc259726155acc54bdae0451cef92dfc5` |
-| Base content archive | `sha256:6c3341ef87d16c75b7d3fb5f368d9f935dac304c1dd7667f96b64dd73912bb03`, 40,913,889 bytes |
-| `oa_pvomit` map archive | `sha256:304a2266a08ebe2f3b63117214dd9cf2489b974c2036d6cf05309555e3ce95d3`, 1,923,375 bytes |
+| Content artifact manifest | `sha256:3ec982977ea0d23dae03b565f68d6f3296796b2a3f9f49b25451713bc50055fe` |
+| Base content archive | `sha256:caa003fcd7a79d3431a73166ed531d40b8a3d3728bca487d4b55c07d681c4229`, 40,985,746 bytes |
+| Map archives | eight, one per map, enumerated in the content artifact manifest |
 
 **The content is a set of archives, not one PK3.** A base archive carries
 everything not tied to a map — the gamecode's own closure, the seven player
@@ -40,8 +40,15 @@ presentations, the bots and the notices — and one archive per map carries that
 map and what only it reaches. Each is served under a name containing the first
 16 hex characters of its own SHA-256 under an immutable cache policy, so a
 published URL is never rewritten and a returning player re-downloads only what
-actually changed. The client fetches the base plus the archives for the maps it
-will play; the dedicated server carries every archive.
+actually changed. The dedicated server carries every archive.
+
+**The client currently fetches every declared archive**, not only the ones for
+the maps it will play. The committed profile declares the published set and the
+loader verifies each artifact against the committed manifest before it starts,
+so nothing is unverified — but the fetch is the whole set, and it grows with
+the set. Selecting a subset per rotation is the next work package; until it
+lands, size the first load against the total of every `filesystem` artifact in
+`arena/game-profile.json`.
 
 **`contentPayloadIdentity` now names the base archive.** The field name did not
 change and no consumer sees an error, so it is called out here: it used to mean
@@ -212,8 +219,8 @@ The exact server identities are:
 
 | Input | Identity |
 | --- | --- |
-| OCI configuration/image ID | `sha256:73ba426831ffee51811d24d6ead5a241723a1aa1bc446ecf3d6405dbb806bd2f` |
-| Server artifact manifest | `sha256:580654c261a364ad71a0ae5e92b6ad291032ae8f97e5f4276e557ea3a6081281` |
+| OCI configuration/image ID | `sha256:2509723cb663bdbe02a00ff8fc4f6565297f73faa67f656e237b5e004cf2fa30` |
+| Server artifact manifest | `sha256:763e1797c1965c13b02caf36d6e984cd9a0a0ecabbac42b62b2a423f14631834` |
 | Server profile | `sha256:6d48c19238b1874bf30d276a8419ec771007f13739f0e69c447b33d412a69472` |
 
 The image is `linux/amd64`, user/group `65534:65534`, workdir
@@ -300,7 +307,7 @@ browser manifest   sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f
 content manifest   sha256:7785b2a65104257d1f0cd67d9b59771dc259726155acc54bdae0451cef92dfc5
 content base       sha256:6c3341ef87d16c75b7d3fb5f368d9f935dac304c1dd7667f96b64dd73912bb03
 server manifest    sha256:580654c261a364ad71a0ae5e92b6ad291032ae8f97e5f4276e557ea3a6081281
-server image ID    sha256:73ba426831ffee51811d24d6ead5a241723a1aa1bc446ecf3d6405dbb806bd2f
+server image ID    sha256:2509723cb663bdbe02a00ff8fc4f6565297f73faa67f656e237b5e004cf2fa30
 ```
 
 `release/browser-release.json.compatibility` repeats these values and its
@@ -438,7 +445,7 @@ offer creates a new release and requires a newly checked index.
 ## Producer acceptance evidence
 
 The final producer state passed all 841 deterministic tests and the strict
-18-file stage/index check. Two clean browser builds at producer checkout
+25-file stage/index check. Two clean browser builds at producer checkout
 `95f45b537dd0bb8b4a542b97d0f4281eefa7604a` produced the same browser manifest
 and bytes. Three clean content assemblies at that checkout produced the same
 archives, and a fourth with one map added left every archive that already
@@ -475,7 +482,7 @@ major or minor finding.
 ## Minimal consumer acceptance
 
 A consumer need only: validate the immutable checkout; stage and hash-check the
-18-file tree; verify the loaded image ID; observe exact server readiness; use
+25-file tree; verify the loaded image ID; observe exact server readiness; use
 one real gesture to reach browser `running` plus relay `open`; exercise focus
 and enter/leave fullscreen; call `stop()` and receive the real final settlement;
 and make the complete Source and licences link durable. This is a smoke test,
