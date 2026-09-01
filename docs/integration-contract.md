@@ -576,16 +576,35 @@ profile, fetching only the archives that are new to it, and updating three
 digests. Served content names carry the first 16 hex of their own SHA-256, so
 they may be cached immutably and a name collision cannot silently change content.
 
-**The one condition on that row.** Base stability holds for a map assembled
-from upstream sources this release already pins. A map that requires a *new*
-source edits `content/pack-recipe.json`, which is both an authority and the base
-archive's own selection input; the base's notice carries that file's digest, so
-the base's bytes change and `contentPayloadIdentity` moves with them. That is a
-full content reissue rather than an additive one. Every previously published
-archive URL still resolves and its bytes are still what they were, but the base
-is a new object and must be fetched again. A producer must say which of the two
-a release is; a consumer must not infer additivity from the fact that maps were
-added.
+**The one condition on that row.** Additivity holds for a map assembled from the
+closure roots this release already carries. **Any change to those roots moves the
+base**, because the base's notice carries the digest of its own selection input.
+There are two ways in, and only the first is obvious:
+
+- a map that needs an upstream source the release does not yet pin, which edits
+  `content/pack-recipe.json`; and
+- a change to what the base must carry for structural reasons, independent of any
+  particular map. The first instance of this is described below.
+
+Such a release is a **full content reissue**, not an additive one, and it can move
+archives that were already published: a member migrating into the base leaves the
+archive it used to sit in, so that archive's bytes and URL move as well. A
+producer must state which of the two kinds a release is; **a consumer must not
+infer additivity from the fact that maps were added**.
+
+**The known upcoming full reissue.** The next content release moves a shader
+authority into the base, and it is worth stating why, because the cause is not
+visible from the outside. Engine shader precedence runs opposite to file lookup:
+the base wins shader *definitions*, while a map archive wins file *lookups*. Two
+map archives defining the same shader name are therefore decided by archive
+order, which no closure model over the source set predicts, and with a single map
+the case could not arise. Packing every `scripts/*.shader` into the base makes the
+base the sole shader authority and removes the cross-archive case entirely.
+
+It is a one-time move: the shader file set comes from the pinned sources, not from
+the map set, so additivity resumes with the release after it. In that one release
+**both** currently published archives change bytes and URL — the base gains the
+shader files, and the one published map archive loses the three it carried.
 
 Adding a map remains a tuple event that needs a new release, and it is
 deliberately batched: prepare many maps, publish few times.
