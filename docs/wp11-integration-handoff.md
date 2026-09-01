@@ -30,7 +30,7 @@ The primary immutable identities are:
 | --- | --- |
 | Baseline lock | `sha256:cc45026e109df38a3b019192ed8b6807bae8bc787119b2b89fe5c7a6f28c05f1` |
 | Browser artifact manifest | `sha256:fbe3e1f0c6189246a9b62571d7ab8ad75ea29f8a50f6fb2b7fcaaf404f1778d8` |
-| Content artifact manifest | `sha256:756b8df5e1d02346267f73e5bacf11dbf2fc4e9457b07f5768ed9a94bfcb299c` |
+| Content artifact manifest | `sha256:1961f1e45ca7d4a39325c99fe5843486184d52006a41902424d817c230fe69fd` |
 | Packaged PK3 | `sha256:ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664`, 24,484,503 bytes |
 
 Run these commands from the immutable checkout after the generated browser and
@@ -164,8 +164,8 @@ The exact server identities are:
 
 | Input | Identity |
 | --- | --- |
-| OCI configuration/image ID | `sha256:c73ba3ee395d57f661d2a4884b287c7a638bbe7f25269169865fc18bc1c901bf` |
-| Server artifact manifest | `sha256:21733e3e64bc7bc520ed8b610fd9033f148b17cde3cc18d1b8a0d48f9646d953` |
+| OCI configuration/image ID | `sha256:3055a88ed1fb352d9e1e32364d81c3fe915f03e1bf3241d64f96760875f78e98` |
+| Server artifact manifest | `sha256:b96535dbce067fb42f05a0c59fe037704c2b96d15551343a4b598d5d06685444` |
 | Server profile | `sha256:147066a98a8c3eb587b752e3fc373ef7191f9354be3fdc148addf56e1b5759c3` |
 
 The image is `linux/amd64`, user/group `65534:65534`, workdir
@@ -224,10 +224,10 @@ loader, profile, QVM, pack, binary or relay profile:
 baseline          sha256:cc45026e109df38a3b019192ed8b6807bae8bc787119b2b89fe5c7a6f28c05f1
 ioq3               git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a
 browser manifest   sha256:fbe3e1f0c6189246a9b62571d7ab8ad75ea29f8a50f6fb2b7fcaaf404f1778d8
-content manifest   sha256:756b8df5e1d02346267f73e5bacf11dbf2fc4e9457b07f5768ed9a94bfcb299c
+content manifest   sha256:1961f1e45ca7d4a39325c99fe5843486184d52006a41902424d817c230fe69fd
 content PK3        sha256:ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664
-server manifest    sha256:21733e3e64bc7bc520ed8b610fd9033f148b17cde3cc18d1b8a0d48f9646d953
-server image ID    sha256:c73ba3ee395d57f661d2a4884b287c7a638bbe7f25269169865fc18bc1c901bf
+server manifest    sha256:b96535dbce067fb42f05a0c59fe037704c2b96d15551343a4b598d5d06685444
+server image ID    sha256:3055a88ed1fb352d9e1e32364d81c3fe915f03e1bf3241d64f96760875f78e98
 ```
 
 `release/browser-release.json.compatibility` repeats these values and its

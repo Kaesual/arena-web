@@ -38,7 +38,7 @@
     },
     {
       "id": "arena-web-ffa-content",
-      "identity": "sha256:756b8df5e1d02346267f73e5bacf11dbf2fc4e9457b07f5768ed9a94bfcb299c",
+      "identity": "sha256:1961f1e45ca7d4a39325c99fe5843486184d52006a41902424d817c230fe69fd",
       "kind": "artifact-manifest"
     },
     {
@@ -63,7 +63,7 @@
     }
   ],
   "producer": {
-    "commit": "b949d1d2dde58d121467d7d2c40e4138b0d6d4bf",
+    "commit": "3526e2ce3c46d692cc1d56113be81b7c6e986406",
     "name": "arena-web scripts/build-server-image.sh"
   }
 }

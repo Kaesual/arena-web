@@ -52,7 +52,7 @@
     },
     "integrationHandoff": {
       "path": "docs/wp11-integration-handoff.md",
-      "sha256": "d57a292b92b8a68a22cdbbe072a5419d2e1dc15e90130d6e258b6a0e461a4dd1",
+      "sha256": "fef04b3aa27b6a9fa37696cadb9d01391a2d46429bd4ecc55c6811b53d42f9f9",
       "size": 19220
     },
     "projectLicense": {
@@ -82,7 +82,7 @@
     },
     "serverManifest": {
       "path": "provenance/arena-web-server.json",
-      "sha256": "caa3a79b7444ec736eb7e230a6480989db415add43364b3c3e17881e60acbb46",
+      "sha256": "b96535dbce067fb42f05a0c59fe037704c2b96d15551343a4b598d5d06685444",
       "size": 2206
     },
     "serverProfile": {
@@ -98,8 +98,8 @@
     "contentManifestIdentity": "sha256:1961f1e45ca7d4a39325c99fe5843486184d52006a41902424d817c230fe69fd",
     "contentPayloadIdentity": "sha256:ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664",
     "engineCommit": "596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-    "serverImageId": "sha256:c73ba3ee395d57f661d2a4884b287c7a638bbe7f25269169865fc18bc1c901bf",
-    "serverManifestIdentity": "sha256:caa3a79b7444ec736eb7e230a6480989db415add43364b3c3e17881e60acbb46"
+    "serverImageId": "sha256:3055a88ed1fb352d9e1e32364d81c3fe915f03e1bf3241d64f96760875f78e98",
+    "serverManifestIdentity": "sha256:b96535dbce067fb42f05a0c59fe037704c2b96d15551343a4b598d5d06685444"
   },
   "digestAlgorithm": "sha256",
   "formatVersion": 1,

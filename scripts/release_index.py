@@ -154,7 +154,7 @@ def validate_release_index(
         "contentManifestIdentity": f"sha256:{authorities['contentManifest']['sha256']}",
         "contentPayloadIdentity": "sha256:ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664",
         "engineCommit": "596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-        "serverImageId": "sha256:c73ba3ee395d57f661d2a4884b287c7a638bbe7f25269169865fc18bc1c901bf",
+        "serverImageId": "sha256:3055a88ed1fb352d9e1e32364d81c3fe915f03e1bf3241d64f96760875f78e98",
         "serverManifestIdentity": f"sha256:{authorities['serverManifest']['sha256']}",
     }
     if compatibility != expected_compatibility:

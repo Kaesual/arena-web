@@ -54,11 +54,11 @@ container tag is not an identity.
 | ioq3 engine | `git:596e56a6bf58f41e1ad9cc1685c7c11a75dba87a` |
 | Browser loader producer | `git:a695c23c4da373955d558df687e3c04d3baae214` |
 | Browser artifact manifest | `sha256:fbe3e1f0c6189246a9b62571d7ab8ad75ea29f8a50f6fb2b7fcaaf404f1778d8` |
-| Content artifact manifest | `sha256:756b8df5e1d02346267f73e5bacf11dbf2fc4e9457b07f5768ed9a94bfcb299c` |
+| Content artifact manifest | `sha256:1961f1e45ca7d4a39325c99fe5843486184d52006a41902424d817c230fe69fd` |
 | Content PK3 | `sha256:ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664` |
-| Server artifact manifest | `sha256:21733e3e64bc7bc520ed8b610fd9033f148b17cde3cc18d1b8a0d48f9646d953` |
-| Server image producer/build checkout | `git:b949d1d2dde58d121467d7d2c40e4138b0d6d4bf` |
-| Accepted native server image ID | `sha256:c73ba3ee395d57f661d2a4884b287c7a638bbe7f25269169865fc18bc1c901bf` |
+| Server artifact manifest | `sha256:b96535dbce067fb42f05a0c59fe037704c2b96d15551343a4b598d5d06685444` |
+| Server image producer/build checkout | `git:3526e2ce3c46d692cc1d56113be81b7c6e986406` |
+| Accepted native server image ID | `sha256:3055a88ed1fb352d9e1e32364d81c3fe915f03e1bf3241d64f96760875f78e98` |
 
 The image value is the reproducible container configuration/image ID observed
 after loading the accepted single-platform image, not a promise that every
@@ -68,14 +68,14 @@ to the accepted image ID. An archive transfer must likewise verify the loaded
 image ID rather than trusting its filename.
 
 The image records its producer in an OCI label. Reproduce it from a clean
-checkout at `b949d1d2dde58d121467d7d2c40e4138b0d6d4bf`, after reproducing the
+checkout at `3526e2ce3c46d692cc1d56113be81b7c6e986406`, after reproducing the
 accepted browser, content and native builds, and run
 `scripts/build-server-image.sh`. Compare the generated
 `build/server-image/artifact-manifest.json` byte-for-byte with this release's
 `provenance/arena-web-server.json`; require manifest identity
-`sha256:21733e3e64bc7bc520ed8b610fd9033f148b17cde3cc18d1b8a0d48f9646d953`
+`sha256:b96535dbce067fb42f05a0c59fe037704c2b96d15551343a4b598d5d06685444`
 and loaded image ID
-`sha256:c73ba3ee395d57f661d2a4884b287c7a638bbe7f25269169865fc18bc1c901bf`.
+`sha256:3055a88ed1fb352d9e1e32364d81c3fe915f03e1bf3241d64f96760875f78e98`.
 
 A rebuild from the current documentation commit or any other later commit has
 a new image ID even when all four runtime files are byte-identical, because its
