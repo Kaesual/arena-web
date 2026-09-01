@@ -49,8 +49,40 @@ change and no consumer sees an error, so it is called out here: it used to mean
 covered through `contentManifestIdentity`, and every archive is additionally
 bound byte-for-byte to its counterpart in the server manifest.
 
-Run these commands from the immutable checkout after the generated browser and
-content directories have been reproduced:
+### Reproducing this release
+
+Run this from a clean checkout of the release commit — the commit that carries
+this document and `release/browser-release.json`:
+
+```text
+CONTAINER_RUNTIME=podman scripts/reproduce-release.sh
+```
+
+It rebuilds the browser, the content archives and the server image in the
+pinned images and compares each generated record with the committed one in
+full, plus the loaded image ID against `records/wp11-server-resources.json`.
+Every comparison fails closed.
+
+**Why it needs a command rather than a list of build invocations, and why that
+is not a workaround.** A reissue is written in two commits and cannot be written
+in one: a record names the commit whose sources produced it, and no commit can
+contain a record naming itself. So the *source* commit carries new inputs beside
+the previous release's generated records — the exact state every build script's
+metadata gate refuses, correctly. A clean checkout of the commit named in
+`producer.commit` therefore **cannot** run these builds, and any instruction to
+try is wrong.
+
+`scripts/reproduce-release.sh` resolves that by building from the release
+commit, which does validate, while stamping the producer commit that the
+committed records name. It reads that commit out of `manifests/browser-client.json`,
+`provenance/arena-web-ffa-content-manifest.json` and
+`provenance/arena-web-server.json` rather than accepting it from whoever runs
+the build, so there is no operator assertion about what was built from where,
+and no step that bypasses a gate or works on a dirty tree. The three build
+scripts expose the same stamp as `--producer-commit` for anyone reproducing one
+artifact set on its own.
+
+Then check the served tree itself:
 
 ```text
 scripts/check.sh
@@ -197,15 +229,24 @@ also requires that there is no blanket `org.opencontainers.image.licenses`
 label: the GPL arena/engine and mixed-license Debian runtime retain the
 component-level authorities in section 9.
 
-Reproduce that exact image from clean public checkout
-`95f45b537dd0bb8b4a542b97d0f4281eefa7604a` after reproducing its browser,
-content and native inputs, then run `scripts/build-server-image.sh`. Its
-generated `build/server-image/artifact-manifest.json` must equal the committed
-`provenance/arena-web-server.json` byte-for-byte and the loaded image must have
-the image ID above. A later checkout deliberately produces another image ID
-because the immutable OCI producer label changes; compare all manifest content
-and input fields in that case, allowing only the documented producer difference,
-and publish it as a new release rather than as this one.
+Reproduce that exact image with `scripts/reproduce-release.sh` above, or on its
+own from a clean checkout of the release commit with
+
+```text
+scripts/build-server-image.sh --producer-commit <provenance/arena-web-server.json producer.commit>
+```
+
+after reproducing its browser, content and native inputs. The generated
+`artifact-manifest.json` must equal the committed `provenance/arena-web-server.json`
+byte-for-byte and the loaded image must have the image ID above.
+
+The producer commit has to be passed rather than inferred, and this is the
+reason: the image stamps it into an immutable OCI label, so a build that took
+it from `HEAD` would produce a different image ID from any checkout other than
+the one the record names — and that checkout, being a reissue's source commit,
+cannot run the build at all. Passing the commit the record itself carries is
+what makes the accepted image ID reachable. Omit the flag and you get a
+different image, which is a new release, not this one.
 
 Pass the exact `native/server-profile.json.serverArguments` array in its
 committed order. In command-line notation it is:

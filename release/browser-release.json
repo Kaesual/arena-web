@@ -12,8 +12,8 @@
     },
     "browserBuild": {
       "path": "scripts/build-browser.sh",
-      "sha256": "ab49c61a2c6c0828b74d62aaba5aa5cfbd5ccc13b72e8420f982005259a8bb9e",
-      "size": 6539
+      "sha256": "a541319ff2a8d83d15fe10618ee34fe3c037be1c96ca2b3dfef018e85fa26701",
+      "size": 7949
     },
     "browserLicenseClosure": {
       "path": "docs/wp1-build-evidence.md",
@@ -32,8 +32,8 @@
     },
     "contentAssembly": {
       "path": "scripts/build-content-pack.sh",
-      "sha256": "e6326d4106b793f3886683ab094695f1a679d6e0f4c1a40c8ae3cc75e76408ec",
-      "size": 3604
+      "sha256": "c36d1e3632d15f4d4a4c10a25e4326de8b20d6b4c166a0d02c95dde5f1d1068d",
+      "size": 5014
     },
     "contentLicenseClosure": {
       "path": "docs/wp3-content-closure.md",
@@ -57,8 +57,8 @@
     },
     "integrationHandoff": {
       "path": "docs/wp11-integration-handoff.md",
-      "sha256": "f3072437c3ca1b124d50ed67d708306d31ee3bb0b14fc469033ff2acfce326df",
-      "size": 23925
+      "sha256": "74c47a50ed6ecc0539d396854e6da9a7cbee056af48de73da689f7d1cee7a112",
+      "size": 25852
     },
     "projectLicense": {
       "path": "LICENSE",
@@ -77,8 +77,8 @@
     },
     "serverAssembly": {
       "path": "scripts/build-server-image.sh",
-      "sha256": "6ccdb7fad381b0aefed1a362da00877a5aba14ff032acffa72e76d278901050b",
-      "size": 6616
+      "sha256": "715af6b584f0b6726d3030584bae06eecee5dd276a5c331eed63639d7f084fcb",
+      "size": 8026
     },
     "serverContainer": {
       "path": "native/server.Containerfile",

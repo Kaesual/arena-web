@@ -28,6 +28,8 @@ image_tag="arena-web-server:latest"
 require_clean=1
 print_tag_only=0
 
+producer_commit_override=""
+
 usage() {
   cat <<'EOF'
 usage: build-server-image.sh [options]
@@ -41,6 +43,12 @@ usage: build-server-image.sh [options]
   --tag TAG                 image tag (default: arena-web-server:latest)
   --allow-dirty-worktree    rehearsal only; the record states the commit
   --print-tag               print the image tag and exit
+  --producer-commit SHA     reproduce a recorded build: stamp this commit
+                            instead of HEAD. The checkout must still be clean
+                            and is what is actually built; this only names the
+                            source commit the committed records attribute the
+                            artifacts to, which for a reissue is the commit
+                            before the one carrying those records.
 EOF
 }
 
@@ -81,6 +89,14 @@ while [[ $# -gt 0 ]]; do
       print_tag_only=1
       shift
       ;;
+    --producer-commit)
+      producer_commit_override="${2:?--producer-commit needs a commit}"
+      if [[ ! "${producer_commit_override}" =~ ^[0-9a-f]{40}$ ]]; then
+        printf -- '--producer-commit must be a full 40-character commit id\n' >&2
+        exit 2
+      fi
+      shift 2
+      ;;
     -h | --help)
       usage
       exit 0
@@ -104,6 +120,16 @@ git -C "${repo_dir}" diff --check
 git -C "${repo_dir}" diff --cached --check
 
 producer_commit="$(git -C "${repo_dir}" rev-parse HEAD)"
+if [[ -n "${producer_commit_override}" ]]; then
+  # Reproducing a recorded build. The tree that is compiled is still this
+  # checkout — nothing is spoofed about *what* is built — but the stamp becomes
+  # the commit the committed records name as the producer. A reissue cannot
+  # avoid needing this: its records are written one commit after the sources
+  # they describe, so the checkout that publishes them is never the checkout
+  # they were built from. scripts/reproduce-release.sh reads that commit out of
+  # the records rather than taking it from whoever runs the build.
+  producer_commit="${producer_commit_override}"
+fi
 if [[ "${require_clean}" -eq 1 ]]; then
   if [[ -n "$(git -C "${repo_dir}" status --porcelain=v1)" ]]; then
     printf 'refusing to build: the arena-web checkout is not clean\n' >&2
