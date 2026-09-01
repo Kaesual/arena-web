@@ -51,7 +51,7 @@ container tag is not an identity.
 | Input | Accepted identity |
 | --- | --- |
 | ioq3 engine | `git:968eeb44294aa0003c430430cf32a6540f9a81e4` |
-| Browser loader, network backend and checked runtime profiles | `git:45d9a7cedb81a9d1c6ac48ee3132f68cf1b455a1` |
+| Browser loader, network backend and checked runtime profiles | `git:1d0f032ad294804275553c1e33ca306ce2baf7b7` |
 | Browser artifact manifest | `sha256:8abd6b7a6f7d278ad95c753a5db9f1eff6be8ff08645c2f8ac4d91d7665e3f09` |
 | Content artifact manifest | `sha256:f1e5453e6ecab0b251512cadee8f1a16de446bcc11c9038c93961f045765c7e1` |
 | Server artifact manifest | `sha256:640933d6beecd79b88c02d73301de0ab60b7b3037937a690fc4a33f10aeefa1f` |
@@ -90,6 +90,9 @@ The [WP7 acceptance report](wp7-routed-acceptance-2026-09-01.md) binds this
 tuple to the final packet census and routed two-browser result. The
 [WP8-Mini report](wp8-mini-acceptance-2026-09-01.md) adds five minutes of
 concurrent play and reconnect of both clients without changing an owning input.
+The [WP10 report](wp10-canvas-resize-acceptance-2026-09-01.md) accepts runtime
+canvas resize and HTML fullscreen under the updated loader/profile identity;
+the engine, content and server artifacts remain unchanged.
 
 ## Browser artifact publication
 
@@ -102,12 +105,12 @@ with:
 
 ```bash
 scripts/serve-arena.sh --stage-only
-python3 scripts/stage-arena.py --target build/arena-serve --verify-only
+python3 scripts/stage-arena.py --target build/arena-serve --check
 ```
 
 The target must remain under the checkout's gitignored `build/` directory while
 the repository scripts create or verify it. A publisher then transfers that
-verified directory as one unit. The current tree contains exactly these 15
+verified directory as one unit. The current tree contains exactly these 16
 files:
 
 ```text
@@ -115,6 +118,7 @@ index.html
 loader.js
 default.cfg
 game-profile.json
+arena/canvas-resize.js
 arena/network-backend.js
 arena/relay-profile.json
 probe/relay-framing.js
@@ -227,6 +231,16 @@ The player must activate the page's real **Start** button. The gesture grants
 audio activation and allows later pointer lock; replacing it with a synthetic
 click is unsupported. The canvas fills its page and derives an engine
 resolution of at least 320 by 240 CSS pixels from its live box.
+
+After startup, a `ResizeObserver` forwards changes of that CSS box into SDL's
+existing Emscripten resize path. ioq3 then adopts the new custom resolution
+after its existing delayed renderer resize. The browser profiles deliberately
+set `r_fullscreen=0`: the HTML stage owns fullscreen, while the engine continues
+to treat the canvas as a resizable window. Ordinary resize and entering or
+leaving HTML fullscreen therefore reinitialize the renderer at the new size;
+they do not restart the game or relay session. `snapshot().render`
+retains the startup CSS dimensions and separately reports the current CSS
+dimensions, observer availability and observed-event count for diagnostics.
 
 The supported host-facing observation API is read-only:
 
@@ -410,7 +424,7 @@ Browser, content and server artifacts are one compatibility unit:
 1. the browser and server manifests must name the same ioq3 commit;
 2. the server manifest must name the exact browser and content manifest
    identities;
-3. the staged browser tree must pass `stage-arena.py --verify-only`;
+3. the staged browser tree must pass `stage-arena.py --check`;
 4. the loaded image must pass the server-image verification and be addressed
    by an immutable published identity; and
 5. the relay must implement the public datagram contract and report at least
@@ -455,7 +469,7 @@ licences** link and meet all of these obligations:
   compatible licences. Do not apply one blanket label to every component.
 
 The PK3 already carries its notices; the browser engine notice bundle is **not**
-part of the 15-file staged tree and must be published alongside it. The server
+part of the 16-file staged tree and must be published alongside it. The server
 image already carries the runtime-base copyright files, but a public image
 listing still needs a source/licence link. A release is not publication-ready
 until those links and files exist.
@@ -473,12 +487,14 @@ release:
 3. The server reaches the binary `getstatus` readiness state above.
 4. The browser reaches `ready` before Start and, after one real user gesture,
    reaches `running` with relay state `open`.
-5. Ending that relay session exposes `reconnect-ready`; reconnect obtains a
+5. Resize the running client and enter and leave HTML fullscreen; the engine
+   adopts each new canvas size while the game and relay session remain alive.
+6. Ending that relay session exposes `reconnect-ready`; reconnect obtains a
    fresh authorization and returns to `running` without restarting the server.
-6. The public Source and licences link exposes the required notices and
+7. The public Source and licences link exposes the required notices and
    corresponding-source locations.
 
-Steps 3 to 5 are the consuming environment's smoke test, not a request to
+Steps 3 to 6 are the consuming environment's smoke test, not a request to
 repeat the prototype's full acceptance. Failures at this boundary must stop
 publication or selection of the tuple; they must not be papered over by
 changing a checked profile locally.

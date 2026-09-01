@@ -167,6 +167,12 @@ new resize/fullscreen finding, distinct from the three accepted renderer
 symptoms. This report records behavior only; it does not assign a root cause or
 silently expand the ongoing renderer investigation.
 
+**Resolution — 2026-09-01:** the separately authorized WP10 canvas-resize
+increment closed this historical finding. Its pinned-browser automation and
+witnessed KDE/Wayland check passed runtime resize and HTML fullscreen in/out
+without restarting the running game. See the
+[WP10 acceptance report](wp10-canvas-resize-acceptance-2026-09-01.md).
+
 ## Cleanup and repository state
 
 - The loopback server was stopped with `SIGINT` after the second launch.
@@ -193,4 +199,3 @@ The owner can now decide whether to amend/waive the declared environment and
 record the resize behavior as an accepted finding, or keep the corresponding
 acceptance item open. This report does not make either policy decision on the
 owner's behalf.
-

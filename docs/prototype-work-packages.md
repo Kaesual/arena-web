@@ -23,6 +23,10 @@ public, self-contained integration contract for the game client and game
 server, with all environment-specific hosting, deployment and product
 implementation kept out of scope. The contract passed its independent read-only
 review, and **WP9-Mini is complete**.
+The operator then authorized the small canvas-resize follow-up as WP10. Its
+loader/profile change, deterministic checks, exact pinned-browser acceptance
+and witnessed KDE/Wayland resize/fullscreen round passed on 2026-09-01, and
+**WP10 is complete**.
 
 This document turns the reviewed direction in
 [`initial-plan.md`](initial-plan.md) into coherent, testable increments. It
@@ -61,19 +65,21 @@ is a plan change; adding another platform is later scope.
 | WP1 | Reproducible ioq3 browser build | WP0 | ✅ Complete — two clean offline builds in the pinned Emscripten 6.0.8 image produce byte-identical artifacts and one validated manifest, with the observed component, QVM/lcc, license-closure and isolation findings recorded. **Amended 2026-08-30:** "unmodified ioq3" is deliberately replaced by "the pinned upstream base plus the patches the lock enumerates", to carry the WP4 renderer fix; see the amendment section of the evidence document |
 | WP2 | Relay conformance probe and routed-path measurement | WP0 | ✅ Complete — public contract (amended 2026-08-30 to the in-band session profile), browser probe, in-memory adapter and the deterministic suite, plus the routed acceptance of 2026-08-30: five pinned-browser sessions (three sequential, and two concurrent whose completion implies distinct assigned addresses via the relay's ownership rule) over a routed path, the in-band terminal refusal observed, zero-length datagrams carried both ways, and the validated merged record committed with a 1,024-byte datagram maximum and a 768-byte conservative inner floor for WP6 |
 | WP3 | Audited deterministic minimal-content closure | WP0 | ✅ Complete — two clean assemblies in the pinned builder image produce a byte-identical 668-member `oa_pvomit` FFA pack from six digest-pinned Debian-cleaned OpenArena archives, every member `GPL-2.0-or-later` with resolved notices, and every reference the two static readings of the pinned `baseq3` QVM sources extract either resolves or is a recipe acceptance with a stated reason. **Amended 2026-08-31:** the recipe gained a fail-closed `derivedReferences` category for the weapon-model names the cgame constructs at runtime by string surgery — invisible to any static reading — with a reverse reconciliation over the whole derivation space and both pinned construction sites declared, restoring the missing barrels, every reachable muzzle flash and the distinct first-person hand rigs (grapple excluded by operator decision); the pack is now 698 members under a reissued identity, sizing-neutral for WP6, and the fix-first findings of the amendment's independent review are resolved in the amendment itself; see the amendment section of the evidence document |
-| WP4 | One-map offline browser arena with bots | WP1, WP3 | ✅ Complete — the witnessed round of 2026-08-30 passed every gameplay, input, focus, audio, console and clean-relaunch check (report in the evidence documents); the known browser-renderer defect class (white lightmapped surfaces mitigated by the reviewed `r_vertexLight` workaround and guarded by a near-white regression check; distance-graded entity shading; frame flicker) is recorded as decided while the timeboxed root-cause hunt continues on scratch builds. Closure accepted the operator-chosen Brave/KDE variation (the pinned Chrome is exercised by the automated harness on every gate run) and recorded one new accepted limitation: runtime resize and fullscreen-after-start do not update the engine resolution. **Post-closure, 2026-08-30:** the defect class is resolved — white lightmapped surfaces root-caused to a GLSL ES `mediump` precision default and fixed in the engine (workaround removed), entity shading reclassified as renderergl2's normal native look rather than a browser defect, and frame flicker confirmed resolved by the operator on the real display, who also confirmed light-strip parity with the native reference images. Two pre-existing content gaps the operator reported at the same time — the machine gun's missing barrel model and the lightning gun's missing beam art — are recorded in the evidence document as an open content follow-up. **Post-closure, 2026-08-31:** that follow-up is closed by WP3's content amendment, which also corrects the recorded lightning-beam cause — the beam art was always packed; the missing `lightning_flash.md3` gated the beam path — as a dated note in the evidence document |
+| WP4 | One-map offline browser arena with bots | WP1, WP3 | ✅ Complete — the witnessed round of 2026-08-30 passed every gameplay, input, focus, audio, console and clean-relaunch check (report in the evidence documents); the known browser-renderer defect class (white lightmapped surfaces mitigated by the reviewed `r_vertexLight` workaround and guarded by a near-white regression check; distance-graded entity shading; frame flicker) is recorded as decided while the timeboxed root-cause hunt continues on scratch builds. Closure accepted the operator-chosen Brave/KDE variation (the pinned Chrome is exercised by the automated harness on every gate run) and recorded one new accepted limitation: runtime resize and fullscreen-after-start do not update the engine resolution. **Post-closure, 2026-08-30:** the defect class is resolved — white lightmapped surfaces root-caused to a GLSL ES `mediump` precision default and fixed in the engine (workaround removed), entity shading reclassified as renderergl2's normal native look rather than a browser defect, and frame flicker confirmed resolved by the operator on the real display, who also confirmed light-strip parity with the native reference images. Two pre-existing content gaps the operator reported at the same time — the machine gun's missing barrel model and the lightning gun's missing beam art — are recorded in the evidence document as an open content follow-up. **Post-closure, 2026-08-31:** that content follow-up is closed by WP3's content amendment, which also corrects the recorded lightning-beam cause — the beam art was always packed; the missing `lightning_flash.md3` gated the beam path — as a dated note in the evidence document. **Post-closure, 2026-09-01:** WP10 closes the separate runtime-resize limitation |
 | WP5 | Matching native server and packet census | WP0, WP3 | ✅ Complete — the pinned native toolchain, the reproducible dedicated server, the runtime-base server image and a 41,833-datagram census of a driven session are built, reviewed and green, and the witnessed round of 2026-08-30 closed the one outstanding acceptance word with a player kill against a bot (report and native reference images in the evidence documents) |
 | WP6 | Measured network-sizing decision | WP2, WP5 | ✅ Complete — a reviewed, recomputable sizing decision: the routed budget refutes intact datagrams, and the selected strategy is a symmetric `FRAGMENT_SIZE` reduction to **704** at the record-backed 768-byte floor, with profile bounds for the out-of-band classes the engine never fragments, a fail-closed emitted-size check on both endpoints at `Sys_SendPacket`, and an original ten-threshold WP8 table later replaced by the explicit Mini acceptance amendment. Built: [`wp6-network-sizing.md`](wp6-network-sizing.md), the `scripts/derive-network-sizing.py` derivation that recomputes every number from the two committed records (with a suite that requires doctored records to flip its verdicts), and implementation-ready WP7/WP8 contracts. The operator decided all five open points on 2026-08-30 and the three review extensions the same day; the mandatory independent protocol/security review returned fix-first, and its four MAJOR findings — the unlisted 1,038-byte `getmotd`, the unenforced server-browser exclusion, the one-directional fail-closed machinery and the shared relay address — were resolved and confirmed by a re-verification pass that found no decided value had drifted |
 | WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | ✅ Complete — the bounded WebTransport backend and fresh-authorization reconnect path use the existing engine send/receive boundary; exact final-pin browser/server rebuilds, 61,322-datagram re-census, independent engine and protocol/security reviews, and the routed real-browser acceptance all passed; see [`wp7-routed-acceptance-2026-09-01.md`](wp7-routed-acceptance-2026-09-01.md) |
 | WP8 | Two-browser multiplayer acceptance | WP5, WP7 | ✅ Complete — the authorized Mini round reused WP7's exact accepted artifacts, added more than five minutes of local normal/incognito play and a witnessed player-vs-player frag, reconnected A and B independently, and passed its reduced 96,879-datagram network gate; see [`wp8-mini-acceptance-2026-09-01.md`](wp8-mini-acceptance-2026-09-01.md) |
 | WP9 | Public browser/server integration contract | WP8 | ✅ Complete — [`integration-contract.md`](integration-contract.md) publishes the immutable release tuple, browser launch/relay handoff, server lifecycle/readiness and distribution obligations without implementing a hosting product; its independent GPT-5.6-Sol review passed with no open findings |
+| WP10 | Runtime canvas resize and HTML fullscreen | WP4, WP9 | ✅ Complete — the loader bridges canvas CSS-box changes into SDL's existing resize path, both profiles use HTML-owned fullscreen, the pinned-browser automated resize and witnessed KDE/Wayland resize/fullscreen round passed, and no engine, content, server or network artifact changed; see [`wp10-canvas-resize-acceptance-2026-09-01.md`](wp10-canvas-resize-acceptance-2026-09-01.md) |
 
 WP1, WP2 and WP3 are independent after WP0 and may be scheduled separately.
 WP4 and WP5 may proceed independently after WP3. WP7 began only after WP6 had
 selected the transport and sizing strategy from measured evidence. WP8 remained
 a separate acceptance increment after WP7 and closed under its authorized Mini
 amendment. WP9-Mini began under separate operator authorization and completed
-after its documentation review on 2026-09-01.
+after its documentation review on 2026-09-01. WP10 then closed the deferred
+WP4 canvas-resize limitation without reopening the network packages.
 
 ```mermaid
 flowchart LR
@@ -92,6 +98,8 @@ flowchart LR
     WP5 --> WP8
     WP7 --> WP8
     WP8 --> WP9
+    WP4 --> WP10
+    WP9 --> WP10
 ```
 
 ## WP0 — Immutable baseline
@@ -1340,10 +1348,42 @@ exact historical build and comparison procedure, and distinguishes a later
 producer-only rebuild from a new content tuple. The reviewer re-read the
 complete current diff and returned **PASS with no open findings**.
 
+## WP10 — Runtime canvas resize and HTML fullscreen
+
+**State:** Complete. Separately authorized by the operator on 2026-09-01 as the
+small follow-up to WP4's accepted runtime-resize limitation.
+
+### Outcome and scope
+
+The running browser client follows changes to its canvas CSS box, including
+ordinary window resize and entering or leaving HTML fullscreen. The bridge
+uses SDL/ioq3's existing resize path; the HTML stage owns fullscreen, and the
+running game and relay session are not restarted. The implementation adds
+deterministic bridge tests and one resize-and-return check to the existing
+offline pinned-browser acceptance.
+
+No ioq3 source, generated browser/QVM/content artifact, native server, relay
+protocol or packet-sizing decision changes. Network, reconnect and endurance
+acceptance are deliberately not repeated.
+
+### Acceptance and review
+
+- `scripts/check.sh` passed all 793 tests and the strict 16-file stage check.
+- The pinned Chrome automation observed both canvas and engine resolution move
+  from `1280x577` to `1120x487` and back.
+- The operator witnessed smaller/larger window resize and fullscreen in/out in
+  pinned Chrome on Fedora 44 KDE/Wayland and confirmed gameplay and input
+  remained healthy.
+- A focused review of the runtime, profile, staging, test and documentation
+  diff found no open defect.
+
+The complete public evidence is
+[`wp10-canvas-resize-acceptance-2026-09-01.md`](wp10-canvas-resize-acceptance-2026-09-01.md).
+
 ## Review checkpoints
 
-1. **Plan approval:** completed. WP0–WP6 and the WP7–WP9 envelopes are approved;
-   WP0 is the first authorized implementation increment.
+1. **Plan approval:** completed. Every WP0–WP10 increment received its required
+   authorization; WP0 was the first implementation increment.
 2. **Early evidence:** after WP1–WP3, review build reproducibility, browser-path
    measurements and content provenance before assembling the playable slice.
 3. **Network gate:** WP6 independently reviews the measurements and replaces
@@ -1366,18 +1406,21 @@ complete current diff and returned **PASS with no open findings**.
 5. **Public integration handoff:** completed by WP9-Mini on 2026-09-01. The
    self-contained browser/server contract passed its independent architecture,
    security, licensing and operability review with no open findings.
+6. **Canvas-resize closure:** completed by WP10 on 2026-09-01. The exact pinned
+   browser automation and witnessed KDE/Wayland round passed with no engine or
+   network-artifact change and no open focused-review finding.
 
-## Scheduled follow-up outside the numbered packages
+## Closed follow-up from WP4
 
 The operator decided on 2026-08-31 that the accepted WP4 limitation —
 runtime resize and fullscreen-after-start do not update the engine
-resolution — is deliberately **not** part of WP7's network scope and will be
-addressed as its own small work package **after WP7**, covering the
-loader/engine canvas-size propagation.
+resolution — was deliberately **not** part of WP7's network scope. The
+separately authorized WP10 implemented and accepted the loader-to-SDL
+canvas-size propagation on 2026-09-01. This follow-up is closed.
 
 ## Input still needed from the operator
 
-No additional input is needed for the completed WP0–WP9 increments. WP7's
+No additional input is needed for the completed WP0–WP10 increments. WP7's
 routed acceptance received a runtime-only fresh-token issuer and a route to its
 matching rebuilt native server; those inputs were discarded after the accepted
 round. WP8-Mini was explicitly authorized on 2026-09-01 with local normal and

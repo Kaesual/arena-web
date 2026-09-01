@@ -866,6 +866,14 @@ distinct from the three renderer symptoms under root-cause investigation, and
 it is carried forward as its own follow-up item rather than silently widening
 that investigation.
 
+**Resolution — 2026-09-01:** WP10 closed this follow-up. The loader now bridges
+canvas CSS-box changes into SDL's existing resize path, and the checked browser
+profiles leave fullscreen ownership with the HTML stage. The pinned-browser
+automation and a witnessed KDE/Wayland round both passed ordinary resize and
+fullscreen in/out while the running game remained healthy; see the
+[WP10 acceptance report](wp10-canvas-resize-acceptance-2026-09-01.md). The
+paragraph above remains the historical WP4 closure decision.
+
 With those two decisions, the recorded renderer defect class and the passing
 gameplay, input, focus, audio, console and clean-relaunch evidence, WP4's
 acceptance evidence is complete and WP4 is closed.

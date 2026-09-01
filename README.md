@@ -63,6 +63,11 @@ release.
 - `docs/wp7-routed-acceptance-2026-09-01.md` records the accepted final-pin
   browser/server rebuild, packet re-census and routed real-browser round without
   retaining environment-specific runtime values.
+- `docs/wp8-mini-acceptance-2026-09-01.md` records the accepted two-browser
+  gameplay, reconnect and reduced network-evidence round.
+- `docs/wp10-canvas-resize-acceptance-2026-09-01.md` records the small runtime
+  canvas-resize and HTML-fullscreen follow-up and its pinned-browser and
+  KDE/Wayland acceptance.
 - `probe/` is the standalone browser conformance probe for that contract, and
   `docs/wp2-relay-probe.md` records its implementation and accepted routed
   measurement.
