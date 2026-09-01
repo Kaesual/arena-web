@@ -28,6 +28,28 @@ from browser_session import (  # noqa: E402
 )
 
 ROOT = Path(__file__).resolve().parent.parent
+RELAY_RUNTIME_FIELDS = {
+    "assignmentTimeoutMilliseconds",
+    "authorization",
+    "certificateHashes",
+    "clientSourcePort",
+    "destinationAddressHex",
+    "destinationPort",
+    "endpointUrl",
+    "keepAliveIntervalMilliseconds",
+}
+
+
+def read_relay_runtime(path: Path) -> dict:
+    try:
+        runtime = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise AcceptanceError(f"cannot read relay runtime input: {error}") from error
+    if not isinstance(runtime, dict) or set(runtime) != RELAY_RUNTIME_FIELDS:
+        raise AcceptanceError("relay runtime input has an unexpected field set")
+    if not isinstance(runtime["authorization"], str) or not runtime["authorization"]:
+        raise AcceptanceError("relay runtime authorization must be a non-empty string")
+    return runtime
 
 
 def rectangle(session, element_id: str) -> dict[str, float]:
@@ -213,6 +235,7 @@ def run(
     content_dir: Path,
     skip_stage: bool,
     headless: bool,
+    relay_runtime: dict | None,
 ) -> dict:
     if skip_stage:
         verify_staged(ROOT, serve_dir)
@@ -276,6 +299,29 @@ def run(
                 }
             )
 
+            if relay_runtime is not None:
+                public_configuration = {
+                    key: value
+                    for key, value in relay_runtime.items()
+                    if key != "authorization"
+                }
+                _evaluate(
+                    session,
+                    "arenaWeb.configureRelay({"
+                    + ",".join(
+                        [
+                            f"{json.dumps(key)}:{json.dumps(value)}"
+                            for key, value in public_configuration.items()
+                        ]
+                        + [
+                            "tokenProvider:()=>Promise.resolve("
+                            + json.dumps(relay_runtime["authorization"])
+                            + ")"
+                        ]
+                    )
+                    + "})",
+                )
+
             # Capture listener runs before the button's own click handler. The
             # CDP pointer sequence is a trusted user gesture, so this proves the
             # public start path rather than a synthetic Element.click().
@@ -336,11 +382,40 @@ def run(
             wait_until(
                 lambda: _evaluate(
                     session,
-                    "window.arenaWeb.snapshot().markers.clientGameLoaded !== undefined",
+                    "['failed','exited'].includes(window.arenaWeb.snapshot().status) || "
+                    "(window.arenaWeb.snapshot().markers.clientGameLoaded !== undefined"
+                    + (
+                        " && window.arenaWeb.snapshot().relay?.state === 'open'"
+                        if relay_runtime is not None
+                        else ""
+                    )
+                    + ")",
                 ),
                 timeout=300,
-                description="the real engine reaching the map",
+                description="the real engine reaching the playable map",
             )
+            playable = _snapshot(session)
+            if playable.get("markers", {}).get("clientGameLoaded") is None or (
+                relay_runtime is not None
+                and (playable.get("relay") or {}).get("state") != "open"
+            ):
+                raise AcceptanceError(
+                    "browser became terminal before the playable state: "
+                    + json.dumps(playable.get("error") or playable.get("status"))
+                )
+            if relay_runtime is not None:
+                relay = playable.get("relay") or {}
+                checks.append(
+                    {
+                        "name": "relay-open",
+                        "passed": relay.get("state") == "open"
+                        and relay.get("assignments") == 1,
+                        "detail": {
+                            "state": relay.get("state"),
+                            "assignments": relay.get("assignments"),
+                        },
+                    }
+                )
             checks.append(
                 {
                     "name": "host-start-resolved",
@@ -350,15 +425,28 @@ def run(
 
             # The API result is exact. Unsubscribe before another publication,
             # then prove that focus cannot call the removed listener.
-            before_unsubscribe = int(
-                _evaluate(session, "window.wp11.snapshots.length") or 0
+            _evaluate(
+                session,
+                """
+                window.wp11.unsubscribe();
+                window.wp11.unsubscribe();
+                window.wp11.unsubscribeProbeCalls = 0;
+                window.wp11.unsubscribeProbe = arenaWeb.subscribe(() => {
+                  window.wp11.unsubscribeProbeCalls += 1;
+                });
+                window.wp11.unsubscribeProbeImmediate = window.wp11.unsubscribeProbeCalls;
+                window.wp11.unsubscribeProbe();
+                window.wp11.unsubscribeProbe();
+                """,
             )
-            _evaluate(session, "window.wp11.unsubscribe(); window.wp11.unsubscribe()")
             focus = json.loads(
                 _evaluate(session, "JSON.stringify(window.arenaWeb.focusSurface())")
             )
-            after_unsubscribe = int(
-                _evaluate(session, "window.wp11.snapshots.length") or 0
+            unsubscribe_calls = int(
+                _evaluate(session, "window.wp11.unsubscribeProbeCalls") or 0
+            )
+            unsubscribe_immediate = int(
+                _evaluate(session, "window.wp11.unsubscribeProbeImmediate") or 0
             )
             checks.extend(
                 [
@@ -370,11 +458,24 @@ def run(
                     },
                     {
                         "name": "unsubscribe-idempotent",
-                        "passed": before_unsubscribe == after_unsubscribe,
+                        "passed": unsubscribe_immediate == unsubscribe_calls == 1,
                     },
                 ]
             )
 
+            # SDL may hold pointer lock after the Start gesture. CDP's absolute
+            # pointer coordinates are then interpreted as relative game input,
+            # so release that browser-owned state before addressing the HTML
+            # fullscreen control with the next real gesture.
+            _evaluate(
+                session,
+                "if (document.pointerLockElement) { document.exitPointerLock(); }",
+            )
+            wait_until(
+                lambda: not bool(_evaluate(session, "document.pointerLockElement")),
+                timeout=10,
+                description="pointer lock releasing before fullscreen",
+            )
             click_element(session, "fullscreen")
             wait_until(
                 lambda: bool(
@@ -492,8 +593,18 @@ def main() -> int:
     )
     parser.add_argument("--skip-stage", action="store_true")
     parser.add_argument("--headed", action="store_true")
+    parser.add_argument(
+        "--relay-runtime-file",
+        type=Path,
+        help="runtime-only relay JSON; its authorization is never written to the result",
+    )
     arguments = parser.parse_args()
     try:
+        relay_runtime = (
+            read_relay_runtime(arguments.relay_runtime_file.resolve())
+            if arguments.relay_runtime_file is not None
+            else None
+        )
         result = run(
             arguments.chrome.resolve(),
             arguments.serve_dir.resolve(),
@@ -502,6 +613,7 @@ def main() -> int:
             content_dir=arguments.content_dir.resolve(),
             skip_stage=arguments.skip_stage,
             headless=not arguments.headed,
+            relay_runtime=relay_runtime,
         )
     except (AcceptanceError, ArenaRuntimeError, BrowserSessionError, TimeoutError) as error:
         print(f"host lifecycle acceptance could not run: {error}", file=sys.stderr)

@@ -129,7 +129,7 @@ the container check uses.
 `licenseComponents[].license` whose `evidenceIdentity` is a `git:` identity must
 equal the pinned engine commit; that gate is unchanged, so those identities and
 their `evidenceUrl`s moved to `92351b8f…` in the first amendment and now name
-`968eeb44294…`. The alternative — letting such evidence stay at the base,
+`596e56a6bf58…`. The alternative — letting such evidence stay at the base,
 since the patch changes
 none of it — would have given the gate two acceptable answers, and a gate with
 two answers is a weaker gate. Pointing the evidence at the exact tree that is

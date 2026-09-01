@@ -11,6 +11,28 @@ from typing import Any
 
 INDEX_PATH = Path("release/browser-release.json")
 SHA256 = re.compile(r"\A[0-9a-f]{64}\Z")
+AUTHORITY_PATHS = {
+    "baseline": "locks/baseline.json",
+    "browserAcceptance": "scripts/accept-host-lifecycle.py",
+    "browserBuild": "scripts/build-browser.sh",
+    "browserLicenseClosure": "docs/wp1-build-evidence.md",
+    "browserManifest": "manifests/browser-client.json",
+    "browserProfile": "arena/game-profile.json",
+    "contentAssembly": "scripts/build-content-pack.sh",
+    "contentLicenseClosure": "docs/wp3-content-closure.md",
+    "contentManifest": "provenance/arena-web-ffa-content-manifest.json",
+    "contentMemberProvenance": "provenance/arena-web-ffa-content.json",
+    "contentRecipe": "content/pack-recipe.json",
+    "integrationHandoff": "docs/wp11-integration-handoff.md",
+    "projectLicense": "LICENSE",
+    "relayProfile": "arena/relay-profile.json",
+    "resourceMeasurement": "records/wp11-server-resources.json",
+    "serverAssembly": "scripts/build-server-image.sh",
+    "serverContainer": "native/server.Containerfile",
+    "serverManifest": "provenance/arena-web-server.json",
+    "serverProfile": "native/server-profile.json",
+    "serverVerification": "scripts/verify-server-image.py",
+}
 
 
 class ReleaseIndexError(ValueError):
@@ -53,6 +75,48 @@ def _entry(value: Any, what: str) -> dict[str, Any]:
     if not isinstance(entry["size"], int) or entry["size"] <= 0:
         _fail(f"{what}.size: must be a positive integer")
     return entry
+
+
+def _json_authority(root: Path, authorities: dict[str, Any], role: str) -> dict[str, Any]:
+    source = root / authorities[role]["path"]
+    try:
+        value = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        _fail(f"authorities.{role}: cannot read JSON authority: {error}")
+    if not isinstance(value, dict):
+        _fail(f"authorities.{role}: JSON authority must be an object")
+    return value
+
+
+def _inputs(manifest: dict[str, Any], what: str) -> dict[str, str]:
+    raw = manifest.get("inputs")
+    if not isinstance(raw, list):
+        _fail(f"{what}.inputs: must be an array")
+    result: dict[str, str] = {}
+    for number, item in enumerate(raw):
+        if not isinstance(item, dict):
+            _fail(f"{what}.inputs[{number}]: must be an object")
+        identifier = item.get("id")
+        identity = item.get("identity")
+        if not isinstance(identifier, str) or not isinstance(identity, str):
+            _fail(f"{what}.inputs[{number}]: has no string id/identity")
+        if identifier in result:
+            _fail(f"{what}.inputs: duplicate id {identifier}")
+        result[identifier] = identity
+    return result
+
+
+def _artifact_identity(manifest: dict[str, Any], path: str, what: str) -> str:
+    raw = manifest.get("artifacts")
+    if not isinstance(raw, list):
+        _fail(f"{what}.artifacts: must be an array")
+    matches = [item for item in raw if isinstance(item, dict) and item.get("path") == path]
+    if len(matches) != 1 or not isinstance(matches[0].get("sha256"), str):
+        _fail(f"{what}.artifacts: must name {path} exactly once")
+    digest = matches[0]["sha256"]
+    if not SHA256.fullmatch(digest):
+        _fail(f"{what}.artifacts: {path} has no SHA-256 identity")
+    return f"sha256:{digest}"
 
 
 def validate_release_index(
@@ -104,14 +168,18 @@ def validate_release_index(
             _fail(f"{INDEX_PATH}.servedFiles: {item['path']} has another identity")
 
     authorities = index["authorities"]
-    if not isinstance(authorities, dict) or not authorities:
-        _fail(f"{INDEX_PATH}.authorities: must be a non-empty object")
-    if list(authorities) != sorted(authorities):
-        _fail(f"{INDEX_PATH}.authorities: roles must be sorted")
-    for role, value in authorities.items():
-        if not isinstance(role, str) or not role:
-            _fail(f"{INDEX_PATH}.authorities: invalid role")
+    if not isinstance(authorities, dict) or set(authorities) != set(AUTHORITY_PATHS):
+        _fail(f"{INDEX_PATH}.authorities: must name the exact authority role set")
+    if list(authorities) != sorted(AUTHORITY_PATHS):
+        _fail(f"{INDEX_PATH}.authorities: roles must be path-bound and sorted")
+    for role in sorted(AUTHORITY_PATHS):
+        value = authorities[role]
         item = _entry(value, f"authorities.{role}")
+        if item["path"] != AUTHORITY_PATHS[role]:
+            _fail(
+                f"authorities.{role}: must name {AUTHORITY_PATHS[role]}, "
+                f"not {item['path']}"
+            )
         source = root / item["path"]
         if not source.is_file() or source.resolve() == path.resolve():
             _fail(f"authorities.{role}: must name another committed file")
@@ -148,14 +216,83 @@ def validate_release_index(
     ):
         _fail("compatibility.engineCommit: is not a Git commit")
 
+    baseline = _json_authority(root, authorities, "baseline")
+    browser_manifest = _json_authority(root, authorities, "browserManifest")
+    content_manifest = _json_authority(root, authorities, "contentManifest")
+    server_manifest = _json_authority(root, authorities, "serverManifest")
+    resource_measurement = _json_authority(root, authorities, "resourceMeasurement")
+
+    engine = baseline.get("engine")
+    if not isinstance(engine, dict):
+        _fail("authorities.baseline: engine must be an object")
+    engine_commit = engine.get("commit")
+    if not isinstance(engine_commit, str) or not re.fullmatch(r"[0-9a-f]{40}", engine_commit):
+        _fail("authorities.baseline: engine.commit is not a Git commit")
+    baseline_identity = f"sha256:{authorities['baseline']['sha256']}"
+    browser_identity = f"sha256:{authorities['browserManifest']['sha256']}"
+    content_identity = f"sha256:{authorities['contentManifest']['sha256']}"
+    server_identity = f"sha256:{authorities['serverManifest']['sha256']}"
+    engine_identity = f"git:{engine_commit}"
+
+    for role, manifest in (
+        ("browserManifest", browser_manifest),
+        ("contentManifest", content_manifest),
+        ("serverManifest", server_manifest),
+    ):
+        if manifest.get("baselineIdentity") != baseline_identity:
+            _fail(f"authorities.{role}: baseline identity drift")
+    browser_inputs = _inputs(browser_manifest, "authorities.browserManifest")
+    content_inputs = _inputs(content_manifest, "authorities.contentManifest")
+    server_inputs = _inputs(server_manifest, "authorities.serverManifest")
+    if browser_inputs.get("ioq3") != engine_identity:
+        _fail("authorities.browserManifest: engine input drift")
+    if content_inputs.get("ioq3") != engine_identity:
+        _fail("authorities.contentManifest: engine input drift")
+    if content_inputs.get("arena-web") != f"sha256:{authorities['contentRecipe']['sha256']}":
+        _fail("authorities.contentManifest: recipe input drift")
+    expected_server_links = {
+        "arena-web-browser-client": browser_identity,
+        "arena-web-ffa-content": content_identity,
+        "ioq3": engine_identity,
+    }
+    for identifier, identity in expected_server_links.items():
+        if server_inputs.get(identifier) != identity:
+            _fail(f"authorities.serverManifest: {identifier} input drift")
+
+    content_payload_identity = _artifact_identity(
+        content_manifest,
+        "baseq3/arena-web-ffa.pk3",
+        "authorities.contentManifest",
+    )
+    server_payload_identity = _artifact_identity(
+        server_manifest,
+        "opt/arena-web/arena/arena-web-ffa.pk3",
+        "authorities.serverManifest",
+    )
+    if server_payload_identity != content_payload_identity:
+        _fail("authorities.serverManifest: packaged content payload drift")
+
+    release = resource_measurement.get("release")
+    if not isinstance(release, dict):
+        _fail("authorities.resourceMeasurement: release must be an object")
+    if release.get("engineCommit") != engine_commit:
+        _fail("authorities.resourceMeasurement: engine commit drift")
+    if release.get("serverArtifactManifest") != server_identity:
+        _fail("authorities.resourceMeasurement: server manifest drift")
+    server_image_id = release.get("serverImageId")
+    if not isinstance(server_image_id, str) or not re.fullmatch(
+        r"sha256:[0-9a-f]{64}", server_image_id
+    ):
+        _fail("authorities.resourceMeasurement: server image ID is invalid")
+
     expected_compatibility = {
-        "baselineIdentity": f"sha256:{authorities['baseline']['sha256']}",
-        "browserManifestIdentity": f"sha256:{authorities['browserManifest']['sha256']}",
-        "contentManifestIdentity": f"sha256:{authorities['contentManifest']['sha256']}",
-        "contentPayloadIdentity": "sha256:ae244d1eb8948b17b4348bcf8617b86e2db68516bdb0d0616b29a9958b140664",
-        "engineCommit": "596e56a6bf58f41e1ad9cc1685c7c11a75dba87a",
-        "serverImageId": "sha256:c26e24996457a9d21a816b2805bb460b7783b2dd1d3c236d20fbe3c88c4b128b",
-        "serverManifestIdentity": f"sha256:{authorities['serverManifest']['sha256']}",
+        "baselineIdentity": baseline_identity,
+        "browserManifestIdentity": browser_identity,
+        "contentManifestIdentity": content_identity,
+        "contentPayloadIdentity": content_payload_identity,
+        "engineCommit": engine_commit,
+        "serverImageId": server_image_id,
+        "serverManifestIdentity": server_identity,
     }
     if compatibility != expected_compatibility:
         _fail(f"{INDEX_PATH}.compatibility: does not match its authorities")

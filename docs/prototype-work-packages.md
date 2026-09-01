@@ -30,8 +30,9 @@ and witnessed KDE/Wayland resize/fullscreen round passed on 2026-09-01, and
 On the same date the operator authorized WP11 as the narrow public handoff
 needed by a consuming multi-game host: a settled loader lifecycle, an explicit
 runtime-surface contract, one complete immutable release index, a small
-resource probe and the first guest-access policy. **WP11 is authorized and not
-yet implemented.**
+resource probe and the first guest-access policy. **WP11 is complete: its
+implementation and producer acceptance are complete and its final independent
+GPT-5.6-Sol re-review passed with no open finding.**
 
 This document turns the reviewed direction in
 [`initial-plan.md`](initial-plan.md) into coherent, testable increments. It
@@ -77,7 +78,7 @@ is a plan change; adding another platform is later scope.
 | WP8 | Two-browser multiplayer acceptance | WP5, WP7 | ✅ Complete — the authorized Mini round reused WP7's exact accepted artifacts, added more than five minutes of local normal/incognito play and a witnessed player-vs-player frag, reconnected A and B independently, and passed its reduced 96,879-datagram network gate; see [`wp8-mini-acceptance-2026-09-01.md`](wp8-mini-acceptance-2026-09-01.md) |
 | WP9 | Public browser/server integration contract | WP8 | ✅ Complete — [`integration-contract.md`](integration-contract.md) publishes the immutable release tuple, browser launch/relay handoff, server lifecycle/readiness and distribution obligations without implementing a hosting product; its independent GPT-5.6-Sol review passed with no open findings |
 | WP10 | Runtime canvas resize and HTML fullscreen | WP4, WP9 | ✅ Complete — the loader bridges canvas CSS-box changes into SDL's existing resize path, both profiles use HTML-owned fullscreen, the pinned-browser automated resize and witnessed KDE/Wayland resize/fullscreen round passed, and no engine, content, server or network artifact changed; see [`wp10-canvas-resize-acceptance-2026-09-01.md`](wp10-canvas-resize-acceptance-2026-09-01.md) |
-| WP11 | Final public integration handoff | WP10 | 🟡 Authorized — add the settled host lifecycle and runtime-surface boundary, one complete immutable browser-release index, the accepted guest-access policy, measured server resource limits and a compact nine-point handoff without implementing a consuming product |
+| WP11 | Final public integration handoff | WP10 | ✅ Complete — the settled lifecycle/surface boundary, exact release index, guest policy, server runtime contract, resource guard and self-contained nine-point handoff are built, tested and independently re-reviewed with no open finding |
 
 WP1, WP2 and WP3 are independent after WP0 and may be scheduled separately.
 WP4 and WP5 may proceed independently after WP3. WP7 began only after WP6 had
@@ -86,8 +87,8 @@ a separate acceptance increment after WP7 and closed under its authorized Mini
 amendment. WP9-Mini began under separate operator authorization and completed
 after its documentation review on 2026-09-01. WP10 then closed the deferred
 WP4 canvas-resize limitation without reopening the network packages. WP11 is
-the separately authorized final public handoff; it does not reopen product or
-deployment scope.
+the separately authorized final public handoff; its producer implementation and
+acceptance are complete without reopening product or deployment scope.
 
 ```mermaid
 flowchart LR
@@ -1391,8 +1392,9 @@ The complete public evidence is
 
 ## WP11 — Final public integration handoff
 
-**State:** Authorized by the operator on 2026-09-01; implementation has not
-started.
+**State:** Complete on 2026-09-01. Implementation and producer acceptance are
+complete; the final independent GPT-5.6-Sol re-review passed with no open
+finding.
 
 ### Outcome
 
@@ -1478,7 +1480,7 @@ another runtime's data remain outside the contract.
 
 WP11 adds one machine-readable release index outside the served tree. It lists
 every served path with exact byte length and SHA-256, refers to the authoritative
-browser, content and server manifests, records the relative 16-file layout and
+browser, content and server manifests, records the relative 17-file layout and
 binds the supported profiles. The staging validator proves that the index and
 the actual tree are identical. Keeping the index outside the tree avoids a
 self-hashing manifest.
@@ -1526,19 +1528,28 @@ of more than the accepted two-human profile.
 
 ### Acceptance
 
-- Deterministic tests cover lifecycle ordering, progress, subscription cleanup,
+- The 809-test deterministic suite covers lifecycle ordering, progress,
+  subscription cleanup,
   start-once, stop before and during boot, orderly running stop, duplicate stop,
   stale callbacks, terminal failure and secret-free snapshots/events.
-- The stage/index check proves the exact served set, sizes and hashes; all
-  existing metadata, provenance and licence checks remain green.
-- One short run in the pinned Chrome reaches `ready`, starts from a real user
-  gesture, reaches engine `running` with relay `open`, exercises focus and HTML
-  fullscreen, stops, receives the real engine exit and releases the runtime.
+- The strict stage/index check proves the exact 17-file served set, sizes and
+  hashes; all existing metadata, provenance and licence checks remain green.
+- The final short run in Chrome for Testing 152.0.7977.64 passed 22/22 checks:
+  Stop during loading, Stop after actual Emscripten runtime initialization,
+  identical duplicate Stop Promises, immediate subscription, idempotent
+  unsubscribe, rejected double Start, virtual relay assignment with
+  `running` plus `relay=open`, focus, HTML fullscreen enter/leave, stable
+  settlement Promise, orderly engine quit/onExit and final exit code 0. Its
+  saved result contains no authorization.
 - The bounded resource probe exercises idle, representative two-client busy,
-  failed-health and graceful-stop behavior and emits a public record containing
-  no environment-specific topology.
-- Final clean browser/server builds and image verification produce the exact
-  handoff identities. The content identity is unchanged.
+  graceful stop and a real unexpected-exit `failed` witness and emits a public
+  record containing no environment-specific topology. The three-consecutive-
+  health-failure transition is covered deterministically rather than claimed as
+  part of that retained real run.
+- Two final clean browser builds, two final clean native-server builds and two
+  final image builds were byte/ID-identical. Exact OCI configuration and
+  filesystem verification produced the handoff identities; content remained
+  unchanged.
 - `scripts/check.sh`, document links and diff hygiene pass, followed by a
   focused implementation/security/licensing/operability review. The review may
   use GPT-5.6-Sol; no Opus review is required.
@@ -1557,8 +1568,8 @@ of more than the accepted two-human profile.
 ## Review checkpoints
 
 1. **Plan approval:** completed. Every WP0–WP11 increment received its required
-   authorization; WP0 was the first implementation increment. WP11 is the only
-   authorized increment not yet implemented.
+   authorization; WP0 was the first implementation increment. Every authorized
+   increment is implemented.
 2. **Early evidence:** after WP1–WP3, review build reproducibility, browser-path
    measurements and content provenance before assembling the playable slice.
 3. **Network gate:** WP6 independently reviews the measurements and replaces
@@ -1584,10 +1595,10 @@ of more than the accepted two-human profile.
 6. **Canvas-resize closure:** completed by WP10 on 2026-09-01. The exact pinned
    browser automation and witnessed KDE/Wayland round passed with no engine or
    network-artifact change and no open focused-review finding.
-7. **Final public handoff:** pending under the authorized WP11 scope above. It
-   closes only when the lifecycle, surface, release, access, resource and
-   provenance values are concrete, tested, reviewed and bound to a pushed
-   immutable Arena commit.
+7. **Final public handoff:** completed by WP11 on 2026-09-01. Lifecycle,
+   surface, release, access, resource and provenance values are concrete,
+   producer-tested and independently re-reviewed with no open finding. The
+   public commit containing this contract is the immutable consumer handoff.
 
 ## Closed follow-up from WP4
 
@@ -1597,18 +1608,19 @@ resolution — was deliberately **not** part of WP7's network scope. The
 separately authorized WP10 implemented and accepted the loader-to-SDL
 canvas-size propagation on 2026-09-01. This follow-up is closed.
 
-## Input still needed from the operator
+## Remaining operator input
 
-No additional input is needed for the completed WP0–WP10 increments or to
-begin the authorized WP11. The operator accepted WP11's guest-playable public
-policy on 2026-09-01. WP7's
+No additional input is needed for WP0–WP11. The operator accepted WP11's
+guest-playable public policy on 2026-09-01. WP7's
 routed acceptance received a runtime-only fresh-token issuer and a route to its
 matching rebuilt native server; those inputs were discarded after the accepted
 round. WP8-Mini was explicitly authorized on 2026-09-01 with local normal and
 incognito contexts on the accepted KDE/Wayland workstation. The operator
 provided the witnessed gameplay, frag and bidirectional reconnect confirmations
 and explicitly accepted the reported KDE/Wayland pointer-lock variation.
-WP11 may receive a runtime-only compatible relay route and rehearsal host for
-its bounded smoke/resource evidence; neither becomes public source or retained
-evidence. Product naming, additional platforms and production deployment
-choices belong to consumer-owned or later separately authorized work.
+WP11's bounded final smoke used only a short-lived local compatible relay route,
+virtual destination, certificate and one-time authorization; all runtime inputs
+and containers were discarded afterward and none became public source or
+retained evidence. Product naming, additional platforms and production
+deployment choices belong to consumer-owned or later separately authorized
+work.

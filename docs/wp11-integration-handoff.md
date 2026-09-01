@@ -376,6 +376,40 @@ This index is complete for the accepted bytes. Adding, removing or changing a
 served file, linked component, content member, server layer, profile or source
 offer creates a new release and requires a newly checked index.
 
+## Producer acceptance evidence
+
+The final producer state passed all 809 deterministic tests and the strict
+17-file stage/index check. Two clean browser builds at producer checkout
+`7af8628e8ce43a0f5c7dd6b7bddba4b78eccdfcc` produced the same browser manifest
+and bytes. Two clean native-server builds and two image builds at producer
+checkout `bba1260902b266e1b8eabad915926e11598ff0c8` produced the same binary,
+server manifest and OCI image ID. The image verifier checked the exact OCI
+configuration, complete added filesystem, unchanged runtime-base remainder and
+all 78 per-package copyright files.
+
+The final Chrome for Testing 152.0.7977.64 lifecycle run passed 22/22 checks.
+It stopped during static loading and after actual Emscripten runtime
+initialization; proved identical duplicate Stop Promises; observed immediate
+subscription and idempotent unsubscribe; rejected a duplicate Start; reached
+the loaded map with one virtual relay assignment and simultaneous
+`status=running`/`relay.state=open`; exercised focus and fullscreen enter/leave;
+then received the stable, exactly-once `{status:"exited", exitCode:0,
+reason:"host_stop"}` result only after the engine quit export and Emscripten
+`onExit`. Its saved result contains no authorization. The relay endpoint,
+certificate, virtual test destination and one-time authorization were
+runtime-only and discarded with the temporary local containers.
+
+The final resource probe used the exact image ID above, produced the bound
+record in section 8 and witnessed `missing`, `preparing`, `ready`, `failed`,
+graceful stop and unexpected exit. The initial independent GPT-5.6-Sol review's
+licensing, terminal-reentrancy, progress-state and acceptance-coverage findings
+were fixed before these final runs. Its final review's release-validator,
+obsolete-pin and failed-witness wording findings were likewise fixed: the
+validator now requires the exact 20 role-to-path authorities and derives every
+compatibility identity plus all manifest links from them.
+The focused final GPT-5.6-Sol re-review then returned PASS with no blocker,
+major or minor finding.
+
 ## Minimal consumer acceptance
 
 A consumer need only: validate the immutable checkout; stage and hash-check the

@@ -7,8 +7,8 @@
     },
     "browserAcceptance": {
       "path": "scripts/accept-host-lifecycle.py",
-      "sha256": "f98439f5a8a75343bc789e06436965c565ec8c77397a3fef9aa67d88fe31ff50",
-      "size": 19076
+      "sha256": "fa23342735e22a43484b181ec13040c92004179e5cc6eefaa7704bae09ad8955",
+      "size": 23756
     },
     "browserBuild": {
       "path": "scripts/build-browser.sh",
@@ -57,8 +57,8 @@
     },
     "integrationHandoff": {
       "path": "docs/wp11-integration-handoff.md",
-      "sha256": "9e3e96eaf133e6e4a1c83625c40c2e47e9145c9a9efa284272921d4e925c286c",
-      "size": 20216
+      "sha256": "c870c2e79d7469ea4bcf8b0f2be3a0958d57a8235b0948f01e3125fc831c8264",
+      "size": 22321
     },
     "projectLicense": {
       "path": "LICENSE",
