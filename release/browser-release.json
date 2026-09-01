@@ -52,8 +52,8 @@
     },
     "integrationHandoff": {
       "path": "docs/wp11-integration-handoff.md",
-      "sha256": "3616a7ef25a5b17901f7f67476db1370735dd94727f2a72f85686e1b2aef181c",
-      "size": 19083
+      "sha256": "d57a292b92b8a68a22cdbbe072a5419d2e1dc15e90130d6e258b6a0e461a4dd1",
+      "size": 19220
     },
     "projectLicense": {
       "path": "LICENSE",

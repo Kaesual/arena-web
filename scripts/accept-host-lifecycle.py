@@ -50,6 +50,125 @@ def click_element(session, element_id: str) -> None:
     )
 
 
+def early_stop_checks(
+    chrome: Path,
+    server: StaticServe,
+    output_dir: Path,
+    *,
+    during_loading: bool,
+    headless: bool,
+) -> list[dict]:
+    name = "loading" if during_loading else "booting"
+    browser = ChromeProcess(
+        chrome,
+        output_dir / f"{name}-profile",
+        headless=headless,
+        window_size=(960, 540),
+        angle_backend="gl",
+    )
+    session = None
+    try:
+        browser.start()
+        session = browser.page_session()
+        for domain in ("Page", "Runtime", "Network"):
+            session.call(f"{domain}.enable")
+        if during_loading:
+            # Keep the initial same-origin profile/artifact requests in flight
+            # long enough to make the stop point deterministic. This is browser
+            # network emulation, not a product/runtime input.
+            session.call(
+                "Network.emulateNetworkConditions",
+                {
+                    "offline": False,
+                    "latency": 100,
+                    "downloadThroughput": 64 * 1024,
+                    "uploadThroughput": 64 * 1024,
+                    "connectionType": "wifi",
+                },
+            )
+        session.call("Page.navigate", {"url": f"{server.origin}/"})
+        wait_until(
+            lambda: bool(_evaluate(session, "window.arenaWeb")),
+            timeout=30,
+            description="the early host API",
+        )
+        if during_loading:
+            initial = _evaluate(session, "arenaWeb.snapshot().status")
+            _evaluate(
+                session,
+                """
+                window.wp11Early = {};
+                window.wp11Early.stopA = arenaWeb.stop();
+                window.wp11Early.stopB = arenaWeb.stop();
+                window.wp11Early.sameStop = window.wp11Early.stopA === window.wp11Early.stopB;
+                window.wp11Early.stopA.then((value) => { window.wp11Early.terminal = value; });
+                """,
+            )
+        else:
+            wait_until(
+                lambda: _evaluate(session, "arenaWeb.snapshot().status")
+                in ("ready", "failed"),
+                timeout=300,
+                description="the boot-stop page becoming ready",
+            )
+            initial = _evaluate(session, "arenaWeb.snapshot().status")
+            _evaluate(
+                session,
+                """
+                window.wp11Early = {};
+                document.getElementById('start').addEventListener('click', () => {
+                  window.wp11Early.start = arenaWeb.start().then(
+                    () => { window.wp11Early.startResult = 'resolved'; },
+                    (error) => { window.wp11Early.startResult = error.name; },
+                  );
+                  window.wp11Early.observedBooting = arenaWeb.snapshot().status === 'booting';
+                  window.wp11Early.stopA = arenaWeb.stop();
+                  window.wp11Early.stopB = arenaWeb.stop();
+                  window.wp11Early.sameStop = window.wp11Early.stopA === window.wp11Early.stopB;
+                  window.wp11Early.stopA.then((value) => { window.wp11Early.terminal = value; });
+                }, {capture: true, once: true});
+                """,
+            )
+            click_element(session, "start")
+        wait_until(
+            lambda: bool(_evaluate(session, "window.wp11Early?.terminal")),
+            timeout=30,
+            description=f"the {name} stop settling",
+        )
+        terminal = json.loads(
+            _evaluate(session, "JSON.stringify(window.wp11Early.terminal)")
+        )
+        final = _snapshot(session)
+        checks = [
+            {
+                "name": f"stop-during-{name}",
+                "passed": initial == ("starting" if during_loading else "ready")
+                and terminal
+                == {"status": "exited", "exitCode": None, "reason": "host_stop"}
+                and final.get("status") == "exited",
+                "detail": {"initial": initial, "terminal": terminal},
+            },
+            {
+                "name": f"duplicate-{name}-stop-same-promise",
+                "passed": bool(_evaluate(session, "window.wp11Early.sameStop")),
+            },
+        ]
+        if not during_loading:
+            checks.append(
+                {
+                    "name": "booting-state-witnessed-before-stop",
+                    "passed": bool(
+                        _evaluate(session, "window.wp11Early.observedBooting")
+                    ),
+                }
+            )
+        return checks
+    finally:
+        if session is not None:
+            session.close()
+        browser.stop()
+
+
 def run(
     chrome: Path,
     serve_dir: Path,
@@ -84,6 +203,24 @@ def run(
     checks: list[dict] = []
     session = None
     with StaticServe(serve_dir) as server:
+        checks.extend(
+            early_stop_checks(
+                chrome,
+                server,
+                output_dir,
+                during_loading=True,
+                headless=headless,
+            )
+        )
+        checks.extend(
+            early_stop_checks(
+                chrome,
+                server,
+                output_dir,
+                during_loading=False,
+                headless=headless,
+            )
+        )
         try:
             browser.start()
             session = browser.page_session()

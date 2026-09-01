@@ -267,7 +267,8 @@ requests the real engine quit and, once engine boot began, waits for the actual
 Emscripten exit. Every stop call returns the same Promise. `whenSettled()` also
 returns one stable Promise and resolves exactly once with
 `{status, exitCode, reason}` for `failed` or `exited`; reconnect never settles
-it. The full call/return/error semantics are normative in the
+it. The accepted running-stop smoke returns exit code 0; a pre-engine stop has
+no process code and returns `null`. The full call/return/error semantics are normative in the
 [WP11 handoff](wp11-integration-handoff.md#2-exact-browser-lifecycle-boundary).
 
 The important `snapshot().status` transitions are engine/UI milestones rather

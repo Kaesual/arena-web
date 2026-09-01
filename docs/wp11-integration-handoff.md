@@ -121,7 +121,9 @@ engine boot it settles as `{status: "exited", exitCode: null,
 reason: "host_stop"}`. Once Emscripten boot has begun it waits for runtime
 initialization if necessary, invokes the exported `Web_RequestQuit` handoff on
 the engine thread, and resolves only after the real Emscripten `onExit`. It
-never presents a loader-only exit while the engine is still alive.
+never presents a loader-only exit while the engine is still alive. The accepted
+running-stop browser smoke returned engine exit code 0; stopping before engine
+boot settles with `null` as described above.
 
 `whenSettled()` always returns the same Promise and resolves exactly once. Its
 value is `{status, exitCode, reason}` with terminal status `failed` or `exited`,
