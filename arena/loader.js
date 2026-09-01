@@ -32,6 +32,7 @@ import {
   observeCanvasResize,
   renderSizeArguments as canvasRenderSizeArguments,
 } from "./arena/canvas-resize.js";
+import { createHostLifecycle } from "./arena/host-lifecycle.js";
 import {
   ArenaNetworkSession,
   INNER_DATAGRAM_FLOOR,
@@ -90,6 +91,8 @@ const report = {
   audioActivation: null,
   pointerLock: { supported: "pointerLockElement" in document, engaged: false, errors: 0 },
   fullscreen: { supported: Boolean(elements.stage.requestFullscreen), engaged: false },
+  progress: { phase: "loading", loadedBytes: 0, totalBytes: null, fraction: 0 },
+  exit: null,
   webglContextLost: 0,
   render: null,
   mode: "offline",
@@ -103,6 +106,21 @@ let engineStarted = false;
 let relayReconnectReady = false;
 let relayReconnectRunning = false;
 let canvasResizeBridge = null;
+let loadedProfile = null;
+let loadedArtifacts = null;
+let startAccepted = false;
+let startOperation = null;
+let stopRequested = false;
+let stopOperation = null;
+let engineBootStarted = false;
+let engineQuit = null;
+let engineQuitInvoked = false;
+const startupAbort = new AbortController();
+const lifecycle = createHostLifecycle(snapshot, {
+  onListenerError: (error) => {
+    console.error("arena-web subscriber failed", error);
+  },
+});
 
 const frameDeltas = [];
 const startedAt = performance.now();
@@ -123,17 +141,52 @@ function setMessage(text) {
   elements.message.textContent = text;
 }
 
-function setProgress(fraction) {
+function setProgress(fraction, loadedBytes = null, totalBytes = null) {
   const clamped = Math.max(0, Math.min(1, fraction));
   elements.progressBar.style.width = `${(clamped * 100).toFixed(1)}%`;
+  report.progress = {
+    phase: clamped === 1 ? "verified" : "loading",
+    loadedBytes,
+    totalBytes,
+    fraction: Math.round(clamped * 1000000) / 1000000,
+  };
+  lifecycle.publish();
 }
 
-function fail(error) {
-  report.status = "failed";
-  report.error = { name: error.name ?? "Error", message: String(error.message ?? error) };
+function safeError(error) {
+  let message = String(error?.message ?? error ?? "unknown failure");
+  const authorization = relayRuntimeConfiguration?.authorization;
+  if (typeof authorization === "string" && authorization !== "") {
+    message = message.replaceAll(authorization, "[redacted]");
+  }
+  return {
+    name: String(error?.name ?? "Error").slice(0, 80),
+    message: message.slice(0, 240),
+  };
+}
+
+function setStatus(status, error = null) {
+  report.status = status;
+  report.error = error;
+  lifecycle.publish();
+}
+
+function settle(status, exitCode, reason) {
+  report.exit = { code: exitCode, reason };
+  setStatus(status, status === "failed" ? report.error : null);
+  lifecycle.settle({ status, exitCode, reason });
+}
+
+function fail(error, reason = "loader_error") {
+  if (lifecycle.terminal() !== null || (stopRequested && error?.name === "AbortError")) {
+    note("late-failure-ignored", String(error?.name ?? "Error"));
+    return;
+  }
+  report.error = safeError(error);
   elements.overlay.hidden = false;
   elements.start.disabled = true;
   setMessage(`Failed: ${report.error.message}`);
+  settle("failed", null, reason);
   // The browser console is part of the acceptance evidence, so a loader
   // failure has to be visible there and not only inside this page.
   console.error("arena-web loader failed", error);
@@ -148,8 +201,10 @@ function offerRelayReconnect(reason) {
     return;
   }
   relayReconnectReady = true;
-  report.status = "reconnect-ready";
-  report.error = { name: "RelayClosedError", message: "the relay session ended" };
+  setStatus("reconnect-ready", {
+    name: "RelayClosedError",
+    message: "the relay session ended",
+  });
   elements.overlay.hidden = false;
   elements.start.textContent = "Reconnect";
   elements.start.disabled = false;
@@ -164,13 +219,12 @@ async function reconnectRelay() {
   relayReconnectRunning = true;
   elements.start.disabled = true;
   elements.overlay.hidden = true;
-  report.status = "reconnecting";
-  report.error = null;
+  setStatus("reconnecting");
   note("relay-reconnect-started", null);
   try {
     await relayBackend.reconnect();
     report.relay = relayBackend.snapshot();
-    report.status = report.markers.clientGameLoaded === undefined ? "booting" : "running";
+    setStatus(report.markers.clientGameLoaded === undefined ? "booting" : "running");
     elements.start.textContent = "Start";
     note("relay-reconnect-completed", null);
   } catch (error) {
@@ -215,7 +269,7 @@ function resolveServed(path, what) {
 }
 
 async function fetchJson(url, what) {
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: startupAbort.signal });
   if (!response.ok) {
     throw new LoaderError(`${what}: HTTP ${response.status}`);
   }
@@ -242,7 +296,7 @@ async function sha256Hex(bytes) {
 }
 
 async function fetchBytes(url, what, onProgress) {
-  const response = await fetch(url);
+  const response = await fetch(url, { signal: startupAbort.signal });
   if (!response.ok) {
     throw new LoaderError(`${what}: HTTP ${response.status}`);
   }
@@ -487,7 +541,11 @@ async function loadArtifacts(profile) {
     setMessage(`Loading ${artifact.path}`);
     const fetchStarted = since();
     const bytes = await fetchBytes(url, artifact.served, (received) => {
-      setProgress((completedBytes + received) / expectedTotal);
+      setProgress(
+        (completedBytes + received) / expectedTotal,
+        completedBytes + received,
+        expectedTotal,
+      );
     });
     const fetchedAt = since();
     const digest = await sha256Hex(bytes);
@@ -528,7 +586,7 @@ async function loadArtifacts(profile) {
   }
 
   report.totalArtifactBytes = completedBytes;
-  setProgress(1);
+  setProgress(1, completedBytes, expectedTotal);
   return loaded;
 }
 
@@ -565,8 +623,15 @@ function recordEngineLine(line, stream, markers, botNames) {
       // statement that the map is entered and the frame loop is live
       // (ioq3 code/client/cl_cgame.c CL_InitCGame).
       if (name === "clientGameLoaded") {
-        report.status = "running";
+        engineStarted = true;
+        if (!["reconnect-ready", "reconnecting", "stopping", "failed", "exited"].includes(report.status)) {
+          setStatus("running");
+        } else {
+          lifecycle.publish();
+        }
         elements.hint.hidden = report.pointerLock.engaged;
+      } else {
+        lifecycle.publish();
       }
     }
   }
@@ -604,6 +669,7 @@ function installCanvasResizeBridge() {
         cssHeight: size.cssHeight,
         devicePixelRatio: size.devicePixelRatio,
       });
+      lifecycle.publish();
     },
   });
   report.render.observerSupported = canvasResizeBridge.supported;
@@ -646,6 +712,61 @@ function frameStatistics() {
   };
 }
 
+function focusSurface() {
+  if (typeof elements.canvas.focus !== "function") {
+    return { ok: false, focused: false, reason: "not_supported" };
+  }
+  try {
+    elements.canvas.focus({ preventScroll: true });
+    const focused = document.activeElement === elements.canvas;
+    note("surface-focus", focused);
+    lifecycle.publish();
+    return { ok: focused, focused, reason: focused ? null : "not_focused" };
+  } catch (error) {
+    note("surface-focus-rejected", String(error?.name ?? "Error"));
+    return { ok: false, focused: false, reason: String(error?.name ?? "Error").slice(0, 80) };
+  }
+}
+
+async function setFullscreen(engaged) {
+  if (typeof engaged !== "boolean") {
+    throw new LoaderError("fullscreen state must be a boolean");
+  }
+  const current = document.fullscreenElement === elements.stage;
+  if (current === engaged) {
+    return { ok: true, engaged: current, reason: null };
+  }
+  if (engaged && typeof elements.stage.requestFullscreen !== "function") {
+    return { ok: false, engaged: current, reason: "not_supported" };
+  }
+  if (!engaged && typeof document.exitFullscreen !== "function") {
+    return { ok: false, engaged: current, reason: "not_supported" };
+  }
+  try {
+    // The stage carries the canvas at 100% of its box, so SDL's resize
+    // callback reads the new CSS size and the engine follows.
+    if (engaged) {
+      await elements.stage.requestFullscreen();
+    } else {
+      await document.exitFullscreen();
+    }
+    const actual = document.fullscreenElement === elements.stage;
+    return {
+      ok: actual === engaged,
+      engaged: actual,
+      reason: actual === engaged ? null : "state_mismatch",
+    };
+  } catch (error) {
+    const reason = String(error?.name ?? "Error").slice(0, 80);
+    note("fullscreen-rejected", reason);
+    return {
+      ok: false,
+      engaged: document.fullscreenElement === elements.stage,
+      reason,
+    };
+  }
+}
+
 function installPageBehaviour() {
   // Pointer lock belongs to SDL: the engine asks for relative mouse mode and
   // SDL's Emscripten backend defers the request to the next user gesture
@@ -656,10 +777,12 @@ function installPageBehaviour() {
     report.pointerLock.engaged = document.pointerLockElement === elements.canvas;
     elements.hint.hidden = report.pointerLock.engaged || report.status !== "running";
     note("pointerlockchange", report.pointerLock.engaged);
+    lifecycle.publish();
   });
   document.addEventListener("pointerlockerror", () => {
     report.pointerLock.errors += 1;
     note("pointerlockerror", null);
+    lifecycle.publish();
   });
 
   // A lost drawing context stops the engine dead and is otherwise invisible in
@@ -674,22 +797,15 @@ function installPageBehaviour() {
   // The canvas is the game surface: the browser's own context menu and text
   // selection would otherwise interrupt aiming and firing.
   elements.canvas.addEventListener("contextmenu", (event) => event.preventDefault());
-  elements.canvas.addEventListener("mousedown", () => elements.canvas.focus());
+  elements.canvas.addEventListener("mousedown", () => focusSurface());
 
   elements.fullscreen.addEventListener("click", () => {
-    if (document.fullscreenElement) {
-      document.exitFullscreen();
-      return;
-    }
-    // The stage carries the canvas at 100% of its box, so SDL's resize
-    // callback reads the new CSS size and the engine follows.
-    elements.stage.requestFullscreen().catch((error) => {
-      note("fullscreen-rejected", String(error.name ?? error));
-    });
+    void setFullscreen(document.fullscreenElement !== elements.stage);
   });
   document.addEventListener("fullscreenchange", () => {
     report.fullscreen.engaged = document.fullscreenElement === elements.stage;
     note("fullscreenchange", report.fullscreen.engaged);
+    lifecycle.publish();
   });
 
   window.addEventListener("blur", () => note("window-blur", null));
@@ -723,7 +839,24 @@ async function recordAudioActivation() {
   await context.close();
 }
 
+function requestEngineQuit() {
+  if (engineQuitInvoked || engineQuit === null) {
+    return false;
+  }
+  engineQuitInvoked = true;
+  note("engine-quit-requested", null);
+  engineQuit();
+  return true;
+}
+
+function throwIfStopped() {
+  if (stopRequested) {
+    throw new DOMException("host stop requested", "AbortError");
+  }
+}
+
 async function boot(profile, artifacts, networkBackend = null) {
+  throwIfStopped();
   const markers = Object.entries(profile.readyMarkers);
   const botNames = networkBackend ? [] : profile.bots.map((bot) => bot.name);
   const byRole = new Map();
@@ -758,6 +891,7 @@ async function boot(profile, artifacts, networkBackend = null) {
   } finally {
     URL.revokeObjectURL(moduleUrl);
   }
+  throwIfStopped();
   report.timings.moduleImportedMs = since();
 
   const configuration = {
@@ -801,28 +935,42 @@ async function boot(profile, artifacts, networkBackend = null) {
     onRuntimeInitialized: () => {
       report.timings.runtimeInitializedMs = since();
       note("runtime-initialized", null);
+      if (typeof configuration._Web_RequestQuit !== "function") {
+        fail(new LoaderError("engine exposes no host stop function"), "engine_contract_error");
+        return;
+      }
+      engineQuit = () => configuration._Web_RequestQuit();
       installCanvasResizeBridge();
+      lifecycle.publish();
+      if (stopRequested) {
+        requestEngineQuit();
+      }
     },
-    onAbort: (what) => fail(new LoaderError(`engine aborted: ${what}`)),
+    onAbort: (what) => fail(new LoaderError(`engine aborted: ${what}`), "engine_abort"),
     onExit: (code) => {
       canvasResizeBridge?.disconnect();
       canvasResizeBridge = null;
       note("engine-exit", code);
-      report.status = "exited";
+      if (lifecycle.terminal() === null) {
+        settle("exited", Number.isInteger(code) ? code : null, stopRequested ? "host_stop" : "engine_exit");
+      }
     },
   };
 
   report.timings.engineStartedMs = since();
+  engineBootStarted = true;
   factory(configuration).then(
     () => note("engine-main-returned", null),
-    (error) => fail(error),
+    (error) => fail(error, "engine_error"),
   );
 }
 
 function snapshot() {
-  return {
+  const value = {
     status: report.status,
     error: report.error,
+    exit: report.exit,
+    progress: report.progress,
     profile: report.profile,
     identities: report.identities,
     configFiles: report.configFiles,
@@ -841,33 +989,144 @@ function snapshot() {
     audioActivation: report.audioActivation,
     pointerLock: report.pointerLock,
     fullscreen: report.fullscreen,
+    surface: {
+      selector: '[data-runtime-surface="arena-web"]',
+      focused: document.activeElement === elements.canvas,
+    },
     webglContextLost: report.webglContextLost,
     render: report.render,
     mode: report.mode,
     relay: relayBackend?.snapshot() ?? null,
   };
+  // A consumer may retain or mutate its snapshot; neither operation can edit
+  // the loader's live evidence or a later subscriber notification.
+  return structuredClone(value);
 }
 
-globalThis.arenaWeb = {
+function configureRelay(configuration) {
+  if (!["starting", "ready"].includes(report.status) || startAccepted) {
+    throw new LoaderError("relay configuration must be supplied before Start");
+  }
+  requireObject(configuration, "relay runtime configuration");
+  relayRuntimeConfiguration = {
+    ...configuration,
+    certificateHashes: Array.isArray(configuration.certificateHashes)
+      ? [...configuration.certificateHashes]
+      : configuration.certificateHashes,
+  };
+  report.mode = "relay";
+  note("relay-configured", null);
+  lifecycle.publish();
+}
+
+async function runStart() {
+  setStatus("booting");
+  report.timings.startClickedMs = since();
+  elements.start.disabled = true;
+  elements.overlay.hidden = true;
+  focusSurface();
+  try {
+    await recordAudioActivation();
+    throwIfStopped();
+    if (relayRuntimeConfiguration !== null) {
+      relayBackend = new ArenaNetworkSession(relayRuntimeConfiguration, {
+        onEvent: (kind, detail) => {
+          note(kind, detail);
+          lifecycle.publish();
+          if (
+            kind === "relay-terminal" &&
+            !["client_close", "engine_shutdown"].includes(detail) &&
+            !stopRequested &&
+            !["failed", "exited"].includes(report.status)
+          ) {
+            offerRelayReconnect(detail);
+          }
+        },
+      });
+      await relayBackend.open();
+      throwIfStopped();
+      report.relay = relayBackend.snapshot();
+      lifecycle.publish();
+    }
+    await boot(loadedProfile, loadedArtifacts, relayBackend);
+    engineStarted = true;
+    if (relayBackend?.snapshot().state === "closed") {
+      offerRelayReconnect(relayBackend.snapshot().terminalReason);
+    }
+    return snapshot();
+  } catch (error) {
+    if (stopRequested && error?.name === "AbortError") {
+      if (!engineBootStarted && lifecycle.terminal() === null) {
+        settle("exited", null, "host_stop");
+      }
+    } else {
+      fail(error);
+    }
+    throw error;
+  }
+}
+
+function start() {
+  if (startAccepted) {
+    return Promise.reject(new LoaderError("Start has already been accepted"));
+  }
+  if (report.status !== "ready" || loadedProfile === null || loadedArtifacts === null) {
+    return Promise.reject(new LoaderError("Start is only available in the ready state"));
+  }
+  if (navigator.userActivation?.isActive !== true) {
+    return Promise.reject(new LoaderError("Start requires transient user activation"));
+  }
+  startAccepted = true;
+  startOperation = runStart();
+  return startOperation;
+}
+
+async function runStop() {
+  stopRequested = true;
+  startupAbort.abort();
+  if (lifecycle.terminal() !== null) {
+    return lifecycle.whenSettled();
+  }
+  setStatus("stopping");
+  elements.start.disabled = true;
+  elements.overlay.hidden = false;
+  elements.hint.hidden = true;
+  setMessage("Stopping the arena.");
+  try {
+    await relayBackend?.close();
+  } catch (error) {
+    note("relay-close-failed", String(error?.name ?? "Error"));
+  }
+  if (engineBootStarted) {
+    requestEngineQuit();
+  } else if (lifecycle.terminal() === null) {
+    settle("exited", null, "host_stop");
+  }
+  return lifecycle.whenSettled();
+}
+
+function stop() {
+  if (stopOperation === null) {
+    stopOperation = runStop();
+  }
+  return stopOperation;
+}
+
+globalThis.arenaWeb = Object.freeze({
+  // `report` and `engineLog` remain acceptance diagnostics. Integrations use
+  // the defensive snapshot/subscription boundary below.
   report,
   snapshot,
+  subscribe: (listener) => lifecycle.subscribe(listener),
+  whenSettled: () => lifecycle.whenSettled(),
   engineLog: () => report.engineLog.slice(),
-  configureRelay(configuration) {
-    if (!["starting", "ready"].includes(report.status)) {
-      throw new LoaderError("relay configuration must be supplied before Start");
-    }
-    requireObject(configuration, "relay runtime configuration");
-    relayRuntimeConfiguration = {
-      ...configuration,
-      certificateHashes: Array.isArray(configuration.certificateHashes)
-        ? [...configuration.certificateHashes]
-        : configuration.certificateHashes,
-    };
-    report.mode = "relay";
-    note("relay-configured", null);
-  },
+  configureRelay,
+  start,
+  stop,
+  focusSurface,
+  setFullscreen,
   reconnectRelay,
-};
+});
 
 async function main() {
   installPageBehaviour();
@@ -882,7 +1141,10 @@ async function main() {
 
   const artifacts = await loadArtifacts(profile);
   report.timings.artifactsVerifiedMs = since();
-  report.status = "ready";
+  throwIfStopped();
+  loadedProfile = profile;
+  loadedArtifacts = artifacts;
+  setStatus("ready");
 
   const megabytes = (report.totalArtifactBytes / (1024 * 1024)).toFixed(1);
   setMessage(
@@ -893,46 +1155,20 @@ async function main() {
   elements.fullscreen.disabled = false;
 
   elements.start.addEventListener("click", () => {
-    void reconnectRelay();
+    if (relayReconnectReady) {
+      void reconnectRelay();
+    } else {
+      void start().catch(() => {});
+    }
   });
-
-  elements.start.addEventListener(
-    "click",
-    async () => {
-      elements.start.disabled = true;
-      elements.overlay.hidden = true;
-      report.status = "booting";
-      report.timings.startClickedMs = since();
-      elements.canvas.focus();
-      try {
-        await recordAudioActivation();
-        if (relayRuntimeConfiguration !== null) {
-          relayBackend = new ArenaNetworkSession(relayRuntimeConfiguration, {
-            onEvent: (kind, detail) => {
-              note(kind, detail);
-              if (
-                kind === "relay-terminal" &&
-                !["client_close", "engine_shutdown"].includes(detail) &&
-                !["failed", "exited"].includes(report.status)
-              ) {
-                offerRelayReconnect(detail);
-              }
-            },
-          });
-          await relayBackend.open();
-          report.relay = relayBackend.snapshot();
-        }
-        await boot(profile, artifacts, relayBackend);
-        engineStarted = true;
-        if (relayBackend?.snapshot().state === "closed") {
-          offerRelayReconnect(relayBackend.snapshot().terminalReason);
-        }
-      } catch (error) {
-        fail(error);
-      }
-    },
-    { once: true },
-  );
 }
 
-main().catch(fail);
+main().catch((error) => {
+  if (stopRequested && error?.name === "AbortError") {
+    if (lifecycle.terminal() === null) {
+      settle("exited", null, "host_stop");
+    }
+    return;
+  }
+  fail(error);
+});

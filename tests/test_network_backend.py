@@ -172,6 +172,18 @@ class EngineBoundaryTests(unittest.TestCase):
             init_rand.index("Com_Error(ERR_FATAL"), init_rand.index("srand(time(NULL))")
         )
 
+    def test_browser_host_stop_uses_the_normal_engine_quit_path(self) -> None:
+        source = (ROOT / "ioq3/code/sys/sys_main.c").read_text(encoding="utf-8")
+        exported = source.index("EMSCRIPTEN_KEEPALIVE void Web_RequestQuit")
+        loop = source.index("static void Sys_WebMainLoop", exported)
+        consumed = source.index("Com_Quit_f();", loop)
+        frame = source.index("Com_Frame();", consumed)
+        installed = source.index("emscripten_set_main_loop( Sys_WebMainLoop")
+        self.assertLess(exported, loop)
+        self.assertLess(loop, consumed)
+        self.assertLess(consumed, frame)
+        self.assertLess(frame, installed)
+
 
 @unittest.skipUnless(NODE, "node is not available to run the browser backend")
 class BrowserBackendTests(unittest.TestCase):

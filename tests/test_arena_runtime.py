@@ -237,6 +237,9 @@ class SyntheticRepository:
         (self.root / "arena" / "canvas-resize.js").write_text(
             "// resize", encoding="utf-8"
         )
+        (self.root / "arena" / "host-lifecycle.js").write_text(
+            "// lifecycle", encoding="utf-8"
+        )
         (self.root / "arena" / "network-backend.js").write_text(
             "// backend", encoding="utf-8"
         )
@@ -741,6 +744,7 @@ class StagingTest(SyntheticRepositoryTest):
             present,
             [
                 "arena/canvas-resize.js",
+                "arena/host-lifecycle.js",
                 "arena/network-backend.js",
                 "arena/relay-profile.json",
                 "content/baseq3/arena-web-ffa.pk3",
@@ -896,6 +900,7 @@ class CommittedProfileTest(unittest.TestCase):
             sorted(served_files(ROOT, self.profile)),
             [
                 "arena/canvas-resize.js",
+                "arena/host-lifecycle.js",
                 "arena/network-backend.js",
                 "arena/relay-profile.json",
                 "content/baseq3/arena-web-ffa.pk3",
@@ -940,6 +945,7 @@ class CommittedProfileTest(unittest.TestCase):
             loader,
             [
                 "arena/canvas-resize.js",
+                "arena/host-lifecycle.js",
                 "arena/network-backend.js",
                 "arena/relay-profile.json",
                 "index.html",

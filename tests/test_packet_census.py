@@ -538,7 +538,7 @@ class CommittedCensusRecordTests(unittest.TestCase):
 
 
 class CommittedWp7CensusRecordTests(unittest.TestCase):
-    """The final-pin re-census is separate from immutable WP5 evidence."""
+    """The WP7 network-final re-census is immutable historical evidence."""
 
     def setUp(self) -> None:
         path = ROOT / "records" / "wp7-packet-census.json"
@@ -555,11 +555,11 @@ class CommittedWp7CensusRecordTests(unittest.TestCase):
         ]
         self.assertEqual(failed, [])
 
-    def test_the_session_is_bound_to_the_final_engine_and_client_binaries(self) -> None:
-        baseline = json.loads(
-            (ROOT / "locks" / "baseline.json").read_text(encoding="utf-8")
+    def test_the_session_is_bound_to_its_measured_engine_and_client_binaries(self) -> None:
+        self.assertEqual(
+            self.session["engineCommit"],
+            "968eeb44294aa0003c430430cf32a6540f9a81e4",
         )
-        self.assertEqual(self.session["engineCommit"], baseline["engine"]["commit"])
         self.assertEqual(
             set(self.session["clientArtifacts"]),
             {"ioquake3", "renderer_opengl1.so", "renderer_opengl2.so"},

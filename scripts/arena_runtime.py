@@ -39,6 +39,7 @@ RUNTIME_SOURCE_FILES = {
     "index.html": "arena/index.html",
     "loader.js": "arena/loader.js",
     "arena/canvas-resize.js": "arena/canvas-resize.js",
+    "arena/host-lifecycle.js": "arena/host-lifecycle.js",
     "arena/network-backend.js": "arena/network-backend.js",
     "arena/relay-profile.json": "arena/relay-profile.json",
     "probe/relay-framing.js": "probe/relay-framing.js",

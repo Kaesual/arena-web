@@ -817,12 +817,15 @@ class PostChangeCensusVerificationTests(unittest.TestCase):
             WP7_CENSUS_RECORD.is_file(),
             f"{WP7_CENSUS_RECORD} is committed evidence and must exist",
         )
-        baseline = load(ROOT / "locks" / "baseline.json")
+        census = load(WP7_CENSUS_RECORD)
         result = derive(
             self.report,
-            load(WP7_CENSUS_RECORD),
+            census,
             plan=self.plan,
-            post_change_engine_commit=baseline["engine"]["commit"],
+            # This record closes the WP7 network change at the engine it
+            # actually measured. WP11's later sys_main-only host-quit export
+            # does not retroactively relabel or rerun that packet census.
+            post_change_engine_commit=census["session"]["engineCommit"],
         )
         verification = result["postChangeVerification"]
         self.assertTrue(verification["allBoundsPass"], verification)
