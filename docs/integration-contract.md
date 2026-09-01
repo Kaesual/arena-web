@@ -69,7 +69,7 @@ to the accepted image ID. An archive transfer must likewise verify the loaded
 image ID rather than trusting its filename.
 
 The image records its producer in an OCI label. Reproduce it from a clean
-checkout at `bba1260902b266e1b8eabad915926e11598ff0c8`, after reproducing the
+checkout at `95f45b537dd0bb8b4a542b97d0f4281eefa7604a`, after reproducing the
 accepted browser, content and native builds, and run
 `scripts/build-server-image.sh`. Compare the generated
 `build/server-image/artifact-manifest.json` byte-for-byte with this release's
@@ -114,8 +114,10 @@ python3 scripts/stage-arena.py --target build/arena-serve --check
 
 The target must remain under the checkout's gitignored `build/` directory while
 the repository scripts create or verify it. A publisher then transfers that
-verified directory as one unit. The current tree contains exactly these 17
-files:
+verified directory as one unit. The current tree contains exactly these
+files. The count is not fixed: the content archives below are one base plus one
+per supported map, so a release that publishes more maps stages more files.
+Derive the set from the release index rather than asserting a number:
 
 ```text
 index.html
@@ -477,6 +479,51 @@ be enforced before or at the relay boundary. A future server-facing virtual
 IPv6 source per player would be a separate relay and topology change, not an
 assumption an integration may make today.
 
+## The rotation invariant
+
+**The set of maps a server rotates through must be a subset of the set of
+archives the client has loaded.** Deriving those two from separate sources is the
+defect this section exists to prevent.
+
+The failure is quiet and late. With `sv_pure 0` and `cl_allowDownload 0` the
+engine performs no content-agreement check when a client connects, so a client
+missing one map connects normally and plays. The *map change* is what breaks it:
+the engine restarts its filesystem synchronously, does not find the map, and
+drops that client with `ERR_DROP` in the middle of a match — possibly hours into
+a session, and only for the clients lacking that one archive.
+
+**Neither half can catch this alone, and this repository cannot catch it at
+all.** The rotation is a runtime input to the dedicated server, and the client's
+fetch set is likewise supplied by the caller. A check written here would compare
+the integration's own input against itself and always pass. So the rule binds
+where the two inputs are actually chosen:
+
+> The integration holds **exactly one** rotation list, and derives both the
+> server's launch arguments and the loader's fetch set from it. Deriving the two
+> separately is the defect; no downstream check catches it.
+
+Two consequences worth stating:
+
+- A rotation list may name only maps this release publishes. The published set is
+  the entries of `arena/game-profile.json` `artifacts[]` whose `manifest` is
+  `content`; anything else has no archive to fetch and no BSP in the image.
+- A client set that is a strict superset of the server's rotation is safe, and is
+  the conservative choice when the two are decided at different times. Only the
+  subset direction fails.
+
+**Today the map is still committed**, so this obligation is not yet load-bearing:
+`native/server-profile.json` carries `+map` inside its committed
+`serverArguments`, and the browser profile commits the matching
+`engineArguments`. The rotation becomes an uncommitted launch argument in a later
+work package, and both halves move together when it does. An integration built
+before then should already keep its rotation in one place, so that change is a
+substitution rather than a redesign.
+
+Recorded as later hardening rather than a present requirement: the loader could
+read the server's advertised rotation out of `serverinfo` before Start and verify
+the subset relation itself, which would move the check back inside a component
+that can fail closed.
+
 ## Updates, rollback and compatibility
 
 Browser, content and server artifacts are one compatibility unit:
@@ -499,6 +546,38 @@ rollback. Existing sessions need not be migrated between tuples.
 Changing only product presentation or a stable launch selector does not change
 the tuple. Changing any served byte, engine/content manifest, server runtime
 file, server argument or relay protocol profile does.
+
+### Which change creates which new identity
+
+The `compatibility` block is **not** the full change surface. It carries seven
+members, and a change can move authorities and served files that are none of
+them — most importantly `arena/game-profile.json`, which is how a consumer
+discovers the archives in the first place. Re-read the profile on every new
+tuple; do not diff `compatibility` alone and conclude nothing else moved.
+
+| Change | What moves |
+| --- | --- |
+| engine source on `web` | everything |
+| engine build outputs (`ioquake3.js`/`.wasm`, QVMs) | browser manifest, server manifest, server image |
+| browser loader/shell bytes (`loader.js`, `index.html`, shell JS) | one `servedFiles` entry and nothing else — they are in no manifest and no authority, so `compatibility` stays bit-identical |
+| base pack content (QVM closure, player models, bots, notices) | content manifest, content payload, server manifest, server image |
+| **a map added to or removed from the supported set** | three `compatibility` members — `contentManifestIdentity`, `serverManifestIdentity`, `serverImageId` — plus the browser profile, the content member provenance, the resource measurement and `servedFiles`. `contentPayloadIdentity` does **not** move |
+| the rotation a server plays | nothing |
+| which archives a client fetches | nothing — a runtime selection from the already published set |
+| relay profile | the relay-profile authority and the release index |
+| product presentation, launch selector | nothing |
+
+**The fifth row is why the content pack is split at all.** The base archive and
+every archive that already existed stay byte-identical when a map is added, which
+is asserted mechanically on every build: assemble the set, add a map, reassemble,
+compare bytes. So a published archive's bytes and its URL never move, four of the
+seven members stand still, and a consumer's update reduces to re-reading the
+profile, fetching only the archives that are new to it, and updating three
+digests. Served content names carry the first 16 hex of their own SHA-256, so
+they may be cached immutably and a name collision cannot silently change content.
+
+Adding a map remains a tuple event that needs a new release, and it is
+deliberately batched: prepare many maps, publish few times.
 
 ## Distribution and licence obligations
 
@@ -530,7 +609,7 @@ licences** link and meet all of these obligations:
   compatible licences. Do not apply one blanket label to every component.
 
 The PK3 already carries its notices; the browser engine notice set is **not**
-part of the 17-file staged tree and must be published alongside it. The server
+part of the staged tree and must be published alongside it. The server
 image already carries the runtime-base copyright files, but a public image
 listing still needs a source/licence link. A release is not publication-ready
 until those links and files exist.
