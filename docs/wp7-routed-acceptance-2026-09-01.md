@@ -123,10 +123,13 @@ isolation requirements for the exercised topology.
 
 ## Scope boundary and cleanup
 
-This round does **not** close or begin WP8. The two contexts ran on one accepted
-workstation, not two independent client networks, and the active round was far
-shorter than WP8's frozen 15-minute requirement. WP8 remains a separate work
-package requiring explicit approval and its complete topology and thresholds.
+This round did **not** close or begin WP8 under the contract in force when it
+ran. Later on 2026-09-01, the operator explicitly authorized WP8-Mini: local
+normal/incognito contexts and five minutes replace the independent-network and
+15-minute requirements, while WP7's accepted build, census, bounded-queue,
+responsive-browser and one-sided reconnect results are incorporated by
+reference. This WP7 report alone still does not close WP8; the Mini round must
+add five minutes of concurrent play and reconnect/isolation in both directions.
 
 After the result was captured, the temporary server, route, imported image,
 authorization helper, runtime files and evidence containing environment values

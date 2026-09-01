@@ -6,16 +6,19 @@
 — including WP2's routed acceptance of 2026-08-30 and the renderer fix carried
 as a WP1 contract amendment. WP6's decision was made by the operator on
 2026-08-30 — strategy 2, `FRAGMENT_SIZE = 704` at the record-backed 768-byte
-floor, with the profile bounds and all ten WP8 thresholds frozen — every point
-as the analysis proposed, and recomputable from the committed records. The
+floor, with the profile bounds and the original WP8 thresholds frozen — every
+point as the analysis proposed, and recomputable from the committed records. The
 mandatory independent protocol/security review returned **fix-first**; its four
 MAJOR findings were resolved, the three extensions it produced were settled by
 the operator the same day, and a re-verification pass then **passed**, finding
 no decided value had drifted. **WP6 and WP7 are complete.** WP7's final-pin
 browser/server builds, packet re-census, independent engine and
 protocol/security reviews, and routed real-browser acceptance passed on
-2026-09-01. WP8's contract is implementation-ready and is now unblocked, but it
-has not been authorized or started.
+2026-09-01. The operator authorized WP8 on 2026-09-01 with the explicit Mini
+amendment below: two isolated local browser contexts, five minutes of concurrent
+play, reconnect of both clients and the reduced network-evidence gate. The Mini
+round passed, including the operator-accepted KDE/Wayland pointer-lock variation,
+and **WP8 is complete**. WP9 has not started.
 
 This document turns the reviewed direction in
 [`initial-plan.md`](initial-plan.md) into coherent, testable increments. It
@@ -56,15 +59,16 @@ is a plan change; adding another platform is later scope.
 | WP3 | Audited deterministic minimal-content closure | WP0 | ✅ Complete — two clean assemblies in the pinned builder image produce a byte-identical 668-member `oa_pvomit` FFA pack from six digest-pinned Debian-cleaned OpenArena archives, every member `GPL-2.0-or-later` with resolved notices, and every reference the two static readings of the pinned `baseq3` QVM sources extract either resolves or is a recipe acceptance with a stated reason. **Amended 2026-08-31:** the recipe gained a fail-closed `derivedReferences` category for the weapon-model names the cgame constructs at runtime by string surgery — invisible to any static reading — with a reverse reconciliation over the whole derivation space and both pinned construction sites declared, restoring the missing barrels, every reachable muzzle flash and the distinct first-person hand rigs (grapple excluded by operator decision); the pack is now 698 members under a reissued identity, sizing-neutral for WP6, and the fix-first findings of the amendment's independent review are resolved in the amendment itself; see the amendment section of the evidence document |
 | WP4 | One-map offline browser arena with bots | WP1, WP3 | ✅ Complete — the witnessed round of 2026-08-30 passed every gameplay, input, focus, audio, console and clean-relaunch check (report in the evidence documents); the known browser-renderer defect class (white lightmapped surfaces mitigated by the reviewed `r_vertexLight` workaround and guarded by a near-white regression check; distance-graded entity shading; frame flicker) is recorded as decided while the timeboxed root-cause hunt continues on scratch builds. Closure accepted the operator-chosen Brave/KDE variation (the pinned Chrome is exercised by the automated harness on every gate run) and recorded one new accepted limitation: runtime resize and fullscreen-after-start do not update the engine resolution. **Post-closure, 2026-08-30:** the defect class is resolved — white lightmapped surfaces root-caused to a GLSL ES `mediump` precision default and fixed in the engine (workaround removed), entity shading reclassified as renderergl2's normal native look rather than a browser defect, and frame flicker confirmed resolved by the operator on the real display, who also confirmed light-strip parity with the native reference images. Two pre-existing content gaps the operator reported at the same time — the machine gun's missing barrel model and the lightning gun's missing beam art — are recorded in the evidence document as an open content follow-up. **Post-closure, 2026-08-31:** that follow-up is closed by WP3's content amendment, which also corrects the recorded lightning-beam cause — the beam art was always packed; the missing `lightning_flash.md3` gated the beam path — as a dated note in the evidence document |
 | WP5 | Matching native server and packet census | WP0, WP3 | ✅ Complete — the pinned native toolchain, the reproducible dedicated server, the runtime-base server image and a 41,833-datagram census of a driven session are built, reviewed and green, and the witnessed round of 2026-08-30 closed the one outstanding acceptance word with a player kill against a bot (report and native reference images in the evidence documents) |
-| WP6 | Measured network-sizing decision | WP2, WP5 | ✅ Complete — a reviewed, recomputable sizing decision: the routed budget refutes intact datagrams, and the selected strategy is a symmetric `FRAGMENT_SIZE` reduction to **704** at the record-backed 768-byte floor, with profile bounds for the out-of-band classes the engine never fragments, a fail-closed emitted-size check on both endpoints at `Sys_SendPacket`, and ten frozen WP8 thresholds. Built: [`wp6-network-sizing.md`](wp6-network-sizing.md), the `scripts/derive-network-sizing.py` derivation that recomputes every number from the two committed records (with a suite that requires doctored records to flip its verdicts), and implementation-ready WP7/WP8 contracts. The operator decided all five open points on 2026-08-30 and the three review extensions the same day; the mandatory independent protocol/security review returned fix-first, and its four MAJOR findings — the unlisted 1,038-byte `getmotd`, the unenforced server-browser exclusion, the one-directional fail-closed machinery and the shared relay address — were resolved and confirmed by a re-verification pass that found no decided value had drifted |
+| WP6 | Measured network-sizing decision | WP2, WP5 | ✅ Complete — a reviewed, recomputable sizing decision: the routed budget refutes intact datagrams, and the selected strategy is a symmetric `FRAGMENT_SIZE` reduction to **704** at the record-backed 768-byte floor, with profile bounds for the out-of-band classes the engine never fragments, a fail-closed emitted-size check on both endpoints at `Sys_SendPacket`, and an original ten-threshold WP8 table later replaced by the explicit Mini acceptance amendment. Built: [`wp6-network-sizing.md`](wp6-network-sizing.md), the `scripts/derive-network-sizing.py` derivation that recomputes every number from the two committed records (with a suite that requires doctored records to flip its verdicts), and implementation-ready WP7/WP8 contracts. The operator decided all five open points on 2026-08-30 and the three review extensions the same day; the mandatory independent protocol/security review returned fix-first, and its four MAJOR findings — the unlisted 1,038-byte `getmotd`, the unenforced server-browser exclusion, the one-directional fail-closed machinery and the shared relay address — were resolved and confirmed by a re-verification pass that found no decided value had drifted |
 | WP7 | Browser backend and matching server rebuild | WP4, WP5, WP6 | ✅ Complete — the bounded WebTransport backend and fresh-authorization reconnect path use the existing engine send/receive boundary; exact final-pin browser/server rebuilds, 61,322-datagram re-census, independent engine and protocol/security reviews, and the routed real-browser acceptance all passed; see [`wp7-routed-acceptance-2026-09-01.md`](wp7-routed-acceptance-2026-09-01.md) |
-| WP8 | Two-browser multiplayer acceptance | WP5, WP7 | Contract complete and thresholds frozen 2026-08-30; unblocked by WP7, but not authorized or started |
-| WP9 | Public product-integration blueprint | WP8 | Scope gate |
+| WP8 | Two-browser multiplayer acceptance | WP5, WP7 | ✅ Complete — the authorized Mini round reused WP7's exact accepted artifacts, added more than five minutes of local normal/incognito play and a witnessed player-vs-player frag, reconnected A and B independently, and passed its reduced 96,879-datagram network gate; see [`wp8-mini-acceptance-2026-09-01.md`](wp8-mini-acceptance-2026-09-01.md) |
+| WP9 | Public product-integration blueprint | WP8 | Not started — the WP8 prerequisite is satisfied; begin only under separate authorization |
 
 WP1, WP2 and WP3 are independent after WP0 and may be scheduled separately.
 WP4 and WP5 may proceed independently after WP3. WP7 began only after WP6 had
-selected the transport and sizing strategy from measured evidence. WP8 remains
-a separate approval and implementation increment after WP7.
+selected the transport and sizing strategy from measured evidence. WP8 remained
+a separate acceptance increment after WP7 and closed under its authorized Mini
+amendment. WP9 has not started.
 
 ```mermaid
 flowchart LR
@@ -797,8 +801,8 @@ drifted. The operator subsequently authorized WP7 on 2026-08-31.
 [`wp6-network-sizing.md`](wp6-network-sizing.md) carries the decision document:
 the inputs by commit and digest, the full arithmetic, the code-level boundary
 cases with `file:line` citations, the three strategies in the ownership order
-below, the selected strategy and the frozen WP8 thresholds. Every number in
-it is recomputed from the two committed records by
+below, the selected strategy and the original, later superseded WP8 thresholds.
+Every sizing number in it is recomputed from the two committed records by
 `scripts/derive-network-sizing.py`, which
 [`tests/test_network_sizing.py`](../tests/test_network_sizing.py) exercises both
 positively and against doctored records that must flip its verdicts.
@@ -832,12 +836,13 @@ WP7's address rule, not a size cap.
 The operator settled all five open points on 2026-08-30, each exactly as
 proposed: strategy 2 with its profile bounds, the record-backed 768-byte target
 giving `FRAGMENT_SIZE = 704`, the 64-byte reserve and alignment, the 512-byte
-userinfo cap, and all ten WP8 thresholds frozen. The 896 alternative at the
-982-byte derived budget is recorded there as considered and not selected, and
+userinfo cap, and all ten original WP8 thresholds frozen. The 896 alternative
+at the 982-byte derived budget is recorded there as considered and not selected, and
 the derivation still computes it so the road not taken stays recomputable.
 
-Still open: the mandatory independent protocol/security review. WP6 does not
-close until it passes.
+The later WP8-Mini amendment replaced only that acceptance table and topology;
+the sizing values above did not move. The mandatory independent
+protocol/security review and its fix-first re-verification are complete.
 
 ### Outcome
 
@@ -1163,84 +1168,89 @@ fragmentation layer was added beneath the engine's own.
 
 ## WP8 — Two-browser multiplayer acceptance
 
-**State:** Acceptance contract, drafted by WP6, with its numeric thresholds
-**frozen by the operator on 2026-08-30**. WP7 is closed, so WP8 is ready for a
-separate explicit approval; it has not been authorized or started.
+**State:** ✅ Complete. Authorized and accepted by the operator on 2026-09-01
+under the Mini amendment in this section; the retained result is
+[`wp8-mini-acceptance-2026-09-01.md`](wp8-mini-acceptance-2026-09-01.md). The
+original topology and ten thresholds were frozen on 2026-08-30; the operator
+explicitly replaced them after WP7 had already supplied most of their
+implementation-risk evidence. The operator then explicitly accepted the two
+reported transient pointer-lock reacquisition denials as a KDE/Wayland Mini
+variation; they were not silently discarded from the evidence.
 
 ### Outcome
 
-Two instances of the pinned browser client, originating from two independent
-client networks, complete a sustained FFA session through the relay to the
-matching native server while meeting the frozen thresholds.
+Two isolated contexts of the pinned browser client on one accepted workstation
+complete five minutes of concurrent FFA through the relay to the matching
+native server. Each client reconnects after its own targeted relay drop without
+disturbing the other, and the retained network/server evidence confirms the
+decided datagram, queue, identity and session-separation properties.
 
 ### Fixed acceptance topology
 
-- Two independently addressed client networks and one server-side observation
-  point.
-- One exact browser/OS contract and identical client artifacts.
-- At least 15 minutes of active two-player FFA after both clients join.
-- Planned disconnect/reconnect exercises for each client.
-- Server-side evidence that both players appear only as the relay's IPv4
-  endpoint with distinct per-player source ports, and that neither player's
-  public address appears. The distinct source ports are **correctness** evidence
-  as well as privacy evidence: `SV_DirectConnect` matches a client slot on base
-  address and (qport **or** source port), so two live sessions sharing a
-  server-facing port is a deterministic slot collision, not merely a privacy
-  weakness.
+- Fedora Linux 44 `x86_64`, KDE on Wayland and the exact pinned Chrome for
+  Testing, accepted by the operator for WP8 on 2026-09-01.
+- One fresh temporary browser profile with one normal and one incognito
+  top-level context. They share the host network by design; no namespace,
+  interface or route manipulation is part of WP8.
+- Identical client artifacts and separate WebTransport sessions, one-time
+  authorizations and virtual assignments.
+- At least five minutes in which both clients are concurrently in game and
+  active. Time spent completing a planned reconnect does not count toward the
+  five minutes.
+- Both clients move and fire, and the operator witnesses at least one real
+  player-vs-player frag.
+- One targeted disconnect/reconnect exercise per client; the other client
+  remains live and playable throughout.
+- One server-side observation point. The server sees the relay's shared base
+  address with distinct live per-session source ports and distinct client
+  qports. Actual addresses, ports, qports, tokens and destinations are
+  runtime-only and are not retained.
 
 ### Numeric thresholds
 
-The table in [`wp6-network-sizing.md`](wp6-network-sizing.md), "WP8 acceptance
-thresholds", **is** the contract: connection success, unexpected disconnects,
-planned reconnects, packet send failures, frame pacing, long tasks, relay-added
-latency, receive-queue behaviour, reassembly and privacy. All ten were frozen by
-the operator on 2026-08-30, each as WP6 proposed. They are deliberately not
-restated here — one table, one place to change, and changing any of them now is
-a plan change rather than a WP8 judgement call.
+The amended table in [`wp6-network-sizing.md`](wp6-network-sizing.md), "WP8
+acceptance thresholds", **is** the current contract. The Mini amendment removes
+the 15-minute endurance, repeated-attempt percentage, numeric frame/long-task
+gates, memory-growth analysis and native-relative latency measurement. WP7's
+accepted exact-build, census, two-session, bounded-queue, responsive-browser and
+one-sided reconnect evidence is incorporated by reference rather than rerun.
 
 ### Evidence envelope
 
-- Connection/reconnect success, unexpected disconnect and packet-send failure
-  counts, with oversize refusals counted separately from write failures — WP6
-  requires zero of the former and tolerates a small rate of the latter, so a
-  report that merges them cannot be assessed. Oversize refusals are themselves
-  reported split into **client-originated** and **elicited**; the zero threshold
-  applies to the client-originated count, because the `echo` mechanism WP6
-  installed deliberately produces elicited refusals when it works.
-- Oversize-refusal counts from **both** endpoints. The largest over-budget
-  classes are server-emitted, so browser-side counters alone cannot show that no
-  class was missed.
-- **Distinct qports for the two clients**, read from the server side. On the
-  relay's shared server-visible address `qport` is the only thing separating the
-  two netchans, so this is the evidence that the browser's `Sys_RandomBytes` is
-  a real CSPRNG rather than a stub. Also report any
-  `SV_PacketEvent: fixing up a translated port` occurrence: on a shared address
-  that log line is the observable signature of the collision hazard WP6 records.
-- Evidence that the port-aware rate-limit cvar is **enabled** on the acceptance
-  server, and any observed rate-limit rejection. With it on, one client's
-  reconnect loop can no longer deny `getchallenge` to the other, which is what
-  removes the shared-address caveat from the connection-success threshold. A
-  rejection observed anyway means the cvar was not enabled or the change does
-  not work, and either way is a WP7 defect rather than a threshold to relax.
-- Browser- and server-side per-session evidence for packet sizes, drops,
-  reassembly failures and bounded queue behaviour, including the observed
-  maximum queue depth.
-- The transport's reported datagram maximum sampled over the whole session, not
-  only at open. WP2 could only sample it at open and recorded that as a known
-  limitation; a fifteen-minute session is the first opportunity to close it.
-- Whether a keep-alive was needed, and at what interval.
-- Relay-side non-identifying aggregate counters for rate-limit and malformed or
-  rejected traffic; do not require per-session relay metrics that do not exist.
-- End-to-end latency and relay-added overhead against a direct native round trip
-  on the same path, since WP6's latency thresholds are relative.
-- Browser frame-time distribution, long tasks, console errors and memory/queue
-  growth over the session.
-- Server logs and packet observations sufficient to verify relay-mediated
-  privacy without recording player public addresses in committed evidence.
+- Per-client initial connection, targeted terminal event, reconnect time and
+  continued-liveness result for the unaffected context.
+- Full per-client browser snapshots at the start and end of the measured
+  interval: assignments, attempts, refusal classes, write/receive failures,
+  queue high-water marks and overflows, invalid return frames,
+  engine receive refusals, browser errors and pointer-lock errors,
+  keep-alive counts and the live enforced-inner-budget state. Each reconnect retains
+  its completion time and predicate — new reconnect ordinal, `running` state
+  and continued liveness of the other client — while the cumulative final
+  snapshot covers every counter across both attempts.
+- Server-side log or packet observation sufficient to detect an endpoint
+  oversize and translated-port change. Silent rate limiting is assessed from
+  the client connection outcomes rather than inferred from an absent response.
+- A server-side post-join game-UDP capture reduced to non-identifying aggregate evidence:
+  maximum datagram size by direction, the two clients' distinct qport count,
+  distinct concurrently live relay-source-port count and the whole-packet
+  8/10-byte header geometry. The unchanged exact artifact's WP7 census supplies
+  the fragmented 12/14-byte geometry incorporated by reference. No address or
+  port value is retained.
+- Evidence that `sv_rateLimitPerPort` is `1` in the exact server launch profile.
+- The exact WP7 browser manifest, content manifest, engine pin and server-image
+  identity, including the final-pin fragmented-gamestate/reassembly census. No
+  rebuild is required unless an owning input changes.
+- An operator statement that both clients moved and fired, at least one real
+  player-vs-player frag occurred, and each client remained playable while the
+  other was deliberately reconnected.
 
 ### Explicit non-goals
 
 - Load testing beyond two players.
+- Independent client networks, public-address diversity or host networking
+  changes.
+- Endurance, SLO, numeric browser-performance or native-relative latency
+  measurement beyond the accepted WP7 observations.
 - Browser-hosted or peer-to-peer multiplayer.
 - Production SLOs, autoscaling or Internet-wide compatibility.
 - Accounts, progression, matchmaking, public catalogue or moderation.
@@ -1248,15 +1258,17 @@ a plan change rather than a WP8 judgement call.
 
 ### Review
 
-Acceptance-evidence review plus a final vertical-slice review across the public
-loader, ioq3 pin, relay contract, content manifest and server artifact. Any
-observed datagram over the selected budget, or any reassembly failure, reopens
-WP6 rather than being waived here.
+Focused acceptance-evidence review plus a final vertical-slice consistency read
+across the unchanged public loader, ioq3 pin, relay contract, content manifest
+and server artifact. No new implementation review is required if WP8 changes
+only its plan and evidence. Any observed datagram over the selected budget, or
+any reassembly failure, reopens WP6 rather than being waived here.
 
 
 ## WP9 — Product-integration blueprint
 
-**State:** Scope gate. Begin only after WP8 closes the technical vertical slice.
+**State:** Not started. WP8 has closed the technical vertical slice; begin WP9
+only under separate operator authorization.
 
 ### Outcome envelope
 
@@ -1316,8 +1328,8 @@ integration implementation is scheduled.
    2026-08-30. The re-verification pass then **passed**. **This gate is
    closed.** WP7 was then explicitly authorized, implemented, reviewed and
    accepted on 2026-09-01.
-4. **Vertical-slice closure:** WP8 reviews the complete two-client evidence
-   before WP9 or any hosting integration begins.
+4. **Vertical-slice closure:** completed by WP8-Mini on 2026-09-01. WP9 and all
+   hosting integration remain separate, not-started work.
 
 ## Scheduled follow-up outside the numbered packages
 
@@ -1329,11 +1341,12 @@ loader/engine canvas-size propagation.
 
 ## Input still needed from the operator
 
-No additional input is needed for the completed WP0–WP7 increments. WP7's
+No additional input is needed for the completed WP0–WP8 increments. WP7's
 routed acceptance received a runtime-only fresh-token issuer and a route to its
 matching rebuilt native server; those inputs were discarded after the accepted
-round. Before WP8, the operator must explicitly authorize the package and
-provide or approve access to two independent client networks for the privacy
-and multiplayer acceptance. Product naming, additional platforms and
-production deployment choices are deliberately not prerequisites for this
-prototype.
+round. WP8-Mini was explicitly authorized on 2026-09-01 with local normal and
+incognito contexts on the accepted KDE/Wayland workstation. The operator
+provided the witnessed gameplay, frag and bidirectional reconnect confirmations
+and explicitly accepted the reported KDE/Wayland pointer-lock variation.
+Product naming, additional platforms and production deployment choices belong
+to later separately authorized work.

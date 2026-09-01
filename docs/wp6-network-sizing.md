@@ -10,8 +10,10 @@ not change any sizing decision recorded here.
 The operator selected every open point on 2026-08-30,
 each one exactly as this analysis proposed: strategy 2 with its profile bounds,
 the record-backed 768-byte sizing target giving `FRAGMENT_SIZE = 704`, the
-64-byte reserve and alignment, the 512-byte userinfo cap, and all ten WP8
-thresholds frozen. Nothing in the arithmetic changed on selection.
+64-byte reserve and alignment, the 512-byte userinfo cap, and the original ten
+WP8 thresholds. The operator explicitly superseded only the WP8 acceptance
+topology and evidence thresholds with WP8-Mini on 2026-09-01; no sizing value,
+profile bound or implementation requirement changed.
 
 **Independent protocol/security review: fix-first, and the fixes are in.** The
 reviewer recomputed the whole derivation independently and found no arithmetic
@@ -63,8 +65,10 @@ It decides the transport strategy, the exact byte, packet and fragment limits
 that strategy needs, what happens when a live session reports a budget the
 decision did not anticipate, and the implementation and acceptance contracts
 that replace WP7's and WP8's scope-gate text. All of that was selected by the
-operator on 2026-08-30 and is decided, not proposed — subject only to the
-independent review named in the status header, which can still reopen it.
+operator on 2026-08-30 and is decided, not proposed. WP8's acceptance-only
+contract was later narrowed by the explicit Mini plan change; the independent
+review named in the status header could have reopened the sizing decision but
+passed. Only later contradictory evidence can reopen it now.
 
 It does not implement anything. No engine source is touched by this work
 package; `ioq3/` is untouched at its pinned commit, and no record, lock,
@@ -699,14 +703,14 @@ gaps below, and harmless because nothing on a relayed path is loopback.
 The relay collapses every player onto one server-visible IPv4 endpoint, with a
 source port per session. That is the privacy property the whole project exists
 for, and the server was not written for it. Three consequences, none of which
-changes the sizing, all of which touch the frozen WP8 thresholds.
+changes the sizing, all of which touched the original frozen WP8 thresholds.
 
 **Rate limits are shared.** `SVC_BucketForAddress` keys its leaky buckets on the
 address bytes and never the port (`sv_main.c:405-427`), so both players share
 **one** bucket. `getchallenge` is limited to burst 10 per 1,000 ms per address
 (`sv_client.c:71-75`), as are `getstatus`, `getinfo` and `rcon`. One session
 reconnecting in a loop can therefore deny `getchallenge` to the other — directly
-against the frozen "100% of connect attempts within 3 attempts" threshold, and
+against the original frozen "100% of connect attempts within 3 attempts" threshold, and
 by a mechanism that has nothing to do with either client misbehaving.
 
 **qport becomes the only discriminator.** `SV_PacketEvent` demultiplexes on
@@ -863,7 +867,8 @@ review, and this document neither selects nor designs it.
 fragment-size reduction**, sized to the **record-backed floor of 768 inner
 bytes**, giving **`FRAGMENT_SIZE = 704`**, together with the profile bounds
 above. The reserve stays at 64 bytes with 64-byte alignment, the userinfo cap at
-512 bytes, and the WP8 thresholds are frozen as tabulated below.
+512 bytes. The current, operator-amended WP8-Mini thresholds are tabulated
+below; they do not alter this transport decision.
 
 The reasoning that was put to the operator, for the conservative target over the
 permissive one:
@@ -919,9 +924,11 @@ alternative stays recomputable rather than becoming a historical claim.
 | Sizing target | Record-backed 768-byte inner floor → `FRAGMENT_SIZE = 704` |
 | Reserve / alignment | 64 bytes / 64 bytes |
 | Userinfo cap | 512 bytes |
-| WP8 thresholds | All ten frozen as tabulated, including the 256-datagram receive queue |
+| WP8 thresholds | Original ten selected on 2026-08-30; explicitly replaced by the acceptance-only Mini table on 2026-09-01, retaining the 768-byte budget, zero failure/refusal bounds and 256-datagram receive queue |
 
-Every one as proposed by this analysis; no value was changed on selection.
+Every sizing value was selected as proposed by this analysis. The original WP8
+table was likewise selected unchanged, then explicitly replaced by the later
+operator-owned Mini acceptance amendment above; no sizing value moved with it.
 
 ## Behaviour when the live budget is not what was measured
 
@@ -1006,33 +1013,38 @@ confirmation that the path enforces it; no 1,354- or 1,356-byte frame has been
 put on a wire by anything in this repository. It is worth exactly what it is: a
 check that the model's arithmetic matches the browser's.
 
-**Deferred to WP7 and WP8, on the live path.** Everything the loopback cannot
-speak to: real per-direction behaviour, whether a keep-alive is needed and at
-what interval, whether the browser ever rejects a write that fits the reported
-maximum, whether the reported maximum moves over a fifteen-minute session, and
-the behaviour of a real relay under real fragment bursts. These are named in
-WP7's and WP8's replacement contracts below so they cannot be lost.
+**Deferred to the live path.** WP7 answered the implementation-risk questions
+the loopback cannot speak to: real per-direction behaviour, keep-alive need,
+live-budget enforcement and real relay fragment bursts. WP8-Mini incorporates
+that accepted evidence and adds start/end budget observations plus the reduced
+two-client network gate below; it deliberately no longer claims a 15-minute
+reported-maximum stability measurement.
 
 ## WP8 acceptance thresholds
 
-**Frozen by the operator on 2026-08-30**, all ten exactly as proposed. Changing
-any of them after this point is a plan change, not a WP8 judgement call. Each
-applies to the WP8 topology — two independently addressed browser clients, at
-least 15 minutes of active two-player FFA after both join, and planned
-disconnect/reconnect exercises for each.
+**Current contract: WP8-Mini, explicitly authorized by the operator on
+2026-09-01.** This table replaces the original ten thresholds frozen on
+2026-08-30. The replacement is an operator-owned plan change made after WP7 had
+already passed the exact builds, final-pin census, two-session relay round,
+bounded-queue observations, responsive-browser check and one-sided reconnect.
+It does not move the selected 768-byte budget or any WP7 implementation bound.
+The current topology is one accepted Fedora/KDE workstation, one normal and one
+incognito context in a fresh profile, five minutes of concurrent active FFA,
+and a targeted reconnect of each client.
 
 | Metric | Threshold | Rationale |
 | --- | --- | --- |
-| Connection success | 100% of connect attempts within 3 attempts; ≥ 90% on the first attempt | The gamestate is the first large transfer; a sizing error shows up as a *deterministic* connect failure, so anything below this is a sizing bug rather than flakiness. With the port-aware rate-limit bucket enabled in the managed profile, the shared-address caveat that would otherwise have applied to this row is gone for the acceptance topology. |
-| Unexpected disconnects | **0** per client per 15-minute session | With a fixed profile and a bounded queue there is no benign cause; one is a defect to explain, not a rate to tolerate. |
-| Planned reconnects | 100% success, each within 10 s to in-game | The census's own reconnect completed; the budget here is the fresh authorization plus a second gamestate. |
-| Packet send failures | **0** *client-originated* oversize refusals; elicited refusals counted separately and informational; ≤ 0.1% write failures | Zero oversize is the direct test of this decision — one refusal means a class was missed. **Refined by the operator on 2026-08-30** so the zero applies only to client-originated refusals: the `echo` mechanism this decision installs deliberately produces *elicited* refusals when it works correctly, and an assessor reading this row must not fail the run on one. Write failures are a transport property WP2 never observed, so a small non-zero allowance is honest. |
-| Frame pacing | ≥ 95% of frames within 2× the median frame time; no frame > 250 ms after the first 10 s | WP4 established the offline baseline; this bounds what the network backend is allowed to add, and excludes startup. |
-| Long tasks | No main-thread task > 100 ms after the first 10 s | A synchronous drain of a fragment burst would show up here; it is the specific failure mode a smaller `FRAGMENT_SIZE` makes more likely. |
-| Relay-added latency | Median round trip ≤ 1.5× the direct native round trip on the same path; 99th percentile ≤ 3× | Relative rather than absolute, because the routed path's own latency is an environment property and the record has no absolute baseline to hold anyone to. |
-| Receive queue | Bounded at a fixed depth of **256 datagrams**; no growth trend over the session; overflow is an explicit counted event | WP7's bounded queue needs a number, and an unbounded queue is the failure the envelope already forbids. |
+| Connection success | Both initial connections complete within at most 3 attempts | The Mini round is too small for a meaningful first-attempt percentage, but the gamestate must still arrive deterministically. |
+| Unexpected disconnects | **0** per client during the measured round | Planned targeted drops are classified separately. |
+| Planned reconnects | 100% success, each within 10 s to in-game | The Mini operation replaces only the browser's relay transport beneath the still-running engine/netchan: it requires fresh authorization, an assignment and operator-confirmed continued play, not a second game join or gamestate. |
+| Network failures | **0** client-originated oversize refusals, write failures, invalid return frames, receive failures, queue overflows, failed reassemblies or truncated messages; elicited refusals remain separately informational | These are the network defects WP8-Mini still exists to detect. Browser counters plus server-side packet observation cover both endpoints. |
+| Datagram budget | No observed game UDP payload above **768 bytes** in either direction; at the start and end each browser is open under `acceptedInnerFloor=768` with no `path_budget` refusal or terminal reason | WP7's accepted per-write and periodic enforcement closes a session below the floor, so the open states retain the direct live-path test without pretending the snapshot exposes a separate raw maximum or manufacturing an endurance claim. |
+| Receive queue | Fixed depth **256 datagrams**, with the observed high-water mark reported and zero overflow | The implementation is already structurally bounded; the short round checks that real reconnect bursts stay inside it. |
 | Reassembly | 0 failed reassemblies; 0 truncated messages | The direct test that both endpoints agree on `FRAGMENT_SIZE`. |
-| Privacy | Both players appear only as the relay's IPv4 endpoint with distinct source ports; neither public address appears in server logs or committed evidence | Unchanged from the WP8 envelope; restated so it is frozen with the rest. |
+| Session separation | Two distinct virtual assignments, distinct client qports and distinct concurrently live server-facing source ports; no translated-port fixup; either targeted drop leaves the other client playable | These are the correctness boundaries on a shared relay-visible server address. Values remain runtime-only. |
+| Server profile | `sv_rateLimitPerPort=1`; both initial engine connections complete on their first attempt, with no connection outcome attributable to a silent rate-limit drop | Two local contexts deliberately exercise the shared-household/source-address case. Because the server's limiter drops excess requests silently, successful connection outcomes — not absence of a response packet — are the Mini evidence. |
+| Privacy | The server sees only the relay's base address; no workstation address or environment-specific value enters committed evidence | Different public client networks are no longer required because ioquake3 clients communicate with the server, not with each other. |
+| Browser behavior | Both contexts remain responsive with zero unexpected or gameplay-affecting browser errors; both move and fire, and at least one player-vs-player frag is witnessed. Immediate pointer-lock reacquisition denials during manual top-level KDE/Wayland context switching are counted and reported separately. | Numeric frame, long-task, memory and latency gates were explicitly removed; WP7's responsive-browser observation is incorporated by reference. The operator explicitly accepted the two reported transient denials in the 2026-09-01 Mini round as a KDE/Wayland variation after both clients remained playable. |
 
 ## Paths that are sizing-neutral
 
