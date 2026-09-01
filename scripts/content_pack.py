@@ -227,7 +227,7 @@ class ClosureReport:
     shader_files: set[str] = field(default_factory=set)
     # Which shader file the closure resolved each shader *name* to. The set of
     # files above cannot answer that, and cross-archive shader precedence
-    # (§4.2) is a property of names, not of files.
+    # is a property of names, not of files.
     shader_names: dict[str, str] = field(default_factory=dict)
 
     @property
@@ -519,11 +519,89 @@ def load_recipe(path: Path) -> dict[str, Any]:
         "sources",
         "notices",
         "derivedReferences",
+        "shaderAuthority",
     ):
         _require(recipe, key, str(path))
     if not recipe["sources"]:
         _fail(f"{path}.sources", "must not be empty")
+    authority = recipe["shaderAuthority"]
+    if not isinstance(authority, dict) or set(authority) != {"reason", "selects"}:
+        _fail(f"{path}.shaderAuthority", "must have exactly 'reason' and 'selects'")
+    for key in ("reason", "selects"):
+        if not isinstance(authority[key], str) or not authority[key]:
+            _fail(f"{path}.shaderAuthority.{key}", "must be a non-empty string")
     return recipe
+
+
+def shader_authority_paths(recipe: dict[str, Any], sources: SourceSet) -> list[str]:
+    """Every source path the recipe's shader-authority rule selects.
+
+    This is the one member category that is in the pack by *rule* rather than
+    because a closure reached it, so the rule is recipe data with a stated
+    reason rather than a special case in the builder. The selection is over the
+    source set, which the recipe pins by digest, so it does not depend on which
+    maps are in the build.
+    """
+    pattern = _game_path(recipe["shaderAuthority"]["selects"])
+    selected = [path for path in sources.paths() if fnmatch(path, pattern)]
+    if not selected:
+        # A selection that matches nothing satisfies every check below without
+        # packaging anything: the base carries no shader file, no archive holds
+        # a "stray" one, and the assembly is green with the rule gone. One
+        # character in the recipe pattern is enough to get there, so an empty
+        # selection is the failure rather than the trivial success.
+        raise ContentError(
+            f"shader authority: {recipe['shaderAuthority']['selects']!r} selects "
+            "no source path; the rule would be satisfied by packaging nothing"
+        )
+    return selected
+
+
+def check_shader_authority(
+    recipe: dict[str, Any],
+    sources: SourceSet,
+    archives: dict[str, dict[str, bytes]],
+    base_name: str,
+) -> None:
+    """The base holds every selected shader file and no other archive holds any.
+
+    `check_shader_resolution` catches a *resolved* name whose run-time winner
+    moved, which is the loud half. This is the quiet half: a shader file the
+    base leaves out, or one left in a map archive whose names happen not to
+    collide with anything, breaks the rule without changing how any name
+    currently resolves — and puts the cross-archive hazard back for whatever
+    map set comes next. Asserting the rule is what makes that a failure now
+    rather than a surprise later.
+    """
+    pattern = _game_path(recipe["shaderAuthority"]["selects"])
+    selected = {_game_path(path) for path in shader_authority_paths(recipe, sources)}
+    if base_name not in archives:
+        raise ContentError(
+            f"shader authority: no archive named {base_name}, so the base cannot "
+            "be checked for the shader files it must carry"
+        )
+
+    def selects(members: Iterable[str]) -> list[str]:
+        return sorted(path for path in members if fnmatch(_game_path(path), pattern))
+
+    in_base = {_game_path(path) for path in selects(archives[base_name])}
+    if in_base != selected:
+        missing = sorted(selected - in_base)
+        extra = sorted(in_base - selected)
+        raise ContentError(
+            f"shader authority: {base_name} must carry exactly the shader files "
+            f"the sources provide (missing {missing}, unexpected {extra})"
+        )
+    for name, members in sorted(archives.items()):
+        if name == base_name:
+            continue
+        stray = selects(members)
+        if stray:
+            raise ContentError(
+                f"shader authority: {name} packages shader files {stray}; only "
+                f"{base_name} may, or cross-archive shader precedence is back "
+                "and check_shader_resolution can no longer see it"
+            )
 
 
 # One fragment carries everything about one map that the archive for that map
@@ -578,7 +656,8 @@ def load_map_fragments(root: Path, recipe: dict[str, Any]) -> dict[str, dict[str
     holds no list of maps: it is the base archive's own selection input, and its
     digest is what the base's notice carries, so a map set inside it would move
     the base's bytes — and every existing map archive's — whenever a map was
-    added. That is precisely what §8.1's acceptance test forbids.
+    added. That is precisely what the acceptance test in
+    `scripts/verify-content-pack.sh` forbids.
 
     The fragments do not thereby escape the release identity. The content
     manifest records one input per fragment with its digest
@@ -978,7 +1057,9 @@ def check_shader_resolution(
     So a name whose index winner sits in a map archive, and which some file
     another archive packages for an unrelated name also defines, would render
     from that other definition and not from the audited one. Nothing reports it.
-    This is the check §4.2 asks for, and the archive keys must be the PK3 names
+    File lookups and shader definitions resolve in opposite directions across
+    archives, so no naming scheme makes both agree; this is the check that
+    finds the difference. The archive keys must be the PK3 names
     the engine sees, not the manifest paths.
     """
     winner: dict[str, tuple[str, str]] = {}

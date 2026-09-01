@@ -216,7 +216,7 @@ all; they are reported separately from missing assets rather than hidden.
 
 ## How the member set is derived
 
-The pack is a closure, not a list. Roots:
+The pack is a closure, not a list, with one declared exception — root 8. Roots:
 
 1. **What the pinned `baseq3` QVM sources name, by two readings.**
    `scripts/qvm_references.py` reads `cmake/basegame.cmake` and takes the exact
@@ -282,6 +282,17 @@ The pack is a closure, not a list. Roots:
    through `#include` and `CHARACTERISTIC_*` file references — resolved from
    `botfiles/` itself, because `botlib` calls `PC_SetBaseFolder("botfiles")`.
 7. **The packaged notices.**
+8. **Every `scripts/*.shader` in the sources**, into the base archive and into
+   no other. This is the one member category that is in the pack by **rule**
+   rather than because a closure reached it, so the rule and its reason are
+   recipe data — `shaderAuthority` in `content/pack-recipe.json` — rather than
+   a special case in the builder, and `check_shader_authority` asserts both
+   halves of it on every assembly. Its images are deliberately not followed: a
+   shader name a map actually uses is still resolved through the shared
+   `ShaderIndex` by the archive that uses it, and that archive packages the
+   winning definition's images exactly as before. See
+   [the shader authority](#the-base-is-the-packs-shader-authority) for why the
+   split needs it.
 
 Resolution uses the engine's own rules, read out of the pinned checkout:
 
@@ -293,8 +304,10 @@ Resolution uses the engine's own rules, read out of the pinned checkout:
 - a drawn reference is looked up as a shader **with its extension stripped**
   and only falls back to an image of the *original* name (`R_FindShader`);
 - shader definitions are indexed across every `scripts/*.shader` in the source
-  set with reverse-alphabetical file precedence, and
-  only the 27 shader files that actually win a needed definition are packaged;
+  set with reverse-alphabetical file precedence. WP3 packaged only the shader
+  files that won a needed definition; the base now packages all of them under
+  root 8, which is what makes the index's model and the engine's agree once
+  there is more than one archive;
 - MD3 surface shaders, `.skin` surface assignments and BSP shader lump entries
   are followed transitively.
 
@@ -518,6 +531,26 @@ change: no schema, validator or WP0/WP1 artifact was modified.
 
 ## Findings recorded rather than fixed
 
+- **The closure does not model `SP_target_speaker`'s `.wav` append.** An entity
+  `noise` value is resolved as written (`content_pack.py` `_add_bsp`), but the
+  game module appends `.wav` unless the value already contains it (ioq3
+  `code/game/g_target.c`), so `sound/ambient/sparks.ogg` is opened as
+  `sound/ambient/sparks.ogg.wav`. Across the audited map set that is the only
+  value where the two differ, and neither name exists in any pinned archive, so
+  the reference dangles either way and the fragment accepts it. The gap is
+  nevertheless **fail-open**: where a source provides the un-suffixed name, the
+  closure would package a member the engine never opens and report the
+  reference resolved — no unresolved entry, no stale acceptance, no failing
+  gate, and a silent sound. Fixing it means modelling which spawn functions
+  append and which do not, which is a closure-model change rather than a
+  content one. Found by the WP-F review.
+- **`_stage_images` emits `skyParms` outerbox names without an extension**, and
+  the image resolver then accepts any of seven, while `ParseSkyParms` only ever
+  tries `"%s_%s.tga"` (`renderergl2/tr_shader.c`). Not live — no pinned archive
+  provides `full_*` in any extension, which is why the whole class is accepted
+  — but it is the mechanism the largest acceptance class rests on, so a future
+  source that shipped one of those names as `.jpg` would resolve here and still
+  be missing in the engine. Found by the WP-F review.
 - **The shader stage reader models the stage image directives common to both
   renderers.** `map`, `clampmap`, `videomap`, `animMap` and `skyParms` are what
   name images in either renderer; `renderergl2`'s stage-type keywords
@@ -978,3 +1011,276 @@ with the reason that they are never looked up: `cg_players.c` registers a
 custom skin for every player model, and `R_AddMD3Surfaces` then resolves each
 surface through that skin alone, falling to `tr.defaultShader` rather than to
 the MD3's own shader name for a surface the skin does not cover.
+
+## Amendment of 2026-09-01: the audited map set
+
+The pack carried one map. This amendment records the audit behind the set it
+carries now: which maps, who made them, what the licence position is for each,
+what each map archive accepts as an unresolved upstream reference, and what a
+real engine did with them.
+
+The archives are published in batches, because each publication re-identifies
+the release. The audit below covers the whole audited set; the authority for
+which archives exist at any commit is
+`provenance/arena-web-ffa-content-manifest.json`, which records one
+`arena-web-map-<name>` input per published fragment, and
+`release/browser-release.json`, which names every served file.
+
+### The set, and how it was cut
+
+Twenty-nine maps, every one already inside the six digest-pinned archives this
+recipe selects from. **No new content source was added**, which was checked
+rather than assumed: the member provenance of all twenty-nine closures resolves
+to `openarena-088-data`, `openarena-data`, `openarena-maps`, `openarena-misc`
+and `openarena-textures` and to nothing else, so `content/pack-recipe.json`
+stays untouched as maps are added and the base archive stays byte-stable.
+
+Sixty-eight maps ship a BSP. The criteria, in the order they cut:
+
+1. **A licence this project can stand behind.** `maps/oa_thor.*` is GPL-2-only
+   in Debian's per-file review and is excluded by an enforced rule, below.
+2. **An arena definition upstream.** Seven maps ship a BSP with no entry in
+   either `scripts/arenas.txt`, so they have no `longname` and no declared game
+   type. Inventing one is a product decision, not an audit result.
+3. **A determinable author.** Five maps carry no credit anywhere in the
+   archives — no `credits` line, no role line, no per-map notes, no author key
+   in the `.map`. They are redistributable and not creditable, which is not the
+   same thing.
+4. **A game type this profile can start.** Of the remainder, the maps upstream
+   tags `ffa` or `tourney`.
+5. **A working presentation in these archives**, decided by rendering each
+   candidate rather than by reading its closure report. Three maps failed it
+   and are recorded below.
+
+### The licence position
+
+**The authority is Debian's machine-readable `debian/copyright` for each source
+package**, cited by URL and digest above, and it declares `Files: *` as
+`GPL-2+` with exactly two narrower stanzas across the whole set: the `merman`
+player model and the `oa_thor` map, both GPL-2-only. That is a per-file review
+by a distribution that has to defend it, cross-checked here against the
+material itself — the `COPYING` text, the `README` release terms, the
+`source/assets/maps/credits` author lines and the per-file bot headers.
+
+**No map in the set falls under either narrower stanza**, so every packaged
+member is `GPL-2.0-or-later`. This is enforced and was exercised rather than
+argued: each recipe source declares its `nonDefaultLicensePaths`, the exclusion
+is applied globally rather than per source — so a path one source declares as
+differently licensed cannot slip in because a higher-precedence source happens
+to provide the same game path — and an assembly naming `oa_thor` aborts with
+
+    profile map oa_thor: maps/oa_thor.bsp is covered by pattern 'maps/oa_thor.*',
+    which openarena-088-data declares as differently licensed from its source
+    expression; it must be selected out or declared separately
+
+even though `openarena-maps` ships that same game path with no restriction
+declared.
+
+**All twenty-nine ship a Radiant `.map` preferred source form** in the same
+digest-pinned tarball as the BSP, so the corresponding-source offer is complete
+for every map. Checked against the extracted trees by name, including the two
+mismatches upstream carries — `oa_thor`'s source is `oa_Thor.map` and
+`oa_spirit3`'s is `oa_spirit3ctfduel1.map`. Neither map is in this set.
+
+### Per-map authorship
+
+GPL-2 grants the right to redistribute; it does not write the credits. This
+table is what the credits have to be right about. Every citation is a file
+inside the six pinned archives.
+
+| Map | Longname | Credited author(s) | Evidence in the pinned archives | Note |
+| --- | --- | --- | --- | :-: |
+| `aggressor` | Aggressive Tendencies | Tyrann | source/assets/maps/credits; CREDITS 'Tyrann - Map (Aggressor)' | G |
+| `am_galmevish` | GalMevish | Luciano 'Armageddon_Man' / 'Neon_Knight' Balducchi | worldspawn message 'GalMevish by Armageddon_Man'; CREDITS 'Armageddon_Man - Maps (am_gamelvish)' | — |
+| `am_galmevish2` | Galmevish Yards | Luciano 'Neon_Knight' Balducchi | worldspawn message 'GalMevish by Armageddon_Man'; CREDITS-0.8.8 'Neon_Knight - Maps (am_ series)' | — |
+| `am_spacecont` | Space Contact | Luciano 'Neon_Knight' Balducchi | CREDITS-0.8.8 'Neon_Knight - Maps (am_ series)'; readme_088 new-map list | — |
+| `am_underworks2` | Under Working 2.0 | Luciano 'Neon_Knight' Balducchi | CREDITS-0.8.8 'Neon_Knight - Maps (am_ series)'; am_underworks/ source subdirectory | — |
+| `ce1m7` | Lava House Of Thon | Ed (OpenArena conversion); American McGee (original Quake 1 e1m7) | source/assets/maps/credits 'ce1m7 - Ed, American McGee'; CREDITS 'Ed - Map (Conversion of e1m7)' | A C |
+| `czest1dm` | Monastery At Night | Cestmir 'Czestmyr' Houska | czest1dm.txt copyright + licence header; CREDITS | — |
+| `czest1tourney` | The Space Spire | Cestmir 'Czestmyr' Houska | CREDITS 'Czestmyr - Maps (czestdm1, czest1tourney, czest2ctf, czest3ctf)' | — |
+| `dm6ish` | Darkest Hour | SavageX (Maik Merten) | worldspawn message 'dm6ish by maik merten'; CHANGES 'DM6ISH added, map by SavageX (adapted from Nexuiz map sources)'; CREDITS 'SavageX - Maps' | E |
+| `kaos2` | Khaos Everywhere! | Vondur | worldspawn message 'Khaooohs -- by Vondur'; CREDITS 'Vondur - Map (kaos)' | G |
+| `mlca1` | Meisterlampe's Temple | '[uM]Meisterlampe' (mapper); Luciano 'Neon_Knight' Balducchi (locations, bot support) | mlca1_readme.txt; CREDITS-0.8.8 'meisterlampe - Maps (mlca1, mlctf1)' | — |
+| `oa_dm1` | Think Twice Or Die | id Software / John Romero (original Quake 1 dm1); OpenArena converter not named | worldspawn 'Place of Two Deaths (converted from q1 sources)'; CHANGES "Quake's DM maps converted, from dm1 to dm7" | A B |
+| `oa_dm2` | Trappie Land | id Software / John Romero (original Quake 1 dm2); OpenArena converter not named | worldspawn 'Claustrophobopolis (Converted from q1 sources)' | A B |
+| `oa_dm3` | Abandoned Base | id Software / John Romero (original Quake 1 dm3); Alias Conrad Coldwood (OpenArena conversion) | worldspawn 'The Abandoned Base'; oadm3readme.txt signed 'Alias Conrad Coldwood, August 2nd 2007' | A |
+| `oa_dm4` | A Bad Place | id Software / John Romero (original Quake 1 dm4); OpenArena converter not named | worldspawn 'The Bad Place (converted from q1)' | A B |
+| `oa_dm5` | Inner Cistern | id Software / John Romero (original Quake 1 dm5); OpenArena converter not named | worldspawn 'The Cistern' | A B |
+| `oa_dm6` | The Dark Zone | id Software / John Romero (original Quake 1 dm6); OpenArena converter not named | worldspawn 'The Dark Zone (converted from q1)' | A B |
+| `oa_dm7` | Outer Cistern | id Software / John Romero (original Quake 1 dm7); sago007 (OpenArena conversion) | source/assets/maps/credits 'oa_dm7 - converted from quake 1 by sago007' | A |
+| `oa_koth1` | Repulsive Castle | cosmo | maps_cosmo.txt entry 'oa_koth1 / Repulsion / new map from scratch' | — |
+| `oa_minia` | Kit's Mini Arena | kit89 | arena longname "Kit's Mini Arena"; CREDITS 'kit89 - Models, maps' | — |
+| `oa_pvomit` | Projectile Vomit | Henke 'Stjartmunnen' Bjork (original); dmn_clown (OpenArena conversion) | source/assets/maps/credits; oa_pvomit.txt signed by Henke Bjork | D |
+| `oa_rpg3dm2` | Trial By Error | Robert P. Gove Jr ('RPG') | rpg3dm2source.txt full readme with copyright | F |
+| `oa_shine` | Shine In The Atmosphere | Henke 'Stjartmunnen' Bjork (original); dmn_clown (OpenArena conversion) | source/assets/maps/credits; oa_shine.txt signed by Henke Bjork | D |
+| `oa_shouse` | Strange House | Jonathan 'Amphetamine' Garrod | source/assets/maps/credits 'oa_shouse - Jonathan "Amphetamine" Garrod'; CREDITS | — |
+| `pul1duel-oa` | Five Steps Ahead | 'pulchr' (Hans Litgard) | pul1duel-oa-readme.txt full readme with author and contact | — |
+| `sleekgrinder` | Sleek Grinder | cosmo | maps_cosmo.txt entry 'sleekgrinder / Sleek Grinder / new map from scratch' | — |
+| `slimefac` | Slime Facility | cosmo | maps_cosmo.txt entry and pak6-patch088/slimefac.txt 'Author: cosmo' | — |
+| `suspended` | Suspended Satellite | BaronOfHell | source/assets/maps/credits 'Suspended - BaronOfHell'; CREDITS 'BaronOfHell - Map (Suspended), texture, shaders' | — |
+| `wrackdm17` | Never Ending Yard | cosmo | maps_cosmo.txt entry 'wrackdm17 / Never Ending Yard' | E |
+
+Nine of the twenty-nine are named in `source/assets/maps/credits`; the rest
+rest on a role line in `CREDITS`, `CREDITS-0.8.5` or `CREDITS-0.8.8` — all
+three of which are packaged notice members in every archive — on a per-map
+readme in the source tree, or on the `.map` worldspawn `message`. Every author
+named above has at least one of those.
+
+### The notes, and why none of them is a licence blocker
+
+Fifteen of the twenty-nine carry a note. **They are attribution-quality
+observations, not licence defects**, and the distinction is the one the licence
+position already rests on: the authority is a distribution's per-file review,
+not the completeness of an upstream author's readme. Holding the set to a
+higher bar than that review would also disqualify the map this pack has shipped
+since WP3.
+
+| Note | What it is | Maps |
+| --- | --- | --- |
+| **A** | Conversion of an id Software Quake 1 map. OpenArena's licence argument is in the packaged `README`: John Romero released the Quake map sources under GPLv2, with an external URL as the citation. The argument travels with the pack, since `README` is one of the six notice members every archive carries, but its evidence is a link rather than a shipped licence file. Each of these maps also ships a `dmN.diff.bz2` patch against the original Quake sources, which makes the derivation explicit rather than hidden | `ce1m7` `oa_dm1` `oa_dm2` `oa_dm3` `oa_dm4` `oa_dm5` `oa_dm6` `oa_dm7` |
+| **B** | The person who did the OpenArena conversion is not named anywhere in the archives, so the conversion cannot be credited even though the original can | `oa_dm1` `oa_dm2` `oa_dm4` `oa_dm5` `oa_dm6` |
+| **C** | `source/assets/maps/credits` reads `ce1m7 - Ed, American McGee`. Romero's release covered *his own* maps; e1m7 is credited here to McGee, so the chain from McGee's map to that release is not established in the archives | `ce1m7` |
+| **D** | The original author's shipped `.txt` is a release note — build time, player count, beta-tester thanks — with no permission or licence statement of any kind. `oa_shine`'s also names a second texture author ("by me and Evillair") with no licence record here | `oa_pvomit` `oa_shine` |
+| **E** | Adapted from a third-party project's map. `CHANGES` and `maps_cosmo.txt` name Nexuiz, whose map sources are GPL, but neither record names the original map or its author, so the chain cannot be walked from the archives | `dm6ish` `wrackdm17` |
+| **F** | The author's own grant carves the textures out: `rpg3dm2source.txt` gives a full GPLv2-or-later grant with a copyright line and then says "Textures copyright (C) their respective owners", crediting id Software and Lunaran. **Checked against the shipped closure, where it does not reach**: every texture `oa_rpg3dm2` packages comes from `openarena-textures`, OpenArena's own set — `base_ceiling`, `base_floor`, `base_light`, `base_support`, `base_trim`, `base_wall`, `liquids`, `sfx`, `skies` — plus one `textures/effects` member from `openarena-data`. `CHANGES` records that OpenArena retextured the map, and the member provenance is what confirms it | `oa_rpg3dm2` |
+| **G** | The GPLv2 claim for a third party's map lives only in OpenArena's own `CHANGES` — "Tyrann's Aggressor map converted over. (GPL v2)" — which is one project stating another author's licence on their behalf. For `kaos2` the assertion names `kaos`, its sibling, and not `kaos2` at all | `aggressor` `kaos2` |
+
+Four maps are stronger than the baseline rather than weaker, carrying the
+author's own written grant inside the pinned archives: `czest1dm`
+(`Copyright (C) 2007 Cestmir "Czestmyr" Houska` and the full GPL-2-or-later
+paragraphs), `mlca1` (`Map released under GPLv2.` and the full text),
+`pul1duel-oa` (a Copyright / Permissions section) and `oa_rpg3dm2` (note F).
+
+### What each map archive accepts as unresolved
+
+An archive's accepted list is per fragment and must be hit **exactly**: an
+entry nothing references fails the build as stale, an unlisted dangling
+reference fails it as unresolved. The lists were produced by running each map's
+real closure with an empty acceptance list and recording what came back, not by
+copying a template. Five classes, over the twenty-nine kept maps:
+
+| Class | Count | What it is |
+| --- | --- | --- |
+| sky outerbox | 90 across 15 maps | OpenArena's sky shaders write `skyParms full <height> -` and `ParseSkyParms` expands that outerbox name into six images the release does not ship. Harmless by the renderer's own code: a missing outerbox image becomes `tr.defaultImage`, and the box is drawn only `if (outerbox[0] && outerbox[0] != tr.defaultImage)`, so it is skipped and the cloud layers still draw |
+| worldspawn music | 14 across 13 maps | A `music` key naming a track no pinned release ships. `kaos2` contributes two, because the lookup tries the name and the name plus `.wav`; `oa_dm2`'s single key names an intro and a loop track in one value. A missing track is silence |
+| entity sounds | 2 across 2 maps | A `noise` key naming a sound the release does not ship — `am_underworks2` and `oa_shouse` |
+| `textures/NULL` | 4 across 4 maps | q3map2's placeholder for a face the compiler could not texture, written into the BSP's shader lump — `oa_dm1`, `oa_dm2`, `oa_dm4`, `oa_dm6`. No OpenArena release ships an image for it |
+| images named but absent | 3 across 3 maps | An image a shipped shader or the BSP's shader lump names that no pinned archive provides. This is the only class a player can see, so it decided the cut below |
+
+### What the engine did with them
+
+Every candidate was loaded in the pinned native client on a virtual display,
+with three bots, sound enabled and `developer 1`, and a frame was captured from
+each. Two things came out of it that a closure report cannot give.
+
+The face shares below are recomputable from the pinned archives without that
+run: an IBSP header is followed by 17 (offset, length) lump pairs, lump 1 holds
+72-byte texture records whose first 64 bytes are the shader name, and lump 13
+holds 104-byte face records whose first four bytes are the index into lump 1.
+Counting faces per shader name is what produced every percentage here. The
+frames themselves are preparation evidence and are not committed; the counts
+are what the decision rests on.
+
+**The console is silent about the worst case.** A name in a BSP's shader lump
+that has neither a shader script nor an image file makes `R_FindShader` set
+`shader.defaultShader` and report it at `PRINT_DEVELOPER` only, so an ordinary
+run says nothing at all while the surface renders as the default grid. Three
+maps were therefore cut on the *rendered frame* and on the share of their
+geometry the affected shader covers, not on their console output:
+
+| Map | Affected faces | Why it is not in the set |
+| --- | --- | --- |
+| `pxlfan` | **682 of 1,725 (39.5 %)** | `textures/desertfactory_metal/metal05` is the map's floor. Nearly two fifths of the geometry renders as the default grid, and the captured frame shows it |
+| `am_lavaarena` | **114 of 928 (12.3 %)** | three names — the barrels (`desertfactory_metal/barrel01`, `barrel01_top`) and the ceiling lights (`base_light/ceil1_4_10k`), all in the playable space |
+| `oa_koth2` | 26 references | the whole `cosmo_block` / `cosmo_sfx` / `cosmo_trim` / `cosmoflash` set. Not an audit artefact: it names `textures/cosmo_block/beton3`, which is in no pinned archive, while the release ships `textures/cosmo_trim/beton3.tga` |
+
+The three kept maps in that class are one to two orders of magnitude below
+them, which is where the evidence separates rather than where a threshold was
+chosen: `oa_koth1` 31 of 2,200 faces (1.4 %), `am_underworks2` 26 of 4,197
+(0.6 %), and `kaos2` **0** — its shader lump names
+`textures/gothic_floor/goopq1metal7_98d` but no face uses it.
+
+Recovering any of the three cut maps means adding a content source, which is a
+recipe decision with its own licence audit, so they are held out rather than
+patched.
+
+**One accepted reference had no accepted engine note.** `SP_target_push`
+registers `sound/misc/windfly.wav` unless the entity carries the `bouncepad`
+spawnflag (ioq3 `code/game/g_trigger.c`), and no OpenArena release ships that
+file; the recipe has always accepted it as a dangling reference of the
+gamecode's own closure. `oa_pvomit` has no non-bouncepad `target_push`, so it
+never fired and `scripts/arena_acceptance.py` never listed it. Six of the
+audited maps do have one — `czest1tourney`, `oa_shine`, `sleekgrinder`,
+`slimefac`, `wrackdm17` and the cut `pxlfan` — and in the native run it fired
+on exactly those six and no others. It is an accepted note now.
+
+**And one accepted note stops firing.** `flareShader` is registered by the
+renderer itself and its image `gfx/fx/flares/blur.tga` is not in the base
+closure, which is why the acceptance has always reported it. Ten of the audited
+maps name `flareShader` directly in their BSP shader lump, so their closures
+resolve it and package that image; with any of them in the set the renderer
+finds it and the note goes quiet. The note is kept rather than deleted, because
+it is correct again for any set without those maps.
+
+### The base is the pack's shader authority
+
+Splitting one archive into many put two orders of precedence against each
+other, and at one map they could not disagree.
+
+`ShaderIndex` resolves a shader name over the whole source set and lets the
+alphabetically highest file win, which is right for a single archive because
+`write_pk3` stores members sorted and `ScanAndLoadShaderFiles` concatenates the
+listing in reverse. At run time, though, the *archive* order decides first:
+`FS_AddGameDirectory` walks the PK3s descending, so the base's definitions beat
+every map archive's — but between two map archives the archive name decides and
+the file name has no say. Two upstream files that define the same name, landing
+in two different map archives, therefore resolve to the definition the index
+did not choose, and the closure has packaged the other definition's images.
+
+Assembling all thirty-one candidates is what found it: 37 shader names across
+five upstream file pairs, `scripts/cosmoflash.shader` against
+`scripts/am_cosmoflash.shader` the largest at 30. Dropping maps does not fix
+it — over that set `scripts/detailtest.shader` was reached by 22 maps and
+`scripts/evil8_base.shader` by seven, so that pair survives almost any subset.
+
+The fix is root 8: **every `scripts/*.shader` in the sources goes into the base
+and into no other archive**. Then the base always wins, and inside one archive
+the stored order is exactly what `ShaderIndex` assumes, so the two orders
+coincide by construction. It costs 70 files and 578,756 uncompressed bytes
+(63,394 compressed), and it takes every shader file *out* of the map archives.
+The selection is over the sources, which the recipe pins by digest, so it does
+not depend on the map set and a later map still leaves the base byte-identical.
+
+The two orders coincide only if the *same* comparator decides both, which was
+not true when this was first written: `shader_file_precedence` folded case
+while `write_pk3` and the engine sort the raw path, and `scripts/QTex.shader`
+is the one capitalised shader file in these sources — `'Q' < 'a'` puts it first
+in the stored order and therefore last in precedence, while a case-folded key
+ranks it among the `q`s. Nothing collides across that pair, so nothing was
+mis-resolved, but the key is the raw path now and the claim above is true as
+written.
+
+Two consequences, both stated rather than left to be found:
+
+- **The rule is asserted rather than trusted.** `check_shader_resolution`
+  catches a resolved name whose run-time winner moved — the loud half.
+  `check_shader_authority` catches the quiet half: a shader file the base
+  leaves out, or one left in a map archive whose names happen not to collide,
+  breaks the rule without moving any name that resolves today and restores the
+  hazard for the next map set. It also refuses a `selects` pattern matching no
+  source path, because that one satisfies every other check by packaging
+  nothing.
+- **The pack gains 1,338 shader names it did not resolve before.** They change
+  nothing that was audited, because the closure has always resolved names
+  through an index built over *all* the source files: for every reference the
+  closure sees, the winner and its images are what they were. Outside the
+  closure the engine and client register seven names of their own —
+  `projectionShadow`, `flareShader`, `sun` and `gfx/2d/sunflare`
+  (`renderergl2/tr_shader.c` `CreateExternalShaders`), and `gfx/2d/bigchars`,
+  `white` and `console` (`client/cl_main.c` `CL_InitRenderer`). Four of the
+  seven are defined by a packaged shader file: `flareShader` and `sun` by
+  `scripts/oaflares.shader`, which the pack already carried, `console` by
+  `scripts/oanew.shader` — its missing image is a standing accepted note — and
+  `projectionShadow` by `scripts/decals.shader`, whose only stage image is
+  `$whiteimage`. A control run of `oa_pvomit` against the previously published
+  pair of archives and against the new set produced the same engine output.

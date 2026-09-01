@@ -259,29 +259,35 @@ class TreeTests(unittest.TestCase):
     def setUp(self) -> None:
         self.profile = load_profile(ROOT)
 
+    def _archives(self) -> list[str]:
+        """The content set, from the manifest rather than from a list here.
+
+        Every published archive is in both trees, so a test that spelled them
+        out would have to be edited for each added map — and would then be
+        asserting what its own author last typed rather than what the release
+        contains.
+        """
+        content = read("provenance/arena-web-ffa-content-manifest.json")
+        return sorted(
+            f"arena/{item['path'].rsplit('/', 1)[-1]}"
+            for item in content["artifacts"]
+        )
+
     def test_the_server_tree_carries_only_the_module_it_runs(self) -> None:
         files = server_tree_files(ROOT, self.profile)
         self.assertEqual(
             sorted(files),
-            [
-                "arena/arena-web-ffa-base.pk3",
-                "arena/arena-web-ffa-map-oa_pvomit.pk3",
-                "arena/default.cfg",
-                "arena/vm/qagame.qvm",
-            ],
+            sorted(self._archives() + ["arena/default.cfg", "arena/vm/qagame.qvm"]),
         )
 
     def test_the_client_tree_carries_the_modules_it_runs(self) -> None:
         files = client_tree_files(ROOT, self.profile)
         self.assertEqual(
             sorted(files),
-            [
-                "arena/arena-web-ffa-base.pk3",
-                "arena/arena-web-ffa-map-oa_pvomit.pk3",
-                "arena/default.cfg",
-                "arena/vm/cgame.qvm",
-                "arena/vm/ui.qvm",
-            ],
+            sorted(
+                self._archives()
+                + ["arena/default.cfg", "arena/vm/cgame.qvm", "arena/vm/ui.qvm"]
+            ),
         )
 
     def test_both_sides_use_the_same_committed_identities(self) -> None:
@@ -293,7 +299,8 @@ class TreeTests(unittest.TestCase):
             for item in content["artifacts"]
         }
         packs = [name for name in server if name.endswith(".pk3")]
-        self.assertEqual(len(packs), 2)
+        self.assertEqual(sorted(packs), self._archives())
+        self.assertGreater(len(packs), 1)
         for pack in packs:
             self.assertEqual(server[pack]["sha256"], client[pack]["sha256"])
             self.assertEqual(server[pack]["sha256"], digests[pack.rsplit("/", 1)[-1]])
@@ -318,13 +325,14 @@ class TreeTests(unittest.TestCase):
         paths = image_content_paths(self.profile, server_tree_files(ROOT, self.profile))
         self.assertEqual(
             paths,
-            [
-                "opt/arena-web/arena/arena-web-ffa-base.pk3",
-                "opt/arena-web/arena/arena-web-ffa-map-oa_pvomit.pk3",
-                "opt/arena-web/arena/default.cfg",
-                "opt/arena-web/arena/vm/qagame.qvm",
-                "opt/arena-web/ioq3ded",
-            ],
+            sorted(
+                [f"opt/arena-web/{name}" for name in self._archives()]
+                + [
+                    "opt/arena-web/arena/default.cfg",
+                    "opt/arena-web/arena/vm/qagame.qvm",
+                    "opt/arena-web/ioq3ded",
+                ]
+            ),
         )
         self.assertFalse(any(path.startswith("/") for path in paths))
 
@@ -389,7 +397,11 @@ class StagingTests(unittest.TestCase):
             engine_dir=engine_dir,
             content_dir=content_dir,
         )
-        self.assertEqual(len(verified), 3)
+        # Every published archive plus the server's QVM: the manifest-bound
+        # artifacts, which is what stage_tree verifies. default.cfg is repository
+        # source and is compared, not digest-verified.
+        content = read("provenance/arena-web-ffa-content-manifest.json")
+        self.assertEqual(len(verified), len(content["artifacts"]) + 1)
         for path in self.target.rglob("*"):
             expected = (
                 STAGED_DIRECTORY_MODE if path.is_dir() else STAGED_FILE_MODE

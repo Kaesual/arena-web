@@ -34,6 +34,7 @@ from content_pack import (  # noqa: E402
     ClosureReport,
     ShaderIndex,
     check_duplicate_members,
+    check_shader_authority,
     check_shader_resolution,
     load_map_fragments,
     map_pack_path,
@@ -887,7 +888,7 @@ class BuildGateTests(unittest.TestCase):
 
     def test_a_bot_file_the_engine_would_drop_stops_the_build(self) -> None:
         """G_LoadBotsFromFile drops the whole file at MAX_BOTS_TEXT, and then
-        no bot connects at all — which §4.5 measured."""
+        no bot connects at all, which a dedicated-server run measured."""
         recipe = json.loads(json.dumps(self.recipe))
         bot = recipe["profile"]["bots"][0]
         recipe["profile"]["bots"] = [
@@ -939,7 +940,7 @@ class BuildGateTests(unittest.TestCase):
 class ArchiveSetGateTests(unittest.TestCase):
     """`_check_archive_set` — the gates that only the finished set can decide.
 
-    They live in one function so that a test can reach all four without
+    They live in one function so that a test can reach all five without
     assembling gigabytes of upstream content: the reviewable risk is not that
     the individual checks are wrong, it is that a call site quietly disappears.
     """
@@ -954,9 +955,25 @@ class ArchiveSetGateTests(unittest.TestCase):
         cls.module = module
 
     def _recipe(self, **overrides) -> dict:
-        recipe = {"noticeFile": "NOTICE-arena-web.txt", "derivedReferences": []}
+        recipe = {
+            "noticeFile": "NOTICE-arena-web.txt",
+            "derivedReferences": [],
+            "basePackPath": "baseq3/base.pk3",
+            "shaderAuthority": {"reason": "test", "selects": "scripts/*.shader"},
+        }
         recipe.update(overrides)
         return recipe
+
+    class _Sources:
+        """Just enough SourceSet for the shader-authority rule to select from."""
+
+        def __init__(self, paths):
+            # The rule refuses a selection that matches nothing, so the default
+            # stub carries the one shader file the default archives below hold.
+            self._paths = sorted(paths or ["scripts/authority.shader"])
+
+        def paths(self):
+            return list(self._paths)
 
     def _archive(self, path, members):
         return AssembledArchive(
@@ -972,9 +989,10 @@ class ArchiveSetGateTests(unittest.TestCase):
         found.shader_names.update(shader_names or {})
         return (found, {})
 
-    def _run(self, archives, reports=None, fragments=(), recipe=None):
+    def _run(self, archives, reports=None, fragments=(), recipe=None, sources=None):
         self.module._check_archive_set(
             recipe or self._recipe(),
+            sources if sources is not None else self._Sources([]),
             archives,
             reports or {"base": self._report()},
             {name: {} for name in fragments},
@@ -983,7 +1001,12 @@ class ArchiveSetGateTests(unittest.TestCase):
 
     def test_the_committed_shape_passes(self) -> None:
         self._run(
-            [self._archive("baseq3/base.pk3", {"gfx/a.tga": b"one"})],
+            [
+                self._archive(
+                    "baseq3/base.pk3",
+                    {"gfx/a.tga": b"one", "scripts/authority.shader": b""},
+                )
+            ],
             fragments=("oa_pvomit",),
         )
 
@@ -991,36 +1014,113 @@ class ArchiveSetGateTests(unittest.TestCase):
         with self.assertRaisesRegex(ContentError, "different bytes in two archives"):
             self._run(
                 [
-                    self._archive("baseq3/a-base.pk3", {"gfx/a.tga": b"one"}),
-                    self._archive("baseq3/a-map-m.pk3", {"gfx/a.tga": b"two"}),
+                    self._archive(
+                "baseq3/base.pk3",
+                {"gfx/a.tga": b"one", "scripts/authority.shader": b""},
+            ),
+                    self._archive("baseq3/map-m.pk3", {"gfx/a.tga": b"two"}),
                 ]
             )
 
     def test_the_notice_each_archive_generates_is_exempt(self) -> None:
         self._run(
             [
-                self._archive("baseq3/a-base.pk3", {"NOTICE-arena-web.txt": b"one"}),
-                self._archive("baseq3/a-map-m.pk3", {"NOTICE-arena-web.txt": b"two"}),
+                self._archive(
+                "baseq3/base.pk3",
+                {"NOTICE-arena-web.txt": b"one", "scripts/authority.shader": b""},
+            ),
+                self._archive("baseq3/map-m.pk3", {"NOTICE-arena-web.txt": b"two"}),
             ]
         )
 
     def test_a_shader_the_runtime_resolves_elsewhere_is_refused(self) -> None:
+        """Directly, because the authority rule makes this set unbuildable.
+
+        Spreading two definitions of one name over two archives is what
+        `check_shader_resolution` exists for, and it is also exactly what
+        `check_shader_authority` now forbids, so `_check_archive_set` can no
+        longer reach it. The behaviour is still tested here; that the call site
+        exists is tested below with a set the authority rule permits.
+        """
         base = b"models/x/skin\n{\n{\nmap models/x/skin.tga\n}\n}\n"
         other = b"models/x/skin\n{\n{\nmap models/x/other.tga\n}\n}\n"
-        archives = [
-            self._archive("a-base.pk3", {"scripts/a.shader": base}),
-            self._archive("a-map-m.pk3", {"scripts/z.shader": other}),
-        ]
-        reports = {"base": self._report({"models/x/skin": "scripts/a.shader"})}
-        self._run(archives, reports)
-        reports = {"base": self._report({"models/x/skin": "scripts/z.shader"})}
+        archives = {
+            "a-base.pk3": {"scripts/a.shader": base},
+            "a-map-m.pk3": {"scripts/z.shader": other},
+        }
+        check_shader_resolution(archives, {"models/x/skin": "scripts/a.shader"})
         with self.assertRaisesRegex(ContentError, "wins at run time"):
-            self._run(archives, reports)
+            check_shader_resolution(archives, {"models/x/skin": "scripts/z.shader"})
+
+    def test_a_resolved_shader_no_archive_packages_is_refused(self) -> None:
+        """The `check_shader_resolution` call site, through the set gate."""
+        reports = {"base": self._report({"models/x/skin": "scripts/a.shader"})}
+        with self.assertRaisesRegex(ContentError, "which no archive packages"):
+            self._run(
+                [self._archive("baseq3/base.pk3", {"scripts/authority.shader": b""})],
+                reports,
+            )
+
+    def test_the_shader_authority_rule_holds(self) -> None:
+        sources = self._Sources(["scripts/a.shader", "scripts/z.shader", "gfx/a.tga"])
+        self._run(
+            [
+                self._archive(
+                    "baseq3/base.pk3",
+                    {"scripts/a.shader": b"", "scripts/z.shader": b""},
+                ),
+                self._archive("baseq3/map-m.pk3", {"gfx/a.tga": b"one"}),
+            ],
+            sources=sources,
+        )
+
+    def test_a_shader_file_the_base_leaves_out_is_refused(self) -> None:
+        sources = self._Sources(["scripts/a.shader", "scripts/z.shader"])
+        with self.assertRaisesRegex(ContentError, "missing \\['scripts/z.shader'\\]"):
+            self._run(
+                [self._archive("baseq3/base.pk3", {"scripts/a.shader": b""})],
+                sources=sources,
+            )
+
+    def test_a_selection_that_matches_nothing_is_refused(self) -> None:
+        """The one way to disarm the rule without failing anything else.
+
+        Every check below derives from the same pattern, so a pattern matching
+        no source path makes the base carry no shader file, gives no archive a
+        stray one, and passes — with the rule effectively deleted. One
+        character in the recipe is enough to get there.
+        """
+        recipe = self._recipe(
+            shaderAuthority={"reason": "test", "selects": "scripts/*.shaders"}
+        )
+        with self.assertRaisesRegex(ContentError, "selects\\s+no source path"):
+            self._run(
+                [self._archive("baseq3/base.pk3", {"scripts/authority.shader": b""})],
+                recipe=recipe,
+                sources=self._Sources(["scripts/a.shader"]),
+            )
+
+    def test_a_map_archive_that_carries_a_shader_file_is_refused(self) -> None:
+        """Removing the rule must fail here, not silently disarm the check.
+
+        Without this, dropping the shader-authority root would put shader files
+        back into map archives, and `check_shader_resolution` would go from
+        "cannot fire" to "does not fire" with nothing to distinguish the two.
+        """
+        sources = self._Sources(["scripts/a.shader"])
+        with self.assertRaisesRegex(ContentError, "only base.pk3 may"):
+            self._run(
+                [
+                    self._archive("baseq3/base.pk3", {"scripts/a.shader": b""}),
+                    self._archive("baseq3/map-m.pk3", {"scripts/a.shader": b""}),
+                ],
+                sources=sources,
+            )
 
     def test_too_many_arena_files_to_list_are_refused(self) -> None:
         with self.assertRaisesRegex(ContentError, "without a word"):
             self._run(
-                [self._archive("baseq3/base.pk3", {})],
+                [self._archive("baseq3/base.pk3", {"scripts/authority.shader": b""})],
                 fragments=[f"a_very_long_map_name_{index:04d}" for index in range(40)],
             )
 
@@ -1033,11 +1133,16 @@ class ArchiveSetGateTests(unittest.TestCase):
                 }
             ]
         )
-        self._run([self._archive("baseq3/base.pk3", {})], recipe=recipe)
+        self._run(
+            [self._archive("baseq3/base.pk3", {"scripts/authority.shader": b""})],
+            recipe=recipe,
+        )
         with self.assertRaisesRegex(ContentError, "packages it anyway"):
             self._run(
                 [
-                    self._archive("baseq3/base.pk3", {}),
+                    self._archive(
+                        "baseq3/base.pk3", {"scripts/authority.shader": b""}
+                    ),
                     self._archive(
                         "baseq3/map.pk3", {"models/weapons2/x/x_hand.md3": b"1"}
                     ),
@@ -1075,10 +1180,50 @@ class MapFragmentTests(unittest.TestCase):
             json.dumps(fragment, indent=2, sort_keys=True) + "\n", encoding="utf-8"
         )
 
+    def test_the_committed_shader_authority_selects_real_files(self) -> None:
+        """The rule as committed, against the archives the recipe pins.
+
+        The synthetic sources above prove the gate; this proves the recipe's
+        own pattern is not the one that matches nothing.
+        """
+        recipe = load_recipe(RECIPE_PATH)
+        self.assertEqual(recipe["shaderAuthority"]["selects"], "scripts/*.shader")
+        manifest = json.loads(
+            (ROOT / "provenance/arena-web-ffa-content.json").read_text()
+        )
+        base = recipe["basePackPath"].rsplit("/", 1)[-1]
+        packaged = {
+            member["path"]
+            for archive in manifest["archives"]
+            if archive["path"].rsplit("/", 1)[-1] == base
+            for member in archive["members"]
+            if member["path"].startswith("scripts/")
+            and member["path"].endswith(".shader")
+        }
+        # 99 in these sources; the assertion is that it is a real set, not a
+        # count someone has to maintain.
+        self.assertGreater(len(packaged), 50)
+
     def test_the_committed_fragment_set_loads(self) -> None:
+        """Every fragment on disk, against the set the manifest records.
+
+        The two directions are what keep content from joining the build without
+        joining the release identity, so the assertion is that comparison and
+        not a list of the map names someone last added.
+        """
         fragments = load_map_fragments(ROOT, load_recipe(RECIPE_PATH))
-        self.assertEqual(sorted(fragments), ["oa_pvomit"])
-        self.assertEqual(fragments["oa_pvomit"]["arena"]["map"], "oa_pvomit")
+        manifest = json.loads(
+            (ROOT / "provenance/arena-web-ffa-content-manifest.json").read_text()
+        )
+        declared = sorted(
+            item["id"].removeprefix("arena-web-map-")
+            for item in manifest["inputs"]
+            if item["id"].startswith("arena-web-map-")
+        )
+        self.assertEqual(sorted(fragments), declared)
+        self.assertIn("oa_pvomit", fragments)
+        for name, fragment in fragments.items():
+            self.assertEqual(fragment["arena"]["map"], name)
 
     def test_no_fragment_directory_is_an_empty_map_set(self) -> None:
         """A base with no map at all is a legal product, not an error."""
@@ -1124,7 +1269,7 @@ class MapFragmentTests(unittest.TestCase):
 
 
 class ArchiveSetTests(unittest.TestCase):
-    """§6.1's invariants, over a finished archive set."""
+    """The cross-archive invariants, over a finished archive set."""
 
     def test_a_member_two_archives_disagree_on_is_refused(self) -> None:
         archives = {

@@ -1,0 +1,15 @@
+{
+  "acceptedUnresolved": [],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "30",
+    "longname": "Space Contact",
+    "map": "am_spacecont",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/am_spacecont.arena"
+  ],
+  "map": "am_spacecont"
+}

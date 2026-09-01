@@ -57,7 +57,10 @@ class ReleaseIndexTests(unittest.TestCase):
         expected = served_files(ROOT, load_profile(ROOT))
         validate_release_index(ROOT, expected)
         index = json.loads((ROOT / "release/browser-release.json").read_text())
-        self.assertEqual(len(index["servedFiles"]), 18)
+        # Derived from the profile rather than restated, so an added map needs
+        # no edit here: the comparison below is the check, and a count spelled
+        # out beside it would only ever assert what its author last typed.
+        self.assertEqual(len(index["servedFiles"]), len(expected))
         self.assertEqual(
             [entry["path"] for entry in index["servedFiles"]], sorted(expected)
         )

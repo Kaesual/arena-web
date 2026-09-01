@@ -488,6 +488,10 @@
       "skelebot/default"
     ]
   },
+  "shaderAuthority": {
+    "reason": "Every scripts/*.shader in the sources is packaged into the base archive and into no other, so the base is the pack's single shader authority. The engine resolves a shader name over every mounted archive and the archive order decides before the file order does: FS_AddGameDirectory walks the PK3s descending and ScanAndLoadShaderFiles concatenates the listing in reverse, so a definition in the base beats one in a map archive, while between two map archives the archive name decides and the file name does not. ShaderIndex models the file order alone, because that is all a single archive has. With every shader file in the base the two orders coincide: the base always wins, and inside it write_pk3's sorted member order is exactly the order ShaderIndex assumes. The selection is over the sources, not over the map set, so adding a map does not change it and the base stays byte-stable.",
+    "selects": "scripts/*.shader"
+  },
   "sources": [
     {
       "archiveRoot": "openarena-data-0.8.5split.orig",

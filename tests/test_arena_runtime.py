@@ -1088,7 +1088,10 @@ class CommittedProfileTest(unittest.TestCase):
         artifacts = {
             name: entry for name, entry in files.items() if entry["kind"] == "artifact"
         }
-        self.assertEqual(len(artifacts), 7)
+        self.assertEqual(
+            len(artifacts),
+            len([a for a in self.profile["artifacts"] if "manifest" in a]),
+        )
         for entry in artifacts.values():
             self.assertRegex(entry["sha256"], r"\A[0-9a-f]{64}\Z")
             self.assertGreater(entry["size"], 0)
@@ -1103,7 +1106,11 @@ class CommittedProfileTest(unittest.TestCase):
             for name, entry in files.items()
             if entry["kind"] == "artifact" and entry["manifest"] == "content"
         }
-        self.assertEqual(len(content), 2)
+        published = json.loads(
+            (ROOT / "provenance/arena-web-ffa-content-manifest.json").read_text()
+        )["artifacts"]
+        self.assertEqual(len(content), len(published))
+        self.assertGreater(len(content), 1)
         for name, entry in content.items():
             self.assertIn(f"-{entry['sha256'][:16]}.pk3", name)
 

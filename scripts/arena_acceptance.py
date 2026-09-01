@@ -161,6 +161,55 @@ ACCEPTED_ENGINE_NOTES: tuple[tuple[re.Pattern[str], str], ...] = (
         "code/client/cl_main.c CL_InitRenderer); it is the drop-down console "
         "backdrop, not gameplay content",
     ),
+    # The entries below belong to the published map set rather than to the one
+    # map this profile starts, so a rotation change cannot turn a known and
+    # reasoned upstream gap into an acceptance failure. Each was observed in a
+    # native client that actually loaded the map it belongs to, not predicted:
+    # the exact reference is the anchor, and the two phrasings are the OpenAL
+    # and the dma sound backends reporting the same fact (ioq3
+    # code/client/snd_openal.c S_AL_BufferUseDefault and code/client/snd_dma.c
+    # S_RegisterSound).
+    (
+        re.compile(
+            r"Failed to (?:load|open) sound sound/misc/windfly\.wav"
+            r"|could not find sound/misc/windfly\.wav - using default"
+        ),
+        "SP_target_push registers sound/misc/windfly.wav unless the entity "
+        "carries the bouncepad spawnflag (ioq3 code/game/g_trigger.c), and no "
+        "OpenArena release ships that file; the recipe accepts it as a dangling "
+        "reference of the gamecode's own closure. It is reachable from any map "
+        "with a non-bouncepad target_push, which oa_pvomit does not have and "
+        "czest1tourney does",
+    ),
+    (
+        re.compile(
+            r"Failed to (?:load|open) sound music/OA09\.ogg"
+            r"|could not find music/OA09\.ogg - using default"
+        ),
+        "czest1dm's worldspawn music key names a track no pinned OpenArena "
+        "release ships; the map fragment accepts it and a missing track is "
+        "silence, not a failure",
+    ),
+    (
+        re.compile(
+            r"Failed to (?:load|open) sound sound/ambient/sparks\.ogg\.wav"
+            r"|could not find sound/ambient/sparks\.ogg\.wav - using default"
+        ),
+        "an am_underworks2 entity names sound/ambient/sparks.ogg, which no "
+        "pinned release ships; the engine appends .wav to the name it reports, "
+        "and the map fragment accepts the reference",
+    ),
+    (
+        re.compile(
+            r"R_FindImageFile could not find "
+            r"'models/mapobjects/cosmoflash/tele4_frame_glow\.jpg' in shader "
+            r"'models/mapobjects/cosmoflash/tele4_frame'"
+        ),
+        "a shipped OpenArena shader names an image no pinned archive provides. "
+        "It defaults one mapobject shader on am_underworks2, 26 of that map's "
+        "4,197 faces; the map fragment accepts the reference and the audit "
+        "records the measurement",
+    ),
 )
 
 BROWSER_ALLOWED_SCHEMES = ("blob:", "data:")

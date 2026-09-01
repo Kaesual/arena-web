@@ -27,6 +27,7 @@ from content_pack import (
     build_provenance,
     check_duplicate_members,
     check_map_pack_template,
+    check_shader_authority,
     check_shader_resolution,
     file_sha256,
     iter_forbidden,
@@ -37,6 +38,7 @@ from content_pack import (
     map_pack_path,
     recipe_sources,
     provenance_sources,
+    shader_authority_paths,
     subtract_closure,
     validate_provenance,
     write_pk3,
@@ -738,8 +740,9 @@ def _check_base_metadata(
     # `G_LoadBotsFromFile` loads scripts/bots.txt into a fixed
     # `char buf[MAX_BOTS_TEXT]` and *drops the whole file* when it does not fit
     # (ioq3 code/game/g_bot.c). Unlike the arena data this one is load-bearing:
-    # without it no bot connects at all, which §4.5 measured. The file grows
-    # with the bot roster, so the size is a build gate.
+    # without it no bot connects at all, which a dedicated-server run
+    # measured. The file grows with the bot roster, so the size is a build
+    # gate.
     _check_arena_text_size(engine_root, metadata, "the base archive")
     limit = _engine_constant(engine_root, "MAX_BOTS_TEXT", _GAMECODE_HEADER)
     bots_bytes = len(metadata["scripts/bots.txt"].encode("utf-8"))
@@ -909,8 +912,10 @@ def _add_base_roots(
 ) -> None:
     """Everything the base archive carries: the closure with no map in it.
 
-    Roots 1, 1b, 3, 4 and 5. Root 2 — the maps — belongs to the per-map
-    archives, which is what makes the base independent of the map set. A base
+    Roots 1, 1b, 3, 4, 5 and 8 in `docs/wp3-content-closure.md`'s numbering,
+    which is the one a reader outside this file has. Root 2 — the maps —
+    belongs to the per-map archives, which is what makes the base independent
+    of the map set. A base
     built from a recipe with no fragment at all is a legal product, not an
     error; it is simply the closure of the gamecode, the player presentations
     and the bots.
@@ -988,6 +993,22 @@ def _add_base_roots(
     for notice in recipe["notices"]:
         builder.add(notice, "file", "packaged notice")
 
+    # Root 8: the recipe's shader-authority rule (`content/pack-recipe.json`
+    #    `shaderAuthority`), which carries the reason. This is the one member
+    #    category that is in the pack by rule rather than because a closure
+    #    reached it, and it is a root here rather than a filter so that the
+    #    declaration and the packaging cannot drift apart.
+    #
+    #    Its images are deliberately *not* followed. A shader name a map
+    #    actually uses is resolved through the shared `ShaderIndex` by the
+    #    archive that uses it, and that archive packages the winning
+    #    definition's images as before; the other definitions in a file are
+    #    text the engine parses and never registers. `check_shader_authority`
+    #    asserts the rule and `check_shader_resolution` still compares every
+    #    resolved name against the finished set.
+    for path in shader_authority_paths(recipe, sources):
+        builder.add(path, "file", "shader authority")
+
 
 def _add_map_roots(
     builder: ClosureBuilder,
@@ -1045,6 +1066,7 @@ def _closure_report_lines(name: str, report: Any, members: dict[str, bytes]) -> 
 
 def _check_archive_set(
     recipe: dict[str, Any],
+    sources: SourceSet,
     archives: list[AssembledArchive],
     reports: dict[str, Any],
     fragments: dict[str, Any],
@@ -1052,7 +1074,7 @@ def _check_archive_set(
 ) -> None:
     """Everything that is only decidable once the whole archive set exists.
 
-    These four are deliberately one function rather than four calls in `build`:
+    These five are deliberately one function rather than five calls in `build`:
     each is about the *set*, none of them can be exercised by looking at one
     archive, and keeping them together gives them a single place a test can
     reach without assembling gigabytes of upstream content.
@@ -1062,11 +1084,22 @@ def _check_archive_set(
     by_engine_name = {
         Path(archive.path).name: archive.members for archive in archives
     }
-    # §6.1 invariant 3: a member two archives share must be byte-identical,
-    # exempting the notice each archive generates for itself.
+    # A member two archives share must be byte-identical, because FS_ListFiles
+    # de-duplicates by file name and a filtered copy would silently mask the
+    # full one. The notice each archive generates for itself is the one
+    # declared exception: its upstream-source list is per archive.
     check_duplicate_members(by_engine_name, exempt=(recipe["noticeFile"],))
-    # §6.1 invariant 2, in its honest form: the run-time winner of every shader
-    # name the closure resolved must be the file the closure resolved it to.
+    # The recipe's shader-authority rule, asserted rather than assumed: it is
+    # what makes the check below unable to fire, so it may not be the one thing
+    # nothing verifies.
+    check_shader_authority(
+        recipe, sources, by_engine_name, Path(recipe["basePackPath"]).name
+    )
+    # The run-time winner of every shader name the closure resolved must be the
+    # file the closure resolved it to. Under the shader-authority rule above and
+    # `shader_file_precedence`'s raw-path key the two orders are the same order,
+    # so this should not disagree — but it is the check that says so, and it is
+    # what fails if either half is changed.
     resolved: dict[str, str] = {}
     for report, _members in reports.values():
         resolved.update(report.shader_names)
@@ -1245,7 +1278,9 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
         )
         reports[name] = (report, members)
 
-    _check_archive_set(recipe, archives, reports, fragments, engine_root)
+    _check_archive_set(
+        recipe, sources, archives, reports, fragments, engine_root
+    )
 
     provenance = build_provenance(recipe, baseline, archives)
     validate_provenance(provenance, baseline)

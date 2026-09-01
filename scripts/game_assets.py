@@ -255,8 +255,18 @@ def shader_file_precedence(paths: list[str]) -> list[str]:
     `content_pack.write_pk3` stores members sorted by path, which makes the
     listing of this pack alphabetical. A pack built by some other writer would
     need its own listing order, and this function would be wrong for it.
+
+    The key is the raw path, because that is what `write_pk3`'s `sorted()`
+    orders and what the engine then walks. Folding case here would be a second,
+    different comparator: `scripts/QTex.shader` is the one capitalised shader
+    file in these sources, and `'Q' < 'a'` puts it first in the stored order —
+    so the engine ranks it below every lowercase name while a case-folded key
+    would rank it among the `q`s. Nothing collides across that pair today, and
+    `check_shader_resolution` is fail-closed if anything ever does, but the two
+    orders have to be the same order for the claim that they agree to mean
+    anything.
     """
-    return sorted(paths, key=lambda path: path.lower(), reverse=True)
+    return sorted(paths, reverse=True)
 
 
 def parse_key_value_blocks(text: str) -> list[dict[str, str]]:

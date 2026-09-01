@@ -1,0 +1,15 @@
+{
+  "acceptedUnresolved": [],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "15",
+    "longname": "The Space Spire",
+    "map": "czest1tourney",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/czest1tourney.arena"
+  ],
+  "map": "czest1tourney"
+}

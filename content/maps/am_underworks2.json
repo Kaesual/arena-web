@@ -1,0 +1,48 @@
+{
+  "acceptedUnresolved": [
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_bk"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_dn"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_ft"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_lf"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_rt"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_up"
+    },
+    {
+      "reason": "image named by the shipped shader 'models/mapobjects/cosmoflash/tele4_frame' that no pinned archive provides. ParseStage returns qfalse when R_FindImageFile fails, and R_FindShader then sets shader.defaultShader for the *whole* shader (ioq3 code/renderergl2/tr_shader.c), so every surface drawn through it renders untextured rather than losing one layer. Accepted because the audit measured how much geometry that is.",
+      "reference": "models/mapobjects/cosmoflash/tele4_frame_glow.jpg"
+    },
+    {
+      "reason": "a target_speaker noise key of maps/am_underworks2.bsp names a sound no pinned OpenArena release ships. The closure resolves the name as written; the engine opens it with '.wav' appended (ioq3 code/game/g_target.c SP_target_speaker), and neither name exists, so the reference dangles either way and a missing sound is silence",
+      "reference": "sound/ambient/sparks.ogg"
+    }
+  ],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "20",
+    "longname": "Under Working 2.0",
+    "map": "am_underworks2",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/am_underworks2.arena"
+  ],
+  "map": "am_underworks2"
+}

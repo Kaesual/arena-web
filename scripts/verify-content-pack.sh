@@ -54,13 +54,31 @@ printf 'two clean assemblies are byte-identical\n'
 # it compares two builds of the *same* map set, and every way one map's presence
 # could reach another archive's bytes lives in the difference between two
 # different sets.
-grown_map=am_galmevish
-grown_fragment="${repo_dir}/content/maps/${grown_map}.json"
-if [[ -e "${grown_fragment}" ]]; then
-  printf 'refusing to run the growth check: %s already exists\n' \
-    "${grown_fragment}" >&2
+# The fixture map must be one the published set does not contain, or the check
+# would refuse to run the moment its map was published. WP-F published
+# am_galmevish, which used to be it, so the fixture is a short list of maps that
+# are in the pinned sources, have a clean closure with no accepted unresolved
+# reference at all, and are held out of the published set because they are CTF
+# maps and team play is later scope, not because of any defect. The first one not
+# yet published is used.
+grown_map=
+for candidate in oa_bases3 oa_ctf2 oa_ctf4ish; do
+  if [[ ! -e "${repo_dir}/content/maps/${candidate}.json" ]]; then
+    grown_map="${candidate}"
+    break
+  fi
+done
+if [[ -z "${grown_map}" ]]; then
+  printf 'every growth-check fixture map has been published; pick a new one\n' >&2
   exit 1
 fi
+grown_fragment="${repo_dir}/content/maps/${grown_map}.json"
+grown_longname=
+case "${grown_map}" in
+  oa_bases3) grown_longname="Some Bases" ;;
+  oa_ctf2) grown_longname="OA_CTF2" ;;
+  oa_ctf4ish) grown_longname="Free Space" ;;
+esac
 # The release index is a statement about the *published* archive set, and this
 # check deliberately assembles an unpublished one — so the index's own fragment
 # gate would refuse the assembly, correctly. It is set aside for the duration
@@ -79,47 +97,23 @@ if [[ -f "${release_index}" ]]; then
 fi
 
 # A map from the already pinned sources, so the check measures set growth and
-# not a new upstream input. Its six sky acceptances are §13.4's class 1.
-cat > "${grown_fragment}" <<'JSON'
+# not a new upstream input. Its arena values are the fixture's own: the map is
+# never published, so nothing reads them but the build's own field gate.
+cat > "${grown_fragment}" <<JSON
 {
-  "acceptedUnresolved": [
-    {
-      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
-      "reference": "full_bk"
-    },
-    {
-      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
-      "reference": "full_dn"
-    },
-    {
-      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
-      "reference": "full_ft"
-    },
-    {
-      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
-      "reference": "full_lf"
-    },
-    {
-      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
-      "reference": "full_rt"
-    },
-    {
-      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
-      "reference": "full_up"
-    }
-  ],
+  "acceptedUnresolved": [],
   "arena": {
     "bots": "Skelebot Rai Sly",
     "fraglimit": "20",
-    "longname": "GalMevish",
-    "map": "am_galmevish",
+    "longname": "${grown_longname}",
+    "map": "${grown_map}",
     "type": "ffa"
   },
   "generatedMembers": [
     "NOTICE-arena-web.txt",
-    "scripts/am_galmevish.arena"
+    "scripts/${grown_map}.arena"
   ],
-  "map": "am_galmevish"
+  "map": "${grown_map}"
 }
 JSON
 
