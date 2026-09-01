@@ -27,6 +27,11 @@ The operator then authorized the small canvas-resize follow-up as WP10. Its
 loader/profile change, deterministic checks, exact pinned-browser acceptance
 and witnessed KDE/Wayland resize/fullscreen round passed on 2026-09-01, and
 **WP10 is complete**.
+On the same date the operator authorized WP11 as the narrow public handoff
+needed by a consuming multi-game host: a settled loader lifecycle, an explicit
+runtime-surface contract, one complete immutable release index, a small
+resource probe and the first guest-access policy. **WP11 is authorized and not
+yet implemented.**
 
 This document turns the reviewed direction in
 [`initial-plan.md`](initial-plan.md) into coherent, testable increments. It
@@ -72,6 +77,7 @@ is a plan change; adding another platform is later scope.
 | WP8 | Two-browser multiplayer acceptance | WP5, WP7 | ✅ Complete — the authorized Mini round reused WP7's exact accepted artifacts, added more than five minutes of local normal/incognito play and a witnessed player-vs-player frag, reconnected A and B independently, and passed its reduced 96,879-datagram network gate; see [`wp8-mini-acceptance-2026-09-01.md`](wp8-mini-acceptance-2026-09-01.md) |
 | WP9 | Public browser/server integration contract | WP8 | ✅ Complete — [`integration-contract.md`](integration-contract.md) publishes the immutable release tuple, browser launch/relay handoff, server lifecycle/readiness and distribution obligations without implementing a hosting product; its independent GPT-5.6-Sol review passed with no open findings |
 | WP10 | Runtime canvas resize and HTML fullscreen | WP4, WP9 | ✅ Complete — the loader bridges canvas CSS-box changes into SDL's existing resize path, both profiles use HTML-owned fullscreen, the pinned-browser automated resize and witnessed KDE/Wayland resize/fullscreen round passed, and no engine, content, server or network artifact changed; see [`wp10-canvas-resize-acceptance-2026-09-01.md`](wp10-canvas-resize-acceptance-2026-09-01.md) |
+| WP11 | Final public integration handoff | WP10 | 🟡 Authorized — add the settled host lifecycle and runtime-surface boundary, one complete immutable browser-release index, the accepted guest-access policy, measured server resource limits and a compact nine-point handoff without implementing a consuming product |
 
 WP1, WP2 and WP3 are independent after WP0 and may be scheduled separately.
 WP4 and WP5 may proceed independently after WP3. WP7 began only after WP6 had
@@ -79,7 +85,9 @@ selected the transport and sizing strategy from measured evidence. WP8 remained
 a separate acceptance increment after WP7 and closed under its authorized Mini
 amendment. WP9-Mini began under separate operator authorization and completed
 after its documentation review on 2026-09-01. WP10 then closed the deferred
-WP4 canvas-resize limitation without reopening the network packages.
+WP4 canvas-resize limitation without reopening the network packages. WP11 is
+the separately authorized final public handoff; it does not reopen product or
+deployment scope.
 
 ```mermaid
 flowchart LR
@@ -100,6 +108,7 @@ flowchart LR
     WP8 --> WP9
     WP4 --> WP10
     WP9 --> WP10
+    WP10 --> WP11
 ```
 
 ## WP0 — Immutable baseline
@@ -1380,10 +1389,176 @@ acceptance are deliberately not repeated.
 The complete public evidence is
 [`wp10-canvas-resize-acceptance-2026-09-01.md`](wp10-canvas-resize-acceptance-2026-09-01.md).
 
+## WP11 — Final public integration handoff
+
+**State:** Authorized by the operator on 2026-09-01; implementation has not
+started.
+
+### Outcome
+
+A consumer can integrate one immutable Arena browser/server release without
+guessing a lifecycle transition, scraping loader text, inventing a resource
+limit or reading a private repository. The handoff supplies concrete, tested
+values for all of these areas as one reviewed compatibility unit:
+
+1. browser bundle, content identity and relative public layout;
+2. loader start, readiness, progress, stop, error and final settlement;
+3. runtime surface, focus, pointer-lock and HTML-fullscreen ownership;
+4. native image, command, UDP endpoint, writable storage, readiness and stop;
+5. exact browser/engine/content/server compatibility;
+6. relay configuration using only a virtual game destination;
+7. first public access policy;
+8. measured CPU, memory and writable-storage ceilings plus observation
+   meanings; and
+9. the complete licence, notice and provenance index.
+
+The result is public and self-contained. It contains no deployment hostname,
+real server address, credential, consumer-host filesystem path or
+consumer-specific database/UI model. Fixed paths inside the distributed server
+image remain part of its public runtime contract.
+
+### Decided first access policy
+
+The first public Arena profile is guest-playable. A consuming service may admit
+a guest or an authenticated user to a server it has deliberately published and
+currently observes as ready. Arena has no character, saved-login or account
+prerequisite. A consumer may still apply its ordinary platform-wide ban,
+rate-limit and abuse policy before issuing authorization.
+
+Authorization names exactly one virtual destination. An unpublished, stopped,
+missing, preparing or failed server receives no fresh authorization, and every
+reconnect obtains a new one-time value. A policy change governs new attempts;
+WP11 does not add live-session revocation. The browser receives the public relay
+endpoint and the virtual destination only, never the native server's real
+address.
+
+### Loader lifecycle boundary
+
+The current diagnostic API becomes a small stable host boundary rather than a
+DOM-only launcher:
+
+- one `start()` path is shared by the built-in Start control and a same-origin
+  host. It is accepted once, only from `ready`, and retains the real-user-
+  activation requirement for audio and later pointer lock;
+- `snapshot()` gains stable byte progress and preserves the distinction between
+  engine `running` and relay `open`;
+- `subscribe(listener)` reports public snapshot changes and returns an
+  unsubscribe function, so a host need not poll or parse display text;
+- `stop()` is idempotent in pre-start, booting and running states. It cancels
+  attempt-local work, closes the relay without offering reconnect, requests an
+  orderly engine quit when one exists, and settles only after the page runtime
+  can release its owner;
+- final `failed` and `exited` states carry a bounded, non-secret reason and exit
+  code where one exists. Late callbacks from a stopped or superseded attempt
+  cannot restore a live state; and
+- reconnect remains a transport replacement beneath the same engine and is not
+  reported as final settlement.
+
+If the existing Emscripten surface has no honest callable quit path, WP11 adds
+one minimal Emscripten-only engine export that executes ioq3's existing `quit`
+command. That change belongs in the ioq3 fork, is enumerated in the immutable
+engine lock and triggers the ordinary browser/server compatibility reissue; a
+fake loader-only exit while the engine still runs is not acceptable.
+
+### Runtime surface, focus and fullscreen
+
+The game canvas receives the stable marker
+`data-runtime-surface="arena-web"`. The host boundary exposes focus and
+enter/leave-fullscreen operations with explicit success/refusal results. The
+canvas remains the keyboard/pointer-lock target, the surrounding stage remains
+the HTML fullscreen element, and SDL remains responsible for its backing store
+and resize event. Fullscreen and pointer lock that require a user activation do
+not gain a synthetic bypass.
+
+The supported embedding is same-origin. A consumer may wrap the page in its own
+runtime shell, but cross-origin messaging, persistent storage and ownership of
+another runtime's data remain outside the contract.
+
+### Immutable release and provenance index
+
+WP11 adds one machine-readable release index outside the served tree. It lists
+every served path with exact byte length and SHA-256, refers to the authoritative
+browser, content and server manifests, records the relative 16-file layout and
+binds the supported profiles. The staging validator proves that the index and
+the actual tree are identical. Keeping the index outside the tree avoids a
+self-hashing manifest.
+
+The same handoff identifies the adjacent browser notice bundle, corresponding
+source, member-level content provenance, packaged PK3 notices, server runtime
+copyright files and server-image source obligations. It indexes those existing
+authorities; it does not duplicate or weaken their rules. The final pushed
+Arena commit is the immutable consumer input, while environment-specific code
+chooses only the URL below which that relative tree is published.
+
+Any engine/loader change is followed by clean final browser and server builds,
+new checked manifest/image identities and a new immutable browser release root.
+The content pack remains unchanged unless its exact identity unexpectedly
+differs, which is a failure rather than an implicit content update.
+
+### Minimal server-resource probe
+
+The probe begins with deliberately conservative candidate ceilings of **256
+MiB memory**, **100% of one CPU** and **64 MiB writable tmpfs** at
+`/var/lib/arena`. They are hypotheses, not accepted limits. The measured result
+may raise a value, but must record the reason and retain practical headroom.
+Read-only shared image bytes are reported separately from per-instance writable
+storage.
+
+The small run records process/cgroup CPU, peak resident/cgroup memory and peak
+writable-home use in these states:
+
+- **idle:** the exact server is ready with its three bots and no human client
+  after startup has settled;
+- **busy:** two concurrent matching clients join and generate representative
+  movement/fire traffic for a bounded interval while the three-bot profile
+  remains active; and
+- **failed:** the process exits unexpectedly, exceeds its startup readiness
+  deadline or crosses the accepted post-ready health-failure threshold. A
+  malformed or mismatching `getstatus` reply is not healthy merely because a
+  process exists.
+
+The handoff fixes the final observation vocabulary: `preparing` while a desired
+process is within its bounded startup deadline but has no valid readiness reply,
+`ready` only after the exact binary `getstatus` contract passes, `failed` under
+the conditions above, and `missing` when no owned runtime exists. Numeric probe
+values are capacity guards for this eight-slot prototype, not an SLO or a claim
+of more than the accepted two-human profile.
+
+### Acceptance
+
+- Deterministic tests cover lifecycle ordering, progress, subscription cleanup,
+  start-once, stop before and during boot, orderly running stop, duplicate stop,
+  stale callbacks, terminal failure and secret-free snapshots/events.
+- The stage/index check proves the exact served set, sizes and hashes; all
+  existing metadata, provenance and licence checks remain green.
+- One short run in the pinned Chrome reaches `ready`, starts from a real user
+  gesture, reaches engine `running` with relay `open`, exercises focus and HTML
+  fullscreen, stops, receives the real engine exit and releases the runtime.
+- The bounded resource probe exercises idle, representative two-client busy,
+  failed-health and graceful-stop behavior and emits a public record containing
+  no environment-specific topology.
+- Final clean browser/server builds and image verification produce the exact
+  handoff identities. The content identity is unchanged.
+- `scripts/check.sh`, document links and diff hygiene pass, followed by a
+  focused implementation/security/licensing/operability review. The review may
+  use GPT-5.6-Sol; no Opus review is required.
+
+### Explicit non-goals
+
+- Changes to a consuming application, database, server manager, combined proxy
+  projection, deployment automation or product UI.
+- Repeating WP7/WP8's packet census, multiplayer endurance, reconnect matrix or
+  broad network analysis.
+- Production deployment or SLO acceptance, autoscaling, persistent game state,
+  accounts, characters, progression, matchmaking or moderation UI.
+- More maps, modes, slots, browsers, operating systems, mobile/touch support or
+  cross-origin embedding.
+
 ## Review checkpoints
 
-1. **Plan approval:** completed. Every WP0–WP10 increment received its required
-   authorization; WP0 was the first implementation increment.
+1. **Plan approval:** completed. Every WP0–WP11 increment received its required
+   authorization; WP0 was the first implementation increment. WP11 is the only
+   authorized increment not yet implemented.
 2. **Early evidence:** after WP1–WP3, review build reproducibility, browser-path
    measurements and content provenance before assembling the playable slice.
 3. **Network gate:** WP6 independently reviews the measurements and replaces
@@ -1409,6 +1584,10 @@ The complete public evidence is
 6. **Canvas-resize closure:** completed by WP10 on 2026-09-01. The exact pinned
    browser automation and witnessed KDE/Wayland round passed with no engine or
    network-artifact change and no open focused-review finding.
+7. **Final public handoff:** pending under the authorized WP11 scope above. It
+   closes only when the lifecycle, surface, release, access, resource and
+   provenance values are concrete, tested, reviewed and bound to a pushed
+   immutable Arena commit.
 
 ## Closed follow-up from WP4
 
@@ -1420,12 +1599,16 @@ canvas-size propagation on 2026-09-01. This follow-up is closed.
 
 ## Input still needed from the operator
 
-No additional input is needed for the completed WP0–WP10 increments. WP7's
+No additional input is needed for the completed WP0–WP10 increments or to
+begin the authorized WP11. The operator accepted WP11's guest-playable public
+policy on 2026-09-01. WP7's
 routed acceptance received a runtime-only fresh-token issuer and a route to its
 matching rebuilt native server; those inputs were discarded after the accepted
 round. WP8-Mini was explicitly authorized on 2026-09-01 with local normal and
 incognito contexts on the accepted KDE/Wayland workstation. The operator
 provided the witnessed gameplay, frag and bidirectional reconnect confirmations
 and explicitly accepted the reported KDE/Wayland pointer-lock variation.
-Product naming, additional platforms and production deployment choices belong
-to consumer-owned or later separately authorized work.
+WP11 may receive a runtime-only compatible relay route and rehearsal host for
+its bounded smoke/resource evidence; neither becomes public source or retained
+evidence. Product naming, additional platforms and production deployment
+choices belong to consumer-owned or later separately authorized work.
