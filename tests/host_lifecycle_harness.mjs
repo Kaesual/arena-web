@@ -67,6 +67,37 @@ assert.deepEqual(lifecycle.terminal(), await settlementB);
 assert.equal(Object.isFrozen(await settlementB), true);
 checks += 3;
 
+let terminalState = { status: "running", sequence: 0 };
+let terminalLifecycle;
+let reentrantSettlement;
+terminalLifecycle = createHostLifecycle(() => Object.freeze({ ...terminalState }));
+terminalLifecycle.subscribe((snapshot) => {
+  if (snapshot.status === "failed") {
+    reentrantSettlement = terminalLifecycle.settle({
+      status: "exited",
+      exitCode: null,
+      reason: "host_stop",
+    });
+  }
+});
+assert.equal(
+  terminalLifecycle.settle(
+    { status: "failed", exitCode: null, reason: "loader_error" },
+    () => {
+      terminalState = { status: "failed", sequence: 1 };
+    },
+  ),
+  true,
+);
+assert.equal(reentrantSettlement, false);
+assert.deepEqual(terminalLifecycle.terminal(), {
+  status: "failed",
+  exitCode: null,
+  reason: "loader_error",
+});
+assert.deepEqual(await terminalLifecycle.whenSettled(), terminalLifecycle.terminal());
+checks += 4;
+
 assert.throws(() => lifecycle.subscribe(null), HostLifecycleError);
 assert.throws(
   () => createHostLifecycle(() => ({})).settle({ status: "stopped", exitCode: 0, reason: "x" }),
@@ -76,6 +107,13 @@ assert.throws(
   () => createHostLifecycle(() => ({})).settle({ status: "failed", exitCode: "1", reason: "x" }),
   HostLifecycleError,
 );
-checks += 3;
+assert.throws(
+  () => createHostLifecycle(() => ({})).settle(
+    { status: "failed", exitCode: null, reason: "x" },
+    null,
+  ),
+  HostLifecycleError,
+);
+checks += 4;
 
 process.stdout.write(`${JSON.stringify({ passed: true, checks })}\n`);

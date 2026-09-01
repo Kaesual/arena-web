@@ -116,16 +116,28 @@ def early_stop_checks(
                 session,
                 """
                 window.wp11Early = {};
+                window.wp11Early.unsubscribe = arenaWeb.subscribe((snapshot) => {
+                  const runtimeInitialized = snapshot.events.some(
+                    (event) => event.kind === 'runtime-initialized',
+                  );
+                  if (
+                    runtimeInitialized &&
+                    snapshot.markers.clientGameLoaded === undefined &&
+                    window.wp11Early.stopA === undefined
+                  ) {
+                    window.wp11Early.observedRuntimeInitialized = true;
+                    window.wp11Early.stopA = arenaWeb.stop();
+                    window.wp11Early.stopB = arenaWeb.stop();
+                    window.wp11Early.sameStop = window.wp11Early.stopA === window.wp11Early.stopB;
+                    window.wp11Early.stopA.then((value) => { window.wp11Early.terminal = value; });
+                  }
+                });
                 document.getElementById('start').addEventListener('click', () => {
                   window.wp11Early.start = arenaWeb.start().then(
                     () => { window.wp11Early.startResult = 'resolved'; },
                     (error) => { window.wp11Early.startResult = error.name; },
                   );
                   window.wp11Early.observedBooting = arenaWeb.snapshot().status === 'booting';
-                  window.wp11Early.stopA = arenaWeb.stop();
-                  window.wp11Early.stopB = arenaWeb.stop();
-                  window.wp11Early.sameStop = window.wp11Early.stopA === window.wp11Early.stopB;
-                  window.wp11Early.stopA.then((value) => { window.wp11Early.terminal = value; });
                 }, {capture: true, once: true});
                 """,
             )
@@ -144,7 +156,11 @@ def early_stop_checks(
                 "name": f"stop-during-{name}",
                 "passed": initial == ("starting" if during_loading else "ready")
                 and terminal
-                == {"status": "exited", "exitCode": None, "reason": "host_stop"}
+                == {
+                    "status": "exited",
+                    "exitCode": None if during_loading else 0,
+                    "reason": "host_stop",
+                }
                 and final.get("status") == "exited",
                 "detail": {"initial": initial, "terminal": terminal},
             },
@@ -154,13 +170,32 @@ def early_stop_checks(
             },
         ]
         if not during_loading:
-            checks.append(
-                {
-                    "name": "booting-state-witnessed-before-stop",
-                    "passed": bool(
-                        _evaluate(session, "window.wp11Early.observedBooting")
-                    ),
-                }
+            checks.extend(
+                [
+                    {
+                        "name": "booting-state-witnessed-before-stop",
+                        "passed": bool(
+                            _evaluate(session, "window.wp11Early.observedBooting")
+                        ),
+                    },
+                    {
+                        "name": "runtime-initialized-before-boot-stop",
+                        "passed": bool(
+                            _evaluate(
+                                session,
+                                "window.wp11Early.observedRuntimeInitialized",
+                            )
+                        )
+                        and final.get("markers", {}).get("clientGameLoaded") is None,
+                    },
+                    {
+                        "name": "boot-stop-used-engine-quit-and-exit",
+                        "passed": "engine-quit-requested"
+                        in [event["kind"] for event in final.get("events", [])]
+                        and "engine-exit"
+                        in [event["kind"] for event in final.get("events", [])],
+                    },
+                ]
             )
         return checks
     finally:

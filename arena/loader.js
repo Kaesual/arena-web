@@ -141,11 +141,11 @@ function setMessage(text) {
   elements.message.textContent = text;
 }
 
-function setProgress(fraction, loadedBytes = null, totalBytes = null) {
+function setProgress(fraction, loadedBytes = null, totalBytes = null, phase = "loading") {
   const clamped = Math.max(0, Math.min(1, fraction));
   elements.progressBar.style.width = `${(clamped * 100).toFixed(1)}%`;
   report.progress = {
-    phase: clamped === 1 ? "verified" : "loading",
+    phase,
     loadedBytes,
     totalBytes,
     fraction: Math.round(clamped * 1000000) / 1000000,
@@ -172,9 +172,11 @@ function setStatus(status, error = null) {
 }
 
 function settle(status, exitCode, reason) {
-  report.exit = { code: exitCode, reason };
-  setStatus(status, status === "failed" ? report.error : null);
-  lifecycle.settle({ status, exitCode, reason });
+  return lifecycle.settle({ status, exitCode, reason }, () => {
+    report.exit = { code: exitCode, reason };
+    report.status = status;
+    report.error = status === "failed" ? report.error : null;
+  });
 }
 
 function fail(error, reason = "loader_error") {
@@ -586,7 +588,10 @@ async function loadArtifacts(profile) {
   }
 
   report.totalArtifactBytes = completedBytes;
-  setProgress(1, completedBytes, expectedTotal);
+  // A final fetch callback may already have reported fraction 1 while its
+  // digest is still being computed. Only this post-comparison publication is
+  // allowed to claim the explicit verified phase.
+  setProgress(1, completedBytes, expectedTotal, "verified");
   return loaded;
 }
 

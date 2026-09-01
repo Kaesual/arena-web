@@ -5,6 +5,11 @@
       "sha256": "cc45026e109df38a3b019192ed8b6807bae8bc787119b2b89fe5c7a6f28c05f1",
       "size": 23362
     },
+    "browserAcceptance": {
+      "path": "scripts/accept-host-lifecycle.py",
+      "sha256": "f98439f5a8a75343bc789e06436965c565ec8c77397a3fef9aa67d88fe31ff50",
+      "size": 19076
+    },
     "browserBuild": {
       "path": "scripts/build-browser.sh",
       "sha256": "ab49c61a2c6c0828b74d62aaba5aa5cfbd5ccc13b72e8420f982005259a8bb9e",
@@ -52,8 +57,8 @@
     },
     "integrationHandoff": {
       "path": "docs/wp11-integration-handoff.md",
-      "sha256": "fef04b3aa27b6a9fa37696cadb9d01391a2d46429bd4ecc55c6811b53d42f9f9",
-      "size": 19220
+      "sha256": "c9a36a483e0bfbc3e989f9c8c5cd51e204718241dc59eaa0644a3471d20f1297",
+      "size": 19219
     },
     "projectLicense": {
       "path": "LICENSE",
@@ -67,8 +72,8 @@
     },
     "resourceMeasurement": {
       "path": "records/wp11-server-resources.json",
-      "sha256": "ecd511cef5acd7720afec185b2fe1b980ce6258fd3321666f504c6980f1f2025",
-      "size": 3092
+      "sha256": "8991af3c2450069d6f7cc357914a13f63188bb5b0e5741f9a3015d31ea73d6ef",
+      "size": 3093
     },
     "serverAssembly": {
       "path": "scripts/build-server-image.sh",
@@ -77,8 +82,8 @@
     },
     "serverContainer": {
       "path": "native/server.Containerfile",
-      "sha256": "e1884376defe09378c48708161f86cd2619237a6c930f7b268528234f33daafe",
-      "size": 2790
+      "sha256": "98ed13e6986e8027cdbca6febc17bac2242d7b91c5e55546135b94f2c45e8949",
+      "size": 3048
     },
     "serverManifest": {
       "path": "provenance/arena-web-server.json",
@@ -89,6 +94,11 @@
       "path": "native/server-profile.json",
       "sha256": "147066a98a8c3eb587b752e3fc373ef7191f9354be3fdc148addf56e1b5759c3",
       "size": 7876
+    },
+    "serverVerification": {
+      "path": "scripts/verify-server-image.py",
+      "sha256": "59beeeb8ff4217e9e063944bf1bab9ca1a92a3d9d587f92fa0285b5973aaeda5",
+      "size": 20208
     }
   },
   "browserRoot": ".",
@@ -111,8 +121,8 @@
     },
     {
       "path": "arena/host-lifecycle.js",
-      "sha256": "b005bcb8fb62ceac55be413017a56c4ea84b80ec606841cf96d28636d8b3262b",
-      "size": 2782
+      "sha256": "b8cac3235ed7ca7371d89892773601461faa3d246436478d4c9aab1e73c0d310",
+      "size": 3315
     },
     {
       "path": "arena/network-backend.js",
@@ -171,8 +181,8 @@
     },
     {
       "path": "loader.js",
-      "sha256": "fb0384002339994cb84a2c034daf8745578e28a9b6e92de852c0df5cecfb48c9",
-      "size": 41464
+      "sha256": "12bc3f2d06e33c9a7e34a9cbdca8f32f8e2c12d9267ef7a51a83818b814c4d18",
+      "size": 41707
     },
     {
       "path": "manifests/browser-client.json",

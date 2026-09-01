@@ -24,8 +24,12 @@ ARG ARENA_ENGINE_COMMIT
 ARG ARENA_BASELINE_IDENTITY
 ARG ARENA_PRODUCER_COMMIT
 
+# There is deliberately no org.opencontainers.image.licenses annotation. This
+# aggregate contains the GPL arena/engine plus the mixed-license pinned Debian
+# runtime base; locks/baseline.json and the preserved per-package copyright
+# files are the exact licence authority, and one blanket expression would be
+# false.
 LABEL org.opencontainers.image.title="arena-web dedicated server" \
-      org.opencontainers.image.licenses="GPL-2.0-or-later" \
       com.kaesual.arena-web.engine-commit="${ARENA_ENGINE_COMMIT}" \
       com.kaesual.arena-web.baseline-identity="${ARENA_BASELINE_IDENTITY}" \
       com.kaesual.arena-web.producer-commit="${ARENA_PRODUCER_COMMIT}"

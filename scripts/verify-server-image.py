@@ -17,6 +17,9 @@ here reads the built image rather than the build context:
    recorded redistribution obligation of the baseline's runtime-base record, and
    this is where it is discharged rather than asserted — the pinned count is
    what stops a mis-reading from being discharged against itself.
+4. the complete OCI runtime configuration is the narrow public contract: exact
+   platform, user, environment, entrypoint, empty command, workdir, UDP port and
+   provenance labels, with no blanket aggregate licence label.
 
 The artifact manifest it writes is the committed identity of the image content;
 ``provenance/arena-web-server.json`` is a copy of it.
@@ -108,6 +111,81 @@ LC_ALL=C find -L /usr/share/doc -mindepth 2 -maxdepth 2 -name copyright -type f 
 
 class ImageVerificationError(RuntimeError):
     """The built image is not the image the profile and the baseline describe."""
+
+
+def _inspect_image(runtime: str, image: str) -> dict[str, Any]:
+    result = subprocess.run(
+        [runtime, "image", "inspect", image],
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+    if result.returncode != 0:
+        raise ImageVerificationError(
+            f"inspecting OCI configuration for {image} failed: "
+            f"{result.stderr.strip() or result.returncode}"
+        )
+    try:
+        records = json.loads(result.stdout)
+    except json.JSONDecodeError as error:
+        raise ImageVerificationError(
+            f"inspecting OCI configuration for {image} returned invalid JSON"
+        ) from error
+    if not isinstance(records, list) or len(records) != 1 or not isinstance(records[0], dict):
+        raise ImageVerificationError(
+            f"inspecting OCI configuration for {image} did not return exactly one image"
+        )
+    return records[0]
+
+
+def _verify_image_configuration(
+    inspected: dict[str, Any],
+    *,
+    engine_commit: str,
+    baseline_identity: str,
+    producer_commit: str,
+) -> dict[str, Any]:
+    expected_config = {
+        "Entrypoint": ["/opt/arena-web/ioq3ded"],
+        "Env": [
+            "PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin",
+            "HOME=/var/lib/arena",
+        ],
+        "ExposedPorts": {"27960/udp": {}},
+        "Labels": {
+            "com.kaesual.arena-web.baseline-identity": baseline_identity,
+            "com.kaesual.arena-web.engine-commit": engine_commit,
+            "com.kaesual.arena-web.producer-commit": producer_commit,
+            "org.opencontainers.image.title": "arena-web dedicated server",
+        },
+        "User": "65534:65534",
+        "WorkingDir": "/opt/arena-web",
+    }
+    actual_platform = {
+        "architecture": inspected.get("Architecture"),
+        "os": inspected.get("Os"),
+    }
+    expected_platform = {"architecture": "amd64", "os": "linux"}
+    if actual_platform != expected_platform:
+        raise ImageVerificationError(
+            f"image platform is {actual_platform}, expected {expected_platform}"
+        )
+    if inspected.get("Created") != "1970-01-01T00:00:00Z":
+        raise ImageVerificationError("image creation time is not the reproducible Unix epoch")
+    if inspected.get("ManifestType") != "application/vnd.oci.image.manifest.v1+json":
+        raise ImageVerificationError("image is not an OCI image manifest")
+    actual_config = inspected.get("Config")
+    if actual_config != expected_config:
+        raise ImageVerificationError(
+            "image OCI configuration differs from the exact runtime contract: "
+            f"got {actual_config!r}, expected {expected_config!r}"
+        )
+    return {
+        "configuration": expected_config,
+        "created": inspected["Created"],
+        "manifestType": inspected["ManifestType"],
+        "platform": expected_platform,
+    }
 
 
 def _run_in_image(runtime: str, image: str, script: str, *arguments: str) -> str:
@@ -337,6 +415,14 @@ def main() -> int:
             arguments.server_binary.stat().st_size,
         )
 
+        baseline_identity = _canonical_json_identity(baseline)
+        image_configuration = _verify_image_configuration(
+            _inspect_image(runtime, arguments.tag),
+            engine_commit=baseline["engine"]["commit"],
+            baseline_identity=baseline_identity,
+            producer_commit=arguments.producer_commit,
+        )
+
         base_listing = _listing(runtime, runtime_base)
         image_listing = _listing(runtime, arguments.tag)
 
@@ -420,7 +506,7 @@ def main() -> int:
         return 1
 
     report = {
-        "baselineIdentity": _canonical_json_identity(baseline),
+        "baselineIdentity": baseline_identity,
         "content": {
             path: {
                 "role": entry["role"],
@@ -432,6 +518,7 @@ def main() -> int:
         "copyrightFiles": len(image_copyright),
         "engineCommit": baseline["engine"]["commit"],
         "image": arguments.tag,
+        "oci": image_configuration,
         "runtimeBase": runtime_base,
         "serverArguments": profile["serverArguments"],
         "toolchainPackageLockIdentity": toolchain_identity,

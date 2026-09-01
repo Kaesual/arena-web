@@ -79,12 +79,23 @@ export function createHostLifecycle(snapshot, { onListenerError = () => {} } = {
       }
     },
 
-    settle(value) {
+    settle(value, commit = () => {}) {
       if (terminal !== null) {
         return false;
       }
+      if (typeof commit !== "function") {
+        throw new HostLifecycleError("terminal commit must be a function");
+      }
+      // Latch the immutable terminal result before mutating and publishing the
+      // public snapshot. A subscriber may synchronously call back into stop()
+      // from this notification; terminal() must already be authoritative then.
       terminal = terminalResult(value);
+      commit(terminal);
       resolveSettlement(terminal);
+      const current = snapshot();
+      for (const listener of [...listeners]) {
+        deliver(listener, current);
+      }
       return true;
     },
 
