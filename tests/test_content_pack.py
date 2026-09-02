@@ -897,6 +897,18 @@ class BuildGateTests(unittest.TestCase):
             with self.assertRaisesRegex(ContentError, "does not package"):
                 self._build(recipe, output, output)
 
+    def test_two_bots_sharing_one_model_stops_the_build(self) -> None:
+        """Every packaged model is offered so that a bot can wear it, and a
+        shared one makes two bots one face. It is not an engine error — which is
+        exactly why it needs a gate: this pack shipped three bots pointed at one
+        model and nothing said so."""
+        recipe = json.loads(json.dumps(self.recipe))
+        recipe["profile"]["bots"][1]["model"] = recipe["profile"]["bots"][0]["model"]
+        with tempfile.TemporaryDirectory() as raw:
+            output = Path(raw)
+            with self.assertRaisesRegex(ContentError, "share the model"):
+                self._build(recipe, output, output)
+
     def test_an_engine_constant_is_read_from_the_pinned_tree(self) -> None:
         # The gamecode's own value, not a number restated here.
         self.assertEqual(
@@ -1066,26 +1078,41 @@ class ArchiveSetGateTests(unittest.TestCase):
         spec.loader.exec_module(module)
         cls.module = module
 
+    # One offered model, and every file a team presentation of it needs. The
+    # rule under test is that these exist, so the stub has to carry them or the
+    # gate would fail for a reason no test is about.
+    TEAM_MODEL = "stub"
+    TEAM_FILES = tuple(
+        f"models/players/stub/{part}_{team}.skin"
+        for team in ("blue", "red")
+        for part in ("lower", "upper", "head")
+    ) + tuple(f"models/players/stub/icon_{team}.tga" for team in ("blue", "red"))
+
     def _recipe(self, **overrides) -> dict:
         recipe = {
             "noticeFile": "NOTICE-arena-web.txt",
             "derivedReferences": [],
             "basePackPath": "baseq3/base.pk3",
             "shaderAuthority": {"reason": "test", "selects": "scripts/*.shader"},
+            "profile": {"playerModels": [f"{self.TEAM_MODEL}/default"]},
         }
         recipe.update(overrides)
         return recipe
 
     class _Sources:
-        """Just enough SourceSet for the shader-authority rule to select from."""
+        """Just enough SourceSet for the set-wide gates to read."""
 
-        def __init__(self, paths):
-            # The rule refuses a selection that matches nothing, so the default
-            # stub carries the one shader file the default archives below hold.
-            self._paths = sorted(paths or ["scripts/authority.shader"])
+        def __init__(self, paths, extra=()):
+            # The shader-authority rule refuses a selection that matches
+            # nothing, so the default stub carries the one shader file the
+            # default archives below hold, plus the team presentation.
+            self._paths = sorted(set(paths or ["scripts/authority.shader"]) | set(extra))
 
         def paths(self):
             return list(self._paths)
+
+        def get(self, game_path):
+            return object() if game_path.lower() in self._paths else None
 
     def _archive(self, path, members):
         return AssembledArchive(
@@ -1104,7 +1131,9 @@ class ArchiveSetGateTests(unittest.TestCase):
     def _run(self, archives, reports=None, fragments=(), recipe=None, sources=None):
         self.module._check_archive_set(
             recipe or self._recipe(),
-            sources if sources is not None else self._Sources([]),
+            sources
+            if sources is not None
+            else self._Sources([], extra=self.TEAM_FILES),
             archives,
             reports or {"base": self._report()},
             {name: {} for name in fragments},
@@ -1173,8 +1202,68 @@ class ArchiveSetGateTests(unittest.TestCase):
                 reports,
             )
 
+    def test_a_model_without_a_team_presentation_is_refused(self) -> None:
+        """Not a closure failure — a run-time one. A missing team skin fails
+        CG_RegisterClientSkin, falls back to the unpackaged DEFAULT_TEAM_MODEL
+        and CG_Errors every client out, and nothing about the build says so."""
+        for missing in (
+            "models/players/stub/lower_red.skin",
+            "models/players/stub/head_blue.skin",
+        ):
+            sources = self._Sources(
+                [], extra=[name for name in self.TEAM_FILES if name != missing]
+            )
+            with self.assertRaisesRegex(ContentError, "ships no " + missing):
+                self._run(
+                    [self._archive("baseq3/base.pk3", {"scripts/authority.shader": b""})],
+                    sources=sources,
+                )
+
+    def test_a_missing_team_icon_is_refused_on_its_own(self) -> None:
+        sources = self._Sources(
+            [],
+            extra=[
+                name
+                for name in self.TEAM_FILES
+                if name != "models/players/stub/icon_red.tga"
+            ],
+        )
+        with self.assertRaisesRegex(ContentError, "fail on the icon alone"):
+            self._run(
+                [self._archive("baseq3/base.pk3", {"scripts/authority.shader": b""})],
+                sources=sources,
+            )
+
+    def test_a_higher_priority_team_skin_is_refused(self) -> None:
+        """The half that would go quietly wrong. CG_FindClientModelFile tries
+        `<part>_<skin>_<team>.skin` first, so a source set that grew one would
+        leave the engine loading a file this recipe does not package while
+        every positive check still passed."""
+        sources = self._Sources(
+            [],
+            extra=list(self.TEAM_FILES)
+            + ["models/players/stub/lower_default_red.skin"],
+        )
+        with self.assertRaisesRegex(ContentError, "prefers over the packaged"):
+            self._run(
+                [self._archive("baseq3/base.pk3", {"scripts/authority.shader": b""})],
+                sources=sources,
+            )
+
+    def test_a_recipe_offering_no_model_is_refused_not_skipped(self) -> None:
+        """The vacuum answer: a rule about every model is satisfied by an empty
+        set, and this one is load-bearing."""
+        with self.assertRaisesRegex(ContentError, "would be satisfied by checking"):
+            self._run(
+                [self._archive("baseq3/base.pk3", {"scripts/authority.shader": b""})],
+                recipe=self._recipe(profile={"playerModels": []}),
+            )
+
     def test_the_shader_authority_rule_holds(self) -> None:
-        sources = self._Sources(["scripts/a.shader", "scripts/z.shader", "gfx/a.tga"])
+        sources = self._Sources(
+            ["scripts/a.shader", "scripts/z.shader", "gfx/a.tga"],
+            extra=self.TEAM_FILES,
+        )
         self._run(
             [
                 self._archive(

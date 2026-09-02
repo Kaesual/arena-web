@@ -10,10 +10,12 @@ field below. The immutable public Git commit containing this document and
 release source. Mutable branch names and local container tags are not release
 identities.
 
-The only supported profile is `arena-web-ffa`: FFA, frag limit 15, no time
-limit, eight slots and three server bots. **The map is not part of the
-profile.** It is a launch argument on both halves — the rotation the caller
-supplies — and section 9 is the rule that binds the two derivations together.
+The only supported profile is `arena-web-ffa`: eight slots, no time limit, and
+free-for-all or team deathmatch. **Neither the map nor the four per-server
+settings are part of the profile.** The rotation is a launch argument on both
+halves — section 9 is the rule that binds the two derivations together — and the
+gametype, the frag limit and the bots are launch arguments on the server half,
+with no committed default and published bounds (section 8).
 The accepted browser is Chrome for Testing 152.0.7977.64 on Fedora Linux 44
 `x86_64`; the dedicated server is Linux `amd64`. These are deliberately narrow
 prototype bounds, not a wider platform or capacity claim.
@@ -35,14 +37,18 @@ The primary immutable identities are:
 | --- | --- |
 | Baseline lock | `sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287` |
 | Browser artifact manifest | `sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047` |
-| Content artifact manifest | `sha256:69e7f5a24fa6282b2dc36ea06688a2fc169312259ff95a07bf4b2e363da04546` |
-| Base content archive | `sha256:caa003fcd7a79d3431a73166ed531d40b8a3d3728bca487d4b55c07d681c4229`, 40,985,746 bytes |
+| Content artifact manifest | `sha256:58716bc17eabac41b2d6189e3a48bba99ceeeaa9cd91d716ca462196dde1ffb3` |
+| Base content archive | `sha256:7cfa98c9fac1274ed45ee653572252e3d3d47c47c6d80163b59afd1c6354277c`, 55,304,102 bytes |
 | Map archives | twenty-nine, one per map, enumerated in the content artifact manifest |
 
 **The content is a set of archives, not one PK3.** A base archive carries
 everything not tied to a map — the gamecode's own closure, the seven player
-presentations, the bots and the notices — and one archive per map carries that
-map and what only it reaches. Each is served under a name containing the first
+presentations in both their own and their team colours, the seven bots and the
+notices — and one archive per map carries that map and what only it reaches.
+**The base grew by 14,318,356 bytes at this release**, from 40,985,746, which is
+what the team skins and the five added bot characters cost; that is a player's
+forced first download and it does not scale with the rotation. No map archive
+moved a byte. Each is served under a name containing the first
 16 hex characters of its own SHA-256 under an immutable cache policy, so a
 published URL is never rewritten and a returning player re-downloads only what
 actually changed. The dedicated server carries every archive.
@@ -275,9 +281,9 @@ The exact server identities are:
 
 | Input | Identity |
 | --- | --- |
-| OCI configuration/image ID | `sha256:03bdaf9927e9bd2171ec50cc74bb82adb1aabeec5f8aee42bbc21754ed16e97c` |
-| Server artifact manifest | `sha256:aeebf069c36725202707e0ca91903b1331bcabe4bc50f85e8e536cbdb6920ed9` |
-| Server profile | `sha256:829441e319d623b5134a9fbbda87a674689148bc7a8390954f4dbc0e4ed8f40f` |
+| OCI configuration/image ID | `sha256:5d59dc7c3a036f1043b18d09393d9f7a06ce8599701cd6a61ef6eae47c29a227` |
+| Server artifact manifest | `sha256:3a4c10384725d94f10d32596e5c24dc16fbe75a23a4f89af04938850b16e5762` |
+| Server profile | `sha256:8c3ca45ec0f52c896ab4e41223dfedaaa34fbd62d9138f8eb31672ab0b5a15dc` |
 
 The image is `linux/amd64`, user/group `65534:65534`, workdir
 `/opt/arena-web`, environment `HOME=/var/lib/arena`, entrypoint
@@ -311,31 +317,86 @@ cannot run the build at all. Passing the commit the record itself carries is
 what makes the accepted image ID reachable. Omit the flag and you get a
 different image, which is a new release, not this one.
 
-Pass the **rotation arguments, then** the exact
-`native/server-profile.json.serverArguments` array in its committed order. The
-committed array carries no map — a map inside it would be a rotation the caller
-cannot see — and `scripts/arena_server.py` `server_launch_arguments` is the one
-supported derivation of the pair. In command-line notation, for a rotation of
-`oa_pvomit, am_galmevish`:
+Pass the **rotation arguments, then the launch settings, then** the exact
+`native/server-profile.json.serverArguments` array in its committed order, and
+finally any named bots. The committed array carries **no map and no per-server
+setting** — either inside it would be a choice the caller cannot see — and
+`scripts/arena_server.py` `server_launch_arguments` is the one supported
+derivation of the whole line. In command-line notation, for a rotation of
+`oa_pvomit, am_galmevish` at `bot_minplayers`:
 
 ```text
 +set d1 "map oa_pvomit;set nextmap vstr d2"
 +set d2 "map am_galmevish;set nextmap vstr d1"
 +vstr d1
++set bot_minplayers 4 +set fraglimit 15 +set g_gametype 0 +set g_spSkill 3
 +set bot_enable 1 +set com_basegame arena +set com_legacyprotocol 0
-+set dedicated 1 +set fraglimit 15 +set g_gametype 0 +set net_enabled 1
-+set net_port 27960 +set sv_maxclients 8 +set sv_pure 0
-+set sv_rateLimitPerPort 1 +set timelimit 0
-+addbot Skelebot 1 free 2000 +addbot Rai 1 free 3500
-+addbot Sly 1 free 5000
++set dedicated 1 +set net_enabled 1 +set net_port 27960
++set sv_maxclients 8 +set sv_pure 0 +set sv_rateLimitPerPort 1
++set timelimit 0
+```
+
+or, for the same rotation with a named cast in Team Deathmatch:
+
+```text
++set d1 "map oa_pvomit;set nextmap vstr d2"
++set d2 "map am_galmevish;set nextmap vstr d1"
++vstr d1
++set fraglimit 15 +set g_gametype 3
++set bot_enable 1 +set com_basegame arena +set com_legacyprotocol 0
++set dedicated 1 +set net_enabled 1 +set net_port 27960
++set sv_maxclients 8 +set sv_pure 0 +set sv_rateLimitPerPort 1
++set timelimit 0
++addbot Liz 3 free 2000 +addbot Major 3 free 3500
 ```
 
 One `d<N>` cvar per rotation entry, each loading its map and pointing `nextmap`
 at the next; `vstr d1` enters the cycle. This is stock ioquake3's own idiom —
 `ExitLevel` runs `vstr nextmap` and baseq3 carries no map list of its own
-(ioq3 `code/game/g_main.c`). The rotation goes **first** because every `+set`
-line is applied by `Com_StartupVariable` before the command buffer runs at all,
-so `vstr d1` still precedes every `+addbot`, which `Svcmd_AddBot_f` requires.
+(ioq3 `code/game/g_main.c`). Only one placement is forced: every `+set` line is
+applied by `Com_StartupVariable` before the command buffer runs at all, so the
+cvars may sit anywhere, while `addbot` is forwarded to a game module that has to
+be **running** and therefore must follow `vstr d1`.
+
+### The four per-server settings
+
+Four values are supplied at launch beside the rotation, and **none of them has a
+committed default**. That is the same decision the map forced: a committed value
+a caller may or may not override is a default nobody can see and nothing
+reports — a server would run a gametype or a frag limit its operator never
+chose and would look from outside exactly like one that was configured.
+`native/server-profile.json.launchSettings` publishes the bounds so this can be
+validated without running our code, and every bound there is checked against
+what derives it.
+
+| Value | Bound | Emitted as |
+| --- | --- | --- |
+| `gametype` | one of `launchSettings.gametypes` — `0` (GT_FFA) or `3` (GT_TEAM) | `+set g_gametype <v>` |
+| `fraglimit` | `launchSettings.fraglimit.minimum`…`maximum`, 1…999 | `+set fraglimit <v>` |
+| `bots.minPlayers` + `bots.skill` | 0…`launchSettings.bots.maxCount`, and 1…5 | `+set bot_minplayers <v>` and `+set g_spSkill <v>` |
+| `bots.named[]` | 1…`maxCount` entries `{name, skill}` from `botRoster`, skill 1…5 | `+addbot <name> <skill> free <delay>`, delay `2000 + 1500·i` |
+
+The bot half is **one shape or the other, never both**. `bot_minplayers` is the
+one to prefer: the engine tops the server up and **removes bots again as humans
+arrive** (`G_CheckMinimumPlayers`), it costs the same two console lines whatever
+the bot count, and it is the only shape that distributes across two teams —
+where the same function clamps the figure to `sv_maxclients / 2 − 1` per team,
+so 3 at this profile's 8 slots. Named bots are the fine-grained alternative: a
+fixed cast, each at its own skill, at one console line per bot.
+
+**The gametype values are the pinned gamecode's, not ours.** They are read out
+of `gametype_t` in ioq3 `code/game/bg_public.h`; this release chooses the two
+*names*. GT_CTF is excluded because none of the 29 published maps is a CTF map,
+which makes it a content campaign rather than a mode switch.
+
+**Two things Team Deathmatch changes that are not settings.** Every packaged
+player model ships a complete red/blue skin set and the build refuses a model
+without one, so registration cannot fall through to ioquake3's unpackaged
+`DEFAULT_TEAM_MODEL`. And one cosmetic defect remains and is accepted by name:
+`cg_main.c` registers `powerups/blueflag` as the red team's quad shell under
+`cgs.gametype >= GT_TEAM`, no pinned archive provides that Quake III Arena
+name, so a red-team player carrying Quad Damage renders that one shell with the
+default shader. It is reported at `PRINT_DEVELOPER` only.
 
 **A rotation has a hard ceiling, and both halves of it are silent.** ioquake3
 concatenates argv into a fixed `char commandLine[MAX_STRING_CHARS]` (1024 bytes)
@@ -344,40 +405,58 @@ with `Q_strcat`, which truncates through `Q_strncpyz` rather than failing, and
 and returns, leaving the rest neither parsed nor reported. Both numbers are
 published in `native/server-profile.json.engineCommandLine` and are checked
 against the pinned engine on every validation, so they cannot go stale.
-`server_launch_arguments` refuses a rotation that would not fit;
-`max_server_rotation` reports how many of the published map names do. **At this
-release that ceiling is 15 of the 29 published maps.**
 
-It has been 15 since the set held sixteen maps, and the number staying still is
-not a coincidence but a property of one half, so do not read it as a constant.
-The **line** bound is a pure count: this release's committed server arguments
-occupy 16 console lines and a rotation of *n* maps adds `n + 1`, so 15 is the
-most that fits whatever the maps are called — a rotation of 16 one-character
-names is refused for the same reason as a rotation of 16 real ones. It falls if
-the profile grows a launch argument, since every extra console line costs a
-rotation slot.
+**The ceiling is a property of the settings as much as of the map names**, and
+that is new at this release: the non-rotation half of the command line is now a
+caller's choice. Each row is the worst case its shape can reach *inside the
+published bounds* — widest frag limit, highest skill, longest roster names —
+because a ceiling stated for one configuration is not a ceiling.
 
-The **byte** bound is the one that moves with the names, it is closer than the
-count suggests, and it closed further at this release. `max_server_rotation`
-answers for the published list *in order*, so its 15 is the alphabetically first
-fifteen and they assemble to 989 of 1024 bytes; the fifteen longest published
-names assemble to 1021. The check refuses at 1024 rather than above it, so that
-is room for **two** further characters, where the twenty-four-map set had five —
-one extra character in a rotated name costs exactly one byte. Two characters,
-not two maps: one newly published map with an eleven-character name would
-already exceed it, and the byte bound would then bind before the line bound
-does.
+| Bot setting | Fixed `+` commands | Distinct maps a rotation may hold |
+| --- | ---: | ---: |
+| `bot_minplayers` | 14 | 15 |
+| 5 named bots | 17 | 13 |
+| 6 named bots | 18 | 12 |
+| 7 named bots | 19 | 11 |
+
+**At this release the recommended configuration's ceiling is 15 of the 29
+published maps** — the same figure as before these settings moved, which is a
+coincidence of arithmetic and not a constant: `bot_minplayers` costs two `+set`
+lines where three committed `+addbot` lines and two committed setting cvars used
+to sit. **It meets the old ceiling; it does not raise it.** The second of those
+two lines is `g_spSkill`, and it is the one an outside derivation forgets:
+`G_AddRandomBot` reads that cvar and passes it to `addbot`, so difficulty in
+this shape is a console line of its own.
+
+The **line** bound is a pure count — the initial line, the fixed `+` commands,
+and `n + 1` for a rotation of *n* maps — so it permits `32 − 2 − fixed` maps
+whatever they are called. Every named-bot row above is exactly line-bound. The
+`bot_minplayers` row is not: 15 maps come to 31 console lines and the sixteenth
+is refused on **bytes**.
+
+The **byte** bound moves with the names. `max_server_rotation` answers for the
+published list *in order*, so it reports 16 for the `bot_minplayers` row where
+the worst *distinct* rotation is 15; the table above answers the question a
+validator must ask. At the widest `bot_minplayers` settings the alphabetically
+first fifteen assemble to 952 of 1024 bytes and the fifteen **longest** to 984.
+The check refuses at 1024 rather than above it, so that is room for **39**
+further characters — where before these settings moved it was two, because five
+console lines of committed `+addbot` text have left the line. One extra
+character in a rotated name costs exactly one byte, and a named cast spends that
+headroom again.
+
 **And a rotation may repeat a map** — that is deliberate, a cycle may
 legitimately visit one map twice — in which case the bound can be exceeded below
-fifteen entries: fifteen entries of `am_underworks2` assemble to 1073 bytes and
+fifteen entries: fifteen entries of `am_underworks2` assemble to 1036 bytes and
 are refused.
 
 So treat `max_server_rotation` as what it is: an upper bound for distinct maps
-in the published order, not a promise about an arbitrary fifteen-entry
-rotation. The binding check is `server_launch_arguments`, which refuses a
-rotation that would not fit before it produces a command line — fail-closed,
-and the only figure that answers for the rotation you actually launch. Do not
-interpolate the ceiling from a map count in either direction. A rotation is
+in the published order, at one configuration, not a promise about an arbitrary
+fifteen-entry rotation. The binding check is `server_launch_arguments`, which
+refuses a rotation and setting pair that would not fit before it produces a
+command line — fail-closed, and the only figure that answers for the server you
+actually launch. Do not interpolate the ceiling from a map count in either
+direction, and do not carry it across a change of settings. A rotation is
 bounded far below it in practice by what a player downloads, which section 1's
 per-archive figures let you compute.
 
@@ -422,8 +501,8 @@ read-only and mount an initially empty, `rw,noexec,nosuid,nodev`, mode-1777,
 64-MiB tmpfs at `/var/lib/arena`. That home holds only ephemeral engine config
 and `games.log`. There is **no persistent path or volume** in this release; no
 world, save, secret or host file is required. The read-only image is
-275,470,287 bytes; the measured container writable layer after stop
-was 12,644 bytes and is disposable.
+289,788,367 bytes; the measured container writable layer after stop
+was 12,588 bytes and is disposable.
 
 Readiness is the native binary UDP query, no more than once per second from a
 stable source address and port:
@@ -456,7 +535,7 @@ one-second checks make the observation failed.
 Send `SIGTERM` or `SIGINT` to the entrypoint and allow 10 seconds before a
 forced kill. The normal signal path sends the final server message, closes the
 VM/network and exits with code 1; code 1 is therefore success only when the
-manager requested this stop. The measured graceful exit took 0.135 seconds.
+manager requested this stop. The measured graceful exit took 0.124 seconds.
 Any unsolicited exit, including code 1, is failure.
 
 ## 5. Indivisible compatibility identity
@@ -468,11 +547,10 @@ loader, profile, QVM, pack, binary or relay profile:
 baseline          sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287
 ioq3               git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592
 browser manifest   sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047
-content manifest   sha256:69e7f5a24fa6282b2dc36ea06688a2fc169312259ff95a07bf4b2e363da04546
-content base       sha256:caa003fcd7a79d3431a73166ed531d40b8a3d3728bca487d4b55c07d681c4229
-server manifest    sha256:aeebf069c36725202707e0ca91903b1331bcabe4bc50f85e8e536cbdb6920ed9
-server image ID    sha256:03bdaf9927e9bd2171ec50cc74bb82adb1aabeec5f8aee42bbc21754ed16e97c
-```
+content manifest   sha256:58716bc17eabac41b2d6189e3a48bba99ceeeaa9cd91d716ca462196dde1ffb3
+content base       sha256:7cfa98c9fac1274ed45ee653572252e3d3d47c47c6d80163b59afd1c6354277c
+server manifest    sha256:3a4c10384725d94f10d32596e5c24dc16fbe75a23a4f89af04938850b16e5762
+server image ID    sha256:5d59dc7c3a036f1043b18d09393d9f7a06ce8599701cd6a61ef6eae47c29a227```
 
 `release/browser-release.json.compatibility` repeats these values and its
 validator derives all manifest identities from the named authority files.
@@ -491,8 +569,79 @@ arenaWeb.configureRelay({
   tokenProvider,                  // async/sync function returning one non-empty string
   keepAliveIntervalMilliseconds, // 0 or 1000..86400000
   assignmentTimeoutMilliseconds, // optional integer 1..60000; default 10000
+  playerName,                     // the player's own name; see the rule below
+  playerModel,                    // one of relay-profile.json playerSettings.models
 });
 ```
+
+### The player's name and model
+
+Both are **runtime inputs of the same class as the endpoint and the
+destination**: per-session, never committed, and in the name's case never
+reported. They exist because without them a hosted server calls every human
+`UnnamedPlayer` and gives them all the same face — ioq3 registers `name` with
+that default (`code/client/cl_main.c`) and this release used to pin `model` and
+`headmodel` shut in the committed relay profile.
+
+`arena/relay-profile.json.playerSettings` publishes what they may be, and
+`scripts/arena_runtime.py` checks each bound against the thing that derives it:
+
+| Field | Bound |
+| --- | --- |
+| `playerModel` | exactly one of `playerSettings.models`, which is exactly the player models `content/pack-recipe.json` packages |
+| `playerName` | 1 to `playerSettings.name.maxLength` characters; printable ASCII without `"`, `;`, `\` or `^`, and without a repeated space |
+
+**Three failures, three answers, and the split is deliberate.** A name that is
+too long is **truncated**, not refused — a session must not fail over a name
+that is merely long. The bound is `MAX_NETNAME - 1` (ioq3
+`code/game/g_local.h`), the number of characters `ClientCleanName` copies into
+`client->pers.netname` before its `outpos < outSize - 1` loop stops; truncating
+on the producer side rather than leaving it to the engine is what makes the
+stored name predictable instead of merely bounded. Leading and trailing spaces
+are **trimmed**, because they are invisible, because `ClientCleanName` discards
+leading ones itself, and because a cut can otherwise expose a trailing one.
+Forbidden **content is refused**, because it is the only one of the three a
+player can see and report.
+
+`^` is refused rather than passed through, and that is the decision worth
+stating: `ClientCleanName` reads `^` plus a character as a colour code, drops it
+outright when the colour is black, and substitutes `"UnnamedPlayer"` when
+nothing colourless survives. Accepting it would mean a name that silently
+becomes colour, or silently becomes the very default this setting exists to
+replace — neither diagnosable by the player who typed it. `\`, `"` and `;` are
+refused as the userinfo separator, the quoting character the engine's own
+command-line assembly adds, and the console command separator.
+
+**The command line beats an archived value.** `name`, `model` and `headmodel`
+are `CVAR_USERINFO | CVAR_ARCHIVE`, so a value could survive in the browser
+filesystem's `q3config.cfg` — but `Com_Init` runs `Com_ExecuteCfg()` and *then*
+`Com_StartupVariable(NULL)` with the comment "override anything from the config
+files with command line args" (ioq3 `code/qcommon/common.c`). What the
+integration passes is what the session runs.
+
+**The model choice survives Team Deathmatch.** `cg_forceModel` defaults to `0`
+(`code/cgame/cg_main.c`), so `CG_NewClientInfo` keeps each client's own model
+and only the *skin* becomes red or blue; the substitution of
+`DEFAULT_TEAM_MODEL` happens only under `cg_forceModel`, which nothing in this
+release sets.
+
+**`headmodel` is set with `model` and cannot be omitted.** ioq3 registers it
+separately with its own `sarge` default, and `sarge` is not in this pack, so a
+model set without it would give the player a packaged body and a head that fails
+to register — a `CG_Error`, not a mismatch. The loader emits both from the one
+`playerModel` value.
+
+The player's name is **redacted out of the evidence** alongside the relay
+destination: `snapshot()` and `report.engineArguments` carry `[player name]` in
+its place. The model is not redacted, because it is a choice from a committed
+set and knowing which one a client registered is evidence rather than
+disclosure.
+
+The relay client's worst case is **427 of 1024 bytes and 18 of 32 console
+lines**, measured with `engine_command_line` over a 35-character name, the
+longest offered model, a full IPv6 destination and the loader's three
+render-size arguments. The client half is nowhere near either ceiling and does
+not bound a server's rotation.
 
 The browser receives the public relay URL and the **virtual** IPv6 destination
 only. It must never receive, infer or log the server's real IPv4/UDP endpoint.
@@ -534,18 +683,18 @@ for this exact eight-slot/two-human/three-bot prototype is:
 
 | Resource | Limit | Busy observed maximum | Remaining safety margin |
 | --- | ---: | ---: | ---: |
-| CPU | 1 core | 0.048485-core peak sample | 0.951515 core; 20.625x |
-| Memory | 268,435,456 bytes | 30,511,104-byte peak cgroup; 31,784,960-byte process HWM | 237,924,352 bytes; 8.798x against cgroup peak |
+| CPU | 1 core | 0.047037-core peak sample | 0.952963 core; 21.26x |
+| Memory | 268,435,456 bytes | 30,420,992-byte peak cgroup; 31,776,768-byte process HWM | 238,014,464 bytes; 8.824x against cgroup peak |
 | Writable home | 67,108,864 bytes | 1,272 bytes | 67,107,592 bytes; 52,758.541x |
 | Processes | 128 PIDs | constrained successfully by the probe | guard, not a measured demand claim |
 
-Startup readiness was 1.751 seconds, which is a poll-loop
+Startup readiness was 1.75 seconds, which is a poll-loop
 figure and not a startup time: the readiness probe waits out a 0.75-second
 socket timeout and then a one-second interval, so it says the server was ready
 before the second poll and no more than that. The ten-second idle phase
-averaged 0.020843 cores. The 30-second two-native-client phase, with
-movement, weapon, fire, chat and respawn traffic while all three bots remained
-active, averaged 0.039762 cores. These values preserve large practical headroom, but are
+averaged 0.020639 cores. The 30-second two-native-client phase, with
+movement, weapon, fire, chat and respawn traffic while the bots remained
+active, averaged 0.033186 cores. These values preserve large practical headroom, but are
 capacity guards only—not an SLO, autoscaling rule, production concurrency
 claim or evidence for more than two humans.
 

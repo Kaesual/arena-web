@@ -30,6 +30,7 @@ from typing import Any
 
 from arena_runtime import (
     ArenaRuntimeError,
+    BOT_SKILL_RANGE,
     check_command_line_budget,
     check_command_line_limits,
     check_match_end_cvars,
@@ -40,6 +41,7 @@ from arena_runtime import (
     max_rotation_length,
     published_maps,
     rotation_arguments,
+    supported_gametypes,
     validate_rotation,
 )
 
@@ -54,7 +56,7 @@ CONTENT_MANIFEST = "provenance/arena-web-ffa-content-manifest.json"
 PROFILE_KEYS = (
     "$comment",
     "basegame",
-    "bots",
+    "botRoster",
     "client",
     "clientArguments",
     "configFiles",
@@ -64,6 +66,8 @@ PROFILE_KEYS = (
     "engineCommandLineNotes",
     "formatVersion",
     "gameDirectory",
+    "launchSettingNotes",
+    "launchSettings",
     "package",
     "playerModel",
     "port",
@@ -87,10 +91,49 @@ REQUIRED_CONFIG_FILE = "default.cfg"
 # BOT_BEGIN_DELAY_INCREMENT per bot. The same values WP4 derives.
 BOT_BEGIN_DELAY_BASE_MS = 2000
 BOT_BEGIN_DELAY_INCREMENT_MS = 1500
-BOT_SKILL_RANGE = (1, 5)
 
-# ioq3 code/game/bg_public.h: GT_FFA.
-FFA_GAMETYPE = "0"
+# The four per-server settings that are supplied at launch rather than
+# committed, and the cvar each one is. The map was the first value to make this
+# move; these are the rest of it. `skill` is the one whose cvar is not obvious:
+# with `bot_minplayers` the engine adds bots itself through `G_AddRandomBot`,
+# which reads `g_spSkill` and passes it to `addbot` (ioq3 code/game/g_bot.c) —
+# there is no per-bot skill argument to carry it, so the difficulty of an
+# automatically filled server is that cvar and nothing else.
+SETTING_CVARS = {
+    "fraglimit": "fraglimit",
+    "gametype": "g_gametype",
+    "minPlayers": "bot_minplayers",
+    "skill": "g_spSkill",
+}
+
+# The two shapes the bot half of a launch setting may take, and the reason they
+# are exclusive rather than combinable. `bot_minplayers` is the primary one: the
+# engine tops the server up and **removes bots again as humans arrive**
+# (`G_CheckMinimumPlayers`), it costs two console lines whatever the bot count,
+# and it is the only one that distributes across two teams. Named bots stay as
+# the fine-grained alternative — a fixed cast at a fixed skill each. Running
+# both would mean two mechanisms deciding one number, and it would make the
+# command-line budget depend on their interaction.
+BOT_SETTING_SHAPES = {
+    "minPlayers": ("minPlayers", "skill"),
+    "named": ("named",),
+}
+
+LAUNCH_SETTING_KEYS = ("bots", "fraglimit", "gametype")
+
+# The declared bounds block, and the keys each part of it carries. Every one of
+# these is checked against what derives it — see `_validate_launch_settings` —
+# rather than trusted, because a bound a consumer reads out of a published
+# authority is a bound this repository is asserting.
+LAUNCH_SETTINGS_KEYS = ("bots", "fraglimit", "gametypes")
+LAUNCH_SETTINGS_BOT_KEYS = ("maxCount", "skill")
+LAUNCH_SETTINGS_FRAGLIMIT_KEYS = ("maximum", "minimum")
+
+# The committed cvar that decides the frag limit's lower bound. `timelimit` is
+# committed and `fraglimit` is not, so whether a frag limit of 0 can be allowed
+# is a question about the committed half — derived in `_fraglimit_minimum`,
+# never written here as a number.
+MATCH_END_COMMITTED = "timelimit"
 
 # ioq3 code/server/sv_main.c SV_MasterHeartbeat: only "dedicated 2" registers
 # with the public master servers, which WP5 lists as an explicit non-goal.
@@ -176,24 +219,27 @@ def expected_server_arguments(profile: dict[str, Any]) -> list[str]:
     """The one derivation of the dedicated server's command line.
 
     ``+set`` lines are read by ioq3's Com_StartupVariable before anything else
-    runs and again after Com_ExecuteCfg, and the remaining lines are executed
-    from the command buffer in order (code/qcommon/common.c). ``addbot`` is not
-    an engine command: Cmd_ExecuteString forwards it to the running game
-    module's Svcmd_AddBot_f (code/qcommon/cmd.c, code/game/g_bot.c), which is
-    why a map has to be up first.
+    runs and again after Com_ExecuteCfg (code/qcommon/common.c), so this list is
+    entirely order-free with respect to the rest of the command line.
 
-    **This half carries no map.** The rotation is supplied at container launch
-    and never committed, so `server_launch_arguments` prepends it to this list;
-    every ``+set`` line here is applied before the command buffer runs, so
-    prepending puts ``vstr d1`` ahead of the ``+addbot`` lines in buffer order,
-    which is the ordering the paragraph above requires.
+    **This half carries neither a map nor a per-server setting.** The rotation,
+    the gametype, the frag limit and the bots are supplied at container launch
+    and never committed, so `server_launch_arguments` is what assembles the
+    whole line; every ``+set`` line here is applied before the command buffer
+    runs, so putting the rotation first still puts ``vstr d1`` ahead of the
+    ``+addbot`` lines in buffer order, which is the ordering the paragraph above
+    requires.
+
+    **There is deliberately no committed default for a launch setting**, and
+    that is the same decision the map already forced. A committed value a caller
+    may or may not override is a default nobody can see and nothing reports: the
+    server would run a gametype or a frag limit its operator never chose, and
+    would look exactly like one that was configured. So the settings are absent
+    here and `server_launch_arguments` refuses to build a line without them.
     """
     arguments: list[str] = []
     for name in sorted(profile["cvars"]):
         arguments += ["+set", name, profile["cvars"][name]]
-    for index, bot in enumerate(profile["bots"]):
-        delay = BOT_BEGIN_DELAY_BASE_MS + index * BOT_BEGIN_DELAY_INCREMENT_MS
-        arguments += ["+addbot", bot["name"], str(bot["skill"]), "free", str(delay)]
     return arguments
 
 
@@ -221,28 +267,29 @@ def _validate_cvars(record: dict[str, Any], path: str) -> None:
         _string(cvars[name], f"{path}.{name}")
 
 
-def _validate_bots(profile: dict[str, Any]) -> None:
-    bots = _array(profile.get("bots"), "profile.bots")
-    if not bots:
-        _fail("profile.bots", "must declare at least one bot")
-    names = []
-    for index, entry in enumerate(bots):
-        bot = _object(entry, f"profile.bots[{index}]")
-        _exact_keys(bot, ("name", "skill"), f"profile.bots[{index}]")
-        name = _string(bot["name"], f"profile.bots[{index}].name")
+def _validate_bot_roster(profile: dict[str, Any]) -> None:
+    """The bot names a launch setting may pick from.
+
+    This used to be `bots`, an array of name/skill pairs the committed
+    `+addbot` lines were derived from. Both halves moved: the skill is a launch
+    setting now, and which bots a server runs is one too. What is left is the
+    *roster* — a published list of what a caller may name, which is what a
+    configuring interface needs and what `server_launch_arguments` validates a
+    named-bot setting against.
+    """
+    names = _array(profile.get("botRoster"), "profile.botRoster")
+    if not names:
+        _fail("profile.botRoster", "must name at least one bot")
+    seen = []
+    for index, entry in enumerate(names):
+        name = _string(entry, f"profile.botRoster[{index}]")
         if not BOT_NAME.fullmatch(name):
-            _fail(f"profile.bots[{index}].name", f"'{name}' is not a bot name")
-        skill = bot["skill"]
-        if not isinstance(skill, int) or isinstance(skill, bool):
-            _fail(f"profile.bots[{index}].skill", "must be an integer")
-        if not BOT_SKILL_RANGE[0] <= skill <= BOT_SKILL_RANGE[1]:
-            _fail(
-                f"profile.bots[{index}].skill",
-                f"must be within {BOT_SKILL_RANGE}",
-            )
-        names.append(name)
-    if len(set(names)) != len(names):
-        _fail("profile.bots", "must not name one bot twice")
+            _fail(f"profile.botRoster[{index}]", f"'{name}' is not a bot name")
+        seen.append(name)
+    if len(set(seen)) != len(seen):
+        _fail("profile.botRoster", "must not name one bot twice")
+    if seen != sorted(seen):
+        _fail("profile.botRoster", "must be sorted, so the published order is stable")
 
 
 def _validate_config_files(profile: dict[str, Any], repo_root: Path) -> None:
@@ -281,7 +328,21 @@ def _config_source(repo_root: Path, source: str) -> Path:
 def _validate_against_browser_profile(
     profile: dict[str, Any], browser: dict[str, Any]
 ) -> None:
-    """Bind the native profile to the browser slice it has to match."""
+    """Bind the native profile to the browser slice it has to match.
+
+    **What the two halves may still be required to share, now that the server's
+    are launch arguments.** `fraglimit` and `g_gametype` used to be compared for
+    equality here; a server takes both at launch and the offline slice commits
+    its own, so there is no committed value left to compare and demanding one
+    would mean committing a default this repository has just decided against.
+    What remains bindable is bound: the game directory, the package, the player
+    presentation and the committed cvars both sides still carry.
+
+    The bot list is a **subset** rule rather than an equality for the same
+    reason. The native side publishes a roster a caller picks from; the offline
+    slice picks a fixed cast out of it. An equality would force the practice
+    slice to run every bot the server can offer.
+    """
     for key in ("basegame", "package", "playerModel"):
         if profile[key] != browser.get(key):
             _fail(
@@ -289,15 +350,21 @@ def _validate_against_browser_profile(
                 f"must equal the browser slice's {key} '{browser.get(key)}'",
             )
     browser_cvars = _object(browser.get("cvars"), "browser.cvars")
-    for name in ("com_basegame", "fraglimit", "g_gametype", "sv_pure", "timelimit"):
+    for name in ("com_basegame", "sv_pure", MATCH_END_COMMITTED):
         if profile["cvars"].get(name) != browser_cvars.get(name):
             _fail(
                 f"profile.cvars.{name}",
                 f"must equal the browser slice's value '{browser_cvars.get(name)}'",
             )
-    browser_bots = [bot["name"] for bot in _array(browser.get("bots"), "browser.bots")]
-    if [bot["name"] for bot in profile["bots"]] != browser_bots:
-        _fail("profile.bots", "must be the browser slice's bots, in the same order")
+    roster = set(profile["botRoster"])
+    for bot in _array(browser.get("bots"), "browser.bots"):
+        name = _object(bot, "browser.bots entry").get("name")
+        if name not in roster:
+            _fail(
+                "profile.botRoster",
+                f"does not offer the browser slice's bot '{name}'; the offline "
+                "practice slice must play against bots this release publishes",
+            )
 
 
 def _validate_against_recipe(
@@ -318,16 +385,169 @@ def _validate_against_recipe(
         published_maps(repo_root, CONTENT_MANIFEST)
     except ArenaRuntimeError as error:
         _fail(CONTENT_MANIFEST, str(error))
-    recipe_bots = {
+    recipe_bots = sorted(
         _string(
             _object(bot, "recipe.profile.bots entry").get("name"),
             "recipe.profile.bots[].name",
         )
         for bot in _array(recipe_profile.get("bots"), "recipe.profile.bots")
-    }
-    for bot in profile["bots"]:
-        if bot["name"] not in recipe_bots:
-            _fail("profile.bots", f"'{bot['name']}' is not a bot the pack packages")
+    )
+    # **Equality, not containment, and the reason is a mechanism rather than
+    # tidiness.** The primary bot setting is `bot_minplayers`, and the engine
+    # fills those slots with `addbot random`, which selects out of `g_botInfos`
+    # — the packaged `scripts/bots.txt` — and never looks at anything this
+    # profile publishes (ioq3 code/game/g_bot.c `G_SelectRandomBotInfo`). A
+    # packaged bot missing from the roster would therefore appear on a server
+    # nobody could have asked for it on, and a rostered bot missing from the
+    # pack is a name `addbot` answers with `Error: Bot '<name>' not defined`.
+    if sorted(profile["botRoster"]) != recipe_bots:
+        _fail(
+            "profile.botRoster",
+            f"must be exactly the bots the pack packages {recipe_bots}: "
+            "bot_minplayers fills its slots with `addbot random`, which draws "
+            "from the packaged scripts/bots.txt and not from this roster",
+        )
+
+
+def _fraglimit_minimum(profile: dict[str, Any]) -> int:
+    """The smallest frag limit a launch setting may carry, derived not decided.
+
+    `CheckExitRules` ends a level on a limit cvar and on nothing else, and of
+    the two this rule covers only `timelimit` is committed. So the frag limit's
+    floor is a question about the committed half: a committed `timelimit` of 0
+    leaves the frag limit as the only exit at every supported gametype and the
+    floor is 1; a non-zero committed `timelimit` already ends a level and the
+    floor is 0. Written as a number it would be a copy of a decision made in
+    another file.
+    """
+    return 0 if int(profile["cvars"][MATCH_END_COMMITTED]) else 1
+
+
+def _validate_launch_settings(profile: dict[str, Any], repo_root: Path) -> None:
+    """Check the published bounds against the things that derive them.
+
+    The bounds are published so a configuring consumer can read them out of a
+    digest-bound authority instead of reimplementing this file. That makes them
+    an assertion this repository is making, so none of them is trusted: the
+    gametype set is the pinned enum's, the skill range is the engine's clamp,
+    the bot count is the committed `sv_maxclients` less the human slot, and the
+    frag limit's floor is derived from the committed `timelimit`. Only the frag
+    limit's *ceiling* is a product decision, and it is the one that carries a
+    note rather than a derivation — it exists to keep the command-line byte
+    budget's widest case a fixed number of digits.
+    """
+    settings = _object(profile.get("launchSettings"), "profile.launchSettings")
+    _exact_keys(settings, LAUNCH_SETTINGS_KEYS, "profile.launchSettings")
+
+    supported = sorted(supported_gametypes(repo_root / "ioq3").values())
+    declared = _array(settings.get("gametypes"), "profile.launchSettings.gametypes")
+    if declared != supported:
+        _fail(
+            "profile.launchSettings.gametypes",
+            f"is {declared}, and the gametypes this release supports are "
+            f"{supported} by the pinned gamecode's own enum",
+        )
+
+    fraglimit = _object(
+        settings.get("fraglimit"), "profile.launchSettings.fraglimit"
+    )
+    _exact_keys(
+        fraglimit, LAUNCH_SETTINGS_FRAGLIMIT_KEYS, "profile.launchSettings.fraglimit"
+    )
+    for name in LAUNCH_SETTINGS_FRAGLIMIT_KEYS:
+        value = fraglimit[name]
+        if not isinstance(value, int) or isinstance(value, bool) or value < 0:
+            _fail(
+                f"profile.launchSettings.fraglimit.{name}",
+                "must be a non-negative integer",
+            )
+    minimum = _fraglimit_minimum(profile)
+    if fraglimit["minimum"] != minimum:
+        _fail(
+            "profile.launchSettings.fraglimit.minimum",
+            f"is {fraglimit['minimum']}, and with the committed "
+            f"{MATCH_END_COMMITTED} {profile['cvars'][MATCH_END_COMMITTED]!r} the "
+            f"match-end rule makes it {minimum}",
+        )
+    if fraglimit["maximum"] < fraglimit["minimum"]:
+        _fail(
+            "profile.launchSettings.fraglimit.maximum",
+            "must not be below the minimum",
+        )
+
+    bots = _object(settings.get("bots"), "profile.launchSettings.bots")
+    _exact_keys(bots, LAUNCH_SETTINGS_BOT_KEYS, "profile.launchSettings.bots")
+    skill = _array(bots.get("skill"), "profile.launchSettings.bots.skill")
+    if [*skill] != [*BOT_SKILL_RANGE]:
+        _fail(
+            "profile.launchSettings.bots.skill",
+            f"is {skill}, and Svcmd_AddBot_f clamps a bot's skill to "
+            f"{list(BOT_SKILL_RANGE)} (ioq3 code/game/g_bot.c)",
+        )
+    # ioq3 code/game/g_bot.c G_CheckMinimumPlayers clamps `bot_minplayers` to
+    # `g_maxclients.integer - 1` in the FFA branch, which is also the largest
+    # named cast that leaves a slot for a human.
+    maximum = int(profile["cvars"]["sv_maxclients"]) - 1
+    if bots.get("maxCount") != maximum:
+        _fail(
+            "profile.launchSettings.bots.maxCount",
+            f"is {bots.get('maxCount')}, and the committed sv_maxclients "
+            f"{profile['cvars']['sv_maxclients']} leaves room for {maximum}",
+        )
+
+    notes = _object(
+        profile.get("launchSettingNotes"), "profile.launchSettingNotes"
+    )
+    _exact_keys(
+        notes,
+        tuple(LAUNCH_SETTING_KEYS) + ("skill",),
+        "profile.launchSettingNotes",
+    )
+    for name in notes:
+        if len(_string(notes[name], f"profile.launchSettingNotes.{name}")) < 20:
+            _fail(f"profile.launchSettingNotes.{name}", "must state what decides it")
+
+
+def check_no_committed_settings(arguments: list[str], what: str) -> None:
+    """Refuse a committed argument list that already chooses a launch setting.
+
+    The committed-side half of the same rule `check_no_committed_map` states for
+    the map, and it exists for the same reason: an array a caller passes
+    verbatim must not decide something the caller believes it is deciding. A
+    stray `+set fraglimit` here would be applied by `Com_StartupVariable` like
+    any other, and — unlike a stray map — it would not even be visibly wrong,
+    because a server with a frag limit looks exactly like a configured one.
+
+    **Neither branch can fire on a committed profile, and saying so is the
+    point.** `load_profile` refuses a setting cvar in `profile.cvars` several
+    checks earlier, with a message that names the setting; and both committed
+    arrays are compared against `expected_*_arguments()` before this runs, and
+    that derivation emits only `+set` lines for cvars that survived the first
+    refusal — so a `+addbot` in a committed array is already refused as "not the
+    derivation". This is a forward guard, kept and labelled rather than believed
+    in: it is what would catch a derivation that one day emits more than it
+    does, and it is the rule an integration assembling its own array has to
+    obey. The mistake this repository has already paid for is a check whose
+    reach is assumed rather than stated, so the reach is stated.
+    """
+    settings = set(SETTING_CVARS.values())
+    for index, argument in enumerate(arguments):
+        if argument == "+addbot":
+            _fail(
+                what,
+                "carries '+addbot': which bots a server runs is a launch setting",
+            )
+        if (
+            argument == "+set"
+            and index + 1 < len(arguments)
+            and arguments[index + 1] in settings
+        ):
+            _fail(
+                what,
+                f"sets '{arguments[index + 1]}': it is a launch setting and may "
+                "not be committed, because a committed default is one no caller "
+                "can see and nothing reports",
+            )
 
 
 def load_profile(repo_root: Path) -> dict[str, Any]:
@@ -376,7 +596,7 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
     client = _object(profile.get("client"), "profile.client")
     _exact_keys(client, ("cvarNotes", "cvars"), "profile.client")
     _validate_cvars(client.get("cvars"), "profile.client.cvars")
-    _validate_bots(profile)
+    _validate_bot_roster(profile)
     _validate_config_files(profile, repo_root)
 
     for label, cvars, notes in (
@@ -395,8 +615,13 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
 
     if profile["cvars"].get("com_basegame") != profile["basegame"]:
         _fail("profile.cvars.com_basegame", "must be the profile's game directory")
-    if profile["cvars"].get("g_gametype") != FFA_GAMETYPE:
-        _fail("profile.cvars.g_gametype", "must be GT_FFA for this profile")
+    for setting, cvar in sorted(SETTING_CVARS.items()):
+        if cvar in profile["cvars"]:
+            _fail(
+                f"profile.cvars.{cvar}",
+                f"is the '{setting}' launch setting and must not be committed; "
+                "see profile.launchSettings for what a caller supplies",
+            )
     if profile["cvars"].get("dedicated") != LAN_DEDICATED:
         _fail(
             "profile.cvars.dedicated",
@@ -451,9 +676,29 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
             check_no_committed_map(committed, f"profile.{key}")
         except ArenaRuntimeError as error:
             _fail(f"profile.{key}", str(error))
+        check_no_committed_settings(committed, f"profile.{key}")
 
+    _validate_launch_settings(profile, repo_root)
+    profile["_gametypes"] = supported_gametypes(repo_root / "ioq3")
     try:
-        check_match_end_cvars(repo_root, profile["cvars"], "profile.cvars")
+        # **A proof over the whole admissible space, not a check of one tuple.**
+        # The frag limit is supplied at launch, so there is no committed pair
+        # left to test; what can be tested here is that no value the published
+        # bounds admit can violate the rule. The rule's only sensitivity to a
+        # limit's value is whether it is zero, so the declared minimum is the
+        # worst case — if the rule holds there it holds for every admissible
+        # setting, at every supported gametype. `server_launch_arguments` runs
+        # the same rule again on what a caller actually passed, because a caller
+        # is not obliged to have read the bounds.
+        check_match_end_cvars(
+            repo_root,
+            {
+                **profile["cvars"],
+                "fraglimit": str(profile["launchSettings"]["fraglimit"]["minimum"]),
+            },
+            "profile.launchSettings",
+            profile["_gametypes"],
+        )
         profile["_commandLineLimits"] = check_command_line_limits(
             repo_root, profile.get("engineCommandLine"), "profile.engineCommandLine"
         )
@@ -478,10 +723,147 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
     return profile
 
 
+def validate_launch_settings(
+    profile: dict[str, Any], settings: Any, what: str = "settings"
+) -> dict[str, Any]:
+    """One caller-supplied per-server configuration, checked against the bounds.
+
+    Four values, and every one of them is refused rather than defaulted when it
+    is absent — the same decision the map forced and for the same reason: the
+    plausible defaults are all wrong in a way nothing downstream reports. A
+    server started at the engine's own defaults is an FFA server with
+    `fraglimit 20` and no bots (ioq3 code/game/g_main.c, code/game/g_bot.c),
+    which is a configuration nobody chose and which looks from outside exactly
+    like one somebody did.
+    """
+    record = _object(settings, what)
+    _exact_keys(record, LAUNCH_SETTING_KEYS, what)
+    bounds = profile["launchSettings"]
+
+    gametype = record["gametype"]
+    if not isinstance(gametype, int) or isinstance(gametype, bool):
+        _fail(f"{what}.gametype", "must be an integer")
+    if gametype not in bounds["gametypes"]:
+        _fail(
+            f"{what}.gametype",
+            f"is {gametype}, and this release supports {bounds['gametypes']} "
+            + ", ".join(
+                f"{name}={value}" for name, value in sorted(profile["_gametypes"].items())
+            ),
+        )
+
+    fraglimit = record["fraglimit"]
+    low = bounds["fraglimit"]["minimum"]
+    high = bounds["fraglimit"]["maximum"]
+    if (
+        not isinstance(fraglimit, int)
+        or isinstance(fraglimit, bool)
+        or not low <= fraglimit <= high
+    ):
+        _fail(f"{what}.fraglimit", f"must be an integer in {low}..{high}")
+
+    bots = _object(record["bots"], f"{what}.bots")
+    shapes = [name for name in BOT_SETTING_SHAPES if name in bots]
+    if len(shapes) != 1:
+        _fail(
+            f"{what}.bots",
+            "must carry exactly one of "
+            + " or ".join(sorted(BOT_SETTING_SHAPES))
+            + f", and carries {sorted(bots)}",
+        )
+    shape = shapes[0]
+    _exact_keys(bots, BOT_SETTING_SHAPES[shape], f"{what}.bots")
+    low, high = BOT_SKILL_RANGE
+    if shape == "minPlayers":
+        count = bots["minPlayers"]
+        if (
+            not isinstance(count, int)
+            or isinstance(count, bool)
+            or not 0 <= count <= bounds["bots"]["maxCount"]
+        ):
+            _fail(
+                f"{what}.bots.minPlayers",
+                f"must be an integer in 0..{bounds['bots']['maxCount']}",
+            )
+        skill = bots["skill"]
+        if not isinstance(skill, int) or isinstance(skill, bool) or not low <= skill <= high:
+            _fail(f"{what}.bots.skill", f"must be an integer in {low}..{high}")
+    else:
+        named = _array(bots["named"], f"{what}.bots.named")
+        if not 1 <= len(named) <= bounds["bots"]["maxCount"]:
+            _fail(
+                f"{what}.bots.named",
+                f"must name 1..{bounds['bots']['maxCount']} bots; a server with "
+                "no bots is the minPlayers shape with 0",
+            )
+        roster = set(profile["botRoster"])
+        seen: list[str] = []
+        for index, entry in enumerate(named):
+            bot = _object(entry, f"{what}.bots.named[{index}]")
+            _exact_keys(bot, ("name", "skill"), f"{what}.bots.named[{index}]")
+            name = _string(bot["name"], f"{what}.bots.named[{index}].name")
+            if name not in roster:
+                _fail(
+                    f"{what}.bots.named[{index}].name",
+                    f"'{name}' is not a bot this release publishes; it publishes "
+                    f"{sorted(roster)}",
+                )
+            if name in seen:
+                _fail(f"{what}.bots.named", f"names '{name}' twice")
+            seen.append(name)
+            skill = bot["skill"]
+            if (
+                not isinstance(skill, int)
+                or isinstance(skill, bool)
+                or not low <= skill <= high
+            ):
+                _fail(
+                    f"{what}.bots.named[{index}].skill",
+                    f"must be an integer in {low}..{high}",
+                )
+    return record
+
+
+def setting_arguments(settings: dict[str, Any]) -> tuple[list[str], list[str]]:
+    """The launch settings as engine arguments: the `+set` half and the bots.
+
+    Two lists rather than one, because they may not sit in the same place.
+    Every `+set` line is applied by `Com_StartupVariable` before the command
+    buffer runs at all, so where those go is free; `+addbot` is not an engine
+    command but one `Cmd_ExecuteString` forwards to a *running* game module
+    (ioq3 code/qcommon/cmd.c, code/game/g_bot.c `Svcmd_AddBot_f`), so it has to
+    follow the `vstr` that spawns the first map.
+
+    The delay cadence reproduces `G_SpawnBots`' own — `BOT_BEGIN_DELAY_BASE`
+    plus `BOT_BEGIN_DELAY_INCREMENT` per further bot — which is what the
+    committed array used while the bots were committed.
+    """
+    cvars = {
+        SETTING_CVARS["fraglimit"]: str(settings["fraglimit"]),
+        SETTING_CVARS["gametype"]: str(settings["gametype"]),
+    }
+    bots = settings["bots"]
+    addbot: list[str] = []
+    if "minPlayers" in bots:
+        cvars[SETTING_CVARS["minPlayers"]] = str(bots["minPlayers"])
+        cvars[SETTING_CVARS["skill"]] = str(bots["skill"])
+    else:
+        for index, bot in enumerate(bots["named"]):
+            delay = BOT_BEGIN_DELAY_BASE_MS + index * BOT_BEGIN_DELAY_INCREMENT_MS
+            addbot += ["+addbot", bot["name"], str(bot["skill"]), "free", str(delay)]
+    sets: list[str] = []
+    for name in sorted(cvars):
+        sets += ["+set", name, cvars[name]]
+    return sets, addbot
+
+
 def server_launch_arguments(
-    repo_root: Path, profile: dict[str, Any], rotation: list[str]
+    repo_root: Path,
+    profile: dict[str, Any],
+    rotation: list[str],
+    settings: Any,
 ) -> list[str]:
-    """The complete command line for one dedicated server, rotation and all.
+    """The complete command line for one dedicated server: rotation, settings and all.
 
     This is the server half of §7.3's rule, and the only supported way to build
     it. The integration holds exactly one rotation list; it passes that list
@@ -491,33 +873,67 @@ def server_launch_arguments(
     ``cl_allowDownload 0`` the engine performs no content-agreement check, so a
     client short one archive plays normally until the rotation reaches it.
 
+    **The order, and the single thing that constrains it.** The rotation's
+    ``+set d<N>`` cycle and its ``+vstr d1`` come first, then the settings'
+    ``+set`` lines, then the committed array, then the named bots' ``+addbot``
+    lines. Only the last placement is forced: `Com_StartupVariable` applies
+    every ``set`` line before the command buffer runs (ioq3
+    code/qcommon/common.c Com_Init), so the cvars could sit anywhere, while
+    ``addbot`` needs a game module that is already running and therefore has to
+    follow ``vstr d1``.
+
     Fail-closed on everything this repository *can* see: an empty rotation, a
-    name this release publishes no archive for, and an argument list the engine
-    would silently cut down. It cannot see the relation between the two halves,
+    name this release publishes no archive for, a setting outside the published
+    bounds, and an argument list the engine would silently cut down. It cannot
+    see the relation between the rotation and what a browser was told to fetch,
     because it holds neither input.
+
+    **The match-end rule is not re-run here, and that is a decision rather than
+    an omission.** `load_profile` proves it over the whole admissible space, at
+    the frag limit's declared floor, at every supported gametype — and that
+    floor is *derived from the rule*, so a setting inside the published bounds
+    cannot violate it. Running it again on the chosen value would be a third
+    copy of one rule that nothing could ever make fire, which is a claim rather
+    than a check. What keeps the two coupled is that the floor is derived and
+    not written down: a release whose committed `timelimit` changed would move
+    the floor with it, and one whose bound stopped agreeing with the derivation
+    is refused at profile load.
     """
     names = validate_rotation(
         rotation, published_maps(repo_root, CONTENT_MANIFEST), "rotation"
     )
-    arguments = rotation_arguments(names) + list(profile["serverArguments"])
+    chosen = validate_launch_settings(profile, settings)
+    sets, addbot = setting_arguments(chosen)
+    arguments = (
+        rotation_arguments(names) + sets + list(profile["serverArguments"]) + addbot
+    )
     check_command_line_budget(
         arguments, profile["_commandLineLimits"], "the server launch arguments"
     )
     return arguments
 
 
-def max_server_rotation(repo_root: Path, profile: dict[str, Any]) -> int:
+def max_server_rotation(
+    repo_root: Path, profile: dict[str, Any], settings: Any
+) -> int:
     """How many of the published maps one server can be launched with.
 
-    Reported rather than assumed. The cost of a rotation entry is not constant —
-    the step names the map once and its own `d<N>` cvar twice — so this is a
-    property of the published names, not a number that can be interpolated
-    between two releases. It answers for prefixes of the published list in
-    order; see `max_rotation_length` for why a repeating rotation can be refused
-    below the number it reports.
+    Reported rather than assumed, and **it is a property of the settings as much
+    as of the names.** The cost of a rotation entry is not constant — the step
+    names the map once and its own `d<N>` cvar twice — and the room left for
+    entries now depends on what the settings themselves cost: `bot_minplayers`
+    is two `+set` lines whatever the bot count, while a named cast is one
+    console line per bot. So this takes the settings a caller means to launch
+    with, and a figure derived for one configuration says nothing about another.
+
+    It answers for prefixes of the published list in order; see
+    `max_rotation_length` for why a repeating rotation can be refused below the
+    number it reports.
     """
+    chosen = validate_launch_settings(profile, settings)
+    sets, addbot = setting_arguments(chosen)
     return max_rotation_length(
-        list(profile["serverArguments"]),
+        sets + list(profile["serverArguments"]) + addbot,
         profile["_commandLineLimits"],
         published_maps(repo_root, CONTENT_MANIFEST),
     )

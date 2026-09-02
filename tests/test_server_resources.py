@@ -18,14 +18,17 @@ sys.modules[SPEC.name] = PROBE
 SPEC.loader.exec_module(PROBE)
 
 
+# `timelimit` and `sv_maxclients` are still committed; `g_gametype` and
+# `fraglimit` are launch settings, so the readiness check reads them from the
+# configuration the probe launched with rather than from the profile. Keeping
+# the two apart in the fixture is the point of the split.
 PROFILE = {
     "cvars": {
-        "g_gametype": "0",
-        "fraglimit": "15",
         "timelimit": "0",
         "sv_maxclients": "8",
     }
 }
+SETTINGS = {"gametype": 0, "fraglimit": 15, "bots": {"minPlayers": 4, "skill": 1}}
 
 
 class ServerResourceProbeTests(unittest.TestCase):
@@ -37,7 +40,7 @@ class ServerResourceProbeTests(unittest.TestCase):
             b"user-controlled player tail"
         )
         self.assertEqual(
-            PROBE.parse_getstatus(payload, ["oa_pvomit"], PROFILE)["mapname"],
+            PROBE.parse_getstatus(payload, ["oa_pvomit"], PROFILE, SETTINGS)["mapname"],
             "oa_pvomit",
         )
 
@@ -53,11 +56,11 @@ class ServerResourceProbeTests(unittest.TestCase):
             b"\\fraglimit\\15\\timelimit\\0\\sv_maxclients\\8\n"
         )
         self.assertEqual(
-            PROBE.parse_getstatus(payload, ["am_galmevish"], PROFILE)["mapname"],
+            PROBE.parse_getstatus(payload, ["am_galmevish"], PROFILE, SETTINGS)["mapname"],
             "am_galmevish",
         )
         with self.assertRaises(PROBE.ProbeError):
-            PROBE.parse_getstatus(payload, ["oa_pvomit"], PROFILE)
+            PROBE.parse_getstatus(payload, ["oa_pvomit"], PROFILE, SETTINGS)
 
     def test_liveness_does_not_declare_a_rotating_server_failed(self) -> None:
         """Readiness and liveness ask different things of `mapname`.
@@ -77,31 +80,34 @@ class ServerResourceProbeTests(unittest.TestCase):
         rotation = ["oa_pvomit", "am_galmevish"]
         # As readiness: the rotation has not started its first map yet.
         with self.assertRaises(PROBE.ProbeError):
-            PROBE.parse_getstatus(payload, rotation, PROFILE)
+            PROBE.parse_getstatus(payload, rotation, PROFILE, SETTINGS)
         # As liveness: the server rotated, which is what it was asked to do.
         self.assertEqual(
-            PROBE.parse_getstatus(payload, rotation, PROFILE, started=True)["mapname"],
+            PROBE.parse_getstatus(payload, rotation, PROFILE, SETTINGS, started=True)["mapname"],
             "am_galmevish",
         )
         # A map outside the rotation is still a failure, in both phases.
         with self.assertRaises(PROBE.ProbeError):
-            PROBE.parse_getstatus(payload, ["oa_pvomit", "czest1dm"], PROFILE, started=True)
+            PROBE.parse_getstatus(payload, ["oa_pvomit", "czest1dm"], PROFILE, SETTINGS, started=True)
 
-    def test_the_other_fields_come_from_the_profile_and_not_from_literals(self) -> None:
-        """`check_match_end_cvars` permits any fraglimit/timelimit pair that is
-        not both zero, so a literal here would go quietly wrong on a legal
-        profile change."""
+    def test_the_settings_and_not_literals_decide_the_health_fields(self) -> None:
+        """A server is compared against what it was *asked to be*. The frag
+        limit and the gametype are launch settings, so reading them from the
+        committed profile would be as wrong as the literals this replaced —
+        wrong in the same way, and now for values that legally vary per server
+        rather than only per release."""
         payload = (
             b"\xff\xff\xff\xffstatusResponse\n"
-            b"\\challenge\\a11ce55\\mapname\\oa_pvomit\\g_gametype\\0"
+            b"\\challenge\\a11ce55\\mapname\\oa_pvomit\\g_gametype\\3"
             b"\\fraglimit\\30\\timelimit\\0\\sv_maxclients\\8\n"
         )
         with self.assertRaises(PROBE.ProbeError):
-            PROBE.parse_getstatus(payload, ["oa_pvomit"], PROFILE)
-        moved = {"cvars": dict(PROFILE["cvars"], fraglimit="30")}
-        self.assertEqual(
-            PROBE.parse_getstatus(payload, ["oa_pvomit"], moved)["fraglimit"], "30"
-        )
+            PROBE.parse_getstatus(payload, ["oa_pvomit"], PROFILE, SETTINGS)
+        team = {**SETTINGS, "gametype": 3, "fraglimit": 30}
+        fields = PROBE.parse_getstatus(payload, ["oa_pvomit"], PROFILE, team)
+        self.assertEqual(fields["fraglimit"], "30")
+        self.assertEqual(fields["g_gametype"], "3")
+
 
     def test_malformed_or_mismatching_health_is_refused(self) -> None:
         for payload in (
@@ -110,7 +116,7 @@ class ServerResourceProbeTests(unittest.TestCase):
             b"\xff\xff\xff\xffstatusResponse\n\\challenge",
         ):
             with self.subTest(payload=payload), self.assertRaises(PROBE.ProbeError):
-                PROBE.parse_getstatus(payload, ["oa_pvomit"], PROFILE)
+                PROBE.parse_getstatus(payload, ["oa_pvomit"], PROFILE, SETTINGS)
 
     def test_observation_vocabulary_is_fail_closed(self) -> None:
         self.assertEqual(

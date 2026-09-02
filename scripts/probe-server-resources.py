@@ -28,7 +28,11 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from arena_server import load_profile, server_launch_arguments  # noqa: E402
+from arena_server import (  # noqa: E402
+    load_profile,
+    server_launch_arguments,
+    validate_launch_settings,
+)
 from census_run import (  # noqa: E402
     CLIENT_BINARIES,
     PLAY_CYCLE,
@@ -58,6 +62,18 @@ def _run(command: list[str], *, check: bool = True) -> subprocess.CompletedProce
     return subprocess.run(command, capture_output=True, text=True, check=check)
 
 
+def _bot_count(settings: dict[str, Any]) -> int:
+    """How many bots the measured configuration asked for.
+
+    With named bots it is the cast's size. With `bot_minplayers` it is what the
+    engine tops the server up *to*, which with two human players present is not
+    the number of bots that were actually running — so a record produced in that
+    shape needs reading beside its `settings` block rather than as a bot count.
+    """
+    bots = settings["bots"]
+    return len(bots["named"]) if "named" in bots else bots["minPlayers"]
+
+
 def _identity(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as stream:
@@ -74,6 +90,7 @@ def parse_getstatus(
     payload: bytes,
     rotation: list[str],
     profile: dict[str, Any],
+    settings: dict[str, Any],
     challenge: str = CHALLENGE,
     *,
     started: bool = False,
@@ -92,16 +109,19 @@ def parse_getstatus(
     if len(parts) % 2 != 0 or any(part == "" for part in parts):
         raise ProbeError("health info string is malformed")
     values = dict(zip(parts[0::2], parts[1::2], strict=True))
-    # Read out of the profile rather than restated. `check_match_end_cvars`
-    # now permits any `fraglimit`/`timelimit` pair that is not both zero, so a
-    # legal profile change would leave literals here quietly wrong — the same
-    # remembered-measurement shape this repository refused for the systeminfo
-    # allowance.
+    # **Half of these are read from the profile and half from the settings, and
+    # which half is which is exactly the change this release made.** `g_gametype`
+    # and `fraglimit` are launch settings now, so a check that read them from
+    # the committed profile would not be comparing a server against what it was
+    # asked to be — it would be comparing it against a value the profile no
+    # longer has. Both were literals here once, and the same reasoning retired
+    # those: a health field restated rather than derived is a gate that goes
+    # quietly wrong the first time the thing it describes legally moves.
     cvars = profile["cvars"]
     required = {
         "challenge": challenge,
-        "g_gametype": cvars["g_gametype"],
-        "fraglimit": cvars["fraglimit"],
+        "g_gametype": str(settings["gametype"]),
+        "fraglimit": str(settings["fraglimit"]),
         "timelimit": cvars["timelimit"],
         "sv_maxclients": cvars["sv_maxclients"],
     }
@@ -135,6 +155,7 @@ def health(
     endpoint: tuple[str, int],
     rotation: list[str],
     profile: dict[str, Any],
+    settings: dict[str, Any],
     *,
     started: bool = False,
 ) -> dict[str, str]:
@@ -142,7 +163,7 @@ def health(
     payload, source = socket_.recvfrom(65535)
     if source != endpoint:
         raise ProbeError("health reply came from another endpoint")
-    return parse_getstatus(payload, rotation, profile, started=started)
+    return parse_getstatus(payload, rotation, profile, settings, started=started)
 
 
 def observation(*, exists: bool, running: bool, ready: bool, within_deadline: bool, failures: int) -> str:
@@ -282,12 +303,15 @@ def _wait_ready(
     endpoint: tuple[str, int],
     rotation: list[str],
     profile: dict[str, Any],
+    settings: dict[str, Any],
 ) -> tuple[float, dict[str, str]]:
     started = time.monotonic()
     last_error = None
     while time.monotonic() - started < STARTUP_DEADLINE_SECONDS:
         try:
-            return time.monotonic() - started, health(socket_, endpoint, rotation, profile)
+            return time.monotonic() - started, health(
+                socket_, endpoint, rotation, profile, settings
+            )
         except (OSError, ProbeError) as error:
             last_error = error
             time.sleep(HEALTH_INTERVAL_SECONDS)
@@ -456,6 +480,13 @@ def main() -> int:
     # rather than inheriting one — the same reason the loader refuses a page
     # opened without ?maps=.
     parser.add_argument("--rotation", required=True)
+    # Required for the same reason and by the same rule: the gametype, the frag
+    # limit and the bots are launch settings with no committed default, so this
+    # probe states the configuration it measured instead of inheriting one. The
+    # value is the JSON object `server_launch_arguments` takes, and it is
+    # written into the record, because a resource figure without the
+    # configuration that produced it is a number nobody can recompute.
+    parser.add_argument("--settings", required=True)
     arguments = parser.parse_args()
     output = arguments.output.resolve()
     if (ROOT / "build").resolve() not in output.parents:
@@ -464,6 +495,7 @@ def main() -> int:
     runtime = arguments.runtime
     profile = load_profile(ROOT)
     rotation = [name.strip() for name in arguments.rotation.split(",")]
+    settings = validate_launch_settings(profile, json.loads(arguments.settings))
     toolchain = _run([str(ROOT / "scripts/build-native-toolchain.sh"), "--print-tag"]).stdout.strip()
     client_dir = arguments.client_dir.resolve()
     for name in CLIENT_BINARIES:
@@ -493,14 +525,14 @@ def main() -> int:
     try:
         _run([runtime, "network", "create", "--subnet", "10.203.0.0/24", network])
         created_network = True
-        launch = server_launch_arguments(ROOT, profile, rotation)
+        launch = server_launch_arguments(ROOT, profile, rotation, settings)
         _start_server(runtime, server, network, server_ip, host_port, image, launch)
         started.append(server)
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as health_socket:
             health_socket.bind(("127.0.0.1", 0))
             health_socket.settimeout(0.75)
             startup_seconds, health_fields = _wait_ready(
-                health_socket, ("127.0.0.1", host_port), rotation, profile
+                health_socket, ("127.0.0.1", host_port), rotation, profile, settings
             )
 
             idle = PhaseSampler.begin(runtime, server)
@@ -538,6 +570,7 @@ def main() -> int:
                 ("127.0.0.1", host_port),
                 rotation,
                 profile,
+                settings,
                 started=True,
             )
 
@@ -578,7 +611,9 @@ def main() -> int:
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as health_socket:
             health_socket.bind(("127.0.0.1", 0))
             health_socket.settimeout(0.75)
-            _wait_ready(health_socket, ("127.0.0.1", host_port), rotation, profile)
+            _wait_ready(
+                health_socket, ("127.0.0.1", host_port), rotation, profile, settings
+            )
         _run([runtime, "kill", "--signal", "KILL", failed_server])
         failed_inspect = _json([runtime, "inspect", failed_server])[0]
         failed_exit = failed_inspect["State"]["ExitCode"]
@@ -630,9 +665,10 @@ def main() -> int:
             },
             "profile": {
                 "humans": 2,
-                "bots": 3,
+                "bots": _bot_count(settings),
                 "slots": 8,
                 "rotation": list(rotation),
+                "settings": settings,
                 "udpPort": profile["port"],
                 "busyTraffic": "ordinary native-client movement, weapon selection, fire, chat and respawn commands",
             },

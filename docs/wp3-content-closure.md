@@ -1537,56 +1537,186 @@ survive a move unremeasured.
   through `Q_strncpyz` rather than failing, and `Com_ParseCommandLine` returns
   once it holds `MAX_CONSOLE_LINES` (32) console lines, leaving the rest neither
   parsed nor reported. A rotation is one `+set d<N>` line per map plus
-  `+vstr d1`, so against this release's committed server arguments the ceiling
-  is **15 of the 29 published maps** — both bounds are read out of the pinned
-  tree by `scripts/arena_runtime.py` and enforced where the rotation actually
-  exists. The other bound is what a player downloads and holds in the tab,
-  which is why the manifest records both sizes.
+  `+vstr d1`. Both bounds are read out of the pinned tree by
+  `scripts/arena_runtime.py` and enforced where the rotation actually exists.
+  The other bound is what a player downloads and holds in the tab, which is why
+  the manifest records both sizes.
 
-  **Which of the two bounds binds is itself worth stating, because it changed
-  without the number changing.** The committed server arguments occupy 16
-  console lines, so a rotation of *n* maps brings the total to `16 + n + 1` and
-  the line bound alone permits at most 15 — whatever the maps are called. A
-  rotation of 16 one-character names is refused for the same reason as a
-  rotation of 16 real ones. So the ceiling is 15 through batches 2, 3 and 4 not
-  because effects cancelled, but because the binding half never depended on the
-  content at all. It falls when the profile grows a launch argument, since every
-  extra console line costs a rotation slot.
+  **The ceiling is a property of the launch settings, not only of the map
+  names.** That is new at this release: the gametype, the frag limit and the
+  bots left the committed array and became launch arguments, so how many
+  console lines the non-rotation half occupies is now a caller's choice. Each
+  row below is the worst case its shape can reach *inside the published
+  bounds* — the widest frag limit, the highest skill, the longest roster names
+  — because a ceiling stated for one configuration is not a ceiling.
 
-  The byte bound is the half that moves with the names, and **it is closer than
-  it looks and closing**. `max_rotation_length` answers for prefixes of the
-  published list in order, so its 15 is the alphabetically first fifteen. Every
-  figure here is `len(engine_command_line(rotation_arguments(rot) +
-  serverArguments))` over the fragment directory, which is what the budget check
-  itself measures — joining the arguments with single spaces omits the quoting
-  the engine's own assembly adds and understates the total.
+  | Bot setting | Fixed `+` commands | Distinct maps a rotation may hold |
+  | --- | ---: | ---: |
+  | `bot_minplayers` | 14 | 15 |
+  | 5 named bots | 17 | 13 |
+  | 6 named bots | 18 | 12 |
+  | 7 named bots | 19 | 11 |
 
-  | Rotation of 15 | Bytes | Before batch 4 |
-  | --- | ---: | --- |
-  | the alphabetically first fifteen — what `max_rotation_length` answers for | 989 | 987 over the 24 then published |
-  | the fifteen **longest** published names | **1021** | 1018; two further bytes still fit, because the check refuses *at* 1024 |
-  | fifteen entries of `am_underworks2`, which `validate_rotation` permits | 1073 | 1073, refused then as now |
+  So against the recommended configuration the ceiling is **15 of the 29
+  published maps**, which is what it was before these settings moved — the two
+  `+set` lines `bot_minplayers` costs are exactly the two the three committed
+  `+addbot` lines and the two committed setting cvars gave back, less one.
+  **`bot_minplayers` does not raise the old ceiling; it meets it**, and the
+  reason it costs two lines rather than one is worth keeping: the difficulty of
+  an automatically filled server is `g_spSkill`, because `G_AddRandomBot` reads
+  that cvar and passes it to `addbot` (ioq3 `code/game/g_bot.c`) — there is no
+  per-bot argument to carry it in that shape.
+
+  **Which of the two bounds binds depends on the row.** The line bound is a
+  pure count: the initial line, the fixed `+` commands, and `n + 1` for a
+  rotation of *n* maps, so it permits `32 − 1 − fixed − 1` maps whatever they
+  are called. Every named-bot row above is exactly line-bound. The
+  `bot_minplayers` row is not: 15 maps become 31 console lines, and the
+  sixteenth is refused on **bytes**.
+
+  The byte bound is the half that moves with the names. `max_rotation_length`
+  answers for prefixes of the published list *in order*, so it reports 16 for
+  the `bot_minplayers` row where the worst *distinct* rotation is 15 — the two
+  questions differ and the table above answers the one a validator must assume.
+  Every figure here is `len(engine_command_line(rotation_arguments(rot) +
+  fixed))`, which is what the budget check itself measures — joining the
+  arguments with single spaces omits the quoting the engine's own assembly adds
+  and understates the total.
+
+  | Rotation of 15, at the widest `bot_minplayers` settings | Bytes |
+  | --- | ---: |
+  | the alphabetically first fifteen — what `max_rotation_length` answers for | 952 |
+  | the fifteen **longest** published names | 984 |
+  | fifteen entries of `am_underworks2`, which `validate_rotation` permits | 1036 |
 
   An extra character in a rotated name costs exactly one byte, measured the same
   way, and `check_command_line_budget` refuses at 1024 rather than above it, so
-  the worst distinct-fifteen rotation this set can express has room for **two**
-  further characters; the twenty-four-map set had five. That headroom is in
-  characters, not in maps, and the two are not interchangeable: the fifteen
-  longest names currently end in two eight-character ones, so a **single** newly
-  published map with an eleven-character name would already exceed it and put
-  the byte bound below the line bound, at which point the ceiling would depend
-  on which maps are published rather than on how many.
+  the worst distinct-fifteen rotation this set can express has room for **39**
+  further characters. That headroom is in characters, not in maps, and the two
+  are not interchangeable — but note what happened to it: before these settings
+  moved the same figure was two characters, and it is now 39 because five
+  console lines of committed `+addbot` text left the line. The headroom is a
+  property of the configuration as much as of the names, and a named cast
+  spends it again.
 
-  What did *not* change is the sixteen-map case, and the first draft of this
-  paragraph said it had. The alphabetically first sixteen assemble to 1032 bytes
-  and 33 console lines — but so did the first sixteen of the twenty-four-map
-  set, whose names sum to the same 132 characters. Both bounds refused sixteen
-  before this batch and both refuse it now.
-
-  And for a rotation that **repeats** a map it does not hold at all.
+  And for a rotation that **repeats** a map the count does not hold at all.
   `validate_rotation` permits repetition deliberately, and fifteen entries of
-  `am_underworks2` assemble to 1073 bytes and are refused. So "15 of the
-  published maps" is a statement about fifteen *distinct* maps in the published
-  order; the binding check is `check_command_line_budget` on the rotation that
+  `am_underworks2` assemble to 1036 bytes and are refused. So "15 of the 29
+  published maps" is a statement about fifteen *distinct* maps at one bot
+  setting; the binding check is `check_command_line_budget` on the rotation that
   is actually launched, which is fail-closed and is what `server_launch_arguments`
   runs.
+
+## Amendment of 2026-09-02: one bot per model, and the team presentation
+
+Two content changes, both in the base archive and neither adding an upstream
+source. The map archives are untouched.
+
+### Every packaged model gets a bot, and no bot shares one
+
+The recipe bound `Skelebot`, `Rai` and `Sly` all to `skelebot/default`, so a
+server showed one face however many bots were on it. Seven player models are
+packaged; seven upstream bot characters name exactly those seven models, so the
+roster is now those seven and the rule is a set identity rather than a list:
+
+| Bot | Model | Character file |
+| --- | --- | --- |
+| `Assassin` | `assassin/default` | `botfiles/bots/sergei_c.c` |
+| `Gargoyle` | `gargoyle/default` | `botfiles/bots/gargoyle_c.c` |
+| `Kyonshi` | `kyonshi/default` | `botfiles/bots/kyonshi_c.c` |
+| `Liz` | `liz/default` | `botfiles/bots/liz_c.c` |
+| `Major` | `major/default` | `botfiles/bots/major_c.c` |
+| `Penguin` | `penguin/default` | `botfiles/bots/penguin_c.c` |
+| `Skelebot` | `skelebot/default` | `botfiles/bots/skelebot_c.c` |
+
+`rai` and `sly` leave: they are two of the bot characters that never had a model
+of their own — upstream pairs them with `angelyss` skins this pack cannot carry
+— which is why they were pointed at `skelebot` in the first place.
+
+**`assassin` is a bot after all, and the reason it was not is worth correcting
+rather than deleting.** "Why this player presentation" above excludes it from
+the *model shortlist* for lacking a `botfiles/bots/assassin_c.c`, and that is
+true. It does not follow that there is no Assassin bot: upstream's own
+`scripts/bots.txt` defines one and gives it `bots/sergei_c.c`, which the pinned
+sources ship, so this release defines it the same way. The narrow claim was
+right and the general one derived from it — "usable by humans and not as a
+bot" — was not.
+
+**Two bots may no longer share a model**, and that is a build gate rather than a
+note. Sharing is not an engine error, which is exactly why it needs one: the
+pack shipped three bots on one model for four releases and nothing said so.
+
+**A roster is only meaningful if it equals the packaged set.** The primary bot
+setting is `bot_minplayers`, and the engine fills those slots with `addbot
+random`, which selects out of `g_botInfos` — the packaged `scripts/bots.txt` —
+and never looks at what a profile publishes (`G_SelectRandomBotInfo`). So
+`native/server-profile.json.botRoster` is required to be *exactly* the recipe's
+bot names, in both directions: a packaged bot missing from the roster would turn
+up on a server nobody could have asked for it on, and a rostered bot missing
+from the pack is a name `addbot` answers with `Error: Bot '<name>' not defined`.
+
+### The team presentation, and why it is not decoration
+
+In a gametype at or above `GT_TEAM` the client stops looking for a model's own
+skin and looks for a team one: `CG_FindClientModelFile` tries
+`models/players/<m>/<part>_<skin>_<team>.skin` and then
+`models/players/<m>/<part>_<team>.skin`, and `CG_FindClientHeadFile` does the
+same for the icon. `CG_RegisterClientSkin` fails the whole registration if legs,
+torso or head is missing, `CG_LoadClientInfo` then falls back to
+`DEFAULT_TEAM_MODEL` — `sarge`, which this pack does not carry — and `CG_Error`
+drops the client. Without team skins, Team Deathmatch drops **every** player at
+the first spawn.
+
+All seven models ship complete `_red`/`_blue` sets upstream, so this needs no
+new source and no licence audit. Root 3 gains, per model and per team, the three
+`<part>_<team>.skin` members and the `icon_<team>` image; the shaders those
+skins name are resolved through the shared `ShaderIndex` like any other, and the
+gargoyle and kyonshi team textures are shader names their `scripts/*.shader`
+files define rather than dangling references.
+
+**`check_team_presentation` asserts both halves, and the second is the one that
+would go quietly wrong.** The positive half is that every offered model resolves
+a complete team set — a rule about a run-time `CG_Error` that no closure run can
+fail, so it is a gate and not a build outcome. The negative half is that the
+*higher-priority* spellings are absent: no offered model ships
+`<part>_<skin>_<team>.skin` or a `<headskin>/icon_<team>` form today, and if one
+ever did the engine would load a file this recipe does not package while every
+positive check still passed. An empty `playerModels` is a failure rather than a
+silent pass, because a rule about every model is satisfied by none.
+
+### The `DEFAULT_TEAM_MODEL` question, decided
+
+**No engine patch.** The fallback is an unguarded crash path — `CG_Error` on any
+model that cannot be registered, which drops the client rather than substituting
+anything — and retargeting it at a packaged model by an enumerated `web` patch
+would close it. It is not taken, on three grounds:
+
+1. **The same shape exists in FFA and is not in this package's scope.**
+   `DEFAULT_MODEL` is `sarge` and equally unpackaged, so patching only the team
+   half would leave the identical hazard in the mode that ships today. The two
+   are one decision.
+2. **The residual hazard is not a gametype question.** With the team skins
+   packaged, no model this release *offers* can reach the fallback — that is
+   what the gate above asserts. What can still reach it is a client that sends a
+   `model` userinfo naming something the pack does not carry, which is a
+   client-conformance question that Team Deathmatch neither creates nor worsens.
+3. **The cost is the largest identity change there is.** An engine change moves
+   `baselineIdentity`, `engineCommit` and the browser manifest as well as
+   everything a content reissue already moves, and the `ioq3` commit has to be
+   pushed to its own remote before the pin here can move.
+
+The condition that reopens it: a decision to accept clients whose player
+presentation this pack does not carry, at which point both fallbacks are
+retargeted together and the patch is enumerated in `locks/baseline.json`.
+
+### One accepted cosmetic defect that Team Deathmatch does reach
+
+`cg_main.c` registers `cgs.media.redQuadShader = trap_R_RegisterShader(
+"powerups/blueflag" )` inside `cgs.gametype >= GT_TEAM`, and `cg_players.c`
+draws it instead of the ordinary quad shell for a red-team player carrying Quad
+Damage. No pinned archive defines a shader or ships an image of that Quake III
+Arena name, so `R_FindShader` returns the default shader and reports it at
+`PRINT_DEVELOPER` only. The accepted-unresolved entry said "the FFA profile
+never reaches it", which stopped being true the moment GT_TEAM was supported;
+it now says what actually happens. The defect is confined to that one entity's
+shell — nothing else reads the handle.

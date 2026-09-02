@@ -129,7 +129,7 @@ cat > "${grown_fragment}" <<JSON
 {
   "acceptedUnresolved": [],
   "arena": {
-    "bots": "Skelebot Rai Sly",
+    "bots": "Skelebot Gargoyle Penguin",
     "fraglimit": "20",
     "longname": "${grown_longname}",
     "map": "${grown_map}",

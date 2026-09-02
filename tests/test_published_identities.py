@@ -306,69 +306,103 @@ class RotationCeilingRestatementTest(unittest.TestCase):
         import sys
 
         sys.path.insert(0, str(ROOT / "scripts"))
-        from arena_runtime import engine_command_line, rotation_arguments
+        from arena_runtime import (
+            engine_command_line,
+            engine_console_lines,
+            rotation_arguments,
+        )
         from arena_server import (
             CONTENT_MANIFEST,
             load_profile,
-            max_server_rotation,
             published_maps,
+            setting_arguments,
+            validate_launch_settings,
         )
 
         profile = load_profile(ROOT)
-        fixed = list(profile["serverArguments"])
+        limits = profile["_commandLineLimits"]
         names = published_maps(ROOT, CONTENT_MANIFEST)
-        ceiling = max_server_rotation(ROOT, profile)
+        longest = sorted(names, key=lambda name: (-len(name), name))
+        bounds = profile["launchSettings"]
+        roster = sorted(profile["botRoster"], key=lambda name: (-len(name), name))
 
-        def size(rotation: list[str]) -> int:
-            return len(engine_command_line(rotation_arguments(rotation) + fixed))
+        def widest(count: int | None) -> dict:
+            """The most expensive configuration the published bounds admit.
 
-        closure = (ROOT / "docs/wp3-content-closure.md").read_text(encoding="utf-8")
-        handoff = HANDOFF.read_text(encoding="utf-8")
-        sentence = f"{ceiling} of the {len(names)} published maps"
-        for name, text in (("closure", closure), ("handoff", handoff)):
-            with self.subTest(document=name):
-                self.assertIn(sentence, text)
+            A ceiling stated for one configuration is not a ceiling — the frag
+            limit's digits and each bot's name are bytes on the same line — so
+            the published figure is the worst case a caller can reach inside
+            the bounds, which is the only one a validator may assume.
+            """
+            settings = {
+                "gametype": max(bounds["gametypes"]),
+                "fraglimit": bounds["fraglimit"]["maximum"],
+            }
+            if count is None:
+                settings["bots"] = {
+                    "minPlayers": bounds["bots"]["maxCount"],
+                    "skill": bounds["bots"]["skill"][1],
+                }
+            else:
+                settings["bots"] = {
+                    "named": [
+                        {"name": name, "skill": bounds["bots"]["skill"][1]}
+                        for name in roster[:count]
+                    ]
+                }
+            return validate_launch_settings(profile, settings)
 
-        # The three rotations the closure document tabulates: what
-        # `max_rotation_length` answers for, the worst distinct one, and the
-        # repeating one it deliberately does not cover.
-        longest = sorted(names, key=lambda name: (-len(name), name))[:ceiling]
-        repeated = [max(names, key=len)] * ceiling
-        for label, rotation in (
-            ("alphabetically first", names[:ceiling]),
-            ("longest", longest),
-            ("repeated", repeated),
-        ):
-            with self.subTest(rotation=label):
-                self.assertIn(str(size(rotation)), closure)
-        for label, rotation in (
-            ("alphabetically first", names[:ceiling]),
-            ("longest", longest),
-        ):
-            with self.subTest(rotation=label, document="handoff"):
-                self.assertIn(str(size(rotation)), handoff)
+        def fixed_for(settings: dict) -> list[str]:
+            sets, addbot = setting_arguments(settings)
+            return sets + list(profile["serverArguments"]) + addbot
 
-        # And the headroom, in the unit the documents state it in rather than
-        # as a constant restated here: the budget check refuses *at* maxBytes
-        # and a rotated name costs one byte per character, so this is how many
-        # characters the worst distinct rotation has left. Both documents spell
-        # the figure out in words, so the check is against the sentence a
-        # reader acts on.
-        limit = profile["_commandLineLimits"]["maxBytes"]
-        room = limit - size(longest) - 1
-        words = {
-            0: "no",
-            1: "one",
-            2: "two",
-            3: "three",
-            4: "four",
-            5: "five",
-            6: "six",
+        def fits(rotation: list[str], fixed: list[str]) -> bool:
+            arguments = rotation_arguments(rotation) + fixed
+            return (
+                len(engine_command_line(arguments)) < limits["maxBytes"]
+                and engine_console_lines(arguments) <= limits["maxLines"]
+            )
+
+        def ceiling(fixed: list[str]) -> int:
+            for count in range(len(names), 0, -1):
+                if fits(longest[:count], fixed):
+                    return count
+            return 0
+
+        closure = " ".join(
+            (ROOT / "docs/wp3-content-closure.md").read_text(encoding="utf-8").split()
+        )
+        handoff = " ".join(HANDOFF.read_text(encoding="utf-8").split())
+
+        rows = [("`bot_minplayers`", None)] + [
+            (f"{count} named bots", count) for count in (5, 6, 7)
+        ]
+        for label, count in rows:
+            fixed = fixed_for(widest(count))
+            plus = sum(1 for argument in fixed if argument.startswith("+"))
+            row = f"| {label} | {plus} | {ceiling(fixed)} |"
+            for name, text in (("closure", closure), ("handoff", handoff)):
+                with self.subTest(configuration=label, document=name):
+                    self.assertIn(row, text)
+
+        # The recommended configuration in detail: what its worst distinct
+        # rotation assembles to, how much room is left, and that a *repeating*
+        # rotation of the same length is refused — the case the ceiling
+        # deliberately does not cover.
+        fixed = fixed_for(widest(None))
+        maximum = ceiling(fixed)
+        worst = len(engine_command_line(rotation_arguments(longest[:maximum]) + fixed))
+        repeated = [max(names, key=len)] * maximum
+        figures = {
+            worst,
+            len(engine_command_line(rotation_arguments(repeated) + fixed)),
+            limits["maxBytes"] - worst - 1,
         }
-        self.assertIn(room, words, "the headroom left the range the documents word")
-        phrase = f"room for **{words[room]}** further characters"
         for name, text in (("closure", closure), ("handoff", handoff)):
-            with self.subTest(document=name, claim="headroom"):
-                # The documents are hard-wrapped, so compare on the sentence
-                # rather than on the line breaks.
-                self.assertIn(phrase, " ".join(text.split()))
+            for figure in sorted(figures):
+                with self.subTest(document=name, figure=figure):
+                    self.assertIn(str(figure), text)
+        self.assertFalse(fits(repeated, fixed))
+        self.assertIn(f"{maximum} of the {len(names)} published maps", closure)
+        self.assertIn(f"{maximum} of the {len(names)} published maps", handoff)
+

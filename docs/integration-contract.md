@@ -35,8 +35,10 @@ The supported profile is intentionally narrow:
 
 - one Linux `amd64` dedicated-server image;
 - one browser client built from the same ioquake3 commit and QVMs;
-- the `arena` standalone game directory, map `oa_pvomit`, FFA, frag limit 15,
-  no time limit, three fixed bots and eight total server slots;
+- the `arena` standalone game directory, eight total server slots and no time
+  limit. The map, the gametype, the frag limit and the bots are **launch
+  arguments with no committed default** — see "The four per-server settings" in
+  the handoff for their bounds;
 - one compatible WebTransport datagram relay between the browser and the
   server's IPv4 UDP endpoint; and
 - Google Chrome for Testing `152.0.7977.64` on Fedora Linux 44 `x86_64` as the
@@ -54,12 +56,12 @@ container tag is not an identity.
 | ioq3 engine | `git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592` |
 | Browser loader producer | `git:95f45b537dd0bb8b4a542b97d0f4281eefa7604a` |
 | Browser artifact manifest | `sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047` |
-| Content artifact manifest | `sha256:69e7f5a24fa6282b2dc36ea06688a2fc169312259ff95a07bf4b2e363da04546` |
-| Content base archive | `sha256:caa003fcd7a79d3431a73166ed531d40b8a3d3728bca487d4b55c07d681c4229` |
+| Content artifact manifest | `sha256:58716bc17eabac41b2d6189e3a48bba99ceeeaa9cd91d716ca462196dde1ffb3` |
+| Content base archive | `sha256:7cfa98c9fac1274ed45ee653572252e3d3d47c47c6d80163b59afd1c6354277c` |
 | Content map archives | covered transitively through the content artifact manifest, and each bound byte-for-byte to its counterpart in the server manifest |
-| Server artifact manifest | `sha256:aeebf069c36725202707e0ca91903b1331bcabe4bc50f85e8e536cbdb6920ed9` |
-| Server image producer/build checkout | `git:57fa9ed30cf882ffef472f5236b72a4cd629f21f` |
-| Accepted native server image ID | `sha256:03bdaf9927e9bd2171ec50cc74bb82adb1aabeec5f8aee42bbc21754ed16e97c` |
+| Server artifact manifest | `sha256:3a4c10384725d94f10d32596e5c24dc16fbe75a23a4f89af04938850b16e5762` |
+| Server image producer/build checkout | `git:3c20361d046b8a03a7b2009d76f4ce0709e82663` |
+| Accepted native server image ID | `sha256:5d59dc7c3a036f1043b18d09393d9f7a06ce8599701cd6a61ef6eae47c29a227` |
 
 The image value is the reproducible container configuration/image ID observed
 after loading the accepted single-platform image, not a promise that every
@@ -74,12 +76,12 @@ reproduced from a clean checkout of the commit carrying these records with
 producer commits out of the records rather than taking them from its caller —
 the browser's from `manifests/browser-client.json`, and the content pack's and
 the server image's, both
-`57fa9ed30cf882ffef472f5236b72a4cd629f21f`, from their provenance records — then
+`3c20361d046b8a03a7b2009d76f4ce0709e82663`, from their provenance records — then
 rebuilds browser, content and server image and compares each generated record
 with the committed one in full. It requires server manifest identity
-`sha256:aeebf069c36725202707e0ca91903b1331bcabe4bc50f85e8e536cbdb6920ed9`
+`sha256:3a4c10384725d94f10d32596e5c24dc16fbe75a23a4f89af04938850b16e5762`
 and loaded image ID
-`sha256:03bdaf9927e9bd2171ec50cc74bb82adb1aabeec5f8aee42bbc21754ed16e97c`.
+`sha256:5d59dc7c3a036f1043b18d09393d9f7a06ce8599701cd6a61ef6eae47c29a227`.
 
 A rebuild from the current documentation commit or any other later commit has
 a new image ID even when all four runtime files are byte-identical, because its
@@ -126,6 +128,7 @@ Derive the set from the release index rather than asserting a number:
 arena/canvas-resize.js
 arena/host-lifecycle.js
 arena/network-backend.js
+arena/player-input.js
 arena/relay-profile.json
 content/baseq3/arena-web-ffa-base-caa003fcd7a79d34.pk3
 content/baseq3/arena-web-ffa-map-aggressor-99ee9bc566cdcff2.pk3
@@ -238,6 +241,8 @@ The runtime object has these fields:
 | `tokenProvider` | Function returning, or resolving to, a non-empty opaque one-time authorization string. It is invoked once for every initial or reconnect attempt. |
 | `keepAliveIntervalMilliseconds` | `0` disables application keep-alive; an enabled value is `1000..86400000`. The integration environment decides whether it is needed. The accepted WP8-Mini round exercised 5000 ms, but did not establish that it is universally required. |
 | `assignmentTimeoutMilliseconds` | Optional integer `1..60000`; default 10000. It bounds the wait for the relay's address assignment. |
+| `playerName` | The player's own name. 1 to `arena/relay-profile.json` `playerSettings.name.maxLength` characters of printable ASCII without `"`, `;`, `\` or `^` and without a repeated space; a longer one is **truncated**, outer spaces are trimmed, forbidden content is refused. It is a runtime input like the endpoint: never committed, and redacted out of `snapshot()` and `report`. |
+| `playerModel` | Exactly one of `playerSettings.models`, which is exactly the player models the content pack carries. The choice survives Team Deathmatch — only the skin becomes red or blue. |
 
 Illustrative wiring, with deliberately non-usable placeholders, is:
 
@@ -250,8 +255,16 @@ globalThis.arenaWeb.configureRelay({
   clientSourcePort: allocateLiveCorrelationPort(),
   tokenProvider: async () => issueFreshOneTimeAuthorization(),
   keepAliveIntervalMilliseconds: runtimeKeepAliveInterval,
+  playerName: playerChosenName,
+  playerModel: playerChosenModel,
 });
 ```
+
+Both player fields are required. There is no default for either, for the same
+reason there is none for the rotation: ioq3's own defaults are `UnnamedPlayer`
+and `sarge`, and `sarge` is not in this pack — so the one silently makes every
+human the same person and the other is a `CG_Error`. The handoff's section 6
+carries the derivation of each bound and the engine site behind it.
 
 The provider, not the loader, owns authorization issuance. It must return a
 fresh value on **every** invocation, including after a failed open; a failed
@@ -380,13 +393,14 @@ requires the complete OCI configuration above, the exact four provenance/title
 labels and the absence of any extra label; the baseline and all preserved
 per-package copyright files remain the licence authority.
 
-Start the entrypoint with the rotation's arguments followed by
-`native/server-profile.json.serverArguments` in its committed order — build the
-pair with `scripts/arena_server.py` `server_launch_arguments`. The committed
-array is validated as the exact derivation of the profile's cvars and bots and
-is required to carry no map; the rotation is the launch input. Do not append any
-other override or replace the bundled configuration: that creates a different,
-unsupported server profile.
+Start the entrypoint with the rotation's arguments, then the launch settings'
+`+set` lines, then `native/server-profile.json.serverArguments` in its committed
+order, then any named bots' `+addbot` lines — build the whole line with
+`scripts/arena_server.py` `server_launch_arguments`. The committed array is
+validated as the exact derivation of the profile's cvars, and is required to
+carry neither a map nor a per-server setting; the rotation and the four settings
+are the launch inputs. Do not append any other override or replace the bundled
+configuration: that creates a different, unsupported server profile.
 
 The runtime should apply the same confinement used by acceptance:
 
@@ -435,10 +449,15 @@ query rather than a server-log substring:
    and `statusResponse\n`.
 3. Parse the following ioquake3 info string, require the echoed challenge, and
    require at least `g_gametype`, `fraglimit`, `timelimit` and `sv_maxclients`
-   to equal `native/server-profile.json`'s committed cvars. The active game
-   directory is not a `getstatus` server-info field; it is already fixed by the
-   verified image and exact command profile and must not be inferred from this
-   probe.
+   to match. **Two of those four come from different places, and getting that
+   wrong is how a health gate declares every non-default server dead.**
+   `timelimit` and `sv_maxclients` are `native/server-profile.json`'s committed
+   cvars; `g_gametype` and `fraglimit` are the **launch settings you started
+   this server with**, so a health check that compares them against the profile
+   — or against literals — reports permanently unhealthy for every server whose
+   operator chose anything but one particular pair. The active game directory is
+   not a `getstatus` server-info field; it is already fixed by the verified image
+   and exact command profile and must not be inferred from this probe.
 4. **`mapname` is checked differently at readiness and afterwards, and
    conflating the two would fail every rotating server.** At readiness require
    `mapname` to equal the **first entry of the rotation you launched with**:
@@ -596,14 +615,23 @@ breaks; when it breaks, the engine prints
 `cl_allowDownload` is 0 on both profiles — and `rotation.missingOnServer`
 carries that line. Together they are what a post-mortem starts from.
 
-**The server half is a launch argument too.** `native/server-profile.json`
-carries no map at all, and neither does its committed `serverArguments`: a map
-inside an array a caller passes verbatim would be a rotation nobody can see. The
-launch command is the rotation's own arguments followed by that array, and
+**The server half is a launch argument too, and so are its four settings.**
+`native/server-profile.json` carries no map at all, and neither does its
+committed `serverArguments` — nor a gametype, a frag limit or a bot: anything
+inside an array a caller passes verbatim would be a choice nobody can see.
 `scripts/arena_server.py` `server_launch_arguments` is the one supported
-derivation of the pair — it refuses an empty rotation, a name this release
-publishes no archive for, and an argument list the engine would silently cut
-down. The shape and the ceiling are in the handoff's server section.
+derivation of the whole line — it refuses an empty rotation, a name this release
+publishes no archive for, a setting outside the published bounds, and an
+argument list the engine would silently cut down. The shape, the settings'
+bounds and the ceiling are in the handoff's server section.
+
+**The ceiling is now a joint constraint.** How many maps a rotation may hold
+depends on what the settings cost in console lines and bytes, so a validator
+that bounds the rotation on its own is bounding the wrong thing: at
+`bot_minplayers` the worst case is 15 distinct maps, and a seven-bot named cast
+brings it to 11. Derive it from the configuration you mean to launch, with
+`max_server_rotation`, and treat a saved rotation as invalidated when bots are
+added to it.
 
 **A rotation only advances when a level ends, and this profile gives a level
 exactly one way to end.** `CheckExitRules` (ioq3 `code/game/g_main.c`) returns
@@ -630,8 +658,11 @@ empty server:
 - a passed `callvote timelimit <n>` or `callvote fraglimit <n>`, which change
   *when* a level ends and can therefore advance a stalled rotation — and can
   equally set both to zero at run time, undoing there what this release's
-  build-time rule refuses — `arena-web` requires the committed `fraglimit` and
-  `timelimit` not to be both zero, and a vote is outside that gate's reach.
+  build-time rule refuses — `arena-web` refuses a frag limit of 0 while
+  `timelimit` is committed at 0, and a vote is outside that gate's reach. The
+  refusal is at the published bound rather than on the committed pair now,
+  because the frag limit is a launch setting; the bound is *derived* from the
+  match-end rule, so the two cannot drift apart.
 
 `g_allowVote` defaults to `1` (`g_main.c:158`) and neither profile disables it,
 so on an occupied server those ways out exist; on an empty one none does.
@@ -683,7 +714,7 @@ tuple; do not diff `compatibility` alone and conclude nothing else moved.
 | engine source on `web` | everything |
 | engine build outputs (`ioquake3.js`/`.wasm`, QVMs) | browser manifest, server manifest, server image |
 | browser loader/shell bytes (`loader.js`, `index.html`, shell JS) | one `servedFiles` entry and nothing else — they are in no manifest and no authority, so `compatibility` stays bit-identical |
-| base pack content (QVM closure, player models, bots, notices) | content manifest, content payload, server manifest, server image |
+| base pack content (QVM closure, player models and their team skins, bots, notices) | content manifest, content payload, server manifest, server image |
 | **a map added to or removed from the supported set** | three `compatibility` members — `contentManifestIdentity`, `serverManifestIdentity`, `serverImageId` — plus the browser profile, the content member provenance, the resource measurement and `servedFiles`. `contentPayloadIdentity` does **not** move, subject to the one condition below |
 | the rotation a server plays, or the rotation a client fetches | nothing — both are launch inputs, and the released artifacts do not name a map |
 | which archives a client fetches | nothing — a runtime selection from the already published set, made per page load through the `?maps=` parameter above |

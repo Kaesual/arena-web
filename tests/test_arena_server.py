@@ -20,8 +20,11 @@ from arena_server import (  # noqa: E402
     STAGED_DIRECTORY_MODE,
     STAGED_FILE_MODE,
     ArenaServerError,
+    _fraglimit_minimum,
     max_server_rotation,
     server_launch_arguments,
+    setting_arguments,
+    validate_launch_settings,
     client_tree_files,
     expected_client_arguments,
     expected_server_arguments,
@@ -36,6 +39,21 @@ from arena_server import (  # noqa: E402
 
 def read(path: str) -> dict:
     return json.loads((ROOT / path).read_text(encoding="utf-8"))
+
+
+# One valid launch configuration in each bot shape. They are written out rather
+# than derived because a test that builds its input from the same bounds it is
+# checking proves only that the code agrees with itself.
+MIN_PLAYERS_SETTINGS = {
+    "bots": {"minPlayers": 4, "skill": 3},
+    "fraglimit": 15,
+    "gametype": 0,
+}
+NAMED_SETTINGS = {
+    "bots": {"named": [{"name": "Liz", "skill": 2}, {"name": "Major", "skill": 4}]},
+    "fraglimit": 30,
+    "gametype": 3,
+}
 
 
 class ProfileFixture(unittest.TestCase):
@@ -73,6 +91,17 @@ class ProfileFixture(unittest.TestCase):
         )
 
     def reject(self, mutate, message: str) -> None:
+        """One mutation, refused — and the file restored afterwards.
+
+        The restore is what lets a test state several spellings of one rule.
+        Without it the second mutation starts from the first one's tree and the
+        test passes on the first failure's message, which is the shape that
+        turns a two-case test into a one-case test in silence.
+        """
+        original = self.profile_path.read_text(encoding="utf-8")
+        self.addCleanup(
+            lambda: self.profile_path.write_text(original, encoding="utf-8")
+        )
         profile = self.profile()
         mutate(profile)
         # The argument lists are derived, so a mutated declarative field has to
@@ -83,8 +112,11 @@ class ProfileFixture(unittest.TestCase):
         except (ArenaServerError, KeyError, TypeError):
             pass
         self.write(profile)
-        with self.assertRaisesRegex(ArenaServerError, message):
-            load_profile(self.root)
+        try:
+            with self.assertRaisesRegex(ArenaServerError, message):
+                load_profile(self.root)
+        finally:
+            self.profile_path.write_text(original, encoding="utf-8")
 
 
 class ProfileTests(ProfileFixture):
@@ -105,9 +137,15 @@ class ProfileTests(ProfileFixture):
         Com_StartupVariable before the command buffer runs at all, so `vstr d1`
         is the first *command* either way."""
         profile = load_profile(ROOT)
-        arguments = server_launch_arguments(ROOT, profile, ["oa_pvomit"])
+        arguments = server_launch_arguments(
+            ROOT, profile, ["oa_pvomit"], NAMED_SETTINGS
+        )
         self.assertLess(arguments.index("+vstr"), arguments.index("+addbot"))
-        self.assertEqual(arguments[-len(profile["serverArguments"]) :], profile["serverArguments"])
+        committed = len(profile["serverArguments"])
+        addbots = len(NAMED_SETTINGS["bots"]["named"]) * 5
+        self.assertEqual(
+            arguments[-committed - addbots : -addbots], profile["serverArguments"]
+        )
 
     def test_a_launch_without_a_rotation_is_refused(self) -> None:
         """The server-side half of the rule the loader enforces for the browser:
@@ -116,9 +154,9 @@ class ProfileTests(ProfileFixture):
         nobody chose."""
         profile = load_profile(ROOT)
         with self.assertRaisesRegex(ArenaRuntimeError, "is empty"):
-            server_launch_arguments(ROOT, profile, [])
+            server_launch_arguments(ROOT, profile, [], MIN_PLAYERS_SETTINGS)
         with self.assertRaisesRegex(ArenaRuntimeError, "publishes no archive"):
-            server_launch_arguments(ROOT, profile, ["q3dm17"])
+            server_launch_arguments(ROOT, profile, ["q3dm17"], MIN_PLAYERS_SETTINGS)
 
     def test_the_engine_ceiling_is_a_boundary_and_not_a_slogan(self) -> None:
         """One entry either side of the ceiling, and deliberately not written so
@@ -136,7 +174,9 @@ class ProfileTests(ProfileFixture):
         fits = 0
         for count in range(1, 200):
             try:
-                server_launch_arguments(ROOT, profile, [cheapest] * count)
+                server_launch_arguments(
+                    ROOT, profile, [cheapest] * count, MIN_PLAYERS_SETTINGS
+                )
             except ArenaRuntimeError as error:
                 self.assertIn("pinned engine's", str(error))
                 fits = count - 1
@@ -144,7 +184,7 @@ class ProfileTests(ProfileFixture):
         else:  # pragma: no cover - a bound that never bites is the failure
             self.fail("no rotation length was refused")
         self.assertGreater(fits, 1)
-        server_launch_arguments(ROOT, profile, [cheapest] * fits)
+        server_launch_arguments(ROOT, profile, [cheapest] * fits, MIN_PLAYERS_SETTINGS)
 
     def test_the_reported_ceiling_is_the_one_the_derivation_enforces(self) -> None:
         """`max_server_rotation` is what a caller sizes a rotation with, so it
@@ -152,25 +192,39 @@ class ProfileTests(ProfileFixture):
         a plausible number."""
         profile = load_profile(ROOT)
         names = published_maps(ROOT, "provenance/arena-web-ffa-content-manifest.json")
-        ceiling = max_server_rotation(ROOT, profile)
+        ceiling = max_server_rotation(ROOT, profile, MIN_PLAYERS_SETTINGS)
         self.assertGreater(ceiling, 1)
         self.assertLessEqual(ceiling, len(names))
-        server_launch_arguments(ROOT, profile, names[:ceiling])
+        server_launch_arguments(ROOT, profile, names[:ceiling], MIN_PLAYERS_SETTINGS)
         # One more entry, from the published set when there is one left over and
         # otherwise a repeat, so this half never silently stops running.
         one_more = names[: ceiling + 1] if ceiling < len(names) else names + [names[0]]
         with self.assertRaisesRegex(ArenaRuntimeError, "pinned engine's"):
-            server_launch_arguments(ROOT, profile, one_more)
+            server_launch_arguments(ROOT, profile, one_more, MIN_PLAYERS_SETTINGS)
 
-    def test_bots_follow_the_engine_delay_cadence(self) -> None:
-        profile = load_profile(ROOT)
-        arguments = expected_server_arguments(profile)
+    def test_named_bots_follow_the_engine_delay_cadence(self) -> None:
+        _sets, addbot = setting_arguments(
+            {**NAMED_SETTINGS, "bots": {"named": [
+                {"name": "Liz", "skill": 1},
+                {"name": "Major", "skill": 1},
+                {"name": "Penguin", "skill": 1},
+            ]}}
+        )
         delays = [
-            int(arguments[index + 4])
-            for index, item in enumerate(arguments)
+            int(addbot[index + 4])
+            for index, item in enumerate(addbot)
             if item == "+addbot"
         ]
         self.assertEqual(delays, [2000, 3500, 5000])
+
+    def test_the_committed_array_carries_no_bot_and_no_setting(self) -> None:
+        """What moved out, asserted from the other side. The committed list is
+        what a caller passes verbatim, so a setting left in it would be a
+        default nobody can see."""
+        arguments = expected_server_arguments(load_profile(ROOT))
+        self.assertNotIn("+addbot", arguments)
+        for cvar in ("fraglimit", "g_gametype", "bot_minplayers", "g_spSkill"):
+            self.assertNotIn(cvar, arguments)
 
     def test_client_arguments_carry_no_endpoint(self) -> None:
         profile = load_profile(ROOT)
@@ -223,11 +277,16 @@ class ProfileTests(ProfileFixture):
 
         self.reject(mutate, "unprivileged UDP port")
 
-    def test_a_non_ffa_game_type_is_refused(self) -> None:
-        self.reject(
-            lambda profile: profile["cvars"].__setitem__("g_gametype", "3"),
-            "GT_FFA",
-        )
+    def test_a_committed_game_type_is_refused_because_it_is_a_setting(self) -> None:
+        """This replaced a check that the committed value had to be GT_FFA. The
+        property that check really executed — the profile may not decide the
+        gametype behind a caller's back — is what survives, and it is now
+        stronger: no value at all is permitted here, not merely the wrong one."""
+        def mutate(profile: dict) -> None:
+            profile["cvars"]["g_gametype"] = "3"
+            profile["cvarNotes"]["g_gametype"] = "a note long enough to pass"
+
+        self.reject(mutate, "launch setting and must not be committed")
 
     def test_a_client_download_is_refused(self) -> None:
         self.reject(
@@ -253,17 +312,31 @@ class ProfileTests(ProfileFixture):
         with self.assertRaisesRegex(ArenaServerError, "exactly the derivation"):
             load_profile(self.root)
 
-    def test_a_bot_the_pack_does_not_package_is_refused(self) -> None:
+    def test_a_roster_that_is_not_the_packaged_set_is_refused(self) -> None:
+        """Equality, because `bot_minplayers` fills its slots with `addbot
+        random`, which draws from the packaged bots.txt and never looks at this
+        roster: a packaged bot missing here would appear on a server nobody
+        could have asked for it on."""
+
+        def extra(profile: dict) -> None:
+            profile["botRoster"] = sorted(profile["botRoster"] + ["Grunt"])
+
+        self.reject(extra, "must be exactly the bots the pack packages")
+
+        def fewer(profile: dict) -> None:
+            # Not the last: the browser slice names Skelebot, so dropping that
+            # one would be refused by the subset rule first and this half would
+            # stop testing the equality it is about.
+            profile["botRoster"] = profile["botRoster"][1:]
+
+        self.reject(fewer, "must be exactly the bots the pack packages")
+
+    def test_a_committed_frag_limit_is_refused_because_it_is_a_setting(self) -> None:
         def mutate(profile: dict) -> None:
-            profile["bots"][0]["name"] = "Grunt"
+            profile["cvars"]["fraglimit"] = "20"
+            profile["cvarNotes"]["fraglimit"] = "a note long enough to pass"
 
-        self.reject(mutate, "the browser slice's bots")
-
-    def test_a_frag_limit_that_differs_from_the_recipe_is_refused(self) -> None:
-        self.reject(
-            lambda profile: profile["cvars"].__setitem__("fraglimit", "20"),
-            "browser slice's value",
-        )
+        self.reject(mutate, "launch setting and must not be committed")
 
     def test_an_unexplained_cvar_is_refused(self) -> None:
         def mutate(profile: dict) -> None:
@@ -302,17 +375,148 @@ class ProfileTests(ProfileFixture):
         with self.assertRaisesRegex(ArenaServerError, "unexpected key set"):
             load_profile(self.root)
 
-    def test_a_bot_skill_outside_the_engine_range_is_refused(self) -> None:
-        def mutate(profile: dict) -> None:
-            profile["bots"][0]["skill"] = 9
+    def test_a_published_bound_that_is_not_its_derivation_is_refused(self) -> None:
+        """The bounds are published so a consumer can read them instead of
+        reimplementing this file, which makes them an assertion rather than a
+        note — so each is checked against the thing that derives it."""
 
-        self.reject(mutate, "must be within")
+        def gametypes(profile: dict) -> None:
+            profile["launchSettings"]["gametypes"] = [0, 3, 4]
+
+        self.reject(gametypes, "the gametypes this release supports")
+
+        def skill(profile: dict) -> None:
+            profile["launchSettings"]["bots"]["skill"] = [1, 9]
+
+        self.reject(skill, "clamps a bot's skill")
+
+        def count(profile: dict) -> None:
+            profile["launchSettings"]["bots"]["maxCount"] = 12
+
+        self.reject(count, "leaves room for 7")
+
+        def floor(profile: dict) -> None:
+            profile["launchSettings"]["fraglimit"]["minimum"] = 0
+
+        self.reject(floor, "the match-end rule makes it 1")
+
+    def test_the_frag_limit_floor_follows_the_committed_time_limit(self) -> None:
+        """It is derived, not decided: a committed time limit already ends a
+        level, so the frag limit would not have to. Tested on the derivation
+        itself, because moving `timelimit` in the profile is refused earlier by
+        the binding to the browser slice."""
+        profile = load_profile(ROOT)
+        self.assertEqual(_fraglimit_minimum(profile), 1)
+        self.assertEqual(
+            _fraglimit_minimum({**profile, "cvars": {**profile["cvars"], "timelimit": "10"}}),
+            0,
+        )
 
     def test_a_relative_game_directory_is_refused(self) -> None:
         self.reject(
             lambda profile: profile.__setitem__("gameDirectory", "opt/arena-web"),
             "absolute image path",
         )
+
+class LaunchSettingsTests(unittest.TestCase):
+    """The four values a caller supplies, and the bounds they are held to."""
+
+    def setUp(self) -> None:
+        self.profile = load_profile(ROOT)
+
+    def refuses(self, settings: dict, message: str) -> None:
+        with self.assertRaisesRegex(ArenaServerError, message):
+            validate_launch_settings(self.profile, settings)
+
+    def test_both_shapes_are_accepted(self) -> None:
+        for settings in (MIN_PLAYERS_SETTINGS, NAMED_SETTINGS):
+            validate_launch_settings(self.profile, settings)
+
+    def test_the_two_bot_shapes_are_exclusive(self) -> None:
+        self.refuses(
+            {**MIN_PLAYERS_SETTINGS, "bots": {"minPlayers": 2, "skill": 3, "named": []}},
+            "exactly one of",
+        )
+        self.refuses({**MIN_PLAYERS_SETTINGS, "bots": {}}, "exactly one of")
+
+    def test_an_unsupported_gametype_is_refused_by_value(self) -> None:
+        self.refuses({**MIN_PLAYERS_SETTINGS, "gametype": 4}, "this release supports")
+        validate_launch_settings(self.profile, {**MIN_PLAYERS_SETTINGS, "gametype": 3})
+
+    def test_a_frag_limit_of_zero_is_refused_at_the_bound(self) -> None:
+        """The bound *is* the match-end rule here, which is why there is no
+        second copy of it at launch: the floor is derived from the rule at
+        profile load, so a value inside the bound cannot violate it."""
+        self.refuses({**MIN_PLAYERS_SETTINGS, "fraglimit": 0}, "must be an integer in")
+        self.assertEqual(
+            self.profile["launchSettings"]["fraglimit"]["minimum"],
+            _fraglimit_minimum(self.profile),
+        )
+
+    def test_a_bot_the_release_does_not_publish_is_refused(self) -> None:
+        self.refuses(
+            {**NAMED_SETTINGS, "bots": {"named": [{"name": "Grunt", "skill": 3}]}},
+            "is not a bot this release publishes",
+        )
+
+    def test_more_bots_than_slots_is_refused(self) -> None:
+        cast = [
+            {"name": name, "skill": 3} for name in self.profile["botRoster"]
+        ]
+        validate_launch_settings(
+            self.profile, {**NAMED_SETTINGS, "bots": {"named": cast}}
+        )
+        self.refuses(
+            {**NAMED_SETTINGS, "bots": {"named": [cast[0], dict(cast[0])]}},
+            "names 'Assassin' twice",
+        )
+        self.refuses(
+            {**NAMED_SETTINGS, "bots": {"named": cast + [dict(cast[0])]}},
+            "must name 1..7 bots",
+        )
+        self.refuses(
+            {**MIN_PLAYERS_SETTINGS, "bots": {"minPlayers": 8, "skill": 3}},
+            "must be an integer in 0..7",
+        )
+
+    def test_no_bots_at_all_is_a_configuration_and_not_an_error(self) -> None:
+        """`G_CheckMinimumPlayers` returns immediately at 0, so a human-only
+        server is a legitimate setting rather than a missing one."""
+        settings = {**MIN_PLAYERS_SETTINGS, "bots": {"minPlayers": 0, "skill": 3}}
+        arguments = server_launch_arguments(ROOT, self.profile, ["oa_pvomit"], settings)
+        self.assertIn("bot_minplayers", arguments)
+        self.assertNotIn("+addbot", arguments)
+
+    def test_the_min_players_shape_carries_the_skill_cvar(self) -> None:
+        """The one non-obvious emission, and the reason the budget is a line
+        wider than a count of the settings suggests: `G_AddRandomBot` reads
+        `g_spSkill`, so difficulty in this shape is a `+set` line of its own."""
+        sets, addbot = setting_arguments(MIN_PLAYERS_SETTINGS)
+        self.assertEqual(addbot, [])
+        self.assertEqual(
+            sets,
+            [
+                "+set", "bot_minplayers", "4",
+                "+set", "fraglimit", "15",
+                "+set", "g_gametype", "0",
+                "+set", "g_spSkill", "3",
+            ],
+        )
+
+    def test_the_named_shape_carries_no_skill_cvar(self) -> None:
+        sets, addbot = setting_arguments(NAMED_SETTINGS)
+        self.assertNotIn("g_spSkill", sets)
+        self.assertEqual(addbot[:5], ["+addbot", "Liz", "2", "free", "2000"])
+
+    def test_the_ceiling_depends_on_the_settings_and_not_only_the_names(self) -> None:
+        """A rotation ceiling stated without its configuration is the kind of
+        number this topic has already passed on wrongly three times."""
+        cast = [{"name": name, "skill": 3} for name in self.profile["botRoster"]]
+        with_min_players = max_server_rotation(ROOT, self.profile, MIN_PLAYERS_SETTINGS)
+        with_full_cast = max_server_rotation(
+            ROOT, self.profile, {**NAMED_SETTINGS, "bots": {"named": cast}}
+        )
+        self.assertGreater(with_min_players, with_full_cast)
 
 
 class TreeTests(unittest.TestCase):
@@ -572,7 +776,7 @@ class MultiMapRecipeTests(ProfileFixture):
         )
         profile = load_profile(self.root)
         arguments = server_launch_arguments(
-            self.root, profile, ["oa_shine", "oa_pvomit"]
+            self.root, profile, ["oa_shine", "oa_pvomit"], MIN_PLAYERS_SETTINGS
         )
         self.assertIn("map oa_shine;set nextmap vstr d2", arguments)
         self.assertIn("map oa_pvomit;set nextmap vstr d1", arguments)

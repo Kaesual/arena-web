@@ -436,6 +436,11 @@ def main() -> int:  # noqa: C901 - a session is a sequence, and it reads as one
     # Required, with no default: the map a server plays is a launch argument
     # and the census is a caller like any other.
     parser.add_argument("--rotation", required=True)
+    # Required, with no default, for the same reason as the rotation: the
+    # gametype, the frag limit and the bots are launch settings this release
+    # does not commit, so a census states the server configuration it observed
+    # instead of inheriting one nobody wrote down.
+    parser.add_argument("--settings", required=True)
     parser.add_argument("--subnet", default=DEFAULT_SUBNET)
     parser.add_argument("--server-ip", default=DEFAULT_SERVER_IP)
     parser.add_argument("--client-ip", default=DEFAULT_CLIENT_IP)
@@ -512,7 +517,10 @@ def main() -> int:  # noqa: C901 - a session is a sequence, and it reads as one
     try:
         profile = load_profile(REPO_ROOT)
         server_arguments = server_launch_arguments(
-            REPO_ROOT, profile, [name.strip() for name in arguments.rotation.split(",")]
+            REPO_ROOT,
+            profile,
+            [name.strip() for name in arguments.rotation.split(",")],
+            json.loads(arguments.settings),
         )
     except ArenaServerError as error:
         print(f"native profile refused: {error}", file=sys.stderr)

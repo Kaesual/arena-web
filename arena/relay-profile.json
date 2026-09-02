@@ -4,8 +4,16 @@
     "The committed browser-client half of the WP7 relay profile.",
     "Endpoint, certificate hash, destination address/port, client source port",
     "and authorization are runtime inputs and must never be committed or reported.",
-    "The loader derives +set arguments from cvars and appends +connect -6 with",
-    "the runtime destination. The evidence copy always redacts that destination."
+    "The player's name and chosen model are runtime inputs of the same class and",
+    "for the same reason: they are per-session and the name is user-supplied free",
+    "text, so neither is committed here and the name is redacted out of the",
+    "evidence. What IS committed is what they may be -- 'playerSettings' below --",
+    "because a bound a consumer validates against has to come from somewhere it",
+    "can read, and scripts/arena_runtime.py checks each of those bounds against",
+    "the thing that derives it rather than trusting the file.",
+    "The loader derives +set arguments from cvars, appends the player's own three",
+    "and then +connect -6 with the runtime destination. The evidence copy always",
+    "redacts that destination and the name."
   ],
   "formatVersion": 1,
   "mode": "relay-client",
@@ -22,11 +30,28 @@
     "cl_voip": "0",
     "com_basegame": "arena",
     "com_legacyprotocol": "0",
-    "headmodel": "skelebot/default",
-    "model": "skelebot/default",
     "net_enabled": "2",
     "r_allowResize": "1",
     "r_fullscreen": "0",
     "sv_pure": "0"
+  },
+  "playerSettings": {
+    "models": [
+      "assassin/default",
+      "gargoyle/default",
+      "kyonshi/default",
+      "liz/default",
+      "major/default",
+      "penguin/default",
+      "skelebot/default"
+    ],
+    "name": {
+      "maxLength": 35,
+      "minLength": 1
+    }
+  },
+  "playerSettingNotes": {
+    "models": "Exactly the player models content/pack-recipe.json packages, because a model outside that set fails CG_RegisterClientModelname and CG_LoadClientInfo then CG_Errors the client out through the unpackaged DEFAULT_MODEL -- or DEFAULT_TEAM_MODEL in a team gametype (ioq3 code/cgame/cg_players.c). The choice survives GT_TEAM: cg_forceModel defaults to 0 (code/cgame/cg_main.c), so CG_NewClientInfo keeps each client's own model and only the skin becomes red or blue.",
+    "name": "maxLength is MAX_NETNAME - 1, read out of ioq3 code/game/g_local.h: ClientCleanName copies into client->pers.netname of that size and its `outpos < outSize - 1` loop stops there, dropping the rest without a word (code/game/g_client.c). A longer name is TRUNCATED rather than refused -- a session must not fail over a name that is merely long -- and truncating on the producer side rather than leaving it to the engine is what makes the stored name predictable instead of merely bounded. Outer spaces are trimmed for the same class of reason: they are invisible, ClientCleanName discards leading ones itself, and a cut can otherwise expose a trailing one. Content is the one of the three that is refused, because it is the only one a player can see and report: printable ASCII without '^', '\\\\', '\"', ';' and without a repeated space, which is deliberately narrower than what ClientCleanName accepts rather than a model of it, so every accepted name is one the engine stores verbatim. '^' is refused because ClientCleanName reads '^' plus a character as a colour code, drops black outright, and substitutes \"UnnamedPlayer\" when nothing colourless is left: a name that silently becomes colour, or silently becomes the very default this setting exists to replace, is worse than a refused one."
   }
 }

@@ -47,7 +47,12 @@ from content_pack import (
     validate_provenance,
     write_pk3,
 )
-from game_assets import parse_animation_cfg, parse_key_value_blocks
+from game_assets import (
+    IMAGE_EXTENSIONS,
+    candidate_paths,
+    parse_animation_cfg,
+    parse_key_value_blocks,
+)
 from metadata import (
     ARTIFACT_SCHEMA,
     MetadataError,
@@ -197,12 +202,26 @@ def _check_profile(recipe: dict[str, Any], fragments: dict[str, Any]) -> None:
     for fragment in fragments.values():
         _check_arena_fields(fragment["arena"])
     packaged_models = set(models)
+    used: dict[str, str] = {}
     for bot in profile["bots"]:
         if bot["model"] not in packaged_models:
             raise ContentError(
                 f"bot {bot['name']!r} uses model {bot['model']!r}, which the profile "
                 f"does not package: {sorted(packaged_models)}"
             )
+        # **One model per bot, and the rule is here rather than in a review
+        # note.** Three bots pointed at one model is what this pack shipped
+        # while only one of the seven packaged models had a character to go
+        # with it, and nothing said so: a server showed one face and looked
+        # exactly like a server with three. Sharing a model is not an engine
+        # error, which is precisely why it needs a gate.
+        if bot["model"] in used:
+            raise ContentError(
+                f"bots {used[bot['model']]!r} and {bot['name']!r} share the model "
+                f"{bot['model']!r}; every packaged model is offered so that a bot "
+                "can wear it, and a shared one makes two bots one face"
+            )
+        used[bot["model"]] = bot["name"]
 
 
 def _reconcile_templates(
@@ -238,6 +257,14 @@ def _reconcile_templates(
             )
     _check_map_templates(declared)
     return declared
+
+
+# ioq3 code/cgame/cg_players.c CG_FindClientModelFile / CG_FindClientHeadFile:
+# in a gametype at or above GT_TEAM the client resolves a player's skin under
+# one of these two names instead of the model's own skin name. They are engine
+# constants rather than a product selection, which is why they are here beside
+# the other engine-derived values and not in the recipe.
+TEAM_SKIN_TEAMS = ("blue", "red")
 
 
 # The `%s` the gamecode fills with a map name, and the path each one produces.
@@ -294,6 +321,79 @@ def _check_map_templates(declared: dict[str, dict[str, Any]]) -> None:
             raise ContentError(
                 f"recipe template {template!r} must declare its expansions"
             )
+
+
+def check_team_presentation(recipe: dict[str, Any], sources: SourceSet) -> None:
+    """Every offered player model must have a complete team presentation.
+
+    **Why this is a gate and not a build step's own failure.** A missing team
+    skin does not fail the build: the closure would simply report an unresolved
+    reference, which an `acceptedUnresolved` entry could quiet. What it does
+    instead is fail at run time, for everyone: `CG_RegisterClientSkin` fails the
+    registration, `CG_LoadClientInfo` falls back to `DEFAULT_TEAM_MODEL`
+    (`sarge`, which this pack does not carry), and `CG_Error` drops the client
+    (ioq3 code/cgame/cg_players.c). So the property worth asserting is not "the
+    build resolved something" but "no offered model can reach that fallback".
+
+    **The negative half is the half that would go quietly wrong.**
+    `CG_FindClientModelFile` tries `<part>_<skin>_<team>.skin` *before*
+    `<part>_<team>.skin`, and `CG_FindClientHeadFile` tries a
+    `<headskin>/icon_<team>` directory form before the flat one. No offered
+    model ships either today. If one ever did, the engine would prefer a file
+    this recipe does not package while the packaged one still resolved, and
+    every positive check here would still pass. So the higher-priority
+    candidates are required to be *absent*, and their appearance is a failure
+    that says which file the engine would have chosen.
+
+    **What it does when its subject is absent:** a recipe offering no player
+    model at all is a failure rather than a silent pass, because a rule about
+    every model is satisfied by an empty set and this one is load-bearing.
+    """
+    models = recipe["profile"]["playerModels"]
+    if not models:
+        raise ContentError(
+            "profile.playerModels is empty, so the team-presentation rule would "
+            "be satisfied by checking nothing"
+        )
+    for selection in models:
+        model, _, skin = selection.partition("/")
+        skin = skin or "default"
+        for team in TEAM_SKIN_TEAMS:
+            for part in ("lower", "upper", "head"):
+                required = f"models/players/{model}/{part}_{team}.skin"
+                if sources.get(required) is None:
+                    raise ContentError(
+                        f"player model {selection!r} ships no {required}, so a "
+                        "team gametype would fail CG_RegisterClientSkin for it "
+                        "and CG_Error every client out through the unpackaged "
+                        "DEFAULT_TEAM_MODEL"
+                    )
+                preferred = f"models/players/{model}/{part}_{skin}_{team}.skin"
+                if sources.get(preferred) is not None:
+                    raise ContentError(
+                        f"the pinned sources ship {preferred}, which "
+                        "CG_FindClientModelFile prefers over the packaged "
+                        f"{required}; package the preferred one instead"
+                    )
+            icon = f"models/players/{model}/icon_{team}"
+            if not any(
+                sources.get(candidate) is not None
+                for candidate in candidate_paths(icon, IMAGE_EXTENSIONS)
+            ):
+                raise ContentError(
+                    f"player model {selection!r} ships no {icon} image, so "
+                    "CG_RegisterClientModelname would fail on the icon alone"
+                )
+            for preferred in (
+                f"models/players/{model}/{skin}/icon_{team}.skin",
+                f"models/players/{model}/icon_{team}.skin",
+                f"models/players/{model}/{skin}/icon_{team}.tga",
+            ):
+                if sources.get(preferred) is not None:
+                    raise ContentError(
+                        f"the pinned sources ship {preferred}, which "
+                        f"CG_FindClientHeadFile prefers over the packaged {icon}"
+                    )
 
 
 def _static_reference_paths(references: dict[str, Any]) -> set[str]:
@@ -969,6 +1069,26 @@ def _add_base_roots(
         for directory in (model, sex):
             for sound in sources.list_directory(f"sound/player/{directory}"):
                 builder.add(sound, "file", f"{origin} voice")
+        # 3b. The same presentation in team colours. In a team gametype
+        #     `CG_FindClientModelFile` and `CG_FindClientHeadFile` stop looking
+        #     for `<part>_<skin>.skin` and look for `<part>_<team>.skin` instead
+        #     (ioq3 code/cgame/cg_players.c), and `CG_RegisterClientSkin` fails
+        #     the whole registration if legs, torso or head is missing —
+        #     whereupon `CG_LoadClientInfo` falls back to `DEFAULT_TEAM_MODEL`,
+        #     which is `sarge` and is not packaged, and `CG_Error`s the client
+        #     out. So these are not decoration: without them Team Deathmatch
+        #     drops every player at the first spawn.
+        #
+        #     The spelling is the same simplification root 3 already makes for
+        #     the default skins — the engine's *second* candidate, which is the
+        #     one upstream ships — and `check_team_presentation` is what proves
+        #     it is also the one the engine would pick.
+        for team in TEAM_SKIN_TEAMS:
+            for part in ("lower", "upper", "head"):
+                builder.add(
+                    f"models/players/{model}/{part}_{team}.skin", "skin", origin
+                )
+            builder.add(f"models/players/{model}/icon_{team}", "image", origin)
 
     # 4. Bot behaviour data.
     for entry in recipe["botfileRoots"]:
@@ -1091,6 +1211,11 @@ def _check_archive_set(
     for report, _members in reports.values():
         resolved.update(report.shader_names)
     check_shader_resolution(by_engine_name, resolved)
+    # Every offered model must have a team presentation the engine will find,
+    # and no higher-priority spelling of one it will not. Neither half fails a
+    # closure run: the first is a run-time CG_Error, the second is a silently
+    # wrong file.
+    check_team_presentation(recipe, sources)
     # The `.arena` names must all fit the listing buffer G_LoadArenas gives them.
     _check_arena_file_listing(
         engine_root,

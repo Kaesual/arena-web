@@ -24,6 +24,11 @@
     "  addbot argument order and the 2000/1500 ms delay cadence reproduce",
     "                     ioq3 code/game/g_bot.c Svcmd_AddBot_f, G_SpawnBots,",
     "                     BOT_BEGIN_DELAY_BASE and BOT_BEGIN_DELAY_INCREMENT",
+    "The three bots are three different characters rather than three copies of",
+    "one: every packaged player model now has a bot of its own, and the practice",
+    "slice is where a player meets them. The names must be bots the pack",
+    "packages, which native/server-profile.json publishes as its roster and",
+    "scripts/arena_server.py binds to content/pack-recipe.json.",
     "  readyMarkers       exact Com_Printf strings of the pinned sources",
     "r_mode, r_customwidth and r_customheight are deliberately absent: the loader",
     "derives them from the live canvas box, and a committed value would be an",
@@ -40,15 +45,15 @@
   "playerModel": "skelebot/default",
   "bots": [
     {
+      "name": "Gargoyle",
+      "skill": 3
+    },
+    {
+      "name": "Penguin",
+      "skill": 3
+    },
+    {
       "name": "Skelebot",
-      "skill": 3
-    },
-    {
-      "name": "Rai",
-      "skill": 3
-    },
-    {
-      "name": "Sly",
       "skill": 3
     }
   ],
@@ -70,7 +75,7 @@
     "bot_enable": "ioq3 code/game/g_bot.c:761: Svcmd_AddBot_f (g_bot.c:752) returns immediately when this is 0",
     "com_basegame": "ioq3 code/qcommon/files.c: the game directory the pack and QVMs are placed in; any name other than 'baseq3' selects standalone operation in FS_CheckPak0",
     "fraglimit": "ioq3 code/game/g_main.c CheckExitRules: with timelimit this is what ends a level, and ExitLevel is the only thing that runs 'vstr nextmap', so the two together are what lets a launched rotation advance. It is deliberately not bound to a map fragment's arena.fraglimit any more: nothing reads arena data outside GT_SINGLE_PLAYER (ioq3 code/game/g_bot.c) and the published maps declare four different values",
-    "g_gametype": "ioq3 code/game/bg_public.h GT_FFA",
+    "g_gametype": "ioq3 code/game/bg_public.h gametype_t. The offline slice commits one mode and runs exactly it; the value is checked against the set this release supports, whose members are read out of that enum rather than restated. A dedicated server takes its gametype as a launch argument instead",
     "headmodel": "ioq3 code/client/cl_main.c defaults it to the unpackaged 'sarge'",
     "model": "ioq3 code/cgame/cg_players.c: DEFAULT_MODEL 'sarge' is not in the audited pack, so the fallback would be fatal",
     "net_enabled": "ioq3 code/qcommon/net_ip.c: this work package is strictly offline",
@@ -384,17 +389,17 @@
     "timelimit",
     "0",
     "+addbot",
-    "Skelebot",
+    "Gargoyle",
     "3",
     "free",
     "2000",
     "+addbot",
-    "Rai",
+    "Penguin",
     "3",
     "free",
     "3500",
     "+addbot",
-    "Sly",
+    "Skelebot",
     "3",
     "free",
     "5000"

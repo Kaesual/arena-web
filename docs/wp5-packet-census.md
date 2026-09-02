@@ -710,6 +710,7 @@ scripts/build-native.sh --target server
 scripts/build-native.sh --target client
 scripts/build-server-image.sh
 scripts/run-packet-census.sh --rotation oa_pvomit \
+  --settings '{"gametype":0,"fraglimit":15,"bots":{"named":[{"name":"Skelebot","skill":1},{"name":"Liz","skill":1},{"name":"Major","skill":1}]}}' \
   --play-seconds 240 --max-play-seconds 420 \
   --record records/wp5-packet-census.json
 ```
@@ -717,10 +718,15 @@ scripts/run-packet-census.sh --rotation oa_pvomit \
 That last line is the exact command the accepted census was taken with, options
 included: the defaults are shorter (120 seconds of driven play, no record
 written), and `--record` is what turns a run into the committed evidence — it
-refuses to write when a required check failed. `--rotation` has no default and
-is required: the map a server plays is a launch argument, and the census is a
-caller like any other. The accepted census was taken on `oa_pvomit`, which is
-why that is the rotation written here rather than a placeholder.
+refuses to write when a required check failed. Neither `--rotation` nor
+`--settings` has a default and both are required: the map a server plays, its
+gametype, its frag limit and its bots are all launch arguments, and the census
+is a caller like any other. The accepted census was taken on `oa_pvomit` at the
+values above, which is why they are written here rather than as placeholders.
+The bots run at the engine's lowest skill on purpose: the census client is
+driven blind from a script and would otherwise spend the session respawning
+rather than playing. Bot skill changes how the game plays, not what the protocol
+sends.
 
 These scripts default to `CONTAINER_RUNTIME=podman` and check up front that the
 runtime provides the constructs they use; see the note on that below.
@@ -785,7 +791,8 @@ podman run --rm --name arena-witness-server \
     'import sys;sys.path.insert(0,"scripts")
 from pathlib import Path
 from arena_server import load_profile, server_launch_arguments
-print(" ".join(server_launch_arguments(Path("."), load_profile(Path(".")), ["oa_pvomit"])))')
+settings = {"gametype": 0, "fraglimit": 15, "bots": {"minPlayers": 3, "skill": 1}}
+print(" ".join(server_launch_arguments(Path("."), load_profile(Path(".")), ["oa_pvomit"], settings)))')
 ```
 
 Then stage the client's own tree — it is not the server's, because a client

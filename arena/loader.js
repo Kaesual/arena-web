@@ -33,6 +33,7 @@ import {
   renderSizeArguments as canvasRenderSizeArguments,
 } from "./arena/canvas-resize.js";
 import { createHostLifecycle } from "./arena/host-lifecycle.js";
+import { playerLaunchArguments } from "./arena/player-input.js";
 import {
   ArenaNetworkSession,
   INNER_DATAGRAM_FLOOR,
@@ -500,6 +501,8 @@ function parseRelayProfile(profile) {
     "innerDatagramFloor",
     "keepAliveIntervalSource",
     "mode",
+    "playerSettingNotes",
+    "playerSettings",
     "receiveQueueDepth",
     "singleDatagramOverhead",
   ];
@@ -523,8 +526,6 @@ function parseRelayProfile(profile) {
     cl_voip: "0",
     com_basegame: "arena",
     com_legacyprotocol: "0",
-    headmodel: "skelebot/default",
-    model: "skelebot/default",
     net_enabled: "2",
     r_allowResize: "1",
     r_fullscreen: "0",
@@ -536,23 +537,45 @@ function parseRelayProfile(profile) {
       throw new LoaderError(`${RELAY_PROFILE_URL}: cvars.${name} is not '${expected}'`);
     }
   }
+  // The player's own two choices are runtime inputs, so what the profile
+  // carries is not a value but a bound. `scripts/arena_runtime.py` checks each
+  // bound against the thing that derives it — the model list against the
+  // packaged set, the length against the pinned `MAX_NETNAME` — and this side
+  // reads them rather than restating either.
+  exactKeys(profile.playerSettings, ["models", "name"], `${RELAY_PROFILE_URL}: playerSettings`);
+  const models = profile.playerSettings.models;
+  if (!Array.isArray(models) || models.length === 0) {
+    throw new LoaderError(`${RELAY_PROFILE_URL}: playerSettings.models must be a non-empty list`);
+  }
+  for (const model of models) {
+    requireString(model, `${RELAY_PROFILE_URL}: playerSettings.models entry`);
+  }
+  exactKeys(
+    profile.playerSettings.name,
+    ["maxLength", "minLength"],
+    `${RELAY_PROFILE_URL}: playerSettings.name`,
+  );
+  for (const key of ["maxLength", "minLength"]) {
+    const value = profile.playerSettings.name[key];
+    if (!Number.isInteger(value) || value < 1) {
+      throw new LoaderError(
+        `${RELAY_PROFILE_URL}: playerSettings.name.${key} must be a positive integer`,
+      );
+    }
+  }
   return profile;
 }
 
-function relayDestination(configuration) {
-  const hex = configuration.destinationAddressHex;
-  if (typeof hex !== "string" || !/^[0-9a-fA-F]{32}$/.test(hex)) {
-    throw new LoaderError("relay destination is not a 16-byte hexadecimal address");
+// The player's own two inputs live in `arena/player-input.js`, which is a
+// module of its own so that a test can run it under Node beside
+// `scripts/arena_runtime.py`'s copy of the same rule. All this side does is
+// give a refusal the loader's own error type.
+function playerArguments(profile, configuration) {
+  try {
+    return playerLaunchArguments(profile, configuration);
+  } catch (error) {
+    throw new LoaderError(String(error?.message ?? error));
   }
-  const port = configuration.destinationPort;
-  if (!Number.isInteger(port) || port < 1 || port > 65535) {
-    throw new LoaderError("relay destination port is outside its accepted range");
-  }
-  const groups = [];
-  for (let index = 0; index < hex.length; index += 4) {
-    groups.push(hex.slice(index, index + 4));
-  }
-  return `[${groups.join(":")}]:${port}`;
 }
 
 function relayEngineArguments(profile, configuration) {
@@ -560,8 +583,22 @@ function relayEngineArguments(profile, configuration) {
   for (const name of Object.keys(profile.cvars).sort()) {
     arguments_.push("+set", name, profile.cvars[name]);
   }
+  const player = playerArguments(profile, configuration);
+  arguments_.push(...player);
   arguments_.push("+connect", profile.connectFamily, relayDestination(configuration));
-  return arguments_;
+  // Which positions carry a runtime value, so the evidence copy can redact
+  // them by index. The redaction used to be positional — "everything but the
+  // last argument" — which is exactly the kind of rule that quietly redacts
+  // the wrong thing the moment an argument is added after it. The name is a
+  // runtime input of the same class as the destination and must never be
+  // reported; the model is not, because it is a choice from a committed set
+  // and knowing which one a client registered is evidence rather than
+  // disclosure.
+  const redactions = new Map([
+    [arguments_.length - 1, "[relay destination]"],
+    [arguments_.length - 4, "[player name]"],
+  ]);
+  return { arguments: arguments_, redactions };
 }
 
 // Which archives this page is being opened for, and therefore which artifacts
@@ -1112,21 +1149,22 @@ async function boot(profile, artifacts, networkBackend = null) {
   // (ioq3 code/qcommon/common.c Com_Init), so `+map` still precedes every
   // `+addbot` in buffer order, which is what Svcmd_AddBot_f needs. A relay
   // client starts no map — its rotation is the server's.
-  const profileArguments = networkBackend
+  const relayLaunch = networkBackend
     ? relayEngineArguments(relayProfile, relayRuntimeConfiguration)
-    : ["+map", loadedStartMap, ...profile.engineArguments];
+    : null;
+  const profileArguments =
+    relayLaunch?.arguments ?? ["+map", loadedStartMap, ...profile.engineArguments];
   const engineArguments = [...profileArguments, ...initialRenderSizeArguments()];
   checkCommandLineBudget(engineArguments, profile.engineCommandLine);
   // The record is a copy: Emscripten's callMain unshifts the program name onto
   // the array it is given, so handing the engine this exact array would edit
-  // the evidence.
-  report.engineArguments = networkBackend
-    ? [
-        ...profileArguments.slice(0, -1),
-        "[relay destination]",
-        ...engineArguments.slice(profileArguments.length),
-      ]
-    : [...engineArguments];
+  // the evidence. The runtime values are replaced by index rather than by
+  // position or by value — by position it would redact whatever happened to be
+  // last, and by value a player whose name is "0" would blank every "0" in the
+  // record.
+  report.engineArguments = engineArguments.map((argument, index) =>
+    relayLaunch?.redactions.get(index) ?? argument,
+  );
 
   const moduleUrl = URL.createObjectURL(new Blob([scriptBytes], { type: "text/javascript" }));
   let factory;
@@ -1253,6 +1291,15 @@ function configureRelay(configuration) {
     throw new LoaderError("relay configuration must be supplied before Start");
   }
   requireObject(configuration, "relay runtime configuration");
+  // Validate the player's two inputs here, for the refusal rather than the
+  // result: a consumer that gets a bad name back at `start()` has to work out
+  // which of the two calls was wrong, and the one that was wrong is this one.
+  // It is conditional only because `configureRelay` is accepted from `starting`
+  // as well, where the profile may not be parsed yet; `boot` validates again in
+  // every case, so nothing depends on this having run.
+  if (relayProfile !== null) {
+    playerArguments(relayProfile, configuration);
+  }
   relayRuntimeConfiguration = {
     ...configuration,
     certificateHashes: Array.isArray(configuration.certificateHashes)

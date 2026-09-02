@@ -1,48 +1,56 @@
 {
   "$comment": [
     "The WP5 native profile: one dedicated server and one matching native test",
-    "client, both running the same FFA arena the browser slice runs.",
+    "client, both running the same arena the browser slice runs.",
     "scripts/arena_server.py derives every command line from the declarative",
     "fields below and refuses this file if the committed argument lists differ,",
     "so what the census observes cannot drift away from what is recorded here.",
     "The profile is additionally bound to arena/game-profile.json and to",
-    "content/pack-recipe.json: the game directory, package, frag limit and the",
-    "bots themselves are the browser slice's, not a second set of numbers.",
+    "content/pack-recipe.json: the game directory, package, player presentation",
+    "and bot roster are the browser slice's and the pack's, not a second set of",
+    "values.",
     "",
-    "The map is NOT here, and 'serverArguments' carries none. The rotation is a",
-    "launch argument supplied at container launch and never committed; build the",
-    "full command line with scripts/arena_server.py server_launch_arguments,",
-    "which prepends the rotation's own '+set d<N>' cycle and '+vstr d1' to the",
-    "array below. A server started without one never answers a getstatus the",
-    "readiness contract accepts, so the omission fails that gate rather than",
-    "surfacing at a map change.",
-    "The one deliberate difference is bot skill. The browser slice is played by",
-    "a person and uses skill 3; the census client is driven blind from a script",
-    "and would spend a session respawning rather than playing, so its bots run",
-    "at the engine's lowest skill. Bot skill changes how the game plays, not",
-    "what the protocol sends: it adds no message type, no command and no field.",
+    "Neither the map NOR the per-server settings are here, and 'serverArguments'",
+    "carries none of them. The rotation, the gametype, the frag limit and the",
+    "bots are launch arguments supplied at container launch and never committed;",
+    "build the full command line with scripts/arena_server.py",
+    "server_launch_arguments, which prepends the rotation's own '+set d<N>' cycle",
+    "and '+vstr d1', adds the settings' own '+set' lines, and appends any named",
+    "bots' '+addbot' lines after the array below.",
+    "There is deliberately no committed default for any of them. A committed",
+    "value a caller may or may not override is a default nobody can see and",
+    "nothing reports -- the server would run a gametype or a frag limit its",
+    "operator never chose and would look exactly like one that was configured.",
+    "A server started without a rotation never answers a getstatus the readiness",
+    "contract accepts, so that omission fails the gate rather than surfacing at a",
+    "map change.",
+    "'launchSettings' publishes the bounds so a configuring consumer can read",
+    "them out of this authority instead of reimplementing the derivation; every",
+    "one of them is checked here against what derives it, because a published",
+    "bound is an assertion this repository is making.",
+    "The bot skill the census runs at is a launch setting now rather than a",
+    "committed difference: the census client is driven blind from a script and",
+    "would spend a session respawning rather than playing, so it launches its",
+    "server at the engine's lowest skill while the browser slice, played by a",
+    "person, commits 3. Bot skill changes how the game plays, not what the",
+    "protocol sends: it adds no message type, no command and no field.",
     "runtimeBaseCopyrightFiles is the number of per-package copyright files the",
     "pinned runtime base carries. The baseline's runtime-base record obliges",
     "arena-web to preserve them, and preservation is checked by comparing the",
-    "built image with the base — a comparison that would pass just as happily if",
+    "built image with the base -- a comparison that would pass just as happily if",
     "both sides silently dropped some, which is exactly what a `find` without",
     "-L does here (two of the base's documentation directories are symlinks).",
     "Pinning the count makes that regression fail instead of passing quietly."
   ],
   "basegame": "arena",
-  "bots": [
-    {
-      "name": "Skelebot",
-      "skill": 1
-    },
-    {
-      "name": "Rai",
-      "skill": 1
-    },
-    {
-      "name": "Sly",
-      "skill": 1
-    }
+  "botRoster": [
+    "Assassin",
+    "Gargoyle",
+    "Kyonshi",
+    "Liz",
+    "Major",
+    "Penguin",
+    "Skelebot"
   ],
   "client": {
     "cvarNotes": {
@@ -144,8 +152,6 @@
     "com_basegame": "Not baseq3. FS_CheckPak0 leaves com_standalone at 0 for ioquake3's own base game and the engine then refuses to start without the retail paks (code/qcommon/files.c). Any other directory name selects standalone operation.",
     "com_legacyprotocol": "0 is CVAR_INIT and forces the current checksummed netchan header on the matching client and server.",
     "dedicated": "1 is LAN dedicated. 2 would send heartbeats to the public master servers, which is an explicit WP5 non-goal (code/server/sv_main.c SV_MasterHeartbeat).",
-    "fraglimit": "ioq3 code/game/g_main.c CheckExitRules: with timelimit this is what ends a level, and ExitLevel is the only thing that runs 'vstr nextmap', so the two together are what lets a launched rotation advance. It is deliberately not bound to a map fragment's arena.fraglimit any more: nothing reads arena data outside GT_SINGLE_PLAYER (ioq3 code/game/g_bot.c) and the published maps declare four different values",
-    "g_gametype": "GT_FFA (code/game/bg_public.h).",
     "net_enabled": "1 is IPv4 only, so the census observes exactly one address family.",
     "net_port": "The UDP port the census captures; PORT_SERVER (code/qcommon/qcommon.h).",
     "sv_maxclients": "Slots for the test client and the bots.",
@@ -158,8 +164,6 @@
     "com_basegame": "arena",
     "com_legacyprotocol": "0",
     "dedicated": "1",
-    "fraglimit": "15",
-    "g_gametype": "0",
     "net_enabled": "1",
     "net_port": "27960",
     "sv_maxclients": "8",
@@ -177,6 +181,29 @@
   },
   "formatVersion": 1,
   "gameDirectory": "/opt/arena-web",
+  "launchSettingNotes": {
+    "bots": "Exactly one shape. {\"minPlayers\": n, \"skill\": s} sets bot_minplayers and g_spSkill: the engine tops the server up and removes bots again as humans arrive (ioq3 code/game/g_bot.c G_CheckMinimumPlayers), costs two console lines whatever n is, and is the only shape that distributes across two teams -- where the same function clamps n to g_maxclients/2 - 1 per team. {\"named\": [{name, skill}, ...]} is the fine-grained alternative and costs one console line per bot. maxCount is the committed sv_maxclients less the human slot, which is also the clamp G_CheckMinimumPlayers applies in the FFA branch.",
+    "fraglimit": "The minimum is derived from the committed timelimit: CheckExitRules ends a level on a limit cvar and on nothing else (ioq3 code/game/g_main.c), capturelimit is unreachable below GT_CTF, and timelimit is committed 0 -- so a frag limit of 0 would commit a rotation that can never reach its second map. The maximum is a product decision rather than an engine one: three digits keep the widest launch line a fixed width, which is what makes the command-line byte budget predictable.",
+    "gametype": "GT_FFA and GT_TEAM, by name; the values are the pinned gamecode's own gametype_t enum (ioq3 code/game/bg_public.h) and are read from it rather than written here. GT_CTF is excluded because no published map is a CTF map, so it would be a content campaign rather than a mode switch.",
+    "skill": "1..5, which is what Svcmd_AddBot_f clamps a bot's skill to (ioq3 code/game/g_bot.c). In the minPlayers shape it is g_spSkill, because G_AddRandomBot reads that cvar and passes it to addbot -- there is no per-bot argument to carry it there; in the named shape it is each bot's own third addbot argument."
+  },
+  "launchSettings": {
+    "bots": {
+      "maxCount": 7,
+      "skill": [
+        1,
+        5
+      ]
+    },
+    "fraglimit": {
+      "maximum": 999,
+      "minimum": 1
+    },
+    "gametypes": [
+      0,
+      3
+    ]
+  },
   "package": "arena-web-ffa",
   "playerModel": "skelebot/default",
   "port": 27960,
@@ -195,12 +222,6 @@
     "dedicated",
     "1",
     "+set",
-    "fraglimit",
-    "15",
-    "+set",
-    "g_gametype",
-    "0",
-    "+set",
     "net_enabled",
     "1",
     "+set",
@@ -217,22 +238,7 @@
     "1",
     "+set",
     "timelimit",
-    "0",
-    "+addbot",
-    "Skelebot",
-    "1",
-    "free",
-    "2000",
-    "+addbot",
-    "Rai",
-    "1",
-    "free",
-    "3500",
-    "+addbot",
-    "Sly",
-    "1",
-    "free",
-    "5000"
+    "0"
   ],
   "serverBinary": "ioq3ded"
 }

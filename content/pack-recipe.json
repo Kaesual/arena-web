@@ -114,7 +114,7 @@
       "reference": "poopypants"
     },
     {
-      "reason": "Capture the Flag carrier effect shader cg_main.c registers under a runtime team-gametype guard the static reader cannot evaluate; the FFA profile never reaches it and OpenArena defines no shader of this name",
+      "reason": "cg_main.c registers it under `cgs.gametype >= GT_TEAM` as cgs.media.redQuadShader, so GT_TEAM does reach it and GT_FFA does not; OpenArena defines no shader and ships no image of this Quake III Arena name. cg_players.c draws it instead of the ordinary quad shell on a red-team player carrying Quad Damage, so in Team Deathmatch that one shell renders as the default shader. Cosmetic and confined to that entity: R_FindShader defaults the shader and reports it at PRINT_DEVELOPER only, and nothing else reads the handle",
       "reference": "powerups/blueflag"
     },
     {
@@ -130,11 +130,11 @@
       "reference": "sound/player/announce/youwin.wav"
     },
     {
-      "reason": "Capture the Flag return cue; the FFA profile has no flags",
+      "reason": "a flag-return cue no module registers: ai_dmq3.c compares the name against a sound event the gamecode raises only where flags exist, which is GT_CTF and above. Neither supported gametype has flags, so the comparison never matches and nothing is ever looked up",
       "reference": "sound/teamplay/flagret_blu.wav"
     },
     {
-      "reason": "Capture the Flag return cue; the FFA profile has no flags",
+      "reason": "a flag-return cue no module registers: ai_dmq3.c compares the name against a sound event the gamecode raises only where flags exist, which is GT_CTF and above. Neither supported gametype has flags, so the comparison never matches and nothing is ever looked up",
       "reference": "sound/teamplay/flagret_red.wav"
     },
     {
@@ -463,19 +463,39 @@
   "profile": {
     "bots": [
       {
+        "aifile": "bots/sergei_c.c",
+        "model": "assassin/default",
+        "name": "Assassin"
+      },
+      {
+        "aifile": "bots/gargoyle_c.c",
+        "model": "gargoyle/default",
+        "name": "Gargoyle"
+      },
+      {
+        "aifile": "bots/kyonshi_c.c",
+        "model": "kyonshi/default",
+        "name": "Kyonshi"
+      },
+      {
+        "aifile": "bots/liz_c.c",
+        "model": "liz/default",
+        "name": "Liz"
+      },
+      {
+        "aifile": "bots/major_c.c",
+        "model": "major/default",
+        "name": "Major"
+      },
+      {
+        "aifile": "bots/penguin_c.c",
+        "model": "penguin/default",
+        "name": "Penguin"
+      },
+      {
         "aifile": "bots/skelebot_c.c",
         "model": "skelebot/default",
         "name": "Skelebot"
-      },
-      {
-        "aifile": "bots/rai_c.c",
-        "model": "skelebot/default",
-        "name": "Rai"
-      },
-      {
-        "aifile": "bots/sly_c.c",
-        "model": "skelebot/default",
-        "name": "Sly"
       }
     ],
     "playerModels": [

@@ -34,6 +34,10 @@ from browser_session import (  # noqa: E402
 )
 
 ROOT = Path(__file__).resolve().parent.parent
+# The exact runtime configuration a relay acceptance supplies. It is an exact
+# set rather than a minimum, so a field the loader has grown is a refusal here
+# rather than a boot failure two steps later — which is what made adding the
+# player's own two inputs visible at all.
 RELAY_RUNTIME_FIELDS = {
     "assignmentTimeoutMilliseconds",
     "authorization",
@@ -43,7 +47,15 @@ RELAY_RUNTIME_FIELDS = {
     "destinationPort",
     "endpointUrl",
     "keepAliveIntervalMilliseconds",
+    "playerModel",
+    "playerName",
 }
+
+# The two of them the loader validates against the committed relay profile. They
+# are runtime inputs like the endpoint, so the acceptance supplies them rather
+# than committing them — but unlike the endpoint the *name* is personal data, so
+# it is the one field this script never echoes into its own evidence.
+RELAY_PLAYER_FIELDS = ("playerModel", "playerName")
 
 
 def read_relay_runtime(path: Path) -> dict:
@@ -55,6 +67,9 @@ def read_relay_runtime(path: Path) -> dict:
         raise AcceptanceError("relay runtime input has an unexpected field set")
     if not isinstance(runtime["authorization"], str) or not runtime["authorization"]:
         raise AcceptanceError("relay runtime authorization must be a non-empty string")
+    for field in RELAY_PLAYER_FIELDS:
+        if not isinstance(runtime[field], str) or not runtime[field]:
+            raise AcceptanceError(f"relay runtime {field} must be a non-empty string")
     return runtime
 
 
@@ -306,6 +321,11 @@ def run(
             )
 
             if relay_runtime is not None:
+                # `authorization` is a credential and never leaves this
+                # dictionary; every other field is passed through, including the
+                # player's own two. The name is not withheld from the *engine* —
+                # it is the point — only from the evidence, which the loader
+                # redacts on its own side.
                 public_configuration = {
                     key: value
                     for key, value in relay_runtime.items()

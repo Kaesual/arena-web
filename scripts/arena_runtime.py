@@ -41,6 +41,7 @@ RUNTIME_SOURCE_FILES = {
     "arena/canvas-resize.js": "arena/canvas-resize.js",
     "arena/host-lifecycle.js": "arena/host-lifecycle.js",
     "arena/network-backend.js": "arena/network-backend.js",
+    "arena/player-input.js": "arena/player-input.js",
     "arena/relay-profile.json": "arena/relay-profile.json",
     "probe/relay-framing.js": "probe/relay-framing.js",
 }
@@ -209,20 +210,47 @@ SERVER_SPAWNED_MARKER = f"Server: {MARKER_MAP_PLACEHOLDER}"
 # ioq3 code/game/g_main.c CheckExitRules: a level ends on a limit cvar, and
 # `vstr nextmap` runs only when it ends. Which limits those are is read out of
 # the pinned gamecode rather than restated here — see `match_end_limits` — and
-# these are the ones this profile's gametype can reach.
+# which of them a gametype can reach is read out of it too, see
+# `match_end_limit_guards`.
 MATCH_END_SOURCE = "code/game/g_main.c"
 MATCH_END_FUNCTION = "void CheckExitRules( void ) {"
 MATCH_END_LIMIT = re.compile(r"\bg_([a-z]+limit)\.integer\b")
+
+# The exit tests, as opposed to the range clamps CheckExitRules also performs.
+# An exit test reads the limit for truth — `g_fraglimit.integer` on its own;
+# a clamp compares it with a bound — `g_fraglimit.integer < 0`. The lookahead
+# is what separates the two, and it is why this is a second pattern rather than
+# a second use of MATCH_END_LIMIT.
+MATCH_END_LIMIT_TEST = re.compile(r"\bg_([a-z]+limit)\.integer\b(?!\s*[<>=!])")
+
+# The gametype comparisons that can guard an exit test, in the one spelling the
+# pinned gamecode uses.
+MATCH_END_GUARD = re.compile(
+    r"\bg_gametype\.integer\s*(<=|>=|==|!=|<|>)\s*(GT_[A-Z0-9_]+)"
+)
+
 MATCH_END_CVARS = ("fraglimit", "timelimit")
 
-# A limit `CheckExitRules` reads that this profile cannot reach, with the engine
-# site that decides it. An entry is a claim about reachability, not a way to
-# skip covering a limit: if the gamecode grows another one it is neither covered
-# nor exempted, and this fails rather than silently checking two rules of three.
+# A limit `CheckExitRules` reads that the supported gametypes cannot reach, and
+# the guard that makes it unreachable — written as the expression, because a
+# reachability claim nobody re-derives is exactly the kind of gate that goes
+# quietly wrong. `check_match_end_cvars` computes the unreachable set out of the
+# pinned gamecode and requires it to be *exactly* this table, with exactly these
+# guards: an entry the derivation does not reproduce is a failure, and so is a
+# limit the derivation finds unreachable that is not declared here.
 MATCH_END_UNREACHABLE = {
-    "capturelimit": "guarded by g_gametype.integer >= GT_CTF, and this profile "
-    "is GT_FFA",
+    "capturelimit": "g_gametype.integer >= GT_CTF",
 }
+
+# ioq3 code/game/bg_public.h: the gametype enum, read rather than restated, and
+# the two entries of it this release supports. GT_FFA is what shipped; GT_TEAM
+# is Team Deathmatch. The numeric values are never written down here — a name
+# whose value moved would otherwise leave every gametype gate comparing against
+# a number the engine no longer means.
+GAMETYPE_SOURCE = "code/game/bg_public.h"
+GAMETYPE_ENUM = re.compile(r"typedef\s+enum\s*\{(.*?)\}\s*gametype_t\s*;", re.S)
+GAMETYPE_MEMBER = re.compile(r"\b(GT_[A-Z0-9_]+)\b")
+SUPPORTED_GAMETYPE_NAMES = ("GT_FFA", "GT_TEAM")
 
 # The arena `type` vocabulary this release supports. Upstream types carry the
 # OpenArena-only tags whose game code this product does not ship (`lms`,
@@ -286,18 +314,58 @@ BOT_BEGIN_DELAY_INCREMENT_MS = 1500
 # ioq3 code/game/g_bot.c: Svcmd_AddBot_f clamps the skill to this range.
 BOT_SKILL_RANGE = (1, 5)
 
-# ioq3 code/game/bg_public.h: GT_FFA.
-FFA_GAMETYPE = "0"
-
 # The loader derives these from the live canvas box; a committed value would be
 # an environment-specific one.
 RUNTIME_DERIVED_CVARS = ("r_customheight", "r_customwidth", "r_mode")
 
 RELAY_PROFILE_SOURCE = "arena/relay-profile.json"
+RELAY_PROFILE_RECIPE = "content/pack-recipe.json"
+
+# ioq3 code/game/g_local.h: the buffer ClientCleanName copies a player's name
+# into, read out of the pin rather than restated. A name longer than this is
+# truncated in silence (code/game/g_client.c), which is the class of failure
+# this repository refuses to ship unguarded.
+PLAYER_NAME_LENGTH_SOURCE = "code/game/g_local.h"
+PLAYER_NAME_LENGTH_CONSTANT = "MAX_NETNAME"
+
+# What a player's name may contain: printable ASCII 0x20-0x7E less `"` 0x22,
+# `;` 0x3B, `\` 0x5C and `^` 0x5E, and no repeated space. **Deliberately
+# narrower than what `ClientCleanName` accepts, and stated as such rather than
+# as a model of it** — every accepted name is one that function stores
+# verbatim, so what a player types is what the scoreboard shows.
+#
+# **Three different failures, three different answers, and the split is the
+# decision.** Length is *truncated*, because a session must not fail over a name
+# that is merely long. Outer whitespace is *trimmed*, because it is invisible,
+# because `ClientCleanName` already discards leading spaces itself, and because
+# truncation can otherwise expose a trailing one. Forbidden *content* is
+# **refused**, because it is the only one of the three a player can see and
+# report.
+#
+# `^` is the one worth arguing, and it is refused. `ClientCleanName` reads `^`
+# plus a character as a colour code, *drops* it outright when the colour is
+# black, and falls back to `"UnnamedPlayer"` if nothing colourless survives — so
+# accepting it would mean a name that silently becomes colour, or silently
+# becomes the very default this setting exists to replace. Neither outcome is
+# one the player who typed it could diagnose. `\`, `"` and `;` are refused
+# because they are the userinfo separator, the quoting character the engine's
+# own command-line assembly adds, and the console command separator.
+PLAYER_NAME = re.compile(r"\A(?!.*  )[ !#-:<-\[\]_-~]+\Z")
+PLAYER_NAME_FORBIDDEN = ('"', ";", "\\", "^")
+
+RELAY_PLAYER_SETTINGS_KEYS = ("models", "name")
+RELAY_PLAYER_NAME_KEYS = ("maxLength", "minLength")
+
+# The three cvars a player's own choices become. `headmodel` follows `model`
+# because ioq3 defaults it to `sarge` independently (code/client/cl_main.c), so
+# a model set without it would register one packaged body and one that is not.
+PLAYER_SETTING_CVARS = ("headmodel", "model", "name")
 RELAY_PROFILE_KEYS = (
     "$comment",
     "connectFamily",
     "cvars",
+    "playerSettingNotes",
+    "playerSettings",
     "formatVersion",
     "fragmentSize",
     "innerDatagramFloor",
@@ -313,8 +381,6 @@ RELAY_PROFILE_CVARS = {
     "cl_voip": "0",
     "com_basegame": "arena",
     "com_legacyprotocol": "0",
-    "headmodel": "skelebot/default",
-    "model": "skelebot/default",
     "net_enabled": "2",
     "r_allowResize": "1",
     "r_fullscreen": "0",
@@ -802,15 +868,67 @@ def max_rotation_length(
         return count
     return 0
 
-def match_end_limits(engine_root: Path) -> set[str]:
-    """The limit cvars the pinned `CheckExitRules` actually ends a level on.
+def gametype_values(engine_root: Path) -> dict[str, int]:
+    """The `gametype_t` enumerators of the pinned gamecode, with their values.
 
-    Read rather than remembered. The rule below is a claim about the gamecode,
-    and a claim about a pin that nothing re-derives is the term of a gate that
-    goes quietly wrong — the shape WP-D's review found in the systeminfo
-    allowance. A gamecode that grew a fourth exit rule would otherwise leave
-    this checking three out of four with nothing red.
+    Read rather than remembered, for the same reason `match_end_limits` reads
+    the exit rules: every gametype gate in this repository is a claim about
+    numbers the *engine* assigns, and an enum that gained a member would shift
+    every value after it while leaving a hard-coded `3` pointing somewhere else.
+
+    An enum this cannot find, or one with no members, is a failure rather than
+    an empty vocabulary that every membership test would then pass.
     """
+    source = engine_root / GAMETYPE_SOURCE
+    try:
+        text = source.read_text(encoding="latin-1")
+    except OSError as error:
+        _fail("gametype", f"cannot read {GAMETYPE_SOURCE}: {error}")
+    match = GAMETYPE_ENUM.search(text)
+    if match is None:
+        _fail(
+            "gametype",
+            f"{GAMETYPE_SOURCE} no longer declares `typedef enum {{...}} "
+            "gametype_t;`, so the gametype vocabulary cannot be read out of the "
+            "pinned gamecode",
+        )
+    names = GAMETYPE_MEMBER.findall(_strip_c_comments(match.group(1)))
+    if not names:
+        _fail(
+            "gametype",
+            f"{GAMETYPE_SOURCE}'s gametype_t enumerates no member at all, so "
+            "every gametype rule would be satisfied by measuring nothing",
+        )
+    if len(set(names)) != len(names):
+        _fail("gametype", f"{GAMETYPE_SOURCE}'s gametype_t names a member twice")
+    return {name: value for value, name in enumerate(names)}
+
+
+def supported_gametypes(engine_root: Path) -> dict[str, int]:
+    """The gametypes this release supports, as `GT_* -> value`.
+
+    The *names* are this product's decision and are written above; the values
+    are the engine's. Splitting it that way is the point: a release chooses
+    which modes it ships, and never which number one of them is.
+    """
+    values = gametype_values(engine_root)
+    missing = [name for name in SUPPORTED_GAMETYPE_NAMES if name not in values]
+    if missing:
+        _fail(
+            "gametype",
+            f"the pinned gamecode's gametype_t no longer defines {missing}, so "
+            "this release supports a mode the engine does not have",
+        )
+    return {name: values[name] for name in SUPPORTED_GAMETYPE_NAMES}
+
+
+def _strip_c_comments(text: str) -> str:
+    """Remove `/* */` and `//` comments so a pattern cannot match prose."""
+    return re.sub(r"/\*.*?\*/|//[^\n]*", " ", text, flags=re.S)
+
+
+def _match_end_body(engine_root: Path) -> str:
+    """The comment-free body of the pinned `CheckExitRules`."""
     source = engine_root / MATCH_END_SOURCE
     try:
         text = source.read_text(encoding="latin-1")
@@ -826,7 +944,141 @@ def match_end_limits(engine_root: Path) -> set[str]:
     end = text.find("\n}", start)
     if end < 0:
         _fail("match end", f"{MATCH_END_SOURCE}: CheckExitRules has no end")
-    found = set(MATCH_END_LIMIT.findall(text[start:end]))
+    return _strip_c_comments(text[start:end])
+
+
+def match_end_limit_guards(engine_root: Path) -> dict[str, set[tuple[str, str]]]:
+    """Per limit cvar, the gametype comparisons that guard its level exit.
+
+    **Why this is derived and not declared.** The exemption it feeds used to be
+    a sentence — "guarded by `g_gametype.integer >= GT_CTF`, and this profile is
+    GT_FFA" — that nothing re-read. That was safe only while the profile had one
+    gametype and the sentence named it; with the gametype a launch argument the
+    sentence is a claim about a *set*, and a claim about a pin that nothing
+    re-derives is the term of a gate that goes quietly wrong.
+
+    **What a guard is here.** Every `if` in the function contributes its
+    gametype comparisons to everything inside its braces, and an exit test
+    inherits the comparisons of every block enclosing it plus those in its own
+    condition. That scoping is not decoration: the pinned `fraglimit` exit is
+    an inner `if` on `level.teamScores[TEAM_RED]` whose own condition carries no
+    gametype at all, and reading conditions in isolation would report it
+    reachable at every gametype — the answer the outer `g_gametype.integer <
+    GT_CTF` exists to refuse.
+
+    **What it does when its subject is absent.** A gamecode in which nothing
+    guards anything yields empty guard sets, every limit is then reachable at
+    every gametype, and `check_match_end_cvars` fails on the limits it neither
+    covers nor may exempt. The vacuum is the fail-closed direction on purpose.
+    """
+    body = _match_end_body(engine_root)
+    guards: dict[str, set[tuple[str, str]]] = {}
+    scope: list[tuple[int, frozenset[tuple[str, str]]]] = []
+    depth = 0
+    pending: frozenset[tuple[str, str]] | None = None
+    index = 0
+    while index < len(body):
+        character = body[index]
+        if character == "{":
+            depth += 1
+            if pending is not None:
+                scope.append((depth, pending))
+                pending = None
+            index += 1
+            continue
+        if character == "}":
+            while scope and scope[-1][0] >= depth:
+                scope.pop()
+            depth -= 1
+            pending = None
+            index += 1
+            continue
+        condition = _condition_at(body, index)
+        if condition is not None:
+            text, index = condition
+            inherited = frozenset().union(*(entry[1] for entry in scope)) if scope else frozenset()
+            own = frozenset(MATCH_END_GUARD.findall(text))
+            for name in MATCH_END_LIMIT_TEST.findall(text):
+                guards.setdefault(name, set()).update(inherited | own)
+            pending = inherited | own
+            continue
+        index += 1
+    return guards
+
+
+def _condition_at(body: str, index: int) -> tuple[str, int] | None:
+    """If an `if (` starts here, return its balanced condition and what follows."""
+    if not body.startswith("if", index):
+        return None
+    if index and (body[index - 1].isalnum() or body[index - 1] == "_"):
+        return None
+    cursor = index + 2
+    while cursor < len(body) and body[cursor].isspace():
+        cursor += 1
+    if cursor >= len(body) or body[cursor] != "(":
+        return None
+    depth = 0
+    start = cursor
+    while cursor < len(body):
+        if body[cursor] == "(":
+            depth += 1
+        elif body[cursor] == ")":
+            depth -= 1
+            if depth == 0:
+                return body[start : cursor + 1], cursor + 1
+        cursor += 1
+    return None
+
+
+def _guard_holds(guard: tuple[str, str], gametype: int, values: dict[str, int]) -> bool:
+    operator, name = guard
+    if name not in values:
+        _fail(
+            "match end",
+            f"CheckExitRules compares g_gametype against {name}, which the "
+            f"pinned {GAMETYPE_SOURCE} does not define",
+        )
+    other = values[name]
+    return {
+        "<": gametype < other,
+        "<=": gametype <= other,
+        ">": gametype > other,
+        ">=": gametype >= other,
+        "==": gametype == other,
+        "!=": gametype != other,
+    }[operator]
+
+
+def match_end_reachability(
+    engine_root: Path, gametypes: Iterable[int]
+) -> dict[str, set[int]]:
+    """Per limit cvar, which of `gametypes` can actually reach its level exit."""
+    values = gametype_values(engine_root)
+    guards = match_end_limit_guards(engine_root)
+    limits = match_end_limits(engine_root)
+    return {
+        limit: {
+            gametype
+            for gametype in gametypes
+            if all(
+                _guard_holds(guard, gametype, values)
+                for guard in guards.get(limit, frozenset())
+            )
+        }
+        for limit in limits
+    }
+
+
+def match_end_limits(engine_root: Path) -> set[str]:
+    """The limit cvars the pinned `CheckExitRules` actually ends a level on.
+
+    Read rather than remembered. The rule below is a claim about the gamecode,
+    and a claim about a pin that nothing re-derives is the term of a gate that
+    goes quietly wrong — the shape WP-D's review found in the systeminfo
+    allowance. A gamecode that grew a fourth exit rule would otherwise leave
+    this checking three out of four with nothing red.
+    """
+    found = set(MATCH_END_LIMIT.findall(_match_end_body(engine_root)))
     if not found:
         _fail(
             "match end",
@@ -836,40 +1088,101 @@ def match_end_limits(engine_root: Path) -> set[str]:
     return found
 
 
-def check_match_end_cvars(repo_root: Path, cvars: dict[str, Any], what: str) -> None:
-    """A rotation can only advance if a match can end.
+def check_match_end_cvars(
+    repo_root: Path,
+    cvars: dict[str, Any],
+    what: str,
+    gametypes: dict[str, int],
+) -> None:
+    """A rotation can only advance if a match can end — at every supported mode.
 
-    This replaces a check that the rotation made unaskable. Until now both
-    profiles required `fraglimit` to equal the *arena definition's* frag limit
-    for the one committed map. Across a published set that is not a single
-    value — the fragments declare 10, 15, 20 and 30 — so the equality
-    is not merely inconvenient under a rotation, it is unsatisfiable.
+    **What the rule was, and why the sentence had to change.** `CheckExitRules`
+    ends a level on a limit cvar and on nothing else (ioq3
+    code/game/g_main.c), and `ExitLevel` is the only thing that runs `vstr
+    nextmap`, so a configuration that zeroes every limit commits a rotation that
+    can never reach its second map — with no error anywhere, just a server that
+    stays on one map forever. That much is unchanged.
 
-    It was also never worth what it looked like. `arena.fraglimit` is written
-    into the generated arena data, and **nothing reads that data outside
-    `GT_SINGLE_PLAYER`**: every consumer in `G_LoadArenas` sits inside
-    `if (g_gametype.integer == GT_SINGLE_PLAYER)` (ioq3 code/game/g_bot.c), and
-    this profile is `GT_FFA`. The packaged q3_ui reads it only in the skirmish
-    menus, which this product never enters — it launches straight into a game.
-    So the equality bound a live cvar to a value the running game cannot see.
-    That sentence is here so the binding is not reinstated later by someone who
-    finds a cvar and an arena field with the same name; it has been written into
-    this repository once already.
+    **What did change is its reach, and it is stated rather than left implicit.**
+    The rule used to be written for *one* gametype: the profile committed
+    `g_gametype 0`, `capturelimit` was exempted with a sentence naming GT_FFA,
+    and "not both zero" was a claim about the one pair a server could run. With
+    the gametype a launch argument the rule is a claim about a *set*, and the
+    two halves come apart:
 
-    What replaces it is a rule with live subject matter, and one the rotation
-    itself creates. `CheckExitRules` ends a level on the frag limit or the time
-    limit and on nothing else (ioq3 code/game/g_main.c), and `ExitLevel` is the
-    only thing that runs `vstr nextmap`. A profile that zeroes both therefore
-    commits a rotation that can never reach its second map — with no error
-    anywhere, just a server that stays on one map forever.
+    * which limits can end a level **depends on the gametype** — `fraglimit` is
+      guarded by `g_gametype.integer < GT_CTF` and `capturelimit` by
+      `>= GT_CTF`, so a single covered set is only correct if it is correct at
+      every gametype a caller may launch; and
+    * "at least one limit is non-zero" is **not** the property that matters any
+      more. What matters is that at every supported gametype at least one limit
+      that *this* gametype can reach is non-zero. A configuration whose only
+      non-zero limit is unreachable at the mode it runs stalls exactly as a
+      zeroed one does.
+
+    So this takes the supported gametypes as an argument and answers per
+    gametype, and every failure names the gametype it is about. Nothing here
+    knows which modes this release ships: `supported_gametypes` does, and the
+    caller passes the result.
+
+    **Nothing about the limits or their guards is remembered.**
+    `match_end_limits` reads which cvars end a level out of the pinned gamecode,
+    `match_end_limit_guards` reads what guards each one, and
+    `MATCH_END_UNREACHABLE` is a declared expectation the derivation must
+    reproduce exactly — a limit the derivation finds unreachable that is not
+    declared, and a declaration the derivation does not confirm, both fail.
+
+    **And the equality this replaced is not coming back.** Both profiles used to
+    require `fraglimit` to equal the *arena definition's* frag limit for the one
+    committed map. Across a published set that is not a single value — the
+    fragments declare 10, 15, 20 and 30 — so under a rotation the equality is
+    unsatisfiable. It was also never worth what it looked like: `arena.fraglimit`
+    is generated arena data, and **nothing reads that data outside
+    `GT_SINGLE_PLAYER`** (ioq3 code/game/g_bot.c `G_InitBots`), which is not a
+    mode this release supports. A cvar and an arena field sharing a name is not
+    a relationship, and it has been written into this repository once already.
     """
-    limits = match_end_limits(repo_root / ENGINE_ROOT)
-    uncovered = sorted(limits - set(MATCH_END_CVARS) - set(MATCH_END_UNREACHABLE))
+    engine_root = repo_root / ENGINE_ROOT
+    limits = match_end_limits(engine_root)
+    reachable = match_end_reachability(engine_root, sorted(gametypes.values()))
+    guards = match_end_limit_guards(engine_root)
+
+    unreachable = {name for name in limits if not reachable[name]}
+    undeclared = sorted(unreachable - set(MATCH_END_UNREACHABLE))
+    if undeclared:
+        _fail(
+            what,
+            f"the pinned gamecode makes {undeclared} unreachable at every "
+            f"supported gametype {sorted(gametypes)}, and no exemption declares "
+            "it; an exemption is a claim to write down, not one to infer",
+        )
+    stale = sorted(set(MATCH_END_UNREACHABLE) - unreachable)
+    if stale:
+        _fail(
+            what,
+            f"{stale} is declared unreachable, and at gametypes "
+            f"{sorted(gametypes)} the pinned gamecode reaches it; an exemption "
+            "that exempts nothing is a rule that has quietly stopped applying",
+        )
+    for name, declared in sorted(MATCH_END_UNREACHABLE.items()):
+        derived = sorted(
+            f"g_gametype.integer {operator} {constant}"
+            for operator, constant in guards.get(name, frozenset())
+        )
+        if derived != [declared]:
+            _fail(
+                what,
+                f"the exemption for {name} names the guard {declared!r}, and the "
+                f"pinned gamecode guards it with {derived}",
+            )
+
+    uncovered = sorted(limits - set(MATCH_END_CVARS) - unreachable)
     if uncovered:
         _fail(
             what,
-            f"the pinned gamecode ends a level on {uncovered} as well, and this "
-            "rule neither covers nor exempts them",
+            f"the pinned gamecode ends a level on {uncovered} as well, reachable "
+            f"at a supported gametype, and this rule neither covers nor exempts "
+            "them",
         )
     missing = sorted(set(MATCH_END_CVARS) - limits)
     if missing:
@@ -878,21 +1191,30 @@ def check_match_end_cvars(repo_root: Path, cvars: dict[str, Any], what: str) -> 
             f"the pinned gamecode's CheckExitRules no longer reads {missing}, so "
             "this rule is about a level exit that no longer exists",
         )
-    values = []
+
+    values: dict[str, int] = {}
     for name in MATCH_END_CVARS:
         value = cvars.get(name)
         if not isinstance(value, str) or not DECIMAL.fullmatch(value):
             _fail(f"{what}.{name}", "must be a non-negative decimal integer")
-        values.append(int(value))
-    if not any(values):
-        _fail(
-            what,
-            "sets both "
-            + " and ".join(MATCH_END_CVARS)
-            + " to 0, so CheckExitRules never ends a level (ioq3 "
-            "code/game/g_main.c) and a rotation could never advance past its "
-            "first map",
-        )
+        values[name] = int(value)
+    for label, gametype in sorted(gametypes.items()):
+        if not any(
+            values[name] and gametype in reachable.get(name, frozenset())
+            for name in MATCH_END_CVARS
+        ):
+            usable = sorted(
+                name
+                for name in MATCH_END_CVARS
+                if gametype in reachable.get(name, frozenset())
+            )
+            _fail(
+                what,
+                f"gives {label} no way to end a level: of the limits it can "
+                f"reach ({usable or 'none'}) none is non-zero, so CheckExitRules "
+                "never exits (ioq3 code/game/g_main.c) and a rotation could "
+                "never advance past its first map",
+            )
 
 
 def expected_engine_arguments(profile: dict[str, Any]) -> list[str]:
@@ -971,10 +1293,20 @@ def _validate_cvars(profile: dict[str, Any], repo_root: Path) -> None:
         _string(profile["cvarNotes"][name], f"profile.cvarNotes.{name}")
     if cvars.get("com_basegame") != profile["basegame"]:
         _fail("profile.cvars.com_basegame", "must equal profile.basegame")
-    if cvars.get("g_gametype") != FFA_GAMETYPE:
+    supported = supported_gametypes(repo_root / ENGINE_ROOT)
+    committed_gametype = cvars.get("g_gametype")
+    chosen = {
+        name: value
+        for name, value in supported.items()
+        if committed_gametype == str(value)
+    }
+    if not chosen:
         _fail(
             "profile.cvars.g_gametype",
-            f"must be '{FFA_GAMETYPE}' (GT_FFA) for this profile",
+            f"is {committed_gametype!r}, and this release supports "
+            + ", ".join(f"{name} ({value})" for name, value in sorted(supported.items()))
+            + " — the value is the pinned gamecode's, read out of "
+            f"{GAMETYPE_SOURCE}, and only the *names* are this release's choice",
         )
     if cvars.get("net_enabled") != "0":
         _fail("profile.cvars.net_enabled", "must be '0': the vertical slice is offline")
@@ -989,7 +1321,12 @@ def _validate_cvars(profile: dict[str, Any], repo_root: Path) -> None:
         _fail("profile.cvars.model", "must equal profile.playerModel")
     if cvars.get("headmodel") != profile["playerModel"]:
         _fail("profile.cvars.headmodel", "must equal profile.playerModel")
-    check_match_end_cvars(repo_root, cvars, "profile.cvars")
+    # The offline slice commits one gametype and runs exactly that one, so the
+    # reach of the match-end rule here is that single mode — not the release's
+    # whole supported set, which is the *server's* reach because a server takes
+    # its gametype as a launch argument. Naming the difference is the point:
+    # both profiles now call one rule, and each says which modes it can run.
+    check_match_end_cvars(repo_root, cvars, "profile.cvars", chosen)
 
 
 def _validate_markers(profile: dict[str, Any]) -> None:
@@ -1472,7 +1809,140 @@ def load_relay_profile(repo_root: Path) -> dict[str, Any]:
     _exact_keys(cvars, tuple(RELAY_PROFILE_CVARS), "relay profile.cvars")
     if cvars != RELAY_PROFILE_CVARS:
         _fail("relay profile.cvars", "does not match the decided WP7 client profile")
+    for name in PLAYER_SETTING_CVARS:
+        if name in cvars:
+            _fail(
+                f"relay profile.cvars.{name}",
+                "is a runtime input and must not be committed: a player picks a "
+                "name and a model per session, and a committed value is one the "
+                "consumer cannot pass through",
+            )
+    _validate_player_settings(profile, repo_root)
     return profile
+
+
+def _validate_player_settings(profile: dict[str, Any], repo_root: Path) -> None:
+    """The bounds a consumer validates a player's own two inputs against.
+
+    Published for the same reason the server's launch settings are, and checked
+    the same way: the model list must be exactly what the pack carries, and the
+    name's length must be what the pinned gamecode stores. A bound a consumer
+    reads out of an authority is a bound this repository is asserting, so
+    neither is trusted.
+    """
+    from content_pack import ContentError, engine_constant
+
+    settings = _object(profile.get("playerSettings"), "relay profile.playerSettings")
+    _exact_keys(
+        settings, RELAY_PLAYER_SETTINGS_KEYS, "relay profile.playerSettings"
+    )
+    recipe = _object(
+        _load_json(repo_root / RELAY_PROFILE_RECIPE, RELAY_PROFILE_RECIPE), "recipe"
+    )
+    packaged = sorted(
+        _array(
+            _object(recipe.get("profile"), "recipe.profile").get("playerModels"),
+            "recipe.profile.playerModels",
+        )
+    )
+    declared = _array(settings.get("models"), "relay profile.playerSettings.models")
+    if sorted(declared) != packaged or len(set(declared)) != len(declared):
+        _fail(
+            "relay profile.playerSettings.models",
+            f"must be exactly the models the pack packages {packaged}: a model "
+            "outside that set fails CG_RegisterClientModelname and CG_Errors the "
+            "client out through an unpackaged fallback",
+        )
+    if declared != sorted(declared):
+        _fail(
+            "relay profile.playerSettings.models",
+            "must be sorted, so the offered order is stable",
+        )
+    name = _object(
+        settings.get("name"), "relay profile.playerSettings.name"
+    )
+    _exact_keys(name, RELAY_PLAYER_NAME_KEYS, "relay profile.playerSettings.name")
+    try:
+        limit = engine_constant(
+            repo_root / ENGINE_ROOT,
+            PLAYER_NAME_LENGTH_CONSTANT,
+            PLAYER_NAME_LENGTH_SOURCE,
+        )
+    except ContentError as error:
+        _fail("relay profile.playerSettings.name", str(error))
+    for key, expected in (("maxLength", limit - 1), ("minLength", 1)):
+        value = name.get(key)
+        if not isinstance(value, int) or isinstance(value, bool) or value != expected:
+            _fail(
+                f"relay profile.playerSettings.name.{key}",
+                f"is {value!r}, and the pinned gamecode's "
+                f"{PLAYER_NAME_LENGTH_CONSTANT} makes it {expected}",
+            )
+    notes = _object(
+        profile.get("playerSettingNotes"), "relay profile.playerSettingNotes"
+    )
+    _exact_keys(
+        notes, RELAY_PLAYER_SETTINGS_KEYS, "relay profile.playerSettingNotes"
+    )
+    for key in notes:
+        if len(_string(notes[key], f"relay profile.playerSettingNotes.{key}")) < 20:
+            _fail(
+                f"relay profile.playerSettingNotes.{key}",
+                "must state what decides the bound",
+            )
+
+
+def player_name(name: Any, bound: dict[str, int], what: str = "playerName") -> str:
+    """One player-supplied name, as the engine will store it.
+
+    The mirror of `arena/player-input.js`'s own rule, kept here so a test can
+    run both over one table and prove they agree — the same arrangement the
+    command-line budget already has, because neither file can import the other.
+
+    **The order matters and is not arbitrary.** Outer spaces come off first, so
+    the content rule is not reporting an invisible defect; then content is
+    checked, so a refusal names something the player can see; then the value is
+    truncated and trimmed again, because truncation can leave a trailing space
+    that the first trim could not have seen. `bound` is the committed relay
+    profile's `playerSettings.name`, whose `maxLength` is
+    `MAX_NETNAME - 1` — the number of characters `ClientCleanName` copies into
+    `client->pers.netname` before its `outpos < outSize - 1` loop stops (ioq3
+    code/game/g_client.c, code/game/g_local.h): truncating here rather than
+    letting the engine do it is what makes the stored name predictable instead
+    of merely bounded.
+
+    A name that is nothing but spaces is refused rather than truncated to
+    nothing: the engine would substitute `"UnnamedPlayer"`, which is the exact
+    default this setting exists to replace, and doing that silently is the
+    failure rather than the fallback.
+    """
+    stripped = _string(name, what).strip(" ")
+    if len(stripped) < bound["minLength"]:
+        _fail(
+            what,
+            "is empty or only spaces, and the engine would answer that with "
+            '"UnnamedPlayer" — the default this setting exists to replace',
+        )
+    if not PLAYER_NAME.fullmatch(stripped):
+        _fail(
+            what,
+            "must be printable ASCII without "
+            + ", ".join(repr(character) for character in PLAYER_NAME_FORBIDDEN)
+            + " or a repeated space; every accepted name is one ClientCleanName "
+            "stores unchanged",
+        )
+    return stripped[: bound["maxLength"]].rstrip(" ")
+
+
+def player_model(model: Any, offered: list[str], what: str = "playerModel") -> str:
+    """One player-chosen model, from the set this release actually packages."""
+    value = _string(model, what)
+    if value not in offered:
+        _fail(
+            what,
+            f"'{value}' is not a model this release packages; it offers {offered}",
+        )
+    return value
 
 
 def load_profile(repo_root: Path) -> dict[str, Any]:

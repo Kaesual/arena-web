@@ -7,6 +7,8 @@ import copy
 import gc
 import hashlib
 import json
+import shutil
+import subprocess
 import socket
 import struct
 import sys
@@ -41,8 +43,16 @@ from arena_runtime import (  # noqa: E402
     SYSTEMINFO_FIXED_ALLOWANCE,
     ArenaRuntimeError,
     check_command_line_budget,
+    check_match_end_cvars,
     check_no_committed_map,
+    PLAYER_NAME_FORBIDDEN,
+    load_relay_profile,
+    player_model,
+    player_name,
+    match_end_limit_guards,
     match_end_limits,
+    match_end_reachability,
+    supported_gametypes,
     check_systeminfo_budget,
     content_archive_names,
     engine_command_line,
@@ -302,8 +312,12 @@ SYSTEMINFO_SOURCE = "ioq3/code/server/sv_init.c"
 COMMAND_LINE_SOURCE = "ioq3/code/sys/sys_main.c"
 CONSOLE_LINE_SOURCE = "ioq3/code/qcommon/common.c"
 
-# The gamecode the level-exit rule is read out of.
+# The gamecode the level-exit rule is read out of, and the header its gametype
+# vocabulary comes from.
 MATCH_END_SOURCE = "ioq3/code/game/g_main.c"
+GAMETYPE_SOURCE = "ioq3/code/game/bg_public.h"
+# The header the player-name bound is read out of.
+PLAYER_NAME_SOURCE = "ioq3/code/game/g_local.h"
 
 # The registrations of the pinned tree, in both shapes the enumeration reads,
 # plus one line that names the flag without registering anything.
@@ -343,18 +357,60 @@ def _console_line_source(max_console_lines: int = 32) -> str:
     return f"#define\tMAX_CONSOLE_LINES\t{max_console_lines}\n"
 
 
-def _match_end_source(limits: tuple[str, ...] = ("timelimit", "fraglimit", "capturelimit")) -> str:
-    """The shape of the pinned CheckExitRules, limit guards included."""
-    body = "".join(
-        f"\tif ( g_{name}.integer ) {{\n\t\tLogExit( \"{name} hit.\" );\n\t}}\n"
-        for name in limits
-    )
+# What guards each limit's exit in the pinned CheckExitRules. The synthetic
+# gamecode reproduces the guards rather than only the reads, because the rule
+# under test is now about which gametype can reach which exit, and a fixture
+# where nothing is guarded would exercise only the unguarded branch of it.
+MATCH_END_GUARDS = {
+    "timelimit": "",
+    "fraglimit": "g_gametype.integer < GT_CTF && ",
+    "capturelimit": "g_gametype.integer >= GT_CTF && ",
+}
+
+
+def _match_end_source(
+    limits: tuple[str, ...] = ("timelimit", "fraglimit", "capturelimit"),
+    guards: dict[str, str] | None = None,
+) -> str:
+    """The shape of the pinned CheckExitRules, limit guards included.
+
+    The inner `if` on a team score is reproduced too, and deliberately: it is
+    the one whose own condition carries no gametype at all, so a guard reader
+    that looked at conditions in isolation would call `fraglimit` reachable
+    everywhere and pass this fixture while being wrong about the real gamecode.
+    """
+    guards = MATCH_END_GUARDS if guards is None else guards
+    body = ""
+    for name in limits:
+        body += (
+            f"\tif ( g_{name}.integer < 0 ) {{\n"
+            f"\t\ttrap_Cvar_Set( \"{name}\", \"0\" );\n\t}}\n"
+            f"\tif ( {guards.get(name, '')}g_{name}.integer ) {{\n"
+            f"\t\tif ( level.teamScores[TEAM_RED] >= g_{name}.integer ) {{\n"
+            f"\t\t\tLogExit( \"{name} hit.\" );\n\t\t}}\n\t}}\n"
+        )
     return (
         "void CheckExitRules( void ) {\n"
         "\tif ( ScoreIsTied() ) {\n\t\treturn;\n\t}\n"
         f"{body}"
         "}\n"
     )
+
+
+def _gametype_source(members: tuple[str, ...] = (
+    "GT_FFA",
+    "GT_TOURNAMENT",
+    "GT_SINGLE_PLAYER",
+    "GT_TEAM",
+    "GT_CTF",
+    "GT_1FCTF",
+    "GT_OBELISK",
+    "GT_HARVESTER",
+    "GT_MAX_GAME_TYPE",
+)) -> str:
+    """The pinned `gametype_t`, whose *order* is what assigns the values."""
+    body = "".join(f"\t{name},\t\t// a mode\n" for name in members)
+    return f"typedef enum {{\n{body}}} gametype_t;\n"
 
 
 def _engine_source(extra: tuple[str, ...] = ()) -> str:
@@ -385,6 +441,8 @@ class SyntheticRepository:
         self.set_engine_source()
         self.set_command_line_sources()
         self.set_match_end_source()
+        self.set_gametype_source()
+        self.set_player_name_source()
         (self.root / "arena").mkdir(parents=True, exist_ok=True)
         (self.root / "probe").mkdir(parents=True, exist_ok=True)
         (self.root / "manifests").mkdir(parents=True, exist_ok=True)
@@ -425,16 +483,25 @@ class SyntheticRepository:
                         "cl_voip": "0",
                         "com_basegame": "arena",
                         "com_legacyprotocol": "0",
-                        "headmodel": "skelebot/default",
-                        "model": "skelebot/default",
                         "net_enabled": "2",
                         "r_allowResize": "1",
                         "r_fullscreen": "0",
                         "sv_pure": "0",
                     },
+                    "playerSettings": {
+                        "models": ["skelebot/default"],
+                        "name": {"maxLength": 35, "minLength": 1},
+                    },
+                    "playerSettingNotes": {
+                        "models": "synthetic, and long enough to pass the note rule",
+                        "name": "synthetic, and long enough to pass the note rule",
+                    },
                 }
             ),
             encoding="utf-8",
+        )
+        (self.root / "arena" / "player-input.js").write_text(
+            "// player input", encoding="utf-8"
         )
         (self.root / "arena" / "default.cfg").write_text("// cfg\n", encoding="utf-8")
         (self.root / "arena" / "other.cfg").write_text("// other\n", encoding="utf-8")
@@ -483,11 +550,30 @@ class SyntheticRepository:
             _engine_header(big_info_string, max_string_chars), encoding="utf-8"
         )
 
-    def set_match_end_source(self, limits: tuple[str, ...] | None = None) -> None:
+    def set_match_end_source(
+        self,
+        limits: tuple[str, ...] | None = None,
+        guards: dict[str, str] | None = None,
+    ) -> None:
         path = self.root / MATCH_END_SOURCE
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(
-            _match_end_source() if limits is None else _match_end_source(limits),
+            _match_end_source(guards=guards)
+            if limits is None
+            else _match_end_source(limits, guards=guards),
+            encoding="utf-8",
+        )
+
+    def set_player_name_source(self, limit: int = 36) -> None:
+        path = self.root / PLAYER_NAME_SOURCE
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(f"#define\tMAX_NETNAME\t\t\t{limit}\n", encoding="utf-8")
+
+    def set_gametype_source(self, members: tuple[str, ...] | None = None) -> None:
+        path = self.root / GAMETYPE_SOURCE
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            _gametype_source() if members is None else _gametype_source(members),
             encoding="utf-8",
         )
 
@@ -546,6 +632,11 @@ class SyntheticRepositoryTest(unittest.TestCase):
             load_profile(self.repository.root)
         self.repository.set_profile(_profile() | {"engineArguments": []})
         return str(caught.exception)
+
+    def accepts(self, change) -> None:
+        self.repository.mutate(change)
+        load_profile(self.repository.root)
+        self.repository.set_profile(_profile() | {"engineArguments": []})
 
 
 class RotationDerivationTest(unittest.TestCase):
@@ -716,12 +807,149 @@ class MatchEndRuleTest(SyntheticRepositoryTest):
         load_profile(self.repository.root)
 
     def test_a_gamecode_that_stopped_reading_a_covered_limit_is_a_failure(self) -> None:
-        self.repository.set_match_end_source(("fraglimit",))
+        # `capturelimit` stays in the fixture: dropping it too would trip the
+        # stale-exemption rule first and this test would pass for the wrong
+        # reason, which is the failure mode this file keeps finding in others.
+        self.repository.set_match_end_source(("fraglimit", "capturelimit"))
         self.assertIn(
             "no longer reads ['timelimit']",
             refused_message(lambda: load_profile(self.repository.root)),
         )
         self.repository.set_match_end_source()
+
+    def test_the_guards_are_read_out_of_the_pinned_gamecode(self) -> None:
+        """The exemption's whole content is a claim about a guard, so the guard
+        is derived. Note `fraglimit`: its exit test sits in an inner `if` whose
+        own condition names no gametype, and reading conditions in isolation
+        would report it reachable at every gametype."""
+        self.assertEqual(
+            {
+                name: sorted(guards)
+                for name, guards in match_end_limit_guards(
+                    self.repository.root / "ioq3"
+                ).items()
+            },
+            {
+                "capturelimit": [(">=", "GT_CTF")],
+                "fraglimit": [("<", "GT_CTF")],
+                "timelimit": [],
+            },
+        )
+
+    def test_reachability_is_per_gametype_and_not_a_single_answer(self) -> None:
+        engine = self.repository.root / "ioq3"
+        self.assertEqual(
+            {
+                name: sorted(values)
+                for name, values in match_end_reachability(engine, (0, 3, 4)).items()
+            },
+            {"capturelimit": [4], "fraglimit": [0, 3], "timelimit": [0, 3, 4]},
+        )
+
+    def test_an_exemption_the_gametype_set_reaches_is_refused(self) -> None:
+        """The half of the rule that would have gone quietly wrong. GT_CTF
+        reaches `capturelimit`, so a release that supported it would be
+        exempting a limit that can end its levels — and the old sentence-shaped
+        exemption would have said GT_FFA and passed."""
+        self.assertIn(
+            "is declared unreachable, and at gametypes",
+            refused_message(
+                lambda: check_match_end_cvars(
+                    self.repository.root,
+                    {"fraglimit": "15", "timelimit": "0"},
+                    "x",
+                    {"GT_FFA": 0, "GT_CTF": 4},
+                )
+            ),
+        )
+
+    def test_an_exemption_whose_guard_moved_is_refused(self) -> None:
+        """A gamecode that still makes the limit unreachable, but for another
+        reason, is a gate whose stated reason has stopped being the one that
+        holds."""
+        self.repository.set_match_end_source(
+            guards={
+                "timelimit": "",
+                "fraglimit": "g_gametype.integer < GT_CTF && ",
+                "capturelimit": "g_gametype.integer > GT_CTF && ",
+            }
+        )
+        self.assertIn(
+            "names the guard",
+            refused_message(lambda: load_profile(self.repository.root)),
+        )
+        self.repository.set_match_end_source()
+
+    def test_a_limit_unreachable_at_the_running_gametype_does_not_count(self) -> None:
+        """"Some limit is non-zero" is not the property. A limit the running
+        gametype cannot reach ends nothing, and a configuration whose only
+        non-zero limit is unreachable stalls exactly as a zeroed one does."""
+        self.assertIn(
+            "no way to end a level",
+            refused_message(
+                lambda: check_match_end_cvars(
+                    self.repository.root,
+                    {"fraglimit": "0", "timelimit": "0"},
+                    "x",
+                    {"GT_TEAM": 3},
+                )
+            ),
+        )
+        check_match_end_cvars(
+            self.repository.root,
+            {"fraglimit": "15", "timelimit": "0"},
+            "x",
+            {"GT_TEAM": 3},
+        )
+
+
+class GametypeVocabularyTest(SyntheticRepositoryTest):
+    """Which modes exist is the engine's answer; which are shipped is ours."""
+
+    def test_the_values_come_from_the_pinned_enum_order(self) -> None:
+        self.assertEqual(
+            supported_gametypes(self.repository.root / "ioq3"),
+            {"GT_FFA": 0, "GT_TEAM": 3},
+        )
+
+    def test_a_reordered_enum_moves_the_value_rather_than_the_name(self) -> None:
+        """Why nothing writes `3` down. An enum that gained a member ahead of
+        GT_TEAM would leave a hard-coded value naming a different mode, and
+        every gametype gate would still pass."""
+        self.repository.set_gametype_source(
+            ("GT_FFA", "GT_TOURNAMENT", "GT_SINGLE_PLAYER", "GT_DUEL", "GT_TEAM", "GT_CTF")
+        )
+        self.assertEqual(
+            supported_gametypes(self.repository.root / "ioq3"),
+            {"GT_FFA": 0, "GT_TEAM": 4},
+        )
+        self.repository.set_gametype_source()
+
+    def test_a_mode_the_engine_dropped_is_refused(self) -> None:
+        self.repository.set_gametype_source(("GT_FFA", "GT_TOURNAMENT", "GT_CTF"))
+        self.assertIn(
+            "no longer defines ['GT_TEAM']",
+            refused_message(lambda: load_profile(self.repository.root)),
+        )
+        self.repository.set_gametype_source()
+
+    def test_an_enum_with_no_members_is_a_failure_not_an_empty_vocabulary(self) -> None:
+        """The vacuum answer. An empty vocabulary would make every membership
+        test pass, which is the shape this repository has already paid for in
+        three other gates."""
+        (self.repository.root / GAMETYPE_SOURCE).write_text(
+            "typedef enum {\n} gametype_t;\n", encoding="utf-8"
+        )
+        self.assertIn(
+            "enumerates no member at all",
+            refused_message(lambda: load_profile(self.repository.root)),
+        )
+        (self.repository.root / GAMETYPE_SOURCE).write_text("", encoding="utf-8")
+        self.assertIn(
+            "no longer declares",
+            refused_message(lambda: load_profile(self.repository.root)),
+        )
+        self.repository.set_gametype_source()
 
     def test_a_gamecode_with_no_exit_rule_at_all_is_a_failure(self) -> None:
         """An empty enumeration would satisfy the rule by measuring nothing —
@@ -895,11 +1123,17 @@ class ProfileValidationTest(SyntheticRepositoryTest):
             self.refuses(lambda p: p["cvars"].update({"r_gamma": "1"})),
         )
 
-    def test_a_team_gametype_is_refused(self) -> None:
-        self.assertIn(
-            "GT_FFA",
-            self.refuses(lambda p: p["cvars"].update({"g_gametype": "3"})),
-        )
+    def test_a_supported_gametype_is_accepted_and_an_unsupported_one_is_not(
+        self,
+    ) -> None:
+        """This replaced a check that GT_FFA was the only permitted value, and
+        the replacement has to keep executing what that one really did: the
+        committed gametype is validated at all. GT_TEAM is now supported;
+        GT_CTF is not, and the message says so by name and value."""
+        self.accepts(lambda p: p["cvars"].update({"g_gametype": "3"}))
+        message = self.refuses(lambda p: p["cvars"].update({"g_gametype": "4"}))
+        self.assertIn("GT_FFA (0)", message)
+        self.assertIn("GT_TEAM (3)", message)
 
     def test_enabling_networking_is_refused(self) -> None:
         self.assertIn(
@@ -1458,6 +1692,7 @@ class StagingTest(SyntheticRepositoryTest):
                 "arena/canvas-resize.js",
                 "arena/host-lifecycle.js",
                 "arena/network-backend.js",
+                "arena/player-input.js",
                 "arena/relay-profile.json",
                 _served(BASE_PACK),
                 _served(MAP_PACK),
@@ -1786,6 +2021,7 @@ class CommittedProfileTest(unittest.TestCase):
                 "arena/canvas-resize.js",
                 "arena/host-lifecycle.js",
                 "arena/network-backend.js",
+                "arena/player-input.js",
                 "arena/relay-profile.json",
                 *sorted(
                     artifact["served"]
@@ -1849,6 +2085,7 @@ class CommittedProfileTest(unittest.TestCase):
                 "arena/canvas-resize.js",
                 "arena/host-lifecycle.js",
                 "arena/network-backend.js",
+                "arena/player-input.js",
                 "arena/relay-profile.json",
                 "index.html",
                 "loader.js",
@@ -3032,3 +3269,176 @@ class ScoreTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# The names both implementations of the rule are run over. Chosen so every
+# branch of it is exercised, and kept in one place because the whole point of
+# the comparison is that neither side gets its own list.
+PLAYER_NAME_CASES = [
+    "Jan",
+    "Jan H",
+    "a",
+    "W" * 35,
+    "W" * 36,
+    "W" * 200,
+    "  spaced  ",
+    " a b ",
+    ("W" * 34) + " xy",
+    ("W" * 33) + " xy",
+    "Pl4y3r_One",
+    "x-y.z!",
+    "o'brien",
+    "a b c",
+    "",
+    "   ",
+    "x^1y",
+    "^7white",
+    "^0black",
+    'a"b',
+    "a;b",
+    "a\\b",
+    "a  b",
+    "a   b",
+    "\u00fcber",
+    "a\tb",
+    "a\nb",
+    "~_]",
+    "[]",
+] + [f"a{chr(code)}b" for code in range(0x20, 0x7F)]
+
+
+class PlayerInputTest(unittest.TestCase):
+    """The player's own two runtime inputs, and the two copies of their rule.
+
+    A name and a model are per-session inputs of the same class as the relay
+    endpoint: never committed, and in the name's case never reported either.
+    What *is* committed is what they may be, and `load_relay_profile` checks
+    each of those bounds against the thing that derives it.
+    """
+
+    def setUp(self) -> None:
+        self.profile = load_relay_profile(ROOT)
+        self.bound = self.profile["playerSettings"]["name"]
+
+    def test_the_length_bound_is_the_pinned_engines(self) -> None:
+        """`MAX_NETNAME` less the NUL `ClientCleanName`'s loop reserves. Read out
+        of the pin, so an engine bump moves the bound rather than contradicting
+        it."""
+        from content_pack import engine_constant
+
+        self.assertEqual(
+            self.bound["maxLength"],
+            engine_constant(ROOT / "ioq3", "MAX_NETNAME", "code/game/g_local.h") - 1,
+        )
+
+    def test_a_long_name_is_truncated_and_not_refused(self) -> None:
+        """The operator's decision: a session must not fail over a name that is
+        merely long. Truncating here rather than leaving it to the engine is
+        what makes the stored name predictable instead of merely bounded."""
+        limit = self.bound["maxLength"]
+        self.assertEqual(player_name("W" * 200, self.bound), "W" * limit)
+        # A cut that lands after a space would otherwise leave a trailing one,
+        # which is the case the second trim exists for and the one a single
+        # pass gets wrong.
+        self.assertEqual(player_name(("W" * (limit - 1)) + " xy", self.bound), "W" * (limit - 1))
+
+    def test_the_character_class_is_exactly_the_forbidden_set(self) -> None:
+        """Over the whole printable range, not by example.
+
+        **The defect this closes is not a wrong character class.** It is a class
+        and a `PLAYER_NAME_FORBIDDEN` list that exist independently of each
+        other: both can be right today and drift apart tomorrow, and the drift
+        is silent in the worst way — the error message goes on naming characters
+        the pattern has stopped refusing, so the rule reads correct while being
+        wrong. Spelling out examples would not close it, because an example
+        table only ever covers the characters someone thought of.
+        """
+        refused = set()
+        for code in range(0x20, 0x7F):
+            character = chr(code)
+            try:
+                player_name(f"a{character}b", self.bound)
+            except ArenaRuntimeError:
+                refused.add(character)
+        self.assertEqual(refused, set(PLAYER_NAME_FORBIDDEN))
+
+    def test_everything_outside_printable_ascii_is_refused(self) -> None:
+        """The other half of the same claim: the class is printable ASCII, so
+        control characters, DEL and everything above it are refused. A rule
+        stated as a range needs both of its edges tested or it is a rule about
+        the middle."""
+        for code in [*range(0x00, 0x20), 0x7F, 0xA0, 0xFC, 0x20AC]:
+            with self.subTest(code=code):
+                with self.assertRaises(ArenaRuntimeError):
+                    player_name(f"a{chr(code)}b", self.bound)
+
+    def test_content_is_refused_rather_than_cleaned(self) -> None:
+        for value in ("x^1y", "^0black", 'a"b', "a;b", "a\\b", "a  b", "\u00fcber"):
+            with self.subTest(name=value):
+                with self.assertRaises(ArenaRuntimeError):
+                    player_name(value, self.bound)
+
+    def test_a_name_of_only_spaces_is_refused_not_emptied(self) -> None:
+        """The engine would answer it with "UnnamedPlayer", which is the default
+        this setting exists to replace — doing that silently is the failure
+        rather than the fallback."""
+        self.assertIn(
+            "UnnamedPlayer",
+            refused_message(lambda: player_name("   ", self.bound)),
+        )
+
+    def test_only_a_packaged_model_is_accepted(self) -> None:
+        offered = self.profile["playerSettings"]["models"]
+        self.assertEqual(player_model(offered[0], offered), offered[0])
+        with self.assertRaises(ArenaRuntimeError):
+            player_model("sarge/default", offered)
+
+    def test_the_offered_models_are_the_packaged_ones(self) -> None:
+        recipe = json.loads(
+            (ROOT / "content/pack-recipe.json").read_text(encoding="utf-8")
+        )
+        self.assertEqual(
+            self.profile["playerSettings"]["models"],
+            sorted(recipe["profile"]["playerModels"]),
+        )
+
+    def test_the_loader_and_this_module_agree_on_every_case(self) -> None:
+        """Two implementations of one rule, run over one table.
+
+        Neither file can import the other, so the rule is written twice — the
+        arrangement the command-line budget already has. What makes that safe is
+        not care, it is this: a divergence in either direction fails here.
+        """
+        node = shutil.which("node")
+        if node is None:  # pragma: no cover - exercised wherever node exists
+            self.skipTest("node is not installed")
+        completed = subprocess.run(
+            [node, str(ROOT / "tests" / "player_input_harness.mjs"), str(ROOT)],
+            input=json.dumps(PLAYER_NAME_CASES),
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        loader = json.loads(completed.stdout)
+        self.assertEqual(len(loader), len(PLAYER_NAME_CASES))
+        for value, other in zip(PLAYER_NAME_CASES, loader, strict=True):
+            with self.subTest(name=value):
+                try:
+                    ours = {"accepted": True, "name": player_name(value, self.bound)}
+                except ArenaRuntimeError:
+                    ours = {"accepted": False}
+                self.assertEqual(ours["accepted"], other["accepted"])
+                if ours["accepted"]:
+                    self.assertEqual(ours["name"], other["name"])
+
+    def test_the_case_table_exercises_both_answers(self) -> None:
+        """A conformance table that happened to be all-accepting would compare
+        two implementations of nothing."""
+        answers = set()
+        for value in PLAYER_NAME_CASES:
+            try:
+                player_name(value, self.bound)
+                answers.add(True)
+            except ArenaRuntimeError:
+                answers.add(False)
+        self.assertEqual(answers, {True, False})
