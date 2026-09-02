@@ -56,12 +56,12 @@ container tag is not an identity.
 | ioq3 engine | `git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592` |
 | Browser loader producer | `git:95f45b537dd0bb8b4a542b97d0f4281eefa7604a` |
 | Browser artifact manifest | `sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047` |
-| Content artifact manifest | `sha256:58716bc17eabac41b2d6189e3a48bba99ceeeaa9cd91d716ca462196dde1ffb3` |
+| Content artifact manifest | `sha256:c7f366994a9dda1d39720b18ea2e7bf91fb8dcd6e1f3916f2680432594004906` |
 | Content base archive | `sha256:7cfa98c9fac1274ed45ee653572252e3d3d47c47c6d80163b59afd1c6354277c` |
 | Content map archives | covered transitively through the content artifact manifest, and each bound byte-for-byte to its counterpart in the server manifest |
-| Server artifact manifest | `sha256:3a4c10384725d94f10d32596e5c24dc16fbe75a23a4f89af04938850b16e5762` |
-| Server image producer/build checkout | `git:3c20361d046b8a03a7b2009d76f4ce0709e82663` |
-| Accepted native server image ID | `sha256:5d59dc7c3a036f1043b18d09393d9f7a06ce8599701cd6a61ef6eae47c29a227` |
+| Server artifact manifest | `sha256:4e3598bb8a61333e64ed76a1fe270c6e3e5420824bcacbcd3b4fd9d796411faa` |
+| Server image producer/build checkout | `git:918e6888da62df7f2746a09e5cfea84c7b36fc86` |
+| Accepted native server image ID | `sha256:2f31235dd98f865b57f69c393dfec5008953927212577a9b6f583187b235a4a9` |
 
 The image value is the reproducible container configuration/image ID observed
 after loading the accepted single-platform image, not a promise that every
@@ -76,12 +76,12 @@ reproduced from a clean checkout of the commit carrying these records with
 producer commits out of the records rather than taking them from its caller —
 the browser's from `manifests/browser-client.json`, and the content pack's and
 the server image's, both
-`3c20361d046b8a03a7b2009d76f4ce0709e82663`, from their provenance records — then
+`918e6888da62df7f2746a09e5cfea84c7b36fc86`, from their provenance records — then
 rebuilds browser, content and server image and compares each generated record
 with the committed one in full. It requires server manifest identity
-`sha256:3a4c10384725d94f10d32596e5c24dc16fbe75a23a4f89af04938850b16e5762`
+`sha256:4e3598bb8a61333e64ed76a1fe270c6e3e5420824bcacbcd3b4fd9d796411faa`
 and loaded image ID
-`sha256:5d59dc7c3a036f1043b18d09393d9f7a06ce8599701cd6a61ef6eae47c29a227`.
+`sha256:2f31235dd98f865b57f69c393dfec5008953927212577a9b6f583187b235a4a9`.
 
 A rebuild from the current documentation commit or any other later commit has
 a new image ID even when all four runtime files are byte-identical, because its
@@ -130,7 +130,7 @@ arena/host-lifecycle.js
 arena/network-backend.js
 arena/player-input.js
 arena/relay-profile.json
-content/baseq3/arena-web-ffa-base-caa003fcd7a79d34.pk3
+content/baseq3/arena-web-ffa-base-7cfa98c9fac1274e.pk3
 content/baseq3/arena-web-ffa-map-aggressor-99ee9bc566cdcff2.pk3
 content/baseq3/arena-web-ffa-map-am_galmevish-5dd57747e2f7d6de.pk3
 content/baseq3/arena-web-ffa-map-am_galmevish2-1d6de81a82a739c7.pk3

@@ -8,16 +8,16 @@
   },
   "formatVersion": 1,
   "headroom": {
-    "cpuCores": 0.951515,
-    "cpuFactor": 20.625,
-    "memoryBytes": 237924352,
-    "memoryFactor": 8.798,
+    "cpuCores": 0.954635,
+    "cpuFactor": 22.043,
+    "memoryBytes": 237826048,
+    "memoryFactor": 8.77,
     "writableHomeBytes": 67107592,
     "writableHomeFactor": 52758.541
   },
   "lifecycle": {
     "gracefulExitCode": 1,
-    "gracefulStopSeconds": 0.135,
+    "gracefulStopSeconds": 0.113,
     "healthIntervalSeconds": 1,
     "postReadyFailureThreshold": 3,
     "startupDeadlineSeconds": 20,
@@ -33,17 +33,17 @@
   "measuredAt": "2026-09-02",
   "measurement": {
     "busy": {
-      "cpuSeconds": 1.192857,
+      "cpuSeconds": 1.012009,
       "durationSeconds": 30.0,
-      "meanCpuCores": 0.039762,
-      "peakCgroupMemoryBytes": 30511104,
-      "peakProcessHwmBytes": 31784960,
-      "peakProcessRssBytes": 31784960,
-      "peakSampleCpuCores": 0.048485,
+      "meanCpuCores": 0.033733,
+      "peakCgroupMemoryBytes": 30609408,
+      "peakProcessHwmBytes": 31719424,
+      "peakProcessRssBytes": 31719424,
+      "peakSampleCpuCores": 0.045365,
       "peakWritableHomeBytes": 1272,
-      "samples": 53
+      "samples": 52
     },
-    "containerWritableLayerBytesAfterStop": 12644,
+    "containerWritableLayerBytesAfterStop": 12588,
     "healthFields": {
       "challenge": "a11ce55",
       "fraglimit": "15",
@@ -53,24 +53,24 @@
       "timelimit": "0"
     },
     "idle": {
-      "cpuSeconds": 0.20844,
+      "cpuSeconds": 0.209689,
       "durationSeconds": 10.0,
-      "meanCpuCores": 0.020843,
-      "peakCgroupMemoryBytes": 30511104,
-      "peakProcessHwmBytes": 31776768,
-      "peakProcessRssBytes": 31776768,
-      "peakSampleCpuCores": 0.022643,
+      "meanCpuCores": 0.020968,
+      "peakCgroupMemoryBytes": 30384128,
+      "peakProcessHwmBytes": 31711232,
+      "peakProcessRssBytes": 31711232,
+      "peakSampleCpuCores": 0.024565,
       "peakWritableHomeBytes": 1272,
       "samples": 18
     },
     "maximums": {
-      "peakCgroupMemoryBytes": 30511104,
-      "peakProcessRssBytes": 31784960,
-      "peakSampleCpuCores": 0.048485,
+      "peakCgroupMemoryBytes": 30609408,
+      "peakProcessRssBytes": 31719424,
+      "peakSampleCpuCores": 0.045365,
       "peakWritableHomeBytes": 1272
     },
-    "readOnlyImageBytes": 275470287,
-    "startupReadySeconds": 1.751
+    "readOnlyImageBytes": 289788367,
+    "startupReadySeconds": 1.75
   },
   "observations": {
     "failed": "the owned process exited unexpectedly, missed its startup deadline, or failed three consecutive post-ready checks",
@@ -79,21 +79,29 @@
     "ready": "the exact binary getstatus profile passes; after readiness, fewer than three consecutive one-second checks have failed"
   },
   "profile": {
-    "bots": 3,
+    "bots": 5,
     "busyTraffic": "ordinary native-client movement, weapon selection, fire, chat and respawn commands",
     "humans": 2,
     "rotation": [
       "oa_pvomit",
       "am_galmevish"
     ],
+    "settings": {
+      "bots": {
+        "minPlayers": 5,
+        "skill": 1
+      },
+      "fraglimit": 15,
+      "gametype": 0
+    },
     "slots": 8,
     "udpPort": 27960
   },
   "release": {
     "engineCommit": "d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
-    "serverArtifactManifest": "sha256:aeebf069c36725202707e0ca91903b1331bcabe4bc50f85e8e536cbdb6920ed9",
-    "serverImageId": "sha256:03bdaf9927e9bd2171ec50cc74bb82adb1aabeec5f8aee42bbc21754ed16e97c",
-    "serverManifestCommit": "57fa9ed30cf882ffef472f5236b72a4cd629f21f"
+    "serverArtifactManifest": "sha256:4e3598bb8a61333e64ed76a1fe270c6e3e5420824bcacbcd3b4fd9d796411faa",
+    "serverImageId": "sha256:2f31235dd98f865b57f69c393dfec5008953927212577a9b6f583187b235a4a9",
+    "serverManifestCommit": "918e6888da62df7f2746a09e5cfea84c7b36fc86"
   },
   "scope": "eight-slot prototype capacity guard for the accepted two-human, three-bot profile; not an SLO or larger-capacity claim"
 }

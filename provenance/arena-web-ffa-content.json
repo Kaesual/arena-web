@@ -72,7 +72,7 @@
           ],
           "path": "NOTICE-arena-web.txt",
           "role": "notice",
-          "sha256": "f371060bb11e5d27da7b6a6fe4acfe20ccfea114fa4a5c31dd5d5fc4000acc7b",
+          "sha256": "aeaafd0ad0f02c81099db709fd9eeb415abc36c8997a6643a8f2e0de23290deb",
           "size": 4573,
           "sourceId": "arena-web",
           "sourcePath": "content/pack-recipe.json",
@@ -113,6 +113,28 @@
           "size": 7064,
           "sourceId": "openarena-misc",
           "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/default_c.c",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "botfiles/bots/gargoyle_c.c",
+          "role": "asset",
+          "sha256": "256f9cba567bb4c60591955b6e477ec3f7796e6a5a464ba13b53fa75690e67cf",
+          "size": 7302,
+          "sourceId": "openarena-misc",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/gargoyle_c.c",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -195,12 +217,12 @@
             "copyleft-source",
             "license-notice"
           ],
-          "path": "botfiles/bots/rai_c.c",
+          "path": "botfiles/bots/kyonshi_c.c",
           "role": "asset",
-          "sha256": "09887e2dc7b5f9e6f83f96fe58bc580b8fc07bb891998866a47f64bf1fbdf3e4",
-          "size": 7017,
+          "sha256": "39c376ec2f98200b82017527445084e83aac6b90312e7d46d704d9d419104587",
+          "size": 7293,
           "sourceId": "openarena-misc",
-          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/rai_c.c",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/kyonshi_c.c",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -217,12 +239,100 @@
             "copyleft-source",
             "license-notice"
           ],
-          "path": "botfiles/bots/rai_i.c",
+          "path": "botfiles/bots/kyonshi_i.c",
           "role": "asset",
-          "sha256": "d592ab02cbb82b2f03533aea465617b04b06ca8f04552acfdf14b0b852eb6b15",
+          "sha256": "05b55f6b14dadd9cd368abcc17e7b9fddda1ba4fbd6d8570015f54f223decc00",
+          "size": 1930,
+          "sourceId": "openarena-misc",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/kyonshi_i.c",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "botfiles/bots/kyonshi_t.c",
+          "role": "asset",
+          "sha256": "bb0ee5c359c1d7645c15f9b2a0758797c3eab8abe9b51592ec0eff9fd57ef062",
+          "size": 3867,
+          "sourceId": "openarena-misc",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/kyonshi_t.c",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "botfiles/bots/kyonshi_w.c",
+          "role": "asset",
+          "sha256": "760aeb4bc4b4c815b26a92db0c2045731b695c49d96ae5393a29302fe60107dd",
+          "size": 1327,
+          "sourceId": "openarena-misc",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/kyonshi_w.c",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "botfiles/bots/liz_c.c",
+          "role": "asset",
+          "sha256": "aa68e88070c6b78f2258b097d136c7c645664e171529fcfcb7f47357be13f9bc",
+          "size": 6977,
+          "sourceId": "openarena-misc",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/liz_c.c",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "botfiles/bots/liz_i.c",
+          "role": "asset",
+          "sha256": "ff71ccdd5067c6bb9402c16df665ad3ca9f51cd92c036db53fb5fbd7a3d45453",
           "size": 2542,
           "sourceId": "openarena-misc",
-          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/rai_i.c",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/liz_i.c",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -239,12 +349,12 @@
             "copyleft-source",
             "license-notice"
           ],
-          "path": "botfiles/bots/rai_t.c",
+          "path": "botfiles/bots/liz_t.c",
           "role": "asset",
-          "sha256": "18eb1ade55d7af5a4391fe72b71cb8634183788f176696d146df4a60e4c57664",
-          "size": 9674,
+          "sha256": "6fef45d99434f238acc139913efe734b9d71991c1b96de922eff2e912e8344fb",
+          "size": 7048,
           "sourceId": "openarena-misc",
-          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/rai_t.c",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/liz_t.c",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -261,12 +371,276 @@
             "copyleft-source",
             "license-notice"
           ],
-          "path": "botfiles/bots/rai_w.c",
+          "path": "botfiles/bots/liz_w.c",
           "role": "asset",
-          "sha256": "9e6b7f65d91b96e6a9b4d31a491f01ecc638ae09dc049416829515c237404d36",
+          "sha256": "843d3c6f6953431784dcbe3a562306434d4be6a7dd8444542767b37bd39f8a35",
+          "size": 1577,
+          "sourceId": "openarena-misc",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/liz_w.c",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "botfiles/bots/major_c.c",
+          "role": "asset",
+          "sha256": "9bc6415a9c69a3791180cc937780dac145cbdf3af62f4003fec11fdeb6e89e54",
+          "size": 7026,
+          "sourceId": "openarena-misc",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/major_c.c",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "botfiles/bots/major_i.c",
+          "role": "asset",
+          "sha256": "35b41421bc9bf1a8d1555848266fac5ed0c549705862df6437abb7562c4afd17",
+          "size": 2550,
+          "sourceId": "openarena-misc",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/major_i.c",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "botfiles/bots/major_t.c",
+          "role": "asset",
+          "sha256": "f249c2c8119a26cb27bc20f37a0aa26e07e6d345b4ecc51040b1bc23d67c7d18",
+          "size": 9766,
+          "sourceId": "openarena-misc",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/major_t.c",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "botfiles/bots/major_w.c",
+          "role": "asset",
+          "sha256": "24d29ab7e0729a2e9bcbb56c8582085a038060144d748000926edd81125831dd",
+          "size": 1578,
+          "sourceId": "openarena-misc",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/major_w.c",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "botfiles/bots/penguin_c.c",
+          "role": "asset",
+          "sha256": "cc07aa0b2af5f580d790800f33fb2adb822b9d9ad1a3472045e70b09a0ad4eb9",
+          "size": 7061,
+          "sourceId": "openarena-misc",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/penguin_c.c",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "botfiles/bots/penguin_i.c",
+          "role": "asset",
+          "sha256": "aecd9b0cd791f8649e6484210e5f1f411f146266c6386a7a8dba5114e92fed40",
+          "size": 2542,
+          "sourceId": "openarena-misc",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/penguin_i.c",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "botfiles/bots/penguin_t.c",
+          "role": "asset",
+          "sha256": "79ccfa3111f759d2e7b5e390b965b83a4e78df534c4eb47915b441cc94535808",
+          "size": 8343,
+          "sourceId": "openarena-misc",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/penguin_t.c",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "botfiles/bots/penguin_w.c",
+          "role": "asset",
+          "sha256": "13e29a4a68e8eab4b8228f2e13de9350998fd659e6e581fb7c54bebdd30e9b02",
           "size": 1576,
           "sourceId": "openarena-misc",
-          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/rai_w.c",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/penguin_w.c",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "botfiles/bots/sergei_c.c",
+          "role": "asset",
+          "sha256": "126e619a6493302eff85346fc7195e5d435620ca99e971fc909b04cc41d5dc90",
+          "size": 7047,
+          "sourceId": "openarena-misc",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/sergei_c.c",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "botfiles/bots/sergei_i.c",
+          "role": "asset",
+          "sha256": "d30634e73b9fd3c9954a7ab8897f49ea6c6ff50d867779affbcabadd61bacc9d",
+          "size": 2548,
+          "sourceId": "openarena-misc",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/sergei_i.c",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "botfiles/bots/sergei_t.c",
+          "role": "asset",
+          "sha256": "ff2e47a604631bfcba764b27db390e16f5152d5fb7028beae7c1701a21f835fc",
+          "size": 8247,
+          "sourceId": "openarena-misc",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/sergei_t.c",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "botfiles/bots/sergei_w.c",
+          "role": "asset",
+          "sha256": "0ba993bf3085d4de27b6f83bbe71542119bb8108212aa61c4f920964b3ca24e7",
+          "size": 1576,
+          "sourceId": "openarena-misc",
+          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/sergei_w.c",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -355,94 +729,6 @@
           "size": 1576,
           "sourceId": "openarena-misc",
           "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/skelebot_w.c",
-          "transformation": "copied unmodified from the verified upstream archive"
-        },
-        {
-          "licenseExpression": "GPL-2.0-or-later",
-          "noticePaths": [
-            "COPYING",
-            "CREDITS",
-            "CREDITS-0.8.5",
-            "CREDITS-0.8.8",
-            "NOTICE-arena-web.txt",
-            "README"
-          ],
-          "obligations": [
-            "copyleft-source",
-            "license-notice"
-          ],
-          "path": "botfiles/bots/sly_c.c",
-          "role": "asset",
-          "sha256": "7258f86f2017d7a6cf267ddcdc440e67e4b7d085a9ebe410a78598ba05a4b03a",
-          "size": 7017,
-          "sourceId": "openarena-misc",
-          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/sly_c.c",
-          "transformation": "copied unmodified from the verified upstream archive"
-        },
-        {
-          "licenseExpression": "GPL-2.0-or-later",
-          "noticePaths": [
-            "COPYING",
-            "CREDITS",
-            "CREDITS-0.8.5",
-            "CREDITS-0.8.8",
-            "NOTICE-arena-web.txt",
-            "README"
-          ],
-          "obligations": [
-            "copyleft-source",
-            "license-notice"
-          ],
-          "path": "botfiles/bots/sly_i.c",
-          "role": "asset",
-          "sha256": "d592ab02cbb82b2f03533aea465617b04b06ca8f04552acfdf14b0b852eb6b15",
-          "size": 2542,
-          "sourceId": "openarena-misc",
-          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/sly_i.c",
-          "transformation": "copied unmodified from the verified upstream archive"
-        },
-        {
-          "licenseExpression": "GPL-2.0-or-later",
-          "noticePaths": [
-            "COPYING",
-            "CREDITS",
-            "CREDITS-0.8.5",
-            "CREDITS-0.8.8",
-            "NOTICE-arena-web.txt",
-            "README"
-          ],
-          "obligations": [
-            "copyleft-source",
-            "license-notice"
-          ],
-          "path": "botfiles/bots/sly_t.c",
-          "role": "asset",
-          "sha256": "ee6ebb6fcc52fc9fe47148c10e657a7a77fe9dc23674ef76600b5792815e5a0c",
-          "size": 9674,
-          "sourceId": "openarena-misc",
-          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/sly_t.c",
-          "transformation": "copied unmodified from the verified upstream archive"
-        },
-        {
-          "licenseExpression": "GPL-2.0-or-later",
-          "noticePaths": [
-            "COPYING",
-            "CREDITS",
-            "CREDITS-0.8.5",
-            "CREDITS-0.8.8",
-            "NOTICE-arena-web.txt",
-            "README"
-          ],
-          "obligations": [
-            "copyleft-source",
-            "license-notice"
-          ],
-          "path": "botfiles/bots/sly_w.c",
-          "role": "asset",
-          "sha256": "26c0c6b77df1391b82edfd16ea96816528fe262b95b06ae7a2607bf42d33fbc3",
-          "size": 1576,
-          "sourceId": "openarena-misc",
-          "sourcePath": "openarena-misc-0.8.5split.orig/pak6-misc/botfiles/bots/sly_w.c",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -5453,6 +5739,28 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/assassin/head_blue.skin",
+          "role": "asset",
+          "sha256": "76e26546ceb8ddd0c4dfa9a1a9af1b82e7817b007bafe16ce310832793c5a0ef",
+          "size": 55,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/assassin/head_blue.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/assassin/head_default.skin",
           "role": "asset",
           "sha256": "536540755154867bcc3b4d61a832285ad15714f5baeb918a0057f1144f7aff3b",
@@ -5475,12 +5783,122 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/assassin/head_red.skin",
+          "role": "asset",
+          "sha256": "ca73ebf6a84945fe97037a16d551262036fc9b630ca600baf240bb3e1b088552",
+          "size": 54,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/assassin/head_red.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/assassin/icon_blue.tga",
+          "role": "asset",
+          "sha256": "2c925bc79f9f9ac9a1edb1eea4e65d20d5cb56a306dd3909883db9bc9c8fe372",
+          "size": 35791,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/assassin/icon_blue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/assassin/icon_default.tga",
           "role": "asset",
           "sha256": "b0c6a72ea7cc74fd2bd03a9f569d7d8bdf6513f2d88f362e0ea86f10ff9314b1",
           "size": 41754,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/assassin/icon_default.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/assassin/icon_red.tga",
+          "role": "asset",
+          "sha256": "0f67e7d20c6d737b62bc1796bc03e02e22ca057ab14d10132bfe0ae07ae713b5",
+          "size": 45300,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/assassin/icon_red.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/assassin/lower-blue.tga",
+          "role": "asset",
+          "sha256": "2beeb5eb2b59eaf191c0c941425871978a1ddcdc5267996eb1fe72bb66f62abf",
+          "size": 927775,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/assassin/lower-blue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/assassin/lower-red.tga",
+          "role": "asset",
+          "sha256": "891ae92936cf59ec2768a96dd1427c215e39606883cc861aecf100b3228b713e",
+          "size": 935846,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/assassin/lower-red.tga",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -5541,12 +5959,100 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/assassin/lower_blue.skin",
+          "role": "asset",
+          "sha256": "0a93c3af680510db8f6611d0211aa486a98129a6225ad24c48031c01ac81e437",
+          "size": 56,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/assassin/lower_blue.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/assassin/lower_default.skin",
           "role": "asset",
           "sha256": "d6e9b530382c718594f19fed127b21baee7e1eca4fb250f5aaa568c6f47dcd78",
           "size": 51,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/assassin/lower_default.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/assassin/lower_red.skin",
+          "role": "asset",
+          "sha256": "873a8fef141ac7023f871c2346183dd5d4c755b64c184b701fedb5ed38984694",
+          "size": 55,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/assassin/lower_red.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/assassin/upper-blue.tga",
+          "role": "asset",
+          "sha256": "4204aa76db14bf2e41f23e1026ea14fe66543f7a8ff72806255711bcf063b46f",
+          "size": 884928,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/assassin/upper-blue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/assassin/upper-red.tga",
+          "role": "asset",
+          "sha256": "531b9fd63095ea335d56b72aa141da69999a389f8e8aa3815c614238c0856f83",
+          "size": 883837,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/assassin/upper-red.tga",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -5607,12 +6113,56 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/assassin/upper_blue.skin",
+          "role": "asset",
+          "sha256": "5f2c9d19a2fe5c7186d50187093354937537a52be2b16bee92f9d77f7ee71ee8",
+          "size": 79,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/assassin/upper_blue.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/assassin/upper_default.skin",
           "role": "asset",
           "sha256": "333d190ece67fcb6019c494716089e4fbf35436f2db7cf5e3f41c232d304e8f6",
           "size": 74,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/assassin/upper_default.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/assassin/upper_red.skin",
+          "role": "asset",
+          "sha256": "c39a2cbe30234d27d0469a2a9339b2b295628c04d6ac67b875390b1ec0e9f483",
+          "size": 78,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/assassin/upper_red.skin",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -5673,12 +6223,56 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/gargoyle/blue.tga",
+          "role": "asset",
+          "sha256": "f8f6b47275feb7a7480760bf76f2cef4e4c634563408c1fc0708a9daf177f740",
+          "size": 786971,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/gargoyle/blue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/gargoyle/head.md3",
           "role": "asset",
           "sha256": "c0112ad343964f84625e1cb62474b494269016c8b475a1399aecb70c491150ba",
           "size": 13988,
           "sourceId": "openarena-088-data",
           "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/models/players/gargoyle/head.md3",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/gargoyle/head_blue.skin",
+          "role": "asset",
+          "sha256": "77cfc4ef97d9b7cd790c03d34e5c931f6a82a0d9154a1063702e3fda87b74ad5",
+          "size": 93,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/gargoyle/head_blue.skin",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -5717,12 +6311,78 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/gargoyle/head_red.skin",
+          "role": "asset",
+          "sha256": "6c8ac5ecdf5fa237fa726faab45966febd00b0dfb981c870372333d9847ba4eb",
+          "size": 91,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/gargoyle/head_red.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/gargoyle/icon_blue.tga",
+          "role": "asset",
+          "sha256": "cfc6f50b7642a88f1dc7be7a23bb40efcbab610f3961e12d93de585ed3ee9927",
+          "size": 66075,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/gargoyle/icon_blue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/gargoyle/icon_default.tga",
           "role": "asset",
           "sha256": "c4e5dda6b53a638f1598a3826bc24ec4b57abb7e9d1e8d9cd65ae55791df7b24",
           "size": 66075,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/gargoyle/icon_default.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/gargoyle/icon_red.tga",
+          "role": "asset",
+          "sha256": "cfd16e3a15cea2648508e42265f655018d2898ee6184c84f8edb8e93902be99b",
+          "size": 66075,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/gargoyle/icon_red.tga",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -5761,12 +6421,78 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/gargoyle/lower_blue.skin",
+          "role": "asset",
+          "sha256": "bc3d04867056600211158e41c63f303355178ac19693857fa0d811deac7fb0db",
+          "size": 53,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/gargoyle/lower_blue.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/gargoyle/lower_default.skin",
           "role": "asset",
           "sha256": "0ee6f464f544186747afdf876804bdc30220898a71bf01e85a301bc67c61e3a1",
           "size": 95,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/gargoyle/lower_default.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/gargoyle/lower_red.skin",
+          "role": "asset",
+          "sha256": "aa5140efb1ff2cb45b3d71868472ef35cf86e659b14666be4778789ae69ad720",
+          "size": 52,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/gargoyle/lower_red.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/gargoyle/red.tga",
+          "role": "asset",
+          "sha256": "35c6bf05735e4b6f23f64a92c7d38519012fdcbf38158019ef3af08eb9005fc9",
+          "size": 786971,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/gargoyle/red.tga",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -5827,12 +6553,100 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/gargoyle/upper_blue.skin",
+          "role": "asset",
+          "sha256": "9c14f5f8370055d15880a6e4b943d7498290f572117dd5f06f1b4af3bffb54d0",
+          "size": 174,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/gargoyle/upper_blue.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/gargoyle/upper_default.skin",
           "role": "asset",
           "sha256": "90b9fbebd8627898cbc074e2f6c2ffb195a0dd20ae6729fed7cf0769b930a93e",
           "size": 170,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/gargoyle/upper_default.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/gargoyle/upper_red.skin",
+          "role": "asset",
+          "sha256": "4ee09b986ff790a573d34b996e26e2408ad0b8c74b277d964fad51aee7e10e76",
+          "size": 170,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/gargoyle/upper_red.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/gargoyle/wings-blue.tga",
+          "role": "asset",
+          "sha256": "e6e2087014a67a5b2460ab069242980ace20b827f9e4583dead495281fa3c7d8",
+          "size": 871771,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/gargoyle/wings-blue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/gargoyle/wings-yellow.tga",
+          "role": "asset",
+          "sha256": "1b607eebbcf1b61fb1b51b4c017a95713ce915b6e1aa9ed082295a630f337495",
+          "size": 964483,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/gargoyle/wings-yellow.tga",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -5915,12 +6729,100 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/kyonshi/eyesblue.tga",
+          "role": "asset",
+          "sha256": "145c0b311f63dad12608b1d6c1c2d42754d7768ea3416bb444ae9b50fb914f5f",
+          "size": 49691,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/eyesblue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/kyonshi/eyesred.tga",
+          "role": "asset",
+          "sha256": "10854a1f1f365f0436ff4c142e9faa04191dd6fb1e4597c0ec8ecede0c30f46a",
+          "size": 49691,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/eyesred.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/kyonshi/hair.tga",
           "role": "asset",
           "sha256": "6dbe294ceca7ed61f1723dc82c389144423a56e15226934b6d6c651e4655993a",
           "size": 1049115,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/hair.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/kyonshi/hairblue.tga",
+          "role": "asset",
+          "sha256": "94a4e2499a86cb808ac4164c21edcdc1e1c9c456d34766ece6e8b70e0c934b7f",
+          "size": 1049115,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/hairblue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/kyonshi/hairred.tga",
+          "role": "asset",
+          "sha256": "b10a76100ced8d0c0507857b4bfb4f3750cb0e6e1d132bada2b05779490696f9",
+          "size": 1049115,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/hairred.tga",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -5959,6 +6861,28 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/kyonshi/head_blue.skin",
+          "role": "asset",
+          "sha256": "540dfcbc5240762061b7e1d5d1f23672130d7f894963199634c8fc8a31c43904",
+          "size": 231,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/head_blue.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/kyonshi/head_default.skin",
           "role": "asset",
           "sha256": "b8049a33f3d62f4cecd0dcfe3dc0a17ba13bff8ada1fc554f5e180b5b5896bc7",
@@ -5981,12 +6905,78 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/kyonshi/head_red.skin",
+          "role": "asset",
+          "sha256": "84eb903e0d8ad135af6bfc2658c5307e90046d60f5037b75c62d16e3ecd7f1ef",
+          "size": 226,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/head_red.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/kyonshi/icon_blue.tga",
+          "role": "asset",
+          "sha256": "1a324fad9f8778a4179e02017dbc1c6c7ae2ae6eacaaf81b5d5374039037453d",
+          "size": 66075,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/icon_blue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/kyonshi/icon_default.tga",
           "role": "asset",
           "sha256": "3dd30dccf31e976442f972e115bf18aa49ab9345b5d9ce147afae843f4cabcc2",
           "size": 66075,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/icon_default.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/kyonshi/icon_red.tga",
+          "role": "asset",
+          "sha256": "b19f08f3850ceff6b3d5deea58c248ec20db346febec83aed021ce507dde8886",
+          "size": 66075,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/icon_red.tga",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6047,12 +7037,100 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/kyonshi/lower_blue.skin",
+          "role": "asset",
+          "sha256": "025f1a52b8fd0068e1ad13dbb5ee6bd798e364294ce87e2a9eee8b9157f6c680",
+          "size": 148,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/lower_blue.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/kyonshi/lower_default.skin",
           "role": "asset",
           "sha256": "98d2195e5862cc357bc52556eaa498781ecd94ffabbed6640b875a747bd793ce",
           "size": 136,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/lower_default.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/kyonshi/lower_red.skin",
+          "role": "asset",
+          "sha256": "3d88ac53d0bbbbbf40f07443b6c0c01cccfdc57b870a2bb51bc9e4cb55f5d771",
+          "size": 145,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/lower_red.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/kyonshi/lowerblue.tga",
+          "role": "asset",
+          "sha256": "91ac8abd2371b1d8718f5f400fdb9c751d0d4c3e6729b3271bc30ea7c7ea1255",
+          "size": 1049115,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/lowerblue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/kyonshi/lowerred.tga",
+          "role": "asset",
+          "sha256": "a049b809be20a8ca1ec2eb2591de4ad9f2c0eef8f3b83c254b85530ed55542d0",
+          "size": 1049115,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/lowerred.tga",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6091,12 +7169,100 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/kyonshi/skinblue.tga",
+          "role": "asset",
+          "sha256": "538139a03885449ab370286f2cc5a54b18006a4ed83c8857bc0e0e515d2d134f",
+          "size": 1049115,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/skinblue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/kyonshi/skinred.tga",
+          "role": "asset",
+          "sha256": "fa34fa84f744ec4593634613ee1da8867bb0d807c2fd8609148e3a165898be1c",
+          "size": 1049115,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/skinred.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/kyonshi/torso.tga",
           "role": "asset",
           "sha256": "36d850baceb862b9baf77d4760148b9d772683a8ab3310676e489b5794b5e75a",
           "size": 1049115,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/torso.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/kyonshi/torsoblue.tga",
+          "role": "asset",
+          "sha256": "d56adc3cbd20609e42706a7e2d7636d35a07bc1f34a13d3bc049f48b4ba8c989",
+          "size": 1049115,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/torsoblue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/kyonshi/torsored.tga",
+          "role": "asset",
+          "sha256": "73cb767e94e94653bd87104e2a02c07b480450eec21d826385eb04ecf9620c6c",
+          "size": 1049115,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/torsored.tga",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6135,12 +7301,56 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/kyonshi/upper_blue.skin",
+          "role": "asset",
+          "sha256": "5f834aa6aeec25a35c901739d41f5790237651f604c1b7777837702771009990",
+          "size": 170,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/upper_blue.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/kyonshi/upper_default.skin",
           "role": "asset",
           "sha256": "916faa291d52f5bc168d14bd15d84fd0cc16f7b6c93bfe8245d5df192f436360",
           "size": 160,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/upper_default.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/kyonshi/upper_red.skin",
+          "role": "asset",
+          "sha256": "8efa52d072107013e9505998d07db7e66d3a1b7a3c2f9b6b5ae1c6997d6b434f",
+          "size": 167,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/kyonshi/upper_red.skin",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6201,12 +7411,78 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/liz/h_head_blue.tga",
+          "role": "asset",
+          "sha256": "cf27bb982751d424eb273ad4b6e22990d5b142b6797b8af843626977a1302485",
+          "size": 197147,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/h_head_blue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/liz/h_head_red.tga",
+          "role": "asset",
+          "sha256": "76370952633c9c5438f19a72c6bef6b76f3ebb31c9bef8974aaaf947d867f2fe",
+          "size": 197147,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/h_head_red.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/liz/head.md3",
           "role": "asset",
           "sha256": "b173614dae48b339487e65dfe304d18c1002b3b9fb96995d026bd4dbe0bc7097",
           "size": 412140,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/head.md3",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/liz/head_blue.skin",
+          "role": "asset",
+          "sha256": "953b8e0cc04e7c9e45ed5a0a802d40b66fc28c95258af5e399f8d6556625c5cf",
+          "size": 55,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/head_blue.skin",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6245,12 +7521,78 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/liz/head_red.skin",
+          "role": "asset",
+          "sha256": "d07d87360392b5214d0054abc47be6f6338bb0f022dc490347571bf1e0ad809f",
+          "size": 54,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/head_red.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/liz/icon_blue.tga",
+          "role": "asset",
+          "sha256": "a8bab2f8a0e9fecf7da3c301f26d62fb9c04d623e89fbc3c6a567082e855bfd3",
+          "size": 66075,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/icon_blue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/liz/icon_default.tga",
           "role": "asset",
           "sha256": "311494a095a8e04a6179be1979ec914fdd823b177ed5ceddf727492664f7d636",
           "size": 66075,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/icon_default.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/liz/icon_red.tga",
+          "role": "asset",
+          "sha256": "23bce507e48c4184b4f60ba3917185167d4c3e664f6e25cff3f5b01ef54a0f31",
+          "size": 66075,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/icon_red.tga",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6289,12 +7631,78 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/liz/l_legs_blue.tga",
+          "role": "asset",
+          "sha256": "c5be5745e554f9f2e420767a516cdcaea294c5f709f477dcd217b63cf4a7aa42",
+          "size": 197147,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/l_legs_blue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/liz/l_legs_red.tga",
+          "role": "asset",
+          "sha256": "31f6b9c3c107b97d2f88bd99c293c311c7c496a89424f39259e347028775a07c",
+          "size": 197147,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/l_legs_red.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/liz/lower.md3",
           "role": "asset",
           "sha256": "c65d37af5d1847c46e937ab3dbb0fe9b944319fdf08ea9fac9382ae28d381e0f",
           "size": 715116,
           "sourceId": "openarena-088-data",
           "sourcePath": "openarena-088-data-0.8.8.orig/pak6-patch088/models/players/liz/lower.md3",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/liz/lower_blue.skin",
+          "role": "asset",
+          "sha256": "38c82aab46bafb8ef11b62eb124fa68c9512a0d0b37903d255fa374b61dafa8b",
+          "size": 43,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/lower_blue.skin",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6333,12 +7741,78 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/liz/lower_red.skin",
+          "role": "asset",
+          "sha256": "08acf755ab963042f15940c31bae7ca573560d2b2dd46f610f33327a1918879f",
+          "size": 42,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/lower_red.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/liz/u_torso.tga",
           "role": "asset",
           "sha256": "259b6695bdba8100c86c8a38b1b5880855bff6aa4f5b48a5392453466cd00d6a",
           "size": 196652,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/u_torso.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/liz/u_torso_blue.tga",
+          "role": "asset",
+          "sha256": "c7fde88c693acf2609412b4c20ffa0101923fae964a7dcca2464cec41b7478fd",
+          "size": 197147,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/u_torso_blue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/liz/u_torso_red.tga",
+          "role": "asset",
+          "sha256": "f217e78c7aa15570142d39449b035d8cef9fd327fa865ee4378e7fdf661597b9",
+          "size": 197147,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/u_torso_red.tga",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6377,12 +7851,56 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/liz/upper_blue.skin",
+          "role": "asset",
+          "sha256": "0f52cbc4c9a9736a2772611ba5ec3d847a3cbd1410dad667aa0fba12072b47b7",
+          "size": 45,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/upper_blue.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/liz/upper_default.skin",
           "role": "asset",
           "sha256": "3d6765d0b7d499ae47e2f5512bc5f5fee3b18efe05a5a63d7f8b8c399d34a759",
           "size": 40,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/upper_default.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/liz/upper_red.skin",
+          "role": "asset",
+          "sha256": "94ae39df7aca1fb057b46391af0c067d1455cac3d022607ec537af1b4a94202d",
+          "size": 44,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/liz/upper_red.skin",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6465,6 +7983,28 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/major/head_blue.skin",
+          "role": "asset",
+          "sha256": "c6731b7ae5ed0bcc782e2496a70b5da500570f579d104727212099951a88cae5",
+          "size": 50,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/major/head_blue.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/major/head_default.skin",
           "role": "asset",
           "sha256": "c6731b7ae5ed0bcc782e2496a70b5da500570f579d104727212099951a88cae5",
@@ -6487,12 +8027,78 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/major/head_red.skin",
+          "role": "asset",
+          "sha256": "c6731b7ae5ed0bcc782e2496a70b5da500570f579d104727212099951a88cae5",
+          "size": 50,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/major/head_red.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/major/icon_blue.tga",
+          "role": "asset",
+          "sha256": "97f7ba0adced9504b7879f7f10c6be85520aea5ab04fc1c21580db89d9609787",
+          "size": 66075,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/major/icon_blue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/major/icon_default.tga",
           "role": "asset",
           "sha256": "c677bc643f423be70d829ee5d57d2646645776e1fcfd00b308839fabddd540e6",
           "size": 66075,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/major/icon_default.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/major/icon_red.tga",
+          "role": "asset",
+          "sha256": "18545e4359759852a1d5a2e336f966ab732d28a78c63dd2739ed5c216e764e9a",
+          "size": 66075,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/major/icon_red.tga",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6553,12 +8159,100 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/major/lower_blue.skin",
+          "role": "asset",
+          "sha256": "7e7e9581eda1217f47a1e77c9f2910dd67b5eae83d38672e0b1c1f561e0f6c8d",
+          "size": 44,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/major/lower_blue.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/major/lower_default.skin",
           "role": "asset",
           "sha256": "ef0fe524214885a3a002b88bdce2d0bff27a7f04e7044b4b72c5a35e51d4761e",
           "size": 40,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/major/lower_default.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/major/lower_red.skin",
+          "role": "asset",
+          "sha256": "24e4f8ec82441c18c23913516a668577c42d1b6e84cab2aa1d4dc1be99359eec",
+          "size": 43,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/major/lower_red.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/major/lowerblue.tga",
+          "role": "asset",
+          "sha256": "2b218b012aa6ac7f09aadd0bfcc9b04d528df857a50738b9584e675169e67564",
+          "size": 786971,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/major/lowerblue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/major/lowerred.tga",
+          "role": "asset",
+          "sha256": "6d74a63c4cc0ae1e272ec662b7c806124622a51ecd6f629d02f13ac30faaf5a4",
+          "size": 786971,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/major/lowerred.tga",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6597,6 +8291,50 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/major/torsoblue.tga",
+          "role": "asset",
+          "sha256": "6833c91fdc29a7e17e553566eb2d587aec95468a414ecb36250de50bc1da362e",
+          "size": 786971,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/major/torsoblue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/major/torsored.tga",
+          "role": "asset",
+          "sha256": "8d88eb04ff6bbf60c91f7b69b5236977c4f96bad02be7c0b8d2ff039e4784b08",
+          "size": 786971,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/major/torsored.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/major/upper.md3",
           "role": "asset",
           "sha256": "ddac61f711f43cda1866e90e1392e642284723b4f9844ccf5cffa8e4f49024c4",
@@ -6619,12 +8357,56 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/major/upper_blue.skin",
+          "role": "asset",
+          "sha256": "baf518398542018d9aa923d5e9a9c5d518e2a0053d428a8218908b13cebe4d28",
+          "size": 44,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/major/upper_blue.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/major/upper_default.skin",
           "role": "asset",
           "sha256": "e536d09a6a7fbde3786922c7b6cb127f545b98249f95b5f6a1dc210a42d17dfa",
           "size": 40,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/major/upper_default.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/major/upper_red.skin",
+          "role": "asset",
+          "sha256": "98f654715ed21a2ea97c09080b7a9687b5622dc369b693379eb1158cc09feac6",
+          "size": 43,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/major/upper_red.skin",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6685,12 +8467,78 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/penguin/head_blue.skin",
+          "role": "asset",
+          "sha256": "350725668424c624e49b687f3819412034fb15146ad49159b626a5486f738269",
+          "size": 58,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/penguin/head_blue.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/penguin/head_default.skin",
           "role": "asset",
           "sha256": "799b2e4704b7fb26bf7c1419dbaf631614d0cac9cbe4e13455960a267dc5f79c",
           "size": 49,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/penguin/head_default.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/penguin/head_red.skin",
+          "role": "asset",
+          "sha256": "28817a1c427c1c396e8a383044abcd1653e38a64ac7eb849a45c8401cd393600",
+          "size": 57,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/penguin/head_red.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/penguin/icon_blue.tga",
+          "role": "asset",
+          "sha256": "a49da8b639a2db9694382adf8b2d8e9e2810dbee2e33238ade5b12b6c9bebd5f",
+          "size": 66075,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/penguin/icon_blue.tga",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6729,12 +8577,56 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/penguin/icon_red.tga",
+          "role": "asset",
+          "sha256": "ad42e769ed96ae7d78e41a7b078db3c0d54ba9785cdb30cc28b260541f4a434f",
+          "size": 66075,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/penguin/icon_red.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/penguin/lower.md3",
           "role": "asset",
           "sha256": "7ae473650d9bdf8d8b510ad16f4831cf3ba45dfce52c67816a3f890c9c0ffbae",
           "size": 646748,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/penguin/lower.md3",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/penguin/lower_blue.skin",
+          "role": "asset",
+          "sha256": "a9d82e166b5ff7b333e53dd3024c5a2de8d4cd9f1ce116e71a18885048148146",
+          "size": 56,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/penguin/lower_blue.skin",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6773,12 +8665,78 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/penguin/lower_red.skin",
+          "role": "asset",
+          "sha256": "d1abd72b14a28cd51651fd38ac2efc3a9bd3cd136883fc58b6dc640904a33e29",
+          "size": 55,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/penguin/lower_red.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/penguin/skin.tga",
           "role": "asset",
           "sha256": "a1072cbac46398510f0d0048ee43cfe6eb74860f8c7d4d768c872cfaf7feb0ee",
           "size": 727715,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/penguin/skin.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/penguin/skinblue.tga",
+          "role": "asset",
+          "sha256": "75ad8289213f884d73ded32f06e47578b9b4584f58bb645e14148a5fd3840abb",
+          "size": 748521,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/penguin/skinblue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/penguin/skinred.tga",
+          "role": "asset",
+          "sha256": "27ce48e931c2adc7d0d4127389167e6e839c8eb0b7dbf093ab3baee7179c77c2",
+          "size": 736911,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/penguin/skinred.tga",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6817,12 +8775,56 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/penguin/upper_blue.skin",
+          "role": "asset",
+          "sha256": "2d77387d9ed16cdf0e582cf18cfd70e729c7e22a4be1decbc7a38dfff0f8a0d1",
+          "size": 77,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/penguin/upper_blue.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/penguin/upper_default.skin",
           "role": "asset",
           "sha256": "ef8405e67fe17c608de7e4aa3604a752058898a4bca8c8036ad79b47f21d7783",
           "size": 73,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/penguin/upper_default.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/penguin/upper_red.skin",
+          "role": "asset",
+          "sha256": "1caf05cc4f1b4b4791fec05c8b1be73aebbf820d3d96800432d2873f0cebea75",
+          "size": 76,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/penguin/upper_red.skin",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6883,12 +8885,78 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/skelebot/head_blue.skin",
+          "role": "asset",
+          "sha256": "347c3b4193019a75009234753c0895577322b2a5eda2a9049db1ace3b29186c1",
+          "size": 54,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/skelebot/head_blue.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/skelebot/head_default.skin",
           "role": "asset",
           "sha256": "a2b1afe74594ca527e638e34402d39916c1cd1a7bfacb04986476290222094f7",
           "size": 50,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/skelebot/head_default.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/skelebot/head_red.skin",
+          "role": "asset",
+          "sha256": "65645112d416eacc8b84bf45a1b6ac8ed645da075afb2147cf8a2afb76690bbf",
+          "size": 53,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/skelebot/head_red.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/skelebot/icon_blue.tga",
+          "role": "asset",
+          "sha256": "306eaf531d15fc51710c09f5e656faa35fc0385561f94d312209b11f5fa6b1e9",
+          "size": 66075,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/skelebot/icon_blue.tga",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6927,12 +8995,56 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/skelebot/icon_red.tga",
+          "role": "asset",
+          "sha256": "adace6d16b80019bf15b5df54f89ad1a2958d06f688b051cdff9c62b3e8b52f8",
+          "size": 66075,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/skelebot/icon_red.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/skelebot/lower.md3",
           "role": "asset",
           "sha256": "573d6cebd57a9aa1f089f3da3adf03d0c8d8ba9f2770ad669c31d270d23572c2",
           "size": 946084,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/skelebot/lower.md3",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/skelebot/lower_blue.skin",
+          "role": "asset",
+          "sha256": "a940b31bbeafa36eb6dcfef36d7b7ded95c7f0faf7c3325c861751bf9c2c7199",
+          "size": 56,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/skelebot/lower_blue.skin",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -6971,12 +9083,78 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/skelebot/lower_red.skin",
+          "role": "asset",
+          "sha256": "73f77f5b7f5cf5533984d613d7fd1b9bcb13d463f9025da03dc63b85ff4c0d32",
+          "size": 55,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/skelebot/lower_red.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/skelebot/skin1.tga",
           "role": "asset",
           "sha256": "44540f8274ac3ef6621524b9d782dc3579c1c003ba070282323c2a6cba61ed93",
           "size": 751123,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/skelebot/skin1.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/skelebot/skin1blue.tga",
+          "role": "asset",
+          "sha256": "1e709e99fc46e7f638071edd7152d53b07f101cebb6285b2e240b3550968bd63",
+          "size": 754074,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/skelebot/skin1blue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/skelebot/skin1red.tga",
+          "role": "asset",
+          "sha256": "6acadb2eb57345733810711d122b1278c99bc0254ba80a90ce8b05fbb42b3d9b",
+          "size": 756325,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/skelebot/skin1red.tga",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -7015,6 +9193,50 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/skelebot/skin2blue.tga",
+          "role": "asset",
+          "sha256": "e355e3e9bbba7ebacea6838a47c2aa5e4bf3a0c6460686a8d28a3ea7c077c219",
+          "size": 751067,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/skelebot/skin2blue.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/skelebot/skin2red.tga",
+          "role": "asset",
+          "sha256": "f9da946471325c98e32db6ea4b0e72f49e8e93c7f9fb1e756ab321dd6a57b548",
+          "size": 750019,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/skelebot/skin2red.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/skelebot/upper.md3",
           "role": "asset",
           "sha256": "27fe69a999b12461b718b192f0b6268a3da5c27577a6a7677b2a93fd800cc070",
@@ -7037,12 +9259,56 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "models/players/skelebot/upper_blue.skin",
+          "role": "asset",
+          "sha256": "014b77d520f7db5d250f589963f8875b80a99cbc24bf3ad3083474ddb3ef7165",
+          "size": 127,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/skelebot/upper_blue.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "models/players/skelebot/upper_default.skin",
           "role": "asset",
           "sha256": "7e9b29f06208d626f46271bfeac9bce18c32828b48b2992b4f86831936963e46",
           "size": 119,
           "sourceId": "openarena-players",
           "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/skelebot/upper_default.skin",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "models/players/skelebot/upper_red.skin",
+          "role": "asset",
+          "sha256": "d8b8da43390dcec0f4b763719ce0b3c1291db3b74d8b908a61da61622c8db759",
+          "size": 125,
+          "sourceId": "openarena-players",
+          "sourcePath": "openarena-players-0.8.5split.orig/pak2-players/models/players/skelebot/upper_red.skin",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -10097,8 +12363,8 @@
           ],
           "path": "scripts/bots.txt",
           "role": "metadata",
-          "sha256": "5891919ab0489b38cd3674fe61fee389adb42d294f90f0b8d4d61c32f383dcaf",
-          "size": 207,
+          "sha256": "8e3773d75d8d5c4319a161517c14c31881f23bb7cd20689ea581813643061456",
+          "size": 499,
           "sourceId": "arena-web",
           "sourcePath": "content/pack-recipe.json",
           "transformation": "generated from the committed recipe by scripts/build-content-pack.py"
@@ -18345,6 +20611,28 @@
             "copyleft-source",
             "license-notice"
           ],
+          "path": "textures/effects/skinspecmult2.tga",
+          "role": "asset",
+          "sha256": "b56d09188ef8e32c33b306cfa5b90cb88add560e80a12319c39c72bd83d0cf4e",
+          "size": 1307,
+          "sourceId": "openarena-data",
+          "sourcePath": "openarena-data-0.8.5split.orig/pak0/textures/effects/skinspecmult2.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
           "path": "textures/effects/skinspecmulttin.tga",
           "role": "asset",
           "sha256": "842fdfe883d92711a929d7821a94a7cc6068ff879e73e33899c0496d66587493",
@@ -18439,6 +20727,28 @@
           "size": 107446,
           "sourceId": "openarena-data",
           "sourcePath": "openarena-data-0.8.5split.orig/pak0/textures/effects/tinfx2.tga",
+          "transformation": "copied unmodified from the verified upstream archive"
+        },
+        {
+          "licenseExpression": "GPL-2.0-or-later",
+          "noticePaths": [
+            "COPYING",
+            "CREDITS",
+            "CREDITS-0.8.5",
+            "CREDITS-0.8.8",
+            "NOTICE-arena-web.txt",
+            "README"
+          ],
+          "obligations": [
+            "copyleft-source",
+            "license-notice"
+          ],
+          "path": "textures/effects/tinfx2d.jpg",
+          "role": "asset",
+          "sha256": "41988720e5dc612fe774f22f6da227533150150408a00397ef5d390c1befc56b",
+          "size": 9387,
+          "sourceId": "openarena-data",
+          "sourcePath": "openarena-data-0.8.5split.orig/pak0/textures/effects/tinfx2d.jpg",
           "transformation": "copied unmodified from the verified upstream archive"
         },
         {
@@ -19812,9 +22122,9 @@
           "id": "arena-web",
           "licenseEvidenceUrl": "https://raw.githubusercontent.com/Kaesual/arena-web/1cc0a1a3d5e84ee2f3a3ff9305a962810e4283d2/LICENSE",
           "licenseExpression": "GPL-2.0-or-later",
-          "preferredSourceRevision": "sha256:7505c22f65ef196ba13a1af2d6b6b4d3999caf765af81f3fe18e22ca9dcff070",
+          "preferredSourceRevision": "sha256:5309dae84e47629f899cb2778be88f035698669ac247bd6133fa113ee05a7880",
           "preferredSourceUrl": "https://github.com/Kaesual/arena-web",
-          "sourceIdentity": "sha256:7505c22f65ef196ba13a1af2d6b6b4d3999caf765af81f3fe18e22ca9dcff070",
+          "sourceIdentity": "sha256:5309dae84e47629f899cb2778be88f035698669ac247bd6133fa113ee05a7880",
           "sourceUrl": "https://github.com/Kaesual/arena-web"
         },
         {

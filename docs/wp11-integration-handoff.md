@@ -37,7 +37,7 @@ The primary immutable identities are:
 | --- | --- |
 | Baseline lock | `sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287` |
 | Browser artifact manifest | `sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047` |
-| Content artifact manifest | `sha256:58716bc17eabac41b2d6189e3a48bba99ceeeaa9cd91d716ca462196dde1ffb3` |
+| Content artifact manifest | `sha256:c7f366994a9dda1d39720b18ea2e7bf91fb8dcd6e1f3916f2680432594004906` |
 | Base content archive | `sha256:7cfa98c9fac1274ed45ee653572252e3d3d47c47c6d80163b59afd1c6354277c`, 55,304,102 bytes |
 | Map archives | twenty-nine, one per map, enumerated in the content artifact manifest |
 
@@ -281,8 +281,8 @@ The exact server identities are:
 
 | Input | Identity |
 | --- | --- |
-| OCI configuration/image ID | `sha256:5d59dc7c3a036f1043b18d09393d9f7a06ce8599701cd6a61ef6eae47c29a227` |
-| Server artifact manifest | `sha256:3a4c10384725d94f10d32596e5c24dc16fbe75a23a4f89af04938850b16e5762` |
+| OCI configuration/image ID | `sha256:2f31235dd98f865b57f69c393dfec5008953927212577a9b6f583187b235a4a9` |
+| Server artifact manifest | `sha256:4e3598bb8a61333e64ed76a1fe270c6e3e5420824bcacbcd3b4fd9d796411faa` |
 | Server profile | `sha256:8c3ca45ec0f52c896ab4e41223dfedaaa34fbd62d9138f8eb31672ab0b5a15dc` |
 
 The image is `linux/amd64`, user/group `65534:65534`, workdir
@@ -535,7 +535,7 @@ one-second checks make the observation failed.
 Send `SIGTERM` or `SIGINT` to the entrypoint and allow 10 seconds before a
 forced kill. The normal signal path sends the final server message, closes the
 VM/network and exits with code 1; code 1 is therefore success only when the
-manager requested this stop. The measured graceful exit took 0.124 seconds.
+manager requested this stop. The measured graceful exit took 0.113 seconds.
 Any unsolicited exit, including code 1, is failure.
 
 ## 5. Indivisible compatibility identity
@@ -547,10 +547,10 @@ loader, profile, QVM, pack, binary or relay profile:
 baseline          sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287
 ioq3               git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592
 browser manifest   sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047
-content manifest   sha256:58716bc17eabac41b2d6189e3a48bba99ceeeaa9cd91d716ca462196dde1ffb3
+content manifest   sha256:c7f366994a9dda1d39720b18ea2e7bf91fb8dcd6e1f3916f2680432594004906
 content base       sha256:7cfa98c9fac1274ed45ee653572252e3d3d47c47c6d80163b59afd1c6354277c
-server manifest    sha256:3a4c10384725d94f10d32596e5c24dc16fbe75a23a4f89af04938850b16e5762
-server image ID    sha256:5d59dc7c3a036f1043b18d09393d9f7a06ce8599701cd6a61ef6eae47c29a227```
+server manifest    sha256:4e3598bb8a61333e64ed76a1fe270c6e3e5420824bcacbcd3b4fd9d796411faa
+server image ID    sha256:2f31235dd98f865b57f69c393dfec5008953927212577a9b6f583187b235a4a9```
 
 `release/browser-release.json.compatibility` repeats these values and its
 validator derives all manifest identities from the named authority files.
@@ -683,8 +683,8 @@ for this exact eight-slot/two-human/three-bot prototype is:
 
 | Resource | Limit | Busy observed maximum | Remaining safety margin |
 | --- | ---: | ---: | ---: |
-| CPU | 1 core | 0.047037-core peak sample | 0.952963 core; 21.26x |
-| Memory | 268,435,456 bytes | 30,420,992-byte peak cgroup; 31,776,768-byte process HWM | 238,014,464 bytes; 8.824x against cgroup peak |
+| CPU | 1 core | 0.045365-core peak sample | 0.954635 core; 22.043x |
+| Memory | 268,435,456 bytes | 30,609,408-byte peak cgroup; 31,719,424-byte process HWM | 237,826,048 bytes; 8.77x against cgroup peak |
 | Writable home | 67,108,864 bytes | 1,272 bytes | 67,107,592 bytes; 52,758.541x |
 | Processes | 128 PIDs | constrained successfully by the probe | guard, not a measured demand claim |
 
@@ -692,9 +692,9 @@ Startup readiness was 1.75 seconds, which is a poll-loop
 figure and not a startup time: the readiness probe waits out a 0.75-second
 socket timeout and then a one-second interval, so it says the server was ready
 before the second poll and no more than that. The ten-second idle phase
-averaged 0.020639 cores. The 30-second two-native-client phase, with
+averaged 0.020968 cores. The 30-second two-native-client phase, with
 movement, weapon, fire, chat and respawn traffic while the bots remained
-active, averaged 0.033186 cores. These values preserve large practical headroom, but are
+active, averaged 0.033733 cores. These values preserve large practical headroom, but are
 capacity guards only—not an SLO, autoscaling rule, production concurrency
 claim or evidence for more than two humans.
 
