@@ -10,9 +10,17 @@
       "items": {
         "additionalProperties": false,
         "properties": {
+          "map": {
+            "pattern": "^[a-z0-9][a-z0-9_-]*$",
+            "type": "string"
+          },
           "path": {
             "pattern": "^(?!/)(?!\\./)(?!.*(?:^|/)\\.\\.?(?:/|$))(?!.*\\\\)[^/]+(?:/[^/]+)*$",
             "type": "string"
+          },
+          "peakHunkBytes": {
+            "minimum": 1,
+            "type": "integer"
           },
           "sha256": {
             "pattern": "^[0-9a-f]{64}$",
@@ -20,6 +28,10 @@
           },
           "size": {
             "minimum": 0,
+            "type": "integer"
+          },
+          "uncompressedSize": {
+            "minimum": 1,
             "type": "integer"
           }
         },

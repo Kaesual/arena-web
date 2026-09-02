@@ -1628,6 +1628,18 @@ def _baseline_input_identities(
     return identities
 
 
+# An artifact entry is its own identity plus, for the content manifest, the
+# records a caller needs in order to select and budget a rotation: which map an
+# archive carries, how large it extracts, and the peak engine hunk that map was
+# measured at.
+ARTIFACT_ENTRY_REQUIRED_KEYS = ("path", "sha256", "size")
+ARTIFACT_ENTRY_KEYS = ARTIFACT_ENTRY_REQUIRED_KEYS + (
+    "map",
+    "peakHunkBytes",
+    "uncompressedSize",
+)
+
+
 def validate_artifact_manifest(
     value: Any,
     path: str,
@@ -1745,10 +1757,24 @@ def validate_artifact_manifest(
     for index, raw_artifact in enumerate(artifacts):
         artifact_path = f"{path}.artifacts[{index}]"
         item = _object(raw_artifact, artifact_path)
-        _exact_keys(item, ("path", "sha256", "size"), artifact_path)
+        unknown = sorted(set(item) - set(ARTIFACT_ENTRY_KEYS))
+        missing = sorted(set(ARTIFACT_ENTRY_REQUIRED_KEYS) - set(item))
+        if unknown or missing:
+            _fail(artifact_path, f"unexpected key set (missing {missing}, unknown {unknown})")
         artifact_paths.append(_relative_path(item["path"], f"{artifact_path}.path"))
         _sha256(item["sha256"], f"{artifact_path}.sha256")
         _integer(item["size"], f"{artifact_path}.size")
+        # The optional records are content-manifest vocabulary. Their *presence
+        # rules* — which manifest may carry them, and which artifact within it
+        # must — belong to arena_runtime, which knows the recipe's base pack and
+        # the committed fragment set; here they are only well-formed or not.
+        if "map" in item:
+            _string(item["map"], f"{artifact_path}.map")
+        for name in ("peakHunkBytes", "uncompressedSize"):
+            if name in item:
+                _integer(item[name], f"{artifact_path}.{name}")
+                if item[name] <= 0:
+                    _fail(f"{artifact_path}.{name}", "must be positive")
     _unique(artifact_paths, f"{path}.artifacts[].path")
     if artifact_paths != sorted(artifact_paths):
         _fail(f"{path}.artifacts", "must be sorted by path")

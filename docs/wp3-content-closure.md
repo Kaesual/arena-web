@@ -1284,3 +1284,85 @@ Two consequences, both stated rather than left to be found:
   `projectionShadow` by `scripts/decals.shader`, whose only stage image is
   `$whiteimage`. A control run of `oa_pvomit` against the previously published
   pair of archives and against the new set produced the same engine output.
+
+## Amendment of 2026-09-02: what the manifest records, and two bounds
+
+The archive set did not change and no archive's bytes moved. What changed is
+what the **content artifact manifest** says about each archive, and two bounds
+that are now read out of the pinned engine instead of being assumed.
+
+### Three records per archive
+
+`provenance/arena-web-ffa-content-manifest.json` carries, beside every
+artifact's identity:
+
+| Field | On | What it is |
+| --- | --- | --- |
+| `uncompressedSize` | every archive | the sum of its members' uncompressed bytes, computed from the members this build wrote |
+| `map` | map archives only | the map it carries — the selection key a rotation is expressed in |
+| `peakHunkBytes` | map archives only | the measured peak engine hunk of that map |
+
+They are here rather than in `arena/game-profile.json` because there should be
+one home per fact: the manifest is generated from the archives it describes, it
+is an authority whose digest is a `compatibility` member, and the browser
+fetches it before any archive. `map` exists so a consumer selects by a declared
+field rather than by parsing an archive file name.
+
+### Why the measurements are not in a fragment
+
+Peak hunk cannot be computed from the sources; it is measured by loading the
+map. The obvious home for a per-map number is that map's fragment — and it is
+the wrong one. Each archive's generated notice carries the SHA-256 of its own
+selection input (`content/pack-recipe.json` for the base,
+`content/maps/<name>.json` for a map), so a number added to a fragment moves
+that map archive's bytes and therefore its immutable URL. A measurement must
+not be able to move content.
+
+The figures therefore live in `records/map-resource-measurements.json`, which is
+not a selection input, and the build copies them into the manifest.
+`scripts/release_index.py` binds the record into the release identity as the
+content-manifest input `arena-web-resource-measurements` and checks the
+manifest's copy against it in both directions.
+
+**The scope of that check, stated because the name promises more.** It is a
+copy-consistency check: editing either side alone is a failure, but a *wrong
+measurement* is not detectable, because nothing can recompute it. What stands
+behind the numbers is the run that produced them and one gate — the record
+names the engine commit it was measured against, and an engine that has moved
+is refused, because peak hunk is an engine-behaviour measurement that does not
+survive a move unremeasured.
+
+### Two bounds read from the pinned engine
+
+- **Peak hunk against `DEF_COMHUNKMEGS`.** `Com_InitHunkMemory` allocates that
+  many megabytes and `MIN_COMHUNKMEGS` is defined as the same constant, so it is
+  both ceiling and floor. Every declared figure must fit it, read out of
+  `ioq3/code/qcommon/common.c` rather than restated. The published set peaks at
+  32,297,320 bytes (`am_underworks2`) against 134,217,728.
+- **The published archive set against `BIG_INFO_STRING`.**
+  `SV_SpawnServer` assembles all `CVAR_SYSTEMINFO` cvars with
+  `Cvar_InfoString_Big` into one 8192-byte buffer, and `sv_referencedPakNames`
+  and `sv_referencedPaks` grow with the referenced archives.
+  `Info_SetValueForKey_Big` neither truncates nor fails on overflow: it prints
+  one line and returns, leaving out whichever key first did not fit — and
+  `Cvar_InfoString_Big` walks `cvar_vars` in list order, so it is not even
+  predictably a pak key. `arena_runtime.check_systeminfo_budget` projects the
+  string over the *whole published set*, as if every archive were referenced,
+  and refuses a set that would not fit.
+
+  Measured rather than assumed: a dedicated server started with all nine
+  published archives reports two referenced archives, not nine —
+  `FS_ClearPakReferences(0)` runs on every `SV_SpawnServer` and only the base
+  and the loaded map are opened afterwards — and its `CS_SYSTEMINFO` is 275
+  bytes of 8192 across thirteen cvars. The projection is pessimistic on
+  purpose, because a bound may not depend on which files a session happens to
+  open. Each archive costs `37 + len(<map name>)` bytes, so the ceiling is
+  `(8192 − 590) / (37 + longest map name)` — 149 map archives at today's
+  longest name, `am_underworks2`. Any rotation is a subset of the published set
+  and the string grows monotonically with it, so a published set that fits
+  leaves every rotation of it fitting.
+
+  **This is not the constraint on rotation size.** It was expected to be; it is
+  not, by two orders of magnitude against the 29-map v1 set, which projects to
+  1,908 bytes. What bounds a rotation is what a player downloads and holds in
+  the tab, which is why the manifest now records both sizes.

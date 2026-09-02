@@ -85,16 +85,42 @@ esac
 # and restored by the same trap that removes the scratch fragment.
 release_index="${repo_dir}/release/browser-release.json"
 held_index="${verify_dir}/browser-release.held.json"
+# Every published map needs a measured peak hunk, and the fixture map is by
+# construction not published, so the scratch fragment needs a scratch figure
+# beside it. It is restored with the fragment, and the value is deliberately
+# the published maximum rather than an invented measurement: the build only
+# checks that a figure exists and fits the pinned engine's hunk, and a number
+# that looked measured would be the more misleading one to leave behind if a
+# restore ever failed.
+resources="${repo_dir}/records/map-resource-measurements.json"
+held_resources="${verify_dir}/map-resource-measurements.held.json"
 cleanup_growth() {
   rm -f "${grown_fragment}"
   if [[ -f "${held_index}" && ! -f "${release_index}" ]]; then
     mv "${held_index}" "${release_index}"
+  fi
+  if [[ -f "${held_resources}" ]]; then
+    mv -f "${held_resources}" "${resources}"
   fi
 }
 trap cleanup_growth EXIT
 if [[ -f "${release_index}" ]]; then
   mv "${release_index}" "${held_index}"
 fi
+cp "${resources}" "${held_resources}"
+python3 - "${resources}" "${grown_map}" <<'PYTHON'
+import json
+import sys
+
+path, name = sys.argv[1], sys.argv[2]
+with open(path, encoding="utf-8") as handle:
+    record = json.load(handle)
+peak = max(entry["peakHunkBytes"] for entry in record["maps"].values())
+record["maps"][name] = {"peakHunkBytes": peak}
+with open(path, "w", encoding="utf-8") as handle:
+    handle.write(json.dumps(record, indent=2, sort_keys=True, ensure_ascii=False))
+    handle.write("\n")
+PYTHON
 
 # A map from the already pinned sources, so the check measures set growth and
 # not a new upstream input. Its arena values are the fixture's own: the map is

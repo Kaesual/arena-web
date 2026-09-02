@@ -72,6 +72,39 @@ class ContentError(ValueError):
     """Raised when the recipe, a source archive or the closure is not usable."""
 
 
+def engine_constant(engine_root: Path, name: str, source: str) -> int:
+    """One ``#define <name> <number>`` out of the pinned engine tree.
+
+    Read rather than restated, so an engine pin that changes a buffer size
+    cannot leave a gate derived from it silently permissive. Shared, because
+    both the content assembly and the served-set validation derive a bound
+    this way and two regexes would be two chances to read the pin differently.
+    """
+    header = engine_root / source
+    try:
+        text = header.read_text(encoding="latin-1")
+    except OSError as error:
+        raise ContentError(
+            f"cannot read {source} out of the pinned engine tree at "
+            f"{engine_root}: {error}"
+        ) from error
+    # A trailing comment is part of the pinned source for at least
+    # BIG_INFO_STRING, so the pattern allows one — but nothing else: the value
+    # must still be a plain decimal literal on the define's own line, or the
+    # bound is not the one the compiler saw.
+    match = re.search(
+        rf"^#define[ \t]+{name}[ \t]+(\d+)[ \t]*(?://[^\n]*|/\*[^\n]*\*/)?$",
+        text,
+        re.M,
+    )
+    if match is None:
+        raise ContentError(
+            f"{header} no longer defines {name}; the gate derived from it cannot "
+            "be read out of the pinned engine"
+        )
+    return int(match.group(1))
+
+
 def file_sha256(path: Path) -> str:
     digest = hashlib.sha256()
     with path.open("rb") as handle:
@@ -726,6 +759,91 @@ def load_map_fragments(root: Path, recipe: dict[str, Any]) -> dict[str, dict[str
     return fragments
 
 
+# Measured per-map engine resource figures. Not a selection input: see the
+# record's own comment for why a measurement may not sit in a fragment.
+MAP_RESOURCE_RECORD = "records/map-resource-measurements.json"
+MAP_RESOURCE_INPUT_ID = "arena-web-resource-measurements"
+MAP_RESOURCE_KEYS = ("peakHunkBytes",)
+
+# ioq3 code/qcommon/common.c: the hunk every map's load has to fit into.
+# MIN_COMHUNKMEGS is defined as DEF_COMHUNKMEGS, so it is also the floor.
+_COMMON_SOURCE = "code/qcommon/common.c"
+
+
+def load_map_resources(
+    root: Path, engine_root: Path, baseline: dict[str, Any], maps: Iterable[str]
+) -> dict[str, dict[str, int]]:
+    """The committed per-map measurements, checked against the pinned engine.
+
+    Three things make this more than a table the build copies out:
+
+    * its map set must be exactly the committed fragment set, both ways, so a
+      map cannot be published without a measurement and a measurement cannot
+      outlive its map;
+    * every peak hunk must fit `DEF_COMHUNKMEGS` read out of the pinned engine
+      rather than a number restated here, because that is the allocation the
+      map load actually has to fit (`Com_InitHunkMemory`); and
+    * the record names the engine commit it was measured against, and that
+      must be the pinned one. Peak hunk is an engine-behaviour measurement, so
+      an engine move invalidates it — silently, if nothing checks.
+    """
+    relative = MAP_RESOURCE_RECORD
+    record = _load_json(root / relative)
+    if not isinstance(record, dict) or set(record) != {
+        "$comment",
+        "formatVersion",
+        "maps",
+        "method",
+    }:
+        raise ContentError(
+            f"{relative} must have exactly $comment, formatVersion, maps and method"
+        )
+    if record["formatVersion"] != 1:
+        raise ContentError(f"{relative} has an unsupported formatVersion")
+    method = record["method"]
+    if not isinstance(method, dict):
+        raise ContentError(f"{relative}.method must be an object")
+    engine_commit = baseline["engine"]["commit"]
+    if method.get("engineCommit") != engine_commit:
+        raise ContentError(
+            f"{relative}.method.engineCommit is {method.get('engineCommit')!r}, and "
+            f"the pinned engine is {engine_commit!r}; peak hunk is an engine "
+            "measurement and does not survive an engine move unremeasured"
+        )
+    entries = record["maps"]
+    if not isinstance(entries, dict):
+        raise ContentError(f"{relative}.maps must be an object")
+    wanted = set(maps)
+    if set(entries) != wanted:
+        missing = sorted(wanted - set(entries))
+        extra = sorted(set(entries) - wanted)
+        raise ContentError(
+            f"{relative}.maps does not match the committed fragments "
+            f"(missing {missing}, unexpected {extra})"
+        )
+    ceiling = engine_constant(engine_root, "DEF_COMHUNKMEGS", _COMMON_SOURCE) * 1024 * 1024
+    resources: dict[str, dict[str, int]] = {}
+    for name in sorted(entries):
+        entry = entries[name]
+        if not isinstance(entry, dict) or set(entry) != set(MAP_RESOURCE_KEYS):
+            raise ContentError(
+                f"{relative}.maps.{name} must have exactly {list(MAP_RESOURCE_KEYS)}"
+            )
+        value = entry["peakHunkBytes"]
+        if not isinstance(value, int) or isinstance(value, bool) or value <= 0:
+            raise ContentError(
+                f"{relative}.maps.{name}.peakHunkBytes must be a positive integer"
+            )
+        if value >= ceiling:
+            raise ContentError(
+                f"{relative}.maps.{name} peaks at {value} bytes of hunk, and the "
+                f"pinned engine allocates {ceiling} (DEF_COMHUNKMEGS); the map "
+                "load would fail with Hunk_Alloc failed"
+            )
+        resources[name] = dict(entry)
+    return resources
+
+
 def check_map_pack_template(recipe: dict[str, Any]) -> None:
     template = recipe.get("mapPackTemplate")
     if not isinstance(template, str) or template.count("{map}") != 1:
@@ -791,6 +909,10 @@ class AssembledArchive:
     origins: dict[str, tuple[str, str, str]]
     recipe_input: str
     recipe_identity: str
+    # The map this archive carries, or None for the base. It is the selection
+    # key a rotation is expressed in, so the manifest records it rather than
+    # leaving a consumer to recover it from the file name by convention.
+    map_name: str | None = None
 
 
 def provenance_sources(

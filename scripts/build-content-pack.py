@@ -29,10 +29,14 @@ from content_pack import (
     check_map_pack_template,
     check_shader_authority,
     check_shader_resolution,
+    engine_constant,
     file_sha256,
     iter_forbidden,
     load_map_fragments,
+    load_map_resources,
     load_recipe,
+    MAP_RESOURCE_INPUT_ID,
+    MAP_RESOURCE_RECORD,
     map_fragment_input_id,
     map_fragment_path,
     map_pack_path,
@@ -647,23 +651,6 @@ def _check_derived_members(
                 )
 
 
-def _engine_constant(engine_root: Path, name: str, source: str) -> int:
-    """One `#define <name> <number>` out of the pinned engine tree.
-
-    Read rather than restated, so an engine pin that changes a buffer size
-    cannot leave a gate derived from it silently permissive.
-    """
-    header = engine_root / source
-    pattern = re.compile(rf"^#define\s+{name}\s+(\d+)\s*$", re.M)
-    match = pattern.search(header.read_text(encoding="latin-1"))
-    if match is None:
-        raise ContentError(
-            f"{header} no longer defines {name}; the gate derived from it cannot "
-            "be read out of the pinned engine"
-        )
-    return int(match.group(1))
-
-
 def _check_arena_file_listing(engine_root: Path, arena_files: list[str]) -> None:
     """The per-map `.arena` names must fit `G_LoadArenas`' listing buffer.
 
@@ -709,7 +696,7 @@ def _check_arena_text_size(
     code/q3_ui/ui_gameinfo.c). One red console line, zero parsed arenas, and no
     property of the assembled archive would show it.
     """
-    limit = _engine_constant(engine_root, "MAX_ARENAS_TEXT", _GAMECODE_HEADER)
+    limit = engine_constant(engine_root, "MAX_ARENAS_TEXT", _GAMECODE_HEADER)
     for path, text in sorted(metadata.items()):
         if not path.endswith((".arena", "arenas.txt")):
             continue
@@ -744,7 +731,7 @@ def _check_base_metadata(
     # measured. The file grows with the bot roster, so the size is a build
     # gate.
     _check_arena_text_size(engine_root, metadata, "the base archive")
-    limit = _engine_constant(engine_root, "MAX_BOTS_TEXT", _GAMECODE_HEADER)
+    limit = engine_constant(engine_root, "MAX_BOTS_TEXT", _GAMECODE_HEADER)
     bots_bytes = len(metadata["scripts/bots.txt"].encode("utf-8"))
     if bots_bytes >= limit:
         raise ContentError(
@@ -1150,6 +1137,7 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
 
     _check_profile(recipe, fragments)
     engine_root = root / baseline["engine"]["submodulePath"]
+    resources = load_map_resources(root, engine_root, baseline, fragments)
     references = baseq3_references(engine_root)
     declared_templates = _reconcile_templates(references, recipe)
     static_references = _static_reference_paths(references)
@@ -1274,6 +1262,7 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
                 origins=origins,
                 recipe_input=recipe_input,
                 recipe_identity=recipe_identity,
+                map_name=None if name == "base" else name,
             )
         )
         reports[name] = (report, members)
@@ -1289,13 +1278,20 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
     for archive in archives:
         pack_path = arguments.output_dir / archive.path
         write_pk3(archive.members, pack_path)
-        artifacts.append(
-            {
-                "path": archive.path,
-                "sha256": file_sha256(pack_path),
-                "size": pack_path.stat().st_size,
-            }
-        )
+        artifact = {
+            "path": archive.path,
+            "sha256": file_sha256(pack_path),
+            "size": pack_path.stat().st_size,
+            # What the archive costs once it is unpacked, summed from the
+            # members this run wrote rather than read back off the disk it just
+            # wrote them to. A caller budgeting a rotation needs this and the
+            # packed size is not a proxy for it.
+            "uncompressedSize": sum(len(data) for data in archive.members.values()),
+        }
+        if archive.map_name is not None:
+            artifact["map"] = archive.map_name
+            artifact["peakHunkBytes"] = resources[archive.map_name]["peakHunkBytes"]
+        artifacts.append(artifact)
 
     manifest = {
         "$schema": ARTIFACT_SCHEMA,
@@ -1327,6 +1323,17 @@ def build(root: Path, arguments: argparse.Namespace) -> int:
                     "kind": "archive",
                 }
                 for name in fragments
+            ]
+            + [
+                # The measured per-map figures this manifest carries. Their
+                # record is not a selection input — it may not move an
+                # archive's bytes — but it decides manifest content, so it
+                # enters the identity here.
+                {
+                    "id": MAP_RESOURCE_INPUT_ID,
+                    "identity": f"sha256:{file_sha256(root / MAP_RESOURCE_RECORD)}",
+                    "kind": "archive",
+                }
             ]
             + [
                 {

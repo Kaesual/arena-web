@@ -168,8 +168,15 @@ The slice is one map, free-for-all, with three bots and no networking. It needs
 the browser build and the content pack from the two steps above.
 
 ```bash
-scripts/serve-arena.sh          # then open http://127.0.0.1:8174/
+scripts/serve-arena.sh          # it prints the URL, including ?maps=
 ```
+
+The URL carries the rotation: `?maps=<map>[,<map>...]` names the maps to fetch,
+and the page refuses without it. There is no default — fetching every published
+archive is the cost the selection exists to remove, and defaulting to the
+profile's own map would silently produce the one failure that matters, a client
+holding fewer maps than its server rotates through. `serve-arena.sh` prints the
+right URL for this slice.
 
 The script does not serve this repository. It assembles a separate tree
 containing the loader, the committed content configuration, the two committed

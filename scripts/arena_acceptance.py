@@ -236,6 +236,15 @@ class Expectations:
     artifact_digests: dict[str, str]
     engine_arguments: tuple[str, ...]
     bot_names: tuple[str, ...]
+    # The rotation this run opens the page for, the served archives it must
+    # therefore fetch, and the published archives it must leave alone. The last
+    # one is the point: a run that fetched everything would pass every other
+    # check in this file.
+    rotation: tuple[str, ...]
+    rotation_parameter: str
+    rotation_served: frozenset[str]
+    rotation_excluded: frozenset[str]
+    rotation_excluded_maps: tuple[str, ...]
 
 
 def pinned_browser_version(repo_root: Path) -> str:
@@ -500,11 +509,19 @@ class RunResult:
 
 
 def _evaluate(
-    session: DevToolsSession, expression: str, *, timeout: float = 60.0
+    session: DevToolsSession,
+    expression: str,
+    *,
+    timeout: float = 60.0,
+    await_promise: bool = False,
 ) -> Any:
     result = session.call(
         "Runtime.evaluate",
-        {"expression": expression, "returnByValue": True, "awaitPromise": False},
+        {
+            "expression": expression,
+            "returnByValue": True,
+            "awaitPromise": await_promise,
+        },
         timeout=timeout,
     )
     if result.get("exceptionDetails"):
@@ -622,6 +639,152 @@ def _collect_events(session: DevToolsSession, result: RunResult) -> None:
             )
 
 
+def probe_rotation_refusals(
+    *,
+    chrome: Path,
+    serve: StaticServe,
+    directory: Path,
+    expected: Expectations,
+    profile_map: str,
+    boot_timeout: float,
+    headless: bool,
+    angle_backend: str,
+    window: tuple[int, int],
+) -> list[Check]:
+    """The refusals of the shipped loader, in the pinned browser.
+
+    The run above proves the selection selects. These prove it *refuses*, which
+    is the half a passing run cannot show: the rotation is a required parameter
+    precisely because both silent defaults are wrong — fetching everything is
+    the problem this exists to solve, and falling back to the profile's own map
+    produces a client whose archive set is a strict subset of the server's
+    rotation, which the engine drops mid-match with no earlier symptom.
+
+    Every case is loaded into the real page rather than reasoned about, because
+    a message the code can produce and a message anyone has seen it produce are
+    different claims.
+    """
+    excluded = sorted(expected.rotation_excluded_maps)
+    if not excluded:
+        # Fail rather than skip. A guarded "if there is something to test"
+        # around the last two checks would make them disappear silently the
+        # first time a release published few enough maps, which is the shape
+        # this whole work package exists to stop.
+        raise AcceptanceError(
+            "no published map is outside the rotation, so the offline start "
+            "guard cannot be exercised"
+        )
+    cases = [
+        ("no-rotation", "", "must be opened with ?maps="),
+        ("empty-rotation", "?maps=", "is empty"),
+        ("empty-entry", f"?maps={profile_map},", "is empty"),
+        ("unknown-map", "?maps=no_such_map", "publishes no archive for no_such_map"),
+        # The base is implicit and unnameable: its archive carries no map, so a
+        # rotation cannot ask for it and cannot leave it out either.
+        ("base-is-not-selectable", "?maps=arena-web-ffa-base", "publishes no archive"),
+    ]
+    checks: list[Check] = []
+    browser = ChromeProcess(
+        chrome,
+        directory / "profile",
+        headless=headless,
+        window_size=window,
+        angle_backend=angle_backend,
+    )
+    browser.start()
+    try:
+        session = browser.page_session()
+        for domain in ("Page", "Runtime"):
+            session.call(f"{domain}.enable")
+        for name, query, needle in cases:
+            session.call("Page.navigate", {"url": f"{serve.origin}/{query}"})
+            wait_until(
+                lambda: _evaluate(session, "window.arenaWeb?.report?.status")
+                in ("ready", "failed"),
+                timeout=boot_timeout,
+                description=f"the loader settling for {name}",
+            )
+            status = _evaluate(session, "window.arenaWeb.report.status")
+            message = _evaluate(
+                session, "window.arenaWeb.report.error?.message ?? ''"
+            )
+            checks.append(
+                Check(
+                    f"rotation-refused-{name}",
+                    status == "failed" and needle in message,
+                    f"status '{status}', message '{message}'",
+                )
+            )
+        # The offline profile starts profile["map"] from its committed
+        # engineArguments, so a rotation without it must be refused at Start
+        # rather than handed to an engine that cannot find its BSP.
+        session.call("Page.navigate", {"url": f"{serve.origin}/?maps={excluded[0]}"})
+        wait_until(
+            lambda: _evaluate(session, "window.arenaWeb?.report?.status")
+            in ("ready", "failed"),
+            timeout=boot_timeout,
+            description="the loader becoming ready without the profile's map",
+        )
+        status = _evaluate(session, "window.arenaWeb.report.status")
+        refusal = _evaluate(
+            session,
+            "window.arenaWeb.start().then(() => 'started', (error) => error.message)",
+            await_promise=True,
+        )
+        # start() refuses before it consumes user activation, so the
+        # reason is reachable from a headless probe too, not only from a
+        # real click.
+        checks.append(
+            Check(
+                "rotation-refused-offline-without-its-map",
+                status == "ready"
+                and isinstance(refusal, str)
+                and "the offline profile starts" in refusal,
+                f"status '{status}', start() said '{refusal}'",
+            )
+        )
+        # A refusal a person cannot see is a button that does nothing. The
+        # rejected Promise above is the host's channel; this is the player's,
+        # and it only exists if the click handler surfaces it — so the check
+        # goes through a real click rather than the API.
+        rectangle = json.loads(
+            _evaluate(
+                session,
+                "JSON.stringify(document.getElementById('start')"
+                ".getBoundingClientRect())",
+            )
+        )
+        _dispatch_click(
+            session,
+            rectangle["x"] + rectangle["width"] / 2,
+            rectangle["y"] + rectangle["height"] / 2,
+        )
+        wait_until(
+            lambda: "Cannot start"
+            in (
+                _evaluate(
+                    session, "document.getElementById('message').textContent"
+                )
+                or ""
+            ),
+            timeout=15.0,
+            description="the refusal reaching the overlay",
+        )
+        overlay = _evaluate(
+            session, "document.getElementById('message').textContent"
+        )
+        checks.append(
+            Check(
+                "rotation-refusal-is-visible",
+                isinstance(overlay, str) and "Cannot start" in overlay,
+                f"overlay said '{overlay}'",
+            )
+        )
+    finally:
+        browser.stop()
+    return checks
+
+
 def run_once(
     *,
     index: int,
@@ -655,7 +818,10 @@ def run_once(
         session = browser.page_session()
         for domain in ("Page", "Runtime", "Log", "Network"):
             session.call(f"{domain}.enable")
-        session.call("Page.navigate", {"url": f"{serve.origin}/"})
+        session.call(
+            "Page.navigate",
+            {"url": f"{serve.origin}/?maps={expected.rotation_parameter}"},
+        )
 
         def poll(expression: str) -> Any:
             _collect_events(session, result)
@@ -936,12 +1102,23 @@ def _score(result: RunResult, expected: Expectations) -> None:
     identities = snapshot.get("identities", [])
     mismatched = [item["served"] for item in identities if not item.get("matches")]
     reported = {item["served"]: item.get("actualSha256") for item in identities}
+    # Against the *selected* artifacts, which is what the page was asked to
+    # fetch. Comparing against every committed artifact would fail any run with
+    # a rotation, and comparing against only what the page reported would let a
+    # run that skipped an archive pass. So the expected set is the committed one
+    # minus exactly the archives this rotation excludes.
+    selected_digests = {
+        served: digest
+        for served, digest in expected.artifact_digests.items()
+        if served not in expected.rotation_excluded
+    }
     result.checks.append(
         Check(
             "runtime-identities-match-committed-manifests",
-            reported == expected.artifact_digests and not mismatched,
-            f"{len(identities)} artifacts against {len(expected.artifact_digests)} "
-            f"committed identities, mismatched: {mismatched}",
+            reported == selected_digests and not mismatched,
+            f"{len(identities)} artifacts against {len(selected_digests)} selected "
+            f"of {len(expected.artifact_digests)} committed identities, "
+            f"mismatched: {mismatched}",
         )
     )
 
@@ -1106,6 +1283,28 @@ def _score(result: RunResult, expected: Expectations) -> None:
         )
     )
 
+    # The fetch selection, in a real browser, both ways. The page is opened with
+    # a deliberately unsorted parameter carrying a repeated name, because a
+    # caller passes its rotation *list* and a rotation may play a map twice per
+    # cycle: two spellings of one set must fetch one set.
+    rotation = snapshot.get("rotation") or {}
+    result.checks.append(
+        Check(
+            "rotation-canonicalised",
+            tuple(rotation.get("resolved") or ()) == expected.rotation,
+            f"resolved {rotation.get('resolved')} from '{rotation.get('parameter')}'",
+        )
+    )
+    fetched_archives = served_paths & (expected.rotation_served | expected.rotation_excluded)
+    result.checks.append(
+        Check(
+            "rotation-fetched-exactly-its-archives",
+            fetched_archives == set(expected.rotation_served),
+            f"missing {sorted(set(expected.rotation_served) - fetched_archives)}, "
+            f"unwanted {sorted(fetched_archives & expected.rotation_excluded)}",
+        )
+    )
+
     frames = snapshot.get("frames", {})
     result.checks.append(
         Check(
@@ -1228,6 +1427,47 @@ def run_acceptance(
         if entry["kind"] == "artifact"
     }
 
+    # The rotation this acceptance opens the page for. It is derived rather
+    # than written down, so publishing a map needs no edit here, and it is a
+    # strict subset of the published set on purpose: the point of the run is
+    # that the archives outside it are never fetched. The offline profile
+    # starts profile["map"], so that one has to be in it.
+    content_manifest = json.loads(
+        (REPO_ROOT / profile["manifests"]["content"]).read_text(encoding="utf-8")
+    )
+    archive_by_map = {
+        artifact["map"]: artifact["path"]
+        for artifact in content_manifest["artifacts"]
+        if isinstance(artifact.get("map"), str)
+    }
+    others = sorted(name for name in archive_by_map if name != profile["map"])
+    if not others:
+        raise AcceptanceError(
+            "the release publishes one map archive, so a selection cannot be "
+            "distinguished from fetching everything"
+        )
+    rotation = tuple(sorted((profile["map"], others[0])))
+    # Unsorted, and with a repeat, so the canonicalisation is exercised in the
+    # browser rather than only in a unit test.
+    rotation_parameter = ",".join((others[0], profile["map"], others[0]))
+    served_by_path = {
+        entry["artifactPath"]: served
+        for served, entry in files.items()
+        if entry["kind"] == "artifact" and entry.get("manifest") == "content"
+    }
+    rotation_served = frozenset(
+        served
+        for path, served in served_by_path.items()
+        if path not in archive_by_map.values()
+        or path in {archive_by_map[name] for name in rotation}
+    )
+    rotation_excluded = frozenset(served_by_path.values()) - rotation_served
+    rotation_excluded_maps = tuple(
+        sorted(name for name in archive_by_map if name not in rotation)
+    )
+    if not rotation_excluded:
+        raise AcceptanceError("the rotation covers every archive; nothing is excluded")
+
     if output_root.exists():
         shutil.rmtree(output_root)
     output_root.mkdir(parents=True)
@@ -1251,6 +1491,11 @@ def run_acceptance(
             artifact_digests=expected_artifact_digests,
             engine_arguments=tuple(profile["engineArguments"]),
             bot_names=tuple(bot["name"] for bot in profile["bots"]),
+            rotation=rotation,
+            rotation_parameter=rotation_parameter,
+            rotation_served=rotation_served,
+            rotation_excluded=rotation_excluded,
+            rotation_excluded_maps=rotation_excluded_maps,
         )
         for index in range(1, runs + 1):
             results.append(
@@ -1267,6 +1512,18 @@ def run_acceptance(
                     angle_backend=angle_backend,
                 )
             )
+
+        refusals = probe_rotation_refusals(
+            chrome=chrome,
+            serve=serve,
+            directory=output_root / "rotation-refusals",
+            expected=expectations,
+            profile_map=profile["map"],
+            boot_timeout=boot_timeout,
+            headless=headless,
+            angle_backend=angle_backend,
+            window=window,
+        )
 
     comparison = compare_runs(results[0], results[-1]) if len(results) > 1 else []
     summary = {
@@ -1292,8 +1549,10 @@ def run_acceptance(
             for result in results
         ],
         "comparison": [check.__dict__ for check in comparison],
+        "rotationRefusals": [check.__dict__ for check in refusals],
         "passed": all(result.passed for result in results)
-        and all(check.passed for check in comparison),
+        and all(check.passed for check in comparison)
+        and all(check.passed for check in refusals),
     }
     (output_root / "summary.json").write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8"
@@ -1362,6 +1621,10 @@ def main(argv: list[str] | None = None) -> int:
             mark = "ok  " if check["passed"] else "FAIL"
             print(f"  [{mark}] {check['name']} {check['detail']}")
     for check in summary["comparison"]:
+        mark = "ok  " if check["passed"] else "FAIL"
+        print(f"  [{mark}] {check['name']} {check['detail']}")
+    print("rotation refusals:")
+    for check in summary["rotationRefusals"]:
         mark = "ok  " if check["passed"] else "FAIL"
         print(f"  [{mark}] {check['name']} {check['detail']}")
     return 0 if summary["passed"] else 1

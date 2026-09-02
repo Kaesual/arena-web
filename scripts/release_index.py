@@ -23,6 +23,11 @@ MAP_FRAGMENT_INPUT_PREFIX = "arena-web-map-"
 
 # How many hex characters of an artifact's own SHA-256 its served name carries.
 SERVED_DIGEST_PREFIX_LENGTH = 16
+
+# The measured per-map figures the content manifest carries, and the input id
+# under which their record enters the release identity.
+MAP_RESOURCE_RECORD = "records/map-resource-measurements.json"
+MAP_RESOURCE_INPUT_ID = "arena-web-resource-measurements"
 AUTHORITY_PATHS = {
     "baseline": "locks/baseline.json",
     "browserAcceptance": "scripts/accept-host-lifecycle.py",
@@ -187,6 +192,161 @@ def _check_map_fragments(root: Path, content_inputs: dict[str, str]) -> None:
                 f"authorities.contentManifest: {MAP_FRAGMENT_DIRECTORY}/{name}.json "
                 "is not the fragment the manifest records"
             )
+
+
+def _check_map_resources(
+    root: Path, content_manifest: dict[str, Any], content_inputs: dict[str, str]
+) -> None:
+    """The committed measurements, the manifest's copy of them, and the record.
+
+    The figures are measured, not derived, so a build cannot recompute them and
+    a reader cannot check them against the archives. What can be checked is
+    that there is exactly one source for them, that the manifest says what the
+    source says, and that the source is inside the release identity — which is
+    what makes a silently edited number a failure rather than a new fact.
+    """
+    source = root / MAP_RESOURCE_RECORD
+    if not source.is_file():
+        _fail(f"authorities.contentManifest: {MAP_RESOURCE_RECORD} is missing")
+    digest, _size = _identity(source)
+    if content_inputs.get(MAP_RESOURCE_INPUT_ID) != f"sha256:{digest}":
+        _fail(
+            f"authorities.contentManifest: input {MAP_RESOURCE_INPUT_ID} is not "
+            f"{MAP_RESOURCE_RECORD}"
+        )
+    try:
+        record = json.loads(source.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        _fail(f"{MAP_RESOURCE_RECORD}: cannot read: {error}")
+    maps = record.get("maps") if isinstance(record, dict) else None
+    if not isinstance(maps, dict):
+        _fail(f"{MAP_RESOURCE_RECORD}.maps: must be an object")
+    declared = {}
+    for item in content_manifest.get("artifacts", []):
+        if isinstance(item, dict) and isinstance(item.get("map"), str):
+            declared[item["map"]] = item.get("peakHunkBytes")
+    if set(declared) != set(maps):
+        _fail(
+            f"authorities.contentManifest: its maps {sorted(declared)} are not the "
+            f"measured set {sorted(maps)}"
+        )
+    for name in sorted(declared):
+        entry = maps[name]
+        expected = entry.get("peakHunkBytes") if isinstance(entry, dict) else None
+        if declared[name] != expected:
+            _fail(
+                f"authorities.contentManifest: {name} records peakHunkBytes "
+                f"{declared[name]!r}, and {MAP_RESOURCE_RECORD} measured {expected!r}"
+            )
+
+
+def _check_payload_members(
+    root: Path, authorities: dict[str, Any], packs: list[str], notice_file: str
+) -> None:
+    """The member-level half of the client-to-server payload binding.
+
+    The archive-level half above requires every archive the client is handed to
+    be the archive the server runs, byte for byte. That is not the whole
+    statement once the client fetches a *subset*: the two sides then mount
+    different archive sets, and the engine resolves a file name across the
+    mounted set, highest-named archive winning (ioq3 code/qcommon/files.c
+    FS_AddGameDirectory, FS_FOpenFileRead). A game path carried by two archives
+    with different bytes would therefore resolve differently for a client that
+    fetched one of them and for the server that carries both — with no error
+    anywhere, because `sv_pure 0` and `cl_allowDownload 0` leave the engine no
+    content-agreement check at all.
+
+    So the member-level rule is: **no game path may carry two different digests
+    across the published archives.** With it, and with the archive-level
+    equality, every game path the *packs* carry on both sides resolves to the
+    same bytes for every rotation, and a later trimmed server variant is safe
+    for the same reason rather than by accident. (The rule is about the packs.
+    The two sides' other files are bound one by one by the server manifest —
+    `default.cfg` deliberately differs, because the server's is a different
+    file.)
+
+    **What this can and cannot catch today, stated so it is not read as more.**
+    Under the current builder it cannot fire: one shared `SourceSet` collapses
+    every game path to a single `SourceMember` before any closure runs, so two
+    archives that carry a path carry the same object's bytes, and
+    `content_pack.check_duplicate_members` asserts the same property over the
+    real bytes at build time. This is a forward guard — for a per-map source
+    set, for a trimmed server pack, for anything that gives two archives
+    independent copies of one path. The parts of this function that *do* have
+    live subject matter are the two below it: the exemption-liveness check, and
+    the caller's requirement that the server manifest carry exactly the
+    published archives and no tenth.
+
+    The one declared exception is the generated notice, which is per archive on
+    purpose (each archive is its own GPL distribution and lists its own upstream
+    sources). The exception is taken from the recipe rather than written here,
+    and an exception that is *not* exercised is itself a failure: a rule that
+    exempts nothing has stopped describing the pack, and the next member to
+    diverge would inherit the silence.
+    """
+    relative = authorities["contentMemberProvenance"]["path"]
+    try:
+        record = json.loads((root / relative).read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        _fail(f"authorities.contentMemberProvenance: cannot read: {error}")
+    archives = record.get("archives") if isinstance(record, dict) else None
+    if not isinstance(archives, list) or not archives:
+        _fail(f"{relative}.archives: must be a non-empty array")
+    by_path: dict[str, list[dict[str, Any]]] = {}
+    for number, archive in enumerate(archives):
+        if not isinstance(archive, dict):
+            _fail(f"{relative}.archives[{number}]: must be an object")
+        path = archive.get("path")
+        members = archive.get("members")
+        if not isinstance(path, str) or not isinstance(members, list):
+            _fail(f"{relative}.archives[{number}]: has no path or member list")
+        if path in by_path:
+            _fail(f"{relative}.archives: records {path} twice")
+        by_path[path] = members
+    if sorted(by_path) != sorted(packs):
+        _fail(
+            f"{relative}.archives: records {sorted(by_path)}, and the content "
+            f"manifest publishes {sorted(packs)}"
+        )
+    # Keyed the way the engine looks a member up: FS_FOpenFileRead hashes the
+    # lower-cased name and FS_AddFileToList de-duplicates with Q_stricmp, so two
+    # case variants are one member to it.
+    exempt = notice_file.replace("\\", "/").strip().lstrip("/").lower()
+    seen: dict[str, tuple[str, str]] = {}
+    divergent_exempt = False
+    for pack in sorted(by_path):
+        local: set[str] = set()
+        for number, member in enumerate(by_path[pack]):
+            if not isinstance(member, dict):
+                _fail(f"{relative}.archives[{pack}].members[{number}]: must be an object")
+            path = member.get("path")
+            digest = member.get("sha256")
+            if not isinstance(path, str) or not isinstance(digest, str):
+                _fail(
+                    f"{relative}.archives[{pack}].members[{number}]: has no path or digest"
+                )
+            key = path.replace("\\", "/").strip().lstrip("/").lower()
+            if key in local:
+                _fail(f"{relative}.archives[{pack}]: records {path} twice")
+            local.add(key)
+            previous = seen.get(key)
+            if previous is None:
+                seen[key] = (pack, digest)
+            elif previous[1] != digest:
+                if key == exempt:
+                    divergent_exempt = True
+                    continue
+                _fail(
+                    f"{relative}: {path} is sha256:{previous[1]} in {previous[0]} and "
+                    f"sha256:{digest} in {pack}; a client that fetched one of them "
+                    "and the server that carries both would resolve different bytes"
+                )
+    if not divergent_exempt:
+        _fail(
+            f"authorities.contentRecipe: noticeFile {notice_file!r} is exempted from "
+            "the member-level payload rule but carries the same bytes in every "
+            "archive, so the exemption no longer describes the pack"
+        )
 
 
 def validate_release_index(
@@ -365,6 +525,31 @@ def validate_release_index(
         )
         if server_identity_for_pack != client_identity:
             _fail(f"authorities.serverManifest: {pack} payload drift")
+    # …and no archive beyond them. Checking only the packs the client publishes
+    # would leave the server free to carry a tenth archive that no client ever
+    # verifies, and PK3 load order is by name, so such an archive could take a
+    # file lookup away from one the two sides agree on.
+    server_packs = sorted(
+        item.get("path")
+        for item in server_manifest.get("artifacts", [])
+        if isinstance(item, dict)
+        and isinstance(item.get("path"), str)
+        and item["path"].startswith(f"{SERVER_GAME_DIRECTORY}/")
+        and item["path"].endswith(".pk3")
+    )
+    expected_server_packs = sorted(
+        f"{SERVER_GAME_DIRECTORY}/{pack.rsplit('/', 1)[-1]}" for pack in packs
+    )
+    if server_packs != expected_server_packs:
+        _fail(
+            f"authorities.serverManifest: carries the archives {server_packs}, and "
+            f"the release publishes {expected_server_packs}"
+        )
+    _check_map_resources(root, content_manifest, content_inputs)
+    notice_file = content_recipe.get("noticeFile")
+    if not isinstance(notice_file, str) or not notice_file:
+        _fail("authorities.contentRecipe: has no noticeFile")
+    _check_payload_members(root, authorities, packs, notice_file)
     # `contentPayloadIdentity` names the *base* archive. The map archives are
     # covered transitively, through `contentManifestIdentity`, and by the
     # equality above.

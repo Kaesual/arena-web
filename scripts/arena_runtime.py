@@ -28,7 +28,7 @@ import json
 import re
 import shutil
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
 
 CHUNK_SIZE = 1024 * 1024
 
@@ -97,6 +97,59 @@ SERVED_DIGEST_PREFIX_LENGTH = 16
 # artifact paths, which the browser build writes.
 HASHED_SERVED_MANIFESTS = ("content",)
 
+# The per-artifact records the content manifest carries beyond an artifact's
+# own identity. `map` is the selection key a rotation is expressed in;
+# `uncompressedSize` and `peakHunkBytes` are what a caller needs in order to
+# budget one. They exist on content artifacts only — an engine artifact has no
+# map, and neither manifest may borrow the other's vocabulary.
+CONTENT_ARTIFACT_RECORDS = ("map", "peakHunkBytes", "uncompressedSize")
+
+# The pinned engine tree, and the header the systeminfo bound is read out of.
+ENGINE_ROOT = "ioq3"
+SYSTEMINFO_HEADER = "code/qcommon/q_shared.h"
+
+# ioq3 code/qcommon/files.c FS_ReferencedPakChecksums writes `va("%i ", ...)`
+# per referenced pack, and the checksum is a signed 32-bit int: eleven
+# characters at worst, plus the trailing space it always emits.
+SYSTEMINFO_CHECKSUM_WIDTH = len("-2147483648") + 1
+
+# Everything in CS_SYSTEMINFO that is not one of the two referenced-pak keys.
+# Measured on the pinned engine and QVMs by running the dedicated server with
+# the published archive set and reading `systeminfo` back: thirteen cvars,
+# 153 bytes, of which 122 were the two pak keys.
+#
+# A remembered measurement would be the one number in this bound that nothing
+# checks, so it is not left as one: `systeminfo_fixed_floor` enumerates the
+# CVAR_SYSTEMINFO registrations of the pinned sources and this allowance must
+# cover them. The enumeration reproduces exactly the thirteen cvars the real
+# server printed, plus the client-only `cl_anonymous` that a listen server adds.
+SYSTEMINFO_FIXED_ALLOWANCE = 512
+
+# How much of that allowance each non-pak cvar may spend on its *value*. The
+# widest one a run can produce is `sv_serverid`, an int printed with `%i`
+# (11 characters at worst); `sv_voipProtocol` is "opus" and the rest are single
+# digits or empty. Sixteen is that with room, per cvar.
+SYSTEMINFO_VALUE_ALLOWANCE = 16
+
+# ioq3 code/server/sv_init.c: the two keys that grow with the archive set.
+SYSTEMINFO_PAK_KEYS = ("sv_referencedPakNames", "sv_referencedPaks")
+
+# The two shapes a CVAR_SYSTEMINFO cvar is registered in: the engine's
+# `Cvar_Get("name", ..., ... CVAR_SYSTEMINFO ...)` and the game modules' table
+# rows `{ &var, "name", "default", CVAR_SYSTEMINFO, ... }`. Both require a
+# quoted name in the same statement, so a line that merely tests the flag —
+# `cvar_modifiedFlags & CVAR_SYSTEMINFO` — is not a registration.
+SYSTEMINFO_CVAR_PATTERNS = (
+    re.compile(
+        r'Cvar_Get\s*\(\s*"([A-Za-z_][A-Za-z0-9_]*)"[^;]*?CVAR_SYSTEMINFO', re.S
+    ),
+    re.compile(
+        r'\{\s*&[A-Za-z_][A-Za-z0-9_]*\s*,\s*"([A-Za-z_][A-Za-z0-9_]*)"'
+        r"[^}]*?CVAR_SYSTEMINFO",
+        re.S,
+    ),
+)
+
 # "clientEnteredGame" is deliberately not a bot marker: ioq3
 # code/game/g_client.c:1026 prints it for every client that begins, the local
 # player before any bot. Bots are proved by name, from profile.bots.
@@ -116,7 +169,14 @@ FORBIDDEN_ARTIFACT_PREFIXES = ("missionpack/",)
 FORBIDDEN_SUFFIXES_BY_MANIFEST = {"content": (".qvm",), "engine": (".pk3",)}
 
 CVAR_NAME = re.compile(r"\A[a-z][A-Za-z0-9_]*\Z")
-MAP_NAME = re.compile(r"\A[a-z0-9][a-z0-9_]*\Z")
+# A game-directory name, which is this product's own and stays narrow.
+BASEGAME_NAME = re.compile(r"\A[a-z0-9][a-z0-9_]*\Z")
+# A map name, which is upstream's and is not. `content_pack.MAP_FRAGMENT_NAME`
+# has always allowed the hyphen that `pul1duel-oa` — already audited and
+# scheduled for a later batch — carries; this copy did not, so a map that the
+# content build accepts would have been refused one authority further on. The
+# two grammars are the same grammar and are written the same way.
+MAP_NAME = re.compile(r"\A[a-z0-9][a-z0-9_-]*\Z")
 BOT_NAME = re.compile(r"\A[A-Za-z][A-Za-z0-9_]*\Z")
 GAME_PATH = re.compile(
     r"\A[A-Za-z0-9][A-Za-z0-9_.-]*(?:/[A-Za-z0-9][A-Za-z0-9_.-]*)*\Z"
@@ -241,10 +301,136 @@ def manifest_index(manifest: Any, what: str) -> dict[str, dict[str, Any]]:
             )
         if artifact_path in index:
             _fail(f"{what}.artifacts", f"declares '{artifact_path}' twice")
-        index[artifact_path] = {"sha256": digest, "size": size}
+        entry = {"sha256": digest, "size": size}
+        for name in CONTENT_ARTIFACT_RECORDS:
+            if name in artifact:
+                entry[name] = artifact[name]
+        index[artifact_path] = entry
     if not index:
         _fail(f"{what}.artifacts", "is empty")
     return index
+
+
+def content_archive_names(profile: dict[str, Any]) -> list[str]:
+    """The archive names the engine sees, as `pakBasename` holds them.
+
+    ioq3 code/qcommon/files.c: FS_LoadZipFile strips `.pk3` from the file name,
+    so the name the engine puts into `sv_referencedPakNames` is the manifest
+    basename without its suffix — never the served name, whose digest is cache
+    addressing the engine never sees. Returned sorted for a stable projection;
+    the order does not affect its length.
+    """
+    names = []
+    for artifact in profile["artifacts"]:
+        if artifact["manifest"] != "content":
+            continue
+        base = artifact["path"].rsplit("/", 1)[-1]
+        names.append(base[: -len(".pk3")] if base.endswith(".pk3") else base)
+    return sorted(names)
+
+
+def projected_systeminfo_size(basegame: str, archive_names: Iterable[str]) -> int:
+    """How large CS_SYSTEMINFO becomes if every named archive is referenced.
+
+    `SV_SpawnServer` assembles the whole systeminfo with
+    `Cvar_InfoString_Big`, whose buffer is `BIG_INFO_STRING`, and
+    `Info_SetValueForKey_Big` neither truncates nor fails on overflow: it
+    prints one line and **returns**, leaving the key out (ioq3
+    code/qcommon/q_shared.c). Which key falls out is whichever one first does
+    not fit, and `Cvar_InfoString_Big` walks `cvar_vars` in list order, so it
+    is not even predictably a pak key. Silent and undeterministic in what it
+    hits, which is why this is projected rather than hoped for.
+
+    The projection is deliberately the *pessimistic* one. Measured, a
+    dedicated server references two archives — `FS_ClearPakReferences(0)` runs
+    on every `SV_SpawnServer` (code/server/sv_init.c) and only the base and
+    the loaded map are touched afterwards — but the bound must not depend on
+    which files a session happens to open, so every published archive is
+    counted. Any rotation is a subset of the published set and the string
+    grows monotonically with it, so a set that fits leaves every rotation of
+    it fitting too.
+    """
+    names = list(archive_names)
+    # FS_ReferencedPakNames joins "<gamename>/<basename>" with single spaces;
+    # FS_ReferencedPakChecksums emits one "%i " per pack, trailing space
+    # included.
+    values = {
+        "sv_referencedPakNames": len(
+            " ".join(f"{basegame}/{name}" for name in names)
+        ),
+        "sv_referencedPaks": SYSTEMINFO_CHECKSUM_WIDTH * len(names),
+    }
+    # Info_SetValueForKey_Big appends a literal backslash-key-backslash-value
+    # per cvar, so each key costs its own name plus two separators.
+    pak_keys = sum(1 + len(key) + 1 + values[key] for key in SYSTEMINFO_PAK_KEYS)
+    return SYSTEMINFO_FIXED_ALLOWANCE + pak_keys
+
+
+def systeminfo_cvars(engine_root: Path) -> list[str]:
+    """Every CVAR_SYSTEMINFO cvar the pinned sources register, by name."""
+    names: set[str] = set()
+    sources = sorted((engine_root / "code").rglob("*.c"))
+    if not sources:
+        _fail(
+            "profile.artifacts",
+            f"{engine_root}/code holds no sources, so the systeminfo cvar set "
+            "cannot be read out of the pinned engine",
+        )
+    for path in sources:
+        text = path.read_text(encoding="latin-1")
+        for pattern in SYSTEMINFO_CVAR_PATTERNS:
+            names.update(match.group(1) for match in pattern.finditer(text))
+    return sorted(names)
+
+
+def systeminfo_fixed_floor(engine_root: Path) -> int:
+    """The least CS_SYSTEMINFO the pinned sources can produce beside the paks.
+
+    `SYSTEMINFO_FIXED_ALLOWANCE` is a measurement, and a measurement nothing
+    re-derives is the one term of a bound that can go quietly wrong. This is
+    what re-derives it: the cvars are enumerated from the pinned sources, so a
+    gamecode or engine that registers another CVAR_SYSTEMINFO cvar has to fit
+    the allowance or fail here rather than eat into the pak headroom unnoticed.
+    """
+    fixed = [name for name in systeminfo_cvars(engine_root) if name not in SYSTEMINFO_PAK_KEYS]
+    if not fixed:
+        _fail(
+            "profile.artifacts",
+            "the pinned sources register no non-pak CVAR_SYSTEMINFO cvar, so the "
+            "fixed part of the projection would be satisfied by measuring nothing",
+        )
+    return sum(1 + len(name) + 1 + SYSTEMINFO_VALUE_ALLOWANCE for name in fixed)
+
+
+def check_systeminfo_budget(repo_root: Path, profile: dict[str, Any]) -> int:
+    """Refuse a published archive set that could overflow CS_SYSTEMINFO."""
+    from content_pack import ContentError, engine_constant
+
+    engine_root = repo_root / ENGINE_ROOT
+    try:
+        limit = engine_constant(engine_root, "BIG_INFO_STRING", SYSTEMINFO_HEADER)
+    except ContentError as error:
+        _fail("profile.artifacts", str(error))
+    floor = systeminfo_fixed_floor(engine_root)
+    if floor > SYSTEMINFO_FIXED_ALLOWANCE:
+        _fail(
+            "profile.artifacts",
+            f"the pinned sources' CVAR_SYSTEMINFO cvars need at least {floor} bytes "
+            f"beside the referenced-pak keys, and the projection allows "
+            f"{SYSTEMINFO_FIXED_ALLOWANCE}",
+        )
+    names = content_archive_names(profile)
+    projected = projected_systeminfo_size(profile["basegame"], names)
+    if projected >= limit:
+        _fail(
+            "profile.artifacts",
+            f"the {len(names)} published content archives project a "
+            f"{projected}-byte CS_SYSTEMINFO against the engine's "
+            f"BIG_INFO_STRING of {limit}; the overflow drops a systeminfo key "
+            "without an error (ioq3 code/qcommon/q_shared.c "
+            "Info_SetValueForKey_Big)",
+        )
+    return projected
 
 
 def expected_engine_arguments(profile: dict[str, Any]) -> list[str]:
@@ -597,7 +783,10 @@ def load_map_fragment(
 
 
 def _validate_against_recipe(
-    profile: dict[str, Any], recipe: dict[str, Any], repo_root: Path
+    profile: dict[str, Any],
+    recipe: dict[str, Any],
+    repo_root: Path,
+    manifests: dict[str, dict[str, dict[str, Any]]],
 ) -> None:
     """Bind the loader profile to the audited content pack it starts."""
     recipe_profile = _object(recipe.get("profile"), "recipe.profile")
@@ -650,12 +839,10 @@ def _validate_against_recipe(
     manifest = _object(
         _load_json(repo_root / manifest_relative, manifest_relative), manifest_relative
     )
+    base_pack = _string(recipe.get("basePackPath"), "recipe.basePackPath")
+    fragment_maps = manifest_map_inputs(manifest, manifest_relative)
     expected_packs = sorted(
-        [_string(recipe.get("basePackPath"), "recipe.basePackPath")]
-        + [
-            template.format(map=name)
-            for name in manifest_map_inputs(manifest, manifest_relative)
-        ]
+        [base_pack] + [template.format(map=name) for name in fragment_maps]
     )
     content_paths = sorted(
         artifact["path"]
@@ -666,6 +853,88 @@ def _validate_against_recipe(
         _fail(
             "profile.artifacts",
             f"must serve exactly the recipe's archives {expected_packs}",
+        )
+    _validate_content_records(
+        manifests, manifest_relative, base_pack, template, fragment_maps, content_paths
+    )
+
+
+def _validate_content_records(
+    manifests: dict[str, dict[str, dict[str, Any]]],
+    manifest_relative: str,
+    base_pack: str,
+    template: str,
+    fragment_maps: dict[str, str],
+    published: list[str],
+) -> None:
+    """The per-archive selection key and cost figures the content manifest adds.
+
+    A caller choosing a rotation needs two things out of the release: which
+    archive is which map, and what one costs it. Both live here rather than in
+    the profile so that there is one home per fact — the manifest is generated
+    from the archives it describes, is an authority, and is already fetched
+    before any archive is.
+
+    Fail-closed in both directions: a map archive without its records, a base
+    that claims a map, an engine artifact borrowing the vocabulary, or a map
+    name that no committed fragment declares are all failures.
+    """
+    for path, entry in sorted(manifests["engine"].items()):
+        present = sorted(name for name in CONTENT_ARTIFACT_RECORDS if name in entry)
+        if present:
+            _fail(
+                f"{PROFILE_SOURCE}: engine manifest artifact '{path}'",
+                f"carries the content-only records {present}",
+            )
+    for path, entry in sorted(manifests["content"].items()):
+        if path in published:
+            continue
+        # An archive the release does not publish may not look like one that
+        # does: a stray manifest entry claiming a map would offer a consumer a
+        # selection key for something the profile never serves.
+        if "map" in entry:
+            _fail(
+                f"{manifest_relative}.artifacts[{path}].map",
+                "is not one of the archives this release publishes",
+            )
+    for path in sorted(published):
+        entry = manifests["content"][path]
+        what = f"{manifest_relative}.artifacts[{path}]"
+        uncompressed = entry.get("uncompressedSize")
+        if (
+            not isinstance(uncompressed, int)
+            or isinstance(uncompressed, bool)
+            or uncompressed <= 0
+        ):
+            _fail(f"{what}.uncompressedSize", "must be a positive integer")
+        if path == base_pack:
+            for name in ("map", "peakHunkBytes"):
+                if name in entry:
+                    _fail(
+                        f"{what}.{name}",
+                        "the base archive carries no map and no map's peak hunk",
+                    )
+            continue
+        name = entry.get("map")
+        if not isinstance(name, str) or name not in fragment_maps:
+            _fail(
+                f"{what}.map",
+                f"must name one of the committed map fragments "
+                f"{sorted(fragment_maps)}",
+            )
+        if template.format(map=name) != path:
+            _fail(f"{what}.map", f"'{name}' does not match this archive's path")
+        peak = entry.get("peakHunkBytes")
+        if not isinstance(peak, int) or isinstance(peak, bool) or peak <= 0:
+            _fail(f"{what}.peakHunkBytes", "must be a positive integer")
+    declared = {
+        manifests["content"][path]["map"] for path in published if path != base_pack
+    }
+    if declared != set(fragment_maps):
+        _fail(
+            f"{manifest_relative}.artifacts",
+            f"declares maps {sorted(declared)}, and the committed fragments are "
+            f"{sorted(fragment_maps)}",
         )
 
 
@@ -710,7 +979,7 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
         _string(profile.get(key), f"profile.{key}")
     if not MAP_NAME.fullmatch(profile["map"]):
         _fail("profile.map", f"'{profile['map']}' is not a map name")
-    if not MAP_NAME.fullmatch(profile["basegame"]):
+    if not BASEGAME_NAME.fullmatch(profile["basegame"]):
         _fail(
             "profile.basegame", f"'{profile['basegame']}' is not a game directory name"
         )
@@ -752,7 +1021,9 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
         profile,
         _object(_load_json(repo_root / "content/pack-recipe.json", "recipe"), "recipe"),
         repo_root,
+        manifests,
     )
+    check_systeminfo_budget(repo_root, profile)
     load_relay_profile(repo_root)
     profile["_manifests"] = manifests
     return profile

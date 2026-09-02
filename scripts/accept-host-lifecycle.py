@@ -20,7 +20,12 @@ from arena_acceptance import (  # noqa: E402
     _snapshot,
     pinned_browser_version,
 )
-from arena_runtime import ArenaRuntimeError, stage, verify_staged  # noqa: E402
+from arena_runtime import (  # noqa: E402
+    ArenaRuntimeError,
+    load_profile,
+    stage,
+    verify_staged,
+)
 from browser_session import (  # noqa: E402
     BrowserSessionError,
     ChromeProcess,
@@ -108,7 +113,7 @@ def early_stop_checks(
                     "connectionType": "wifi",
                 },
             )
-        session.call("Page.navigate", {"url": f"{server.origin}/"})
+        session.call("Page.navigate", {"url": page_url(server.origin)})
         wait_until(
             lambda: bool(_evaluate(session, "window.arenaWeb")),
             timeout=30,
@@ -284,7 +289,7 @@ def run(
             session = browser.page_session()
             for domain in ("Page", "Runtime", "Log"):
                 session.call(f"{domain}.enable")
-            session.call("Page.navigate", {"url": f"{server.origin}/"})
+            session.call("Page.navigate", {"url": page_url(server.origin)})
             wait_until(
                 lambda: _evaluate(session, "window.arenaWeb?.report?.status")
                 in ("ready", "failed"),
@@ -574,6 +579,18 @@ def run(
         json.dumps(result, indent=2, sort_keys=True) + "\n", encoding="utf-8"
     )
     return result
+
+
+def page_url(origin: str) -> str:
+    """The loader page, with the rotation it has to be opened with.
+
+    The rotation is a required parameter — there is no safe default, so the
+    page refuses without one. This acceptance drives the offline lifecycle, so
+    the rotation it needs is exactly the map the committed profile starts;
+    every other published archive is deliberately not fetched, which also makes
+    this run smaller than it was.
+    """
+    return f"{origin}/?maps={load_profile(ROOT)['map']}"
 
 
 def main() -> int:

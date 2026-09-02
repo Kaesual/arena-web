@@ -42,6 +42,23 @@ import {
 
 const PROFILE_URL = "game-profile.json";
 const RELAY_PROFILE_URL = "arena/relay-profile.json";
+
+// Which maps this page is being opened for. The committed profile declares
+// *every* published archive and this loader verifies each one it fetches
+// against the committed manifest, so the choice below is a selection from an
+// already trusted set and not a new trust decision — but it is what decides
+// how many megabytes a player waits for, so it has to be made rather than
+// assumed. It is required: see selectArtifacts.
+const ROTATION_PARAMETER = "maps";
+
+// The engine's own verdict on a rotation that was too small. With
+// `cl_allowDownload` clear — which both profiles guarantee — `CL_InitDownloads`
+// compares the server's referenced paks against what this client mounted and
+// prints this line with the missing names (ioq3 code/client/cl_main.c). It
+// arrives at the map change that breaks, so it prevents nothing; what it does
+// is name the archive, inside the component that fails, instead of leaving an
+// operator to reconstruct why a client dropped.
+const MISSING_PAK_MARKER = "You are missing some files referenced by the server";
 const ENGINE_LOG_LIMIT = 40000;
 const FRAME_SAMPLE_LIMIT = 30000;
 const EVENT_LIMIT = 10000;
@@ -87,6 +104,14 @@ const report = {
   frames: { samples: 0, dropped: 0 },
   events: [],
   eventsDropped: 0,
+  // What was asked for, what it resolved to, what was fetched — and, if the
+  // server ever says so, what was missing anyway.
+  // The subset rule this serves is an integration obligation (see
+  // docs/integration-contract.md) that nothing downstream can catch: a client
+  // missing one map connects and plays normally and is dropped hours later,
+  // when rotation reaches it. This is the record that turns that post-mortem
+  // into one step.
+  rotation: null,
   unexpectedFileRequests: [],
   audioActivation: null,
   pointerLock: { supported: "pointerLockElement" in document, engaged: false, errors: 0 },
@@ -108,6 +133,8 @@ let relayReconnectRunning = false;
 let canvasResizeBridge = null;
 let loadedProfile = null;
 let loadedArtifacts = null;
+let loadedSelection = null;
+let loadedRotation = null;
 let startAccepted = false;
 let startOperation = null;
 let stopRequested = false;
@@ -343,6 +370,13 @@ function manifestIndex(manifest, what) {
     index.set(requireString(entry.path, `${what}: artifact path`), {
       sha256: requireString(entry.sha256, `${what}: ${entry.path} sha256`),
       size: entry.size,
+      // The content manifest's per-archive records. `map` is the selection key
+      // the rotation is expressed in, so it has to survive this index or every
+      // archive would look like the base; the sizes are carried for a host
+      // reading the snapshot rather than used here.
+      map: entry.map,
+      uncompressedSize: entry.uncompressedSize,
+      peakHunkBytes: entry.peakHunkBytes,
     });
   }
   return index;
@@ -511,7 +545,102 @@ function relayEngineArguments(profile, configuration) {
   return arguments_;
 }
 
-// Load every declared artifact and prove it is the committed one. The digest is
+// Which archives this page is being opened for, and therefore which artifacts
+// are fetched at all. Everything else about the release is unchanged: the
+// committed profile still declares every published archive, every artifact
+// fetched below is still verified against the committed manifest, and only the
+// *selection* from that committed set is made here.
+//
+// The rotation is required rather than defaulted. There is no safe default:
+// falling back to the whole published set makes every player wait for maps
+// their server will never rotate to — the reason this selection exists — and
+// falling back to the profile's own map produces the failure that is worse
+// than slow, a client whose archive set is a strict subset of the server's
+// rotation. That one is invisible until rotation reaches the missing map and
+// then drops the client mid-match, because `sv_pure 0` and
+// `cl_allowDownload 0` leave the engine no content-agreement check at all.
+//
+// `docs/integration-contract.md` states the rule the caller must satisfy: hold
+// exactly one rotation list, and derive both the server's launch arguments and
+// this parameter from it. arena-web cannot check that relation — it holds
+// neither input, and comparing the caller's input with itself would always
+// pass. It can check that a choice was made at all, and this is that check.
+function selectArtifacts(profile, manifests) {
+  const content = manifests.get("content");
+  const byMap = new Map();
+  let base = null;
+  for (const artifact of profile.artifacts) {
+    if (artifact.manifest !== "content") {
+      continue;
+    }
+    const entry = content?.get(artifact.path);
+    if (!entry) {
+      throw new LoaderError(`content manifest: does not declare '${artifact.path}'`);
+    }
+    if (typeof entry.map === "string" && entry.map !== "") {
+      if (byMap.has(entry.map)) {
+        throw new LoaderError(`content manifest: declares map '${entry.map}' twice`);
+      }
+      byMap.set(entry.map, artifact);
+    } else if (base === null) {
+      base = artifact;
+    } else {
+      throw new LoaderError("content manifest: declares more than one base archive");
+    }
+  }
+  if (base === null) {
+    throw new LoaderError("content manifest: declares no base archive");
+  }
+  const published = [...byMap.keys()].sort();
+  const parameter = new URL(window.location.href).searchParams.get(ROTATION_PARAMETER);
+  if (parameter === null) {
+    throw new LoaderError(
+      `this page must be opened with ?${ROTATION_PARAMETER}=<map>[,<map>...], naming ` +
+        `the maps the server will rotate through; it published ${published.join(", ")}`,
+    );
+  }
+  const requested = parameter.split(",").map((name) => name.trim());
+  if (requested.some((name) => name === "")) {
+    throw new LoaderError(`?${ROTATION_PARAMETER}: is empty or has an empty entry`);
+  }
+  const unknown = requested.filter((name) => !byMap.has(name));
+  if (unknown.length > 0) {
+    // Never silently skipped: a dropped name looks exactly like a successful
+    // selection and only shows up when rotation reaches that map.
+    throw new LoaderError(
+      `?${ROTATION_PARAMETER}: this release publishes no archive for ` +
+        `${unknown.join(", ")}; it published ${published.join(", ")}`,
+    );
+  }
+  // Canonical, because the caller passes its rotation *list* and a rotation may
+  // legitimately play the same map more than once per cycle. Two spellings of
+  // one set must fetch one set.
+  const resolved = [...new Set(requested)].sort();
+  const selected = [
+    ...profile.artifacts.filter((artifact) => artifact.manifest !== "content"),
+    // The base is implicit and can never be named: it carries no map, so its
+    // archive name is not a valid selection and no rotation can leave it out.
+    base,
+    ...resolved.map((name) => byMap.get(name)),
+  ];
+  report.rotation = {
+    parameter,
+    requested,
+    resolved,
+    published,
+    // What this selection *chose*. `fetched` below is what actually arrived,
+    // which differs for a run that failed partway; the two are separate on
+    // purpose, because a post-mortem needs to tell those apart.
+    archives: selected
+      .filter((artifact) => artifact.manifest === "content")
+      .map((artifact) => artifact.path),
+    fetched: [],
+    missingOnServer: [],
+  };
+  return { selected, resolved };
+}
+
+// Load every selected artifact and prove it is the committed one. The digest is
 // taken over the bytes this loader then uses: the engine module is imported
 // from a blob of these bytes and the WebAssembly is instantiated from them, so
 // the identity is the identity of what runs.
@@ -523,7 +652,8 @@ async function loadArtifacts(profile) {
   }
   report.timings.manifestsLoadedMs = since();
 
-  const expectedTotal = profile.artifacts.reduce((total, artifact) => {
+  const { selected, resolved } = selectArtifacts(profile, manifests);
+  const expectedTotal = selected.reduce((total, artifact) => {
     const index = manifests.get(artifact.manifest);
     if (!index) {
       throw new LoaderError(`${PROFILE_URL}: unknown manifest '${artifact.manifest}'`);
@@ -537,7 +667,7 @@ async function loadArtifacts(profile) {
 
   const loaded = new Map();
   let completedBytes = 0;
-  for (const artifact of profile.artifacts) {
+  for (const artifact of selected) {
     const entry = manifests.get(artifact.manifest).get(artifact.path);
     const url = resolveServed(artifact.served, `${PROFILE_URL}: artifact served`);
     setMessage(`Loading ${artifact.path}`);
@@ -571,6 +701,9 @@ async function loadArtifacts(profile) {
     }
     completedBytes += bytes.length;
     loaded.set(artifact.served, bytes);
+    if (artifact.manifest === "content") {
+      report.rotation.fetched.push(artifact.path);
+    }
   }
   // The product's own engine configuration. It carries no committed digest of
   // its own — it is repository source, staged and byte-compared by
@@ -592,7 +725,7 @@ async function loadArtifacts(profile) {
   // digest is still being computed. Only this post-comparison publication is
   // allowed to claim the explicit verified phase.
   setProgress(1, completedBytes, expectedTotal, "verified");
-  return loaded;
+  return { bytes: loaded, selected, resolved };
 }
 
 // Quake III colour codes are '^' followed by any character other than '^'
@@ -607,6 +740,16 @@ function recordEngineLine(line, stream, markers, botNames) {
     report.engineLog.push(stream === "err" ? `[stderr] ${line}` : line);
   } else {
     report.engineLogDropped += 1;
+  }
+
+  // The rotation was smaller than the server's, and the engine has just said
+  // so. Only the marker line is recorded: the archive names follow it in the
+  // engine's own output, which `engineLog()` already carries in full, and
+  // scraping an unbounded number of following lines would capture whatever
+  // else the console happened to print next.
+  if (report.rotation !== null && line.includes(MISSING_PAK_MARKER)) {
+    report.rotation.missingOnServer.push(line);
+    note("server-referenced-file-missing", null);
   }
 
   // Which bot joined, and when. The generic "entered the game" marker below
@@ -872,7 +1015,12 @@ async function boot(profile, artifacts, networkBackend = null) {
   }
   const scriptBytes = artifacts.get(byRole.get("module-script").served);
   const wasmBytes = artifacts.get(byRole.get("module-wasm").served);
-  const filesystemArtifacts = profile.artifacts.filter((artifact) => artifact.role === "filesystem");
+  // The selected set, not the declared one: an archive that was not fetched
+  // has no bytes to write, and writing a hole would be worse than not having
+  // it — the engine would mount a truncated PK3 rather than none.
+  const filesystemArtifacts = loadedSelection.filter(
+    (artifact) => artifact.role === "filesystem",
+  );
 
   const profileArguments = networkBackend
     ? relayEngineArguments(relayProfile, relayRuntimeConfiguration)
@@ -987,6 +1135,7 @@ function snapshot() {
     engineLogLines: report.engineLog.length,
     engineLogDropped: report.engineLogDropped,
     browserErrors: report.browserErrors,
+    rotation: report.rotation,
     frames: frameStatistics(),
     events: report.events,
     eventsDropped: report.eventsDropped,
@@ -1078,6 +1227,19 @@ function start() {
   if (report.status !== "ready" || loadedProfile === null || loadedArtifacts === null) {
     return Promise.reject(new LoaderError("Start is only available in the ready state"));
   }
+  // Without a relay the engine runs a local listen server from the profile's
+  // committed engineArguments, which contain `+map <profile.map>`. That map's
+  // archive therefore has to be in the rotation, and refusing here is the last
+  // point at which this is a clean pre-start error rather than an engine that
+  // cannot find its BSP. A relay client starts no map of its own.
+  if (relayRuntimeConfiguration === null && !loadedRotation.includes(loadedProfile.map)) {
+    return Promise.reject(
+      new LoaderError(
+        `the offline profile starts ${loadedProfile.map}, which ` +
+          `?${ROTATION_PARAMETER}=${loadedRotation.join(",")} did not fetch`,
+      ),
+    );
+  }
   if (navigator.userActivation?.isActive !== true) {
     return Promise.reject(new LoaderError("Start requires transient user activation"));
   }
@@ -1144,16 +1306,19 @@ async function main() {
   report.profile = { package: profile.package, map: profile.map, formatVersion: profile.formatVersion };
   report.timings.profileLoadedMs = since();
 
-  const artifacts = await loadArtifacts(profile);
+  const { bytes, selected, resolved } = await loadArtifacts(profile);
   report.timings.artifactsVerifiedMs = since();
   throwIfStopped();
   loadedProfile = profile;
-  loadedArtifacts = artifacts;
+  loadedArtifacts = bytes;
+  loadedSelection = selected;
+  loadedRotation = resolved;
   setStatus("ready");
 
   const megabytes = (report.totalArtifactBytes / (1024 * 1024)).toFixed(1);
   setMessage(
-    `${profile.artifacts.length} artifacts verified against the committed manifests (${megabytes} MiB).\n` +
+    `${selected.length} artifacts verified against the committed manifests (${megabytes} MiB).\n` +
+      `Rotation: ${resolved.join(", ")}.\n` +
       `Press Start to enter ${profile.map} with ${profile.bots?.length ?? 0} bots.`,
   );
   elements.start.disabled = false;
@@ -1163,7 +1328,16 @@ async function main() {
     if (relayReconnectReady) {
       void reconnectRelay();
     } else {
-      void start().catch(() => {});
+      void start().catch((error) => {
+        // start() can refuse before it has consumed anything — an offline
+        // profile whose map the rotation did not fetch is the case this page
+        // can actually produce. The loader is then still in the ready state, so
+        // the reason has to reach the overlay or the click looks like it did
+        // nothing at all.
+        if (report.status === "ready" && !startAccepted) {
+          setMessage(`Cannot start: ${safeError(error).message}`);
+        }
+      });
     }
   });
 }

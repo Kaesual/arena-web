@@ -38,11 +38,17 @@ from arena_acceptance import (  # noqa: E402
     strip_color_codes,
 )
 from arena_runtime import (  # noqa: E402
+    SYSTEMINFO_FIXED_ALLOWANCE,
     ArenaRuntimeError,
+    check_systeminfo_budget,
+    content_archive_names,
     expected_engine_arguments,
     load_profile,
     manifest_index,
+    projected_systeminfo_size,
     served_files,
+    systeminfo_cvars,
+    systeminfo_fixed_floor,
     stage,
     verify_staged,
 )
@@ -80,6 +86,19 @@ CONTENT_FILES = {
 }
 
 
+# The content manifest additionally records, per archive, the selection key a
+# rotation is expressed in and what one costs. Synthetic figures: the rules
+# under test are presence and agreement, not the measurements themselves.
+CONTENT_RECORDS = {
+    BASE_PACK: {"uncompressedSize": 41},
+    MAP_PACK: {
+        "map": "oa_pvomit",
+        "peakHunkBytes": 31441576,
+        "uncompressedSize": 40,
+    },
+}
+
+
 def _manifest(
     files: dict[str, bytes], inputs: list[dict[str, str]] | None = None
 ) -> dict[str, Any]:
@@ -89,6 +108,7 @@ def _manifest(
                 "path": path,
                 "sha256": hashlib.sha256(data).hexdigest(),
                 "size": len(data),
+                **CONTENT_RECORDS.get(path, {}),
             }
             for path, data in sorted(files.items())
         ],
@@ -244,6 +264,46 @@ def _recipe() -> dict[str, Any]:
     }
 
 
+# The two things `arena_runtime` reads out of the pinned engine tree: the
+# CS_SYSTEMINFO buffer size and the cvars that share it. Both are stubbed rather
+# than mocked, so the gates derived from them can be moved in a test and
+# observed to bite.
+SYSTEMINFO_HEADER = "ioq3/code/qcommon/q_shared.h"
+SYSTEMINFO_SOURCE = "ioq3/code/server/sv_init.c"
+
+# The registrations of the pinned tree, in both shapes the enumeration reads,
+# plus one line that names the flag without registering anything.
+SYSTEMINFO_CVARS = (
+    "sv_cheats",
+    "sv_serverid",
+    "sv_pure",
+    "sv_voipProtocol",
+    "sv_paks",
+    "sv_pakNames",
+    "sv_referencedPaks",
+    "sv_referencedPakNames",
+    "timescale",
+    "fs_game",
+)
+
+
+def _engine_header(big_info_string: int = 8192) -> str:
+    return (
+        "#define\tMAX_INFO_STRING\t\t1024\n"
+        f"#define\tBIG_INFO_STRING\t\t{big_info_string}"
+        "  // used for system info key only\n"
+    )
+
+
+def _engine_source(extra: tuple[str, ...] = ()) -> str:
+    lines = ["\tif ( cvar_modifiedFlags & CVAR_SYSTEMINFO ) {\n"]
+    for name in SYSTEMINFO_CVARS:
+        lines.append(f'\tCvar_Get ("{name}", "", CVAR_SYSTEMINFO | CVAR_ROM );\n')
+    for name in extra:
+        lines.append(f'\t{{ &{name}, "{name}", "0", CVAR_SYSTEMINFO, 0, qfalse }},\n')
+    return "".join(lines)
+
+
 class SyntheticRepository:
     """A throwaway tree with the exact files `arena_runtime` reads."""
 
@@ -259,6 +319,8 @@ class SyntheticRepository:
         self.write()
 
     def write(self) -> None:
+        self.set_engine_header()
+        self.set_engine_source()
         (self.root / "arena").mkdir(parents=True, exist_ok=True)
         (self.root / "probe").mkdir(parents=True, exist_ok=True)
         (self.root / "manifests").mkdir(parents=True, exist_ok=True)
@@ -347,6 +409,16 @@ class SyntheticRepository:
             path = self.content_dir / name
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
+
+    def set_engine_header(self, big_info_string: int = 8192) -> None:
+        path = self.root / SYSTEMINFO_HEADER
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(_engine_header(big_info_string), encoding="utf-8")
+
+    def set_engine_source(self, extra: tuple[str, ...] = ()) -> None:
+        path = self.root / SYSTEMINFO_SOURCE
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(_engine_source(extra), encoding="utf-8")
 
     def set_profile(self, profile: dict[str, Any]) -> None:
         self.profile = profile
@@ -558,6 +630,29 @@ class ProfileValidationTest(SyntheticRepositoryTest):
 class MultiMapRecipeTest(SyntheticRepositoryTest):
     """A pack may carry several maps; a loader profile starts exactly one."""
 
+    def setUp(self) -> None:
+        # `_artifacts` publishes further archives by adding to the two module
+        # level tables, and a leak out of this class would leave later tests
+        # with a content manifest that declares maps their profile does not
+        # serve — which is now a refusal rather than something tolerated.
+        files, records = dict(CONTENT_FILES), copy.deepcopy(CONTENT_RECORDS)
+        self.addCleanup(lambda: CONTENT_FILES.update(files) or None)
+        self.addCleanup(
+            lambda: [
+                CONTENT_FILES.pop(key)
+                for key in list(CONTENT_FILES)
+                if key not in files
+            ]
+        )
+        self.addCleanup(
+            lambda: [
+                CONTENT_RECORDS.pop(key)
+                for key in list(CONTENT_RECORDS)
+                if key not in records
+            ]
+        )
+        super().setUp()
+
     def _fragments(self, arenas: list[dict[str, Any]]) -> None:
         self.repository.fragments = {
             entry["map"]: _fragment(entry["map"], **entry) for entry in arenas
@@ -575,6 +670,10 @@ class MultiMapRecipeTest(SyntheticRepositoryTest):
         for name in maps:
             path = f"baseq3/arena-web-ffa-map-{name}.pk3"
             CONTENT_FILES.setdefault(path, f"PK\x03\x04 {name}".encode())
+            CONTENT_RECORDS.setdefault(
+                path,
+                {"map": name, "peakHunkBytes": 31441576, "uncompressedSize": 40},
+            )
             profile["artifacts"].append(
                 {
                     "manifest": "content",
@@ -1041,6 +1140,176 @@ class ManifestIndexTest(unittest.TestCase):
     def test_an_empty_manifest_is_refused(self) -> None:
         with self.assertRaises(ArenaRuntimeError):
             manifest_index({"digestAlgorithm": "sha256", "artifacts": []}, "manifest")
+
+
+class SysteminfoBudgetTest(SyntheticRepositoryTest):
+    """The published archive set against the engine's own CS_SYSTEMINFO bound.
+
+    `Info_SetValueForKey_Big` does not truncate and does not fail on overflow:
+    it prints one line and returns, leaving whichever key first did not fit out
+    of systeminfo — and `Cvar_InfoString_Big` walks `cvar_vars` in list order,
+    so it is not even predictably a pak key. Nothing downstream reports it.
+    """
+
+    def test_the_projection_is_the_string_the_engine_would_assemble(self) -> None:
+        names = ["arena-web-ffa-base", "arena-web-ffa-map-oa_pvomit"]
+        expected = (
+            SYSTEMINFO_FIXED_ALLOWANCE
+            + 1
+            + len("sv_referencedPakNames")
+            + 1
+            + len("arena/arena-web-ffa-base arena/arena-web-ffa-map-oa_pvomit")
+            + 1
+            + len("sv_referencedPaks")
+            + 1
+            + 2 * (len("-2147483648") + 1)
+        )
+        self.assertEqual(projected_systeminfo_size("arena", names), expected)
+
+    def test_it_grows_with_the_set_and_a_rotation_is_a_subset(self) -> None:
+        base = ["arena-web-ffa-base"]
+        one = projected_systeminfo_size("arena", base + ["arena-web-ffa-map-a"])
+        two = projected_systeminfo_size(
+            "arena", base + ["arena-web-ffa-map-a", "arena-web-ffa-map-b"]
+        )
+        self.assertLess(one, two)
+
+    def test_the_committed_synthetic_set_fits(self) -> None:
+        profile = load_profile(self.repository.root)
+        self.assertEqual(
+            content_archive_names(profile),
+            ["arena-web-ffa-base", "arena-web-ffa-map-oa_pvomit"],
+        )
+        self.assertLess(check_systeminfo_budget(self.repository.root, profile), 8192)
+
+    def test_the_fixed_allowance_covers_the_pinned_cvars(self) -> None:
+        """The one term of the bound that is a measurement rather than a
+        derivation is checked against the sources it was measured from."""
+        self.assertEqual(
+            systeminfo_cvars(self.repository.root / "ioq3"), sorted(SYSTEMINFO_CVARS)
+        )
+        floor = systeminfo_fixed_floor(self.repository.root / "ioq3")
+        self.assertLessEqual(floor, SYSTEMINFO_FIXED_ALLOWANCE)
+
+    def test_more_systeminfo_cvars_than_the_allowance_covers_is_refused(self) -> None:
+        """A gamecode or engine that registers more of them has to fit the
+        allowance or say so — it may not quietly spend the pak headroom."""
+        extra = tuple(f"g_padding_cvar_{index:02d}" for index in range(20))
+        self.repository.set_engine_source(extra)
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            load_profile(self.repository.root)
+        self.assertIn("and the projection allows", str(caught.exception))
+        self.repository.set_engine_source()
+        load_profile(self.repository.root)
+
+    def test_sources_that_register_none_are_refused(self) -> None:
+        (self.repository.root / SYSTEMINFO_SOURCE).write_text(
+            "int nothing_here = 0;\n", encoding="utf-8"
+        )
+        with self.assertRaisesRegex(ArenaRuntimeError, "register no non-pak"):
+            load_profile(self.repository.root)
+        self.repository.set_engine_source()
+
+    def test_a_set_that_would_overflow_is_refused(self) -> None:
+        """The gate's own gate: shrink the bound the engine declares and the
+        set that fits today has to stop being accepted."""
+        self.repository.set_engine_header(600)
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            load_profile(self.repository.root)
+        self.assertIn("BIG_INFO_STRING of 600", str(caught.exception))
+        self.repository.set_engine_header()
+        load_profile(self.repository.root)
+
+    def test_an_unreadable_engine_bound_is_refused_rather_than_skipped(self) -> None:
+        (self.repository.root / SYSTEMINFO_HEADER).write_text(
+            "#define MAX_INFO_STRING 1024\n", encoding="utf-8"
+        )
+        with self.assertRaisesRegex(ArenaRuntimeError, "no longer defines"):
+            load_profile(self.repository.root)
+        (self.repository.root / SYSTEMINFO_HEADER).unlink()
+        with self.assertRaisesRegex(ArenaRuntimeError, "cannot read"):
+            load_profile(self.repository.root)
+
+
+class ContentRecordTest(SyntheticRepositoryTest):
+    """The selection key and the cost figures the content manifest carries."""
+
+    def _manifest_path(self) -> Path:
+        return (
+            self.repository.root
+            / "provenance"
+            / "arena-web-ffa-content-manifest.json"
+        )
+
+    def _refuses(self, change) -> str:
+        path = self._manifest_path()
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        change(manifest)
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            load_profile(self.repository.root)
+        self.repository.write()
+        return str(caught.exception)
+
+    def _artifact(self, manifest: dict[str, Any], path: str) -> dict[str, Any]:
+        return next(item for item in manifest["artifacts"] if item["path"] == path)
+
+    def test_the_synthetic_records_are_accepted(self) -> None:
+        profile = load_profile(self.repository.root)
+        entry = profile["_manifests"]["content"][MAP_PACK]
+        self.assertEqual(entry["map"], "oa_pvomit")
+        self.assertEqual(entry["peakHunkBytes"], 31441576)
+        self.assertEqual(entry["uncompressedSize"], 40)
+
+    def test_a_map_archive_without_its_peak_hunk_is_refused(self) -> None:
+        self.assertIn(
+            "peakHunkBytes",
+            self._refuses(
+                lambda m: self._artifact(m, MAP_PACK).pop("peakHunkBytes")
+            ),
+        )
+
+    def test_an_archive_without_its_extracted_size_is_refused(self) -> None:
+        self.assertIn(
+            "uncompressedSize",
+            self._refuses(
+                lambda m: self._artifact(m, BASE_PACK).pop("uncompressedSize")
+            ),
+        )
+
+    def test_a_base_that_claims_a_map_is_refused(self) -> None:
+        self.assertIn(
+            "carries no map",
+            self._refuses(
+                lambda m: self._artifact(m, BASE_PACK).update({"map": "oa_pvomit"})
+            ),
+        )
+
+    def test_a_map_no_committed_fragment_declares_is_refused(self) -> None:
+        self.assertIn(
+            "committed map fragments",
+            self._refuses(
+                lambda m: self._artifact(m, MAP_PACK).update({"map": "invented"})
+            ),
+        )
+
+    def test_an_engine_artifact_borrowing_the_vocabulary_is_refused(self) -> None:
+        path = self.repository.root / "manifests" / "browser-client.json"
+        manifest = json.loads(path.read_text(encoding="utf-8"))
+        manifest["artifacts"][0]["map"] = "oa_pvomit"
+        path.write_text(json.dumps(manifest), encoding="utf-8")
+        with self.assertRaisesRegex(ArenaRuntimeError, "content-only records"):
+            load_profile(self.repository.root)
+
+    def test_an_unpublished_archive_claiming_a_map_is_refused(self) -> None:
+        self.assertIn(
+            "not one of the archives this release publishes",
+            self._refuses(
+                lambda m: self._artifact(m, "baseq3/other.pk3").update(
+                    {"map": "oa_pvomit"}
+                )
+            ),
+        )
 
 
 class CommittedProfileTest(unittest.TestCase):
@@ -1775,12 +2044,29 @@ class ScoreTest(unittest.TestCase):
 
     def _expectations(self) -> Expectations:
         return Expectations(
-            files=frozenset({"index.html", "loader.js", "engine/ioquake3.js"}),
+            files=frozenset(
+                {
+                    "index.html",
+                    "loader.js",
+                    "engine/ioquake3.js",
+                    # The archives the fixture's access log answers for, so the
+                    # served-set check is consistent with the rotation checks
+                    # rather than quietly failing beside them.
+                    "content/base-aa.pk3",
+                    "content/pvomit-bb.pk3",
+                    "content/other-cc.pk3",
+                }
+            ),
             origin=self.ORIGIN,
             config_digests={"default.cfg": "c" * 64},
             artifact_digests={"engine/ioquake3.js": "a" * 64},
             engine_arguments=self.ARGUMENTS,
             bot_names=("Skelebot", "Rai"),
+            rotation=("oa_pvomit",),
+            rotation_parameter="oa_pvomit",
+            rotation_served=frozenset({"content/base-aa.pk3", "content/pvomit-bb.pk3"}),
+            rotation_excluded=frozenset({"content/other-cc.pk3"}),
+            rotation_excluded_maps=("oa_shine",),
         )
 
     def _snapshot(self, **overrides: Any) -> dict[str, Any]:
@@ -1816,11 +2102,24 @@ class ScoreTest(unittest.TestCase):
             "unexpectedFileRequests": [],
             "frames": {"samples": 500, "meanFps": 60.0},
             "audioActivation": {"state": "running", "userActivation": True},
+            "rotation": {
+                "parameter": "oa_pvomit",
+                "requested": ["oa_pvomit"],
+                "resolved": ["oa_pvomit"],
+                "published": ["oa_pvomit", "oa_shine"],
+                "archives": ["baseq3/base.pk3", "baseq3/pvomit.pk3"],
+            },
         }
         snapshot.update(overrides)
         return snapshot
 
-    def _run(self, *, requests: list[str] | None = None, **overrides: Any) -> RunResult:
+    def _run(
+        self,
+        *,
+        requests: list[str] | None = None,
+        access_log: list[dict[str, Any]] | None = None,
+        **overrides: Any,
+    ) -> RunResult:
         result = RunResult(index=1, directory=Path("."))
         result.snapshot = self._snapshot(**overrides)
         result.engine_log = [
@@ -1830,7 +2129,15 @@ class ScoreTest(unittest.TestCase):
         ]
         result.engine_defects = classify_engine_log(result.engine_log)
         result.requests = requests if requests is not None else [f"{self.ORIGIN}/"]
-        result.access_log = [{"path": "/", "status": 200}]
+        result.access_log = (
+            access_log
+            if access_log is not None
+            else [
+                {"path": "/", "status": 200},
+                {"path": "/content/base-aa.pk3", "status": 200},
+                {"path": "/content/pvomit-bb.pk3", "status": 200},
+            ]
+        )
         result.screenshots = [
             {"file": "01-map-entered.png", "distinctColours": 900, "nearWhiteFraction": 0.42},
             {"file": "02-after-input.png", "distinctColours": 900, "nearWhiteFraction": 0.004},
@@ -1849,8 +2156,52 @@ class ScoreTest(unittest.TestCase):
             "engine-kept-running",
             "engine-arguments-are-the-committed-profile",
             "only-declared-local-artifacts",
+            "rotation-canonicalised",
+            "rotation-fetched-exactly-its-archives",
         ):
             self.assertTrue(checks[name].passed, f"{name}: {checks[name].detail}")
+
+    def test_a_rotation_the_page_did_not_canonicalise_fails(self) -> None:
+        checks = self._checks(
+            self._run(
+                rotation={
+                    "parameter": "oa_shine,oa_pvomit",
+                    "requested": ["oa_shine", "oa_pvomit"],
+                    "resolved": ["oa_shine", "oa_pvomit"],
+                    "published": ["oa_pvomit", "oa_shine"],
+                    "archives": [],
+                }
+            )
+        )
+        self.assertFalse(checks["rotation-canonicalised"].passed)
+
+    def test_a_run_that_fetched_an_excluded_archive_fails(self) -> None:
+        """The check that a passing run could not have made: before the fetch
+        selection existed, a page that downloaded everything satisfied every
+        other check in the scoring function."""
+        checks = self._checks(
+            self._run(
+                access_log=[
+                    {"path": "/", "status": 200},
+                    {"path": "/content/base-aa.pk3", "status": 200},
+                    {"path": "/content/pvomit-bb.pk3", "status": 200},
+                    {"path": "/content/other-cc.pk3", "status": 200},
+                ]
+            )
+        )
+        self.assertFalse(checks["rotation-fetched-exactly-its-archives"].passed)
+        self.assertIn("other-cc", checks["rotation-fetched-exactly-its-archives"].detail)
+
+    def test_a_run_that_missed_a_selected_archive_fails(self) -> None:
+        checks = self._checks(
+            self._run(
+                access_log=[
+                    {"path": "/", "status": 200},
+                    {"path": "/content/base-aa.pk3", "status": 200},
+                ]
+            )
+        )
+        self.assertFalse(checks["rotation-fetched-exactly-its-archives"].passed)
 
     def test_a_missing_bot_fails_the_bot_check(self) -> None:
         checks = self._checks(self._run(botEntries=[{"name": "Skelebot", "at": 1.0}]))

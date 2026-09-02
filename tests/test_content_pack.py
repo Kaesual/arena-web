@@ -742,6 +742,34 @@ class BuildGateTests(unittest.TestCase):
             (fake_root / "locks" / "baseline.json").write_bytes(
                 (ROOT / "locks" / "baseline.json").read_bytes()
             )
+            # The measured per-map figures, for exactly the fragments this
+            # build carries. Synthetic values: what the build asserts is that a
+            # measurement exists for every published map and fits the pinned
+            # engine's hunk, not what any particular map peaks at.
+            (fake_root / "records").mkdir()
+            (fake_root / "records" / "map-resource-measurements.json").write_text(
+                json.dumps(
+                    {
+                        "$comment": ["synthetic"],
+                        "formatVersion": 1,
+                        "maps": {
+                            name: {"peakHunkBytes": 31441576} for name in fragments
+                        },
+                        "method": {
+                            "engineCommit": json.loads(
+                                (ROOT / "locks" / "baseline.json").read_text(
+                                    encoding="utf-8"
+                                )
+                            )["engine"]["commit"],
+                        },
+                    },
+                    indent=2,
+                    sort_keys=True,
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
             (fake_root / "ioq3").symlink_to(ROOT / "ioq3")
             return self.module.build(fake_root, arguments)
 
@@ -872,7 +900,7 @@ class BuildGateTests(unittest.TestCase):
     def test_an_engine_constant_is_read_from_the_pinned_tree(self) -> None:
         # The gamecode's own value, not a number restated here.
         self.assertEqual(
-            self.module._engine_constant(
+            self.module.engine_constant(
                 ROOT / "ioq3", "MAX_BOTS_TEXT", self.module._GAMECODE_HEADER
             ),
             8192,
@@ -882,9 +910,93 @@ class BuildGateTests(unittest.TestCase):
             fake.mkdir(parents=True)
             (fake / "bg_public.h").write_text("#define MAX_BOTS 1024\n")
             with self.assertRaisesRegex(ContentError, "no longer defines"):
-                self.module._engine_constant(
+                self.module.engine_constant(
                     Path(raw), "MAX_BOTS_TEXT", self.module._GAMECODE_HEADER
                 )
+
+    def _resource_record(self, root: Path, **override) -> Path:
+        baseline = json.loads(
+            (ROOT / "locks" / "baseline.json").read_text(encoding="utf-8")
+        )
+        record = {
+            "$comment": ["synthetic"],
+            "formatVersion": 1,
+            "maps": {"oa_pvomit": {"peakHunkBytes": 31441576}},
+            "method": {"engineCommit": baseline["engine"]["commit"]},
+        }
+        record.update(override)
+        (root / "records").mkdir(parents=True, exist_ok=True)
+        path = root / "records" / "map-resource-measurements.json"
+        path.write_text(
+            json.dumps(record, indent=2, sort_keys=True, ensure_ascii=False) + "\n",
+            encoding="utf-8",
+        )
+        return path
+
+    def _load_resources(self, root: Path, maps=("oa_pvomit",)):
+        from content_pack import load_map_resources
+
+        baseline = json.loads(
+            (ROOT / "locks" / "baseline.json").read_text(encoding="utf-8")
+        )
+        return load_map_resources(root, ROOT / "ioq3", baseline, maps)
+
+    def test_the_measured_figures_are_read_and_bounded(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._resource_record(root)
+            self.assertEqual(
+                self._load_resources(root),
+                {"oa_pvomit": {"peakHunkBytes": 31441576}},
+            )
+
+    def test_a_map_with_no_measurement_stops_the_build(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._resource_record(root)
+            with self.assertRaisesRegex(ContentError, "does not match the committed"):
+                self._load_resources(root, maps=("oa_pvomit", "am_galmevish"))
+
+    def test_a_measurement_for_no_published_map_stops_the_build(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._resource_record(
+                root,
+                maps={
+                    "oa_pvomit": {"peakHunkBytes": 31441576},
+                    "retired": {"peakHunkBytes": 1},
+                },
+            )
+            with self.assertRaisesRegex(ContentError, "does not match the committed"):
+                self._load_resources(root)
+
+    def test_a_peak_hunk_the_engine_could_not_allocate_stops_the_build(self) -> None:
+        """The bound is DEF_COMHUNKMEGS out of the pinned engine, not a number
+        restated here, so an engine that shrank the hunk cannot leave this
+        permissive."""
+        ceiling = (
+            self.module.engine_constant(
+                ROOT / "ioq3", "DEF_COMHUNKMEGS", "code/qcommon/common.c"
+            )
+            * 1024
+            * 1024
+        )
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._resource_record(root, maps={"oa_pvomit": {"peakHunkBytes": ceiling}})
+            with self.assertRaisesRegex(ContentError, "Hunk_Alloc failed"):
+                self._load_resources(root)
+            self._resource_record(
+                root, maps={"oa_pvomit": {"peakHunkBytes": ceiling - 1}}
+            )
+            self._load_resources(root)
+
+    def test_a_measurement_from_another_engine_stops_the_build(self) -> None:
+        with tempfile.TemporaryDirectory() as raw:
+            root = Path(raw)
+            self._resource_record(root, method={"engineCommit": "0" * 40})
+            with self.assertRaisesRegex(ContentError, "does not survive an engine move"):
+                self._load_resources(root)
 
     def test_a_bot_file_the_engine_would_drop_stops_the_build(self) -> None:
         """G_LoadBotsFromFile drops the whole file at MAX_BOTS_TEXT, and then

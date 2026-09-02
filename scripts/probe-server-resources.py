@@ -12,6 +12,7 @@ process exit. It emits no host name, container address or credential.
 from __future__ import annotations
 
 import argparse
+import datetime
 import hashlib
 import json
 import os
@@ -547,7 +548,10 @@ def main() -> int:
 
         record = {
             "formatVersion": 1,
-            "measuredAt": "2026-09-01",
+            # The day this ran. It was a literal, which meant the record kept
+            # claiming the day the literal was last edited — a small instance
+            # of the same shape as a document restating a value nothing checks.
+            "measuredAt": datetime.date.today().isoformat(),
             "release": {
                 "serverManifestCommit": _run(
                     ["git", "-C", str(ROOT), "rev-parse", "HEAD"]
