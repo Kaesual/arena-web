@@ -439,7 +439,7 @@
     }
   ],
   "producer": {
-    "commit": "918e6888da62df7f2746a09e5cfea84c7b36fc86",
+    "commit": "47244679be82d69904c0e99b313a7c90e9e37dde",
     "name": "arena-web scripts/build-content-pack.sh"
   }
 }

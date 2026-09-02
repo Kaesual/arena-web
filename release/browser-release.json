@@ -42,7 +42,7 @@
     },
     "contentManifest": {
       "path": "provenance/arena-web-ffa-content-manifest.json",
-      "sha256": "c7f366994a9dda1d39720b18ea2e7bf91fb8dcd6e1f3916f2680432594004906",
+      "sha256": "443fbe5c207918b741381e62089dc23b21f90447ae09af74e57caeb6468454f3",
       "size": 14748
     },
     "contentMemberProvenance": {
@@ -57,8 +57,8 @@
     },
     "integrationHandoff": {
       "path": "docs/wp11-integration-handoff.md",
-      "sha256": "045c442b068ee831af5b7b2fd78face0f7dd3d0fa75a4524f498a21680bb8b37",
-      "size": 45710
+      "sha256": "a370a88b042f6b16fc7e4edd811bccb253fdfe46f6e009ba7c3f038a7799a14d",
+      "size": 45711
     },
     "projectLicense": {
       "path": "LICENSE",
@@ -72,8 +72,8 @@
     },
     "resourceMeasurement": {
       "path": "records/wp11-server-resources.json",
-      "sha256": "18f4fa9dbc73223a9cb5bb6540975484013850be137fc3d6ec6765c2db7e18a9",
-      "size": 3268
+      "sha256": "035f8c81fcbde89a65c48816b39f6ba3265dde39a49a58d717d1a6aab0b984b2",
+      "size": 3269
     },
     "serverAssembly": {
       "path": "scripts/build-server-image.sh",
@@ -87,7 +87,7 @@
     },
     "serverManifest": {
       "path": "provenance/arena-web-server.json",
-      "sha256": "4e3598bb8a61333e64ed76a1fe270c6e3e5420824bcacbcd3b4fd9d796411faa",
+      "sha256": "f09ad477165e0f86b2baa894581c6ec1cdcf59bfbd35f04636cdd3871b5ecb57",
       "size": 7648
     },
     "serverProfile": {
@@ -105,11 +105,11 @@
   "compatibility": {
     "baselineIdentity": "sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287",
     "browserManifestIdentity": "sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047",
-    "contentManifestIdentity": "sha256:c7f366994a9dda1d39720b18ea2e7bf91fb8dcd6e1f3916f2680432594004906",
+    "contentManifestIdentity": "sha256:443fbe5c207918b741381e62089dc23b21f90447ae09af74e57caeb6468454f3",
     "contentPayloadIdentity": "sha256:7cfa98c9fac1274ed45ee653572252e3d3d47c47c6d80163b59afd1c6354277c",
     "engineCommit": "d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
-    "serverImageId": "sha256:2f31235dd98f865b57f69c393dfec5008953927212577a9b6f583187b235a4a9",
-    "serverManifestIdentity": "sha256:4e3598bb8a61333e64ed76a1fe270c6e3e5420824bcacbcd3b4fd9d796411faa"
+    "serverImageId": "sha256:8b3cf3412ee78ce0eb0c91a99fff37016716f0e1768e6b24ea053fd69b7035c7",
+    "serverManifestIdentity": "sha256:f09ad477165e0f86b2baa894581c6ec1cdcf59bfbd35f04636cdd3871b5ecb57"
   },
   "digestAlgorithm": "sha256",
   "formatVersion": 1,
@@ -331,8 +331,8 @@
     },
     {
       "path": "loader.js",
-      "sha256": "b0accd5d8ecb67bf117dc175f62012854875d7330603f7b07b59d4ad249f2740",
-      "size": 58151
+      "sha256": "aed79af8ccc48d10e172030fb8b545aea9bfe4a21f78a00c2b970fadc43f6e26",
+      "size": 58767
     },
     {
       "path": "manifests/browser-client.json",
@@ -346,7 +346,7 @@
     },
     {
       "path": "provenance/arena-web-ffa-content-manifest.json",
-      "sha256": "c7f366994a9dda1d39720b18ea2e7bf91fb8dcd6e1f3916f2680432594004906",
+      "sha256": "443fbe5c207918b741381e62089dc23b21f90447ae09af74e57caeb6468454f3",
       "size": 14748
     }
   ]

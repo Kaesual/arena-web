@@ -8,16 +8,16 @@
   },
   "formatVersion": 1,
   "headroom": {
-    "cpuCores": 0.954635,
-    "cpuFactor": 22.043,
-    "memoryBytes": 237826048,
-    "memoryFactor": 8.77,
+    "cpuCores": 0.951905,
+    "cpuFactor": 20.792,
+    "memoryBytes": 238080000,
+    "memoryFactor": 8.843,
     "writableHomeBytes": 67107592,
     "writableHomeFactor": 52758.541
   },
   "lifecycle": {
     "gracefulExitCode": 1,
-    "gracefulStopSeconds": 0.113,
+    "gracefulStopSeconds": 0.109,
     "healthIntervalSeconds": 1,
     "postReadyFailureThreshold": 3,
     "startupDeadlineSeconds": 20,
@@ -33,17 +33,17 @@
   "measuredAt": "2026-09-02",
   "measurement": {
     "busy": {
-      "cpuSeconds": 1.012009,
+      "cpuSeconds": 1.059458,
       "durationSeconds": 30.0,
-      "meanCpuCores": 0.033733,
-      "peakCgroupMemoryBytes": 30609408,
-      "peakProcessHwmBytes": 31719424,
-      "peakProcessRssBytes": 31719424,
-      "peakSampleCpuCores": 0.045365,
+      "meanCpuCores": 0.035315,
+      "peakCgroupMemoryBytes": 30355456,
+      "peakProcessHwmBytes": 31735808,
+      "peakProcessRssBytes": 31735808,
+      "peakSampleCpuCores": 0.048095,
       "peakWritableHomeBytes": 1272,
-      "samples": 52
+      "samples": 53
     },
-    "containerWritableLayerBytesAfterStop": 12588,
+    "containerWritableLayerBytesAfterStop": 12591,
     "healthFields": {
       "challenge": "a11ce55",
       "fraglimit": "15",
@@ -53,24 +53,24 @@
       "timelimit": "0"
     },
     "idle": {
-      "cpuSeconds": 0.209689,
+      "cpuSeconds": 0.214606,
       "durationSeconds": 10.0,
-      "meanCpuCores": 0.020968,
-      "peakCgroupMemoryBytes": 30384128,
-      "peakProcessHwmBytes": 31711232,
-      "peakProcessRssBytes": 31711232,
-      "peakSampleCpuCores": 0.024565,
+      "meanCpuCores": 0.02146,
+      "peakCgroupMemoryBytes": 30298112,
+      "peakProcessHwmBytes": 31731712,
+      "peakProcessRssBytes": 31731712,
+      "peakSampleCpuCores": 0.024423,
       "peakWritableHomeBytes": 1272,
       "samples": 18
     },
     "maximums": {
-      "peakCgroupMemoryBytes": 30609408,
-      "peakProcessRssBytes": 31719424,
-      "peakSampleCpuCores": 0.045365,
+      "peakCgroupMemoryBytes": 30355456,
+      "peakProcessRssBytes": 31735808,
+      "peakSampleCpuCores": 0.048095,
       "peakWritableHomeBytes": 1272
     },
     "readOnlyImageBytes": 289788367,
-    "startupReadySeconds": 1.75
+    "startupReadySeconds": 1.751
   },
   "observations": {
     "failed": "the owned process exited unexpectedly, missed its startup deadline, or failed three consecutive post-ready checks",
@@ -99,9 +99,9 @@
   },
   "release": {
     "engineCommit": "d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
-    "serverArtifactManifest": "sha256:4e3598bb8a61333e64ed76a1fe270c6e3e5420824bcacbcd3b4fd9d796411faa",
-    "serverImageId": "sha256:2f31235dd98f865b57f69c393dfec5008953927212577a9b6f583187b235a4a9",
-    "serverManifestCommit": "918e6888da62df7f2746a09e5cfea84c7b36fc86"
+    "serverArtifactManifest": "sha256:f09ad477165e0f86b2baa894581c6ec1cdcf59bfbd35f04636cdd3871b5ecb57",
+    "serverImageId": "sha256:8b3cf3412ee78ce0eb0c91a99fff37016716f0e1768e6b24ea053fd69b7035c7",
+    "serverManifestCommit": "47244679be82d69904c0e99b313a7c90e9e37dde"
   },
   "scope": "eight-slot prototype capacity guard for the accepted two-human, three-bot profile; not an SLO or larger-capacity claim"
 }
