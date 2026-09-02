@@ -868,6 +868,174 @@ def max_rotation_length(
         return count
     return 0
 
+# The JavaScript the browser stage serves, and what it is checked for.
+#
+# **The class this closes, and why nothing else did.** `relayEngineArguments`
+# is reached only when a page is actually connected to a hosted server through
+# the relay, so an acceptance that starts the offline slice never evaluates the
+# line — and a refactor deleted a function it calls while `node --check` (a
+# *syntax* checker, which resolves no identifier), the whole Python suite and a
+# browser acceptance all stayed green. A call to a name that does not exist is
+# a defect the file can be read for without running it, so it is.
+JAVASCRIPT_CALL = re.compile(r"(?<![.\w$?])([A-Za-z_$][\w$]*)\s*\(")
+JAVASCRIPT_NAME = re.compile(r"[A-Za-z_$][\w$]*")
+
+# Names the language and the Web platform define. This list is what the check
+# is *allowed* to assume exists, so it holds only standard globals — never a
+# name this repository's own code should have declared. Adding a product name
+# here would be the way to make the gate quietly stop working.
+JAVASCRIPT_GLOBALS = frozenset({
+    "AbortController", "Array", "Blob", "Boolean", "DOMException", "Date",
+    "Error", "Event", "Float32Array", "Function", "Infinity", "Intl", "JSON",
+    "Map", "Math", "NaN", "Number", "Object", "Promise", "Proxy", "RangeError",
+    "ReferenceError", "Reflect", "RegExp", "Set", "String", "Symbol",
+    "TextDecoder", "TextEncoder", "TypeError", "URL", "Uint8Array",
+    "WeakMap", "WeakSet", "WebSocket", "WebTransport", "clearInterval",
+    "clearTimeout", "console", "crypto", "decodeURIComponent",
+    "encodeURIComponent", "fetch", "globalThis", "isFinite", "isNaN",
+    "parseFloat", "parseInt", "performance", "queueMicrotask",
+    "requestAnimationFrame", "setInterval", "setTimeout", "structuredClone",
+    "undefined",
+})
+
+# Statement keywords that a naive "name followed by (" pattern also matches.
+JAVASCRIPT_KEYWORDS = frozenset({
+    "await", "case", "catch", "delete", "do", "else", "for", "function", "if",
+    "import", "in", "new", "of", "return", "super", "switch", "this", "throw",
+    "typeof", "void", "while", "yield",
+})
+
+
+def _javascript_code(source: str) -> str:
+    """The source with string, template and comment content blanked out.
+
+    Not a tokenizer: it removes exactly the three places an identifier-shaped
+    run of characters can appear without being an identifier. A regex over raw
+    source would otherwise read the word inside a message as a call.
+    """
+    out: list[str] = []
+    index = 0
+    length = len(source)
+    while index < length:
+        character = source[index]
+        if character in "\"'`":
+            quote = character
+            index += 1
+            while index < length and source[index] != quote:
+                index += 2 if source[index] == "\\" else 1
+            index += 1
+            out.append('""')
+            continue
+        if character == "/" and index + 1 < length and source[index + 1] == "/":
+            while index < length and source[index] != "\n":
+                index += 1
+            continue
+        if character == "/" and index + 1 < length and source[index + 1] == "*":
+            index += 2
+            while index + 1 < length and not (
+                source[index] == "*" and source[index + 1] == "/"
+            ):
+                index += 1
+            index += 2
+            continue
+        out.append(character)
+        index += 1
+    return "".join(out)
+
+
+def _javascript_declarations(code: str) -> set[str]:
+    """Every name the file binds, by the forms this codebase actually uses.
+
+    Parameter lists are collected wholesale — every identifier inside a `(...)`
+    that a `{` or `=>` follows — rather than by enumerating destructuring
+    shapes, because that is one rule instead of five and it cannot be defeated
+    by a pattern nobody thought of. The name in front of such a list is a
+    declaration too: that is a function declaration or an object-literal
+    method.
+    """
+    names: set[str] = set()
+    for pattern in (
+        r"\b(?:async\s+)?function\s*\*?\s*([A-Za-z_$][\w$]*)",
+        r"\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)",
+        r"\bclass\s+([A-Za-z_$][\w$]*)",
+        r"\bimport\s+([A-Za-z_$][\w$]*)\s+from",
+        r"\bimport\s*\*\s*as\s+([A-Za-z_$][\w$]*)",
+        # An identifier immediately before a lone `=`. In an ES module, which is
+        # always strict, assigning to an undeclared name is a ReferenceError the
+        # engine raises by itself, so treating an assignment target as bound
+        # cannot hide a defect this check would otherwise be the only witness to.
+        r"([A-Za-z_$][\w$]*)\s*=(?![=>])",
+        r"\b(?:const|let|var)\s*\[([^\]]*)\]",
+    ):
+        for found in re.findall(pattern, code):
+            names |= set(JAVASCRIPT_NAME.findall(found))
+    for block in re.findall(r"\bimport\s*\{([^}]*)\}\s*from", code):
+        for part in block.split(","):
+            if part.strip():
+                names.add(part.split()[-1])
+    for block in re.findall(r"\b(?:const|let|var)\s*\{([^}]*)\}", code):
+        names |= set(JAVASCRIPT_NAME.findall(block))
+    names |= _javascript_parameter_names(code)
+    return names
+
+
+def _javascript_parameter_names(code: str) -> set[str]:
+    """Names bound by any parameter list, plus the name that introduces one.
+
+    A parameter list is a balanced `(...)` followed by `{` or `=>`. Balancing
+    matters: `settle(value, commit = () => {}) {` closes its own inner pair
+    first, and a non-balancing pattern reads the list as ending there and loses
+    every name after it.
+    """
+    names: set[str] = set()
+    for index, character in enumerate(code):
+        if character != "(":
+            continue
+        depth = 0
+        cursor = index
+        while cursor < len(code):
+            if code[cursor] == "(":
+                depth += 1
+            elif code[cursor] == ")":
+                depth -= 1
+                if depth == 0:
+                    break
+            cursor += 1
+        else:
+            continue
+        after = code[cursor + 1 :].lstrip()
+        if not after.startswith("{") and not after.startswith("=>"):
+            continue
+        names |= set(JAVASCRIPT_NAME.findall(code[index + 1 : cursor]))
+        before = code[:index].rstrip()
+        match = re.search(r"([A-Za-z_$][\w$]*)$", before)
+        if match:
+            names.add(match.group(1))
+    return names
+
+
+def javascript_unresolved_calls(source: str) -> set[str]:
+    """Called names the file neither declares nor imports, nor gets for free.
+
+    **What it covers:** a bare identifier called as a function that exists
+    nowhere in the file. That is the whole of the defect class it was written
+    for — a function deleted or renamed on a path no test evaluates.
+
+    **What it does not cover, stated because a gate's reach is the part that
+    goes wrong quietly:** it is not a scope analyser. A name declared in one
+    function and called from another resolves here and would not at run time.
+    It says nothing about property calls (`a.b()`), about a name that is
+    referenced without being called, about argument counts or order, or about
+    any *value* being wrong — a relay path that assembles the correct
+    identifiers into the wrong command line passes this and is exactly as
+    broken. It reads the file's own text, so it also cannot see whether an
+    imported module really exports the name it binds.
+    """
+    code = _javascript_code(source)
+    called = set(JAVASCRIPT_CALL.findall(code))
+    return called - _javascript_declarations(code) - JAVASCRIPT_GLOBALS - JAVASCRIPT_KEYWORDS
+
+
 def gametype_values(engine_root: Path) -> dict[str, int]:
     """The `gametype_t` enumerators of the pinned gamecode, with their values.
 

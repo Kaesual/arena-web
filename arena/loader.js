@@ -566,6 +566,22 @@ function parseRelayProfile(profile) {
   return profile;
 }
 
+function relayDestination(configuration) {
+  const hex = configuration.destinationAddressHex;
+  if (typeof hex !== "string" || !/^[0-9a-fA-F]{32}$/.test(hex)) {
+    throw new LoaderError("relay destination is not a 16-byte hexadecimal address");
+  }
+  const port = configuration.destinationPort;
+  if (!Number.isInteger(port) || port < 1 || port > 65535) {
+    throw new LoaderError("relay destination port is outside its accepted range");
+  }
+  const groups = [];
+  for (let index = 0; index < hex.length; index += 4) {
+    groups.push(hex.slice(index, index + 4));
+  }
+  return `[${groups.join(":")}]:${port}`;
+}
+
 // The player's own two inputs live in `arena/player-input.js`, which is a
 // module of its own so that a test can run it under Node beside
 // `scripts/arena_runtime.py`'s copy of the same rule. All this side does is

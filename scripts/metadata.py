@@ -2348,6 +2348,31 @@ def validate_repository(root: Path, *, verify_git: bool = True) -> list[Path]:
                 _fail(str(path), f"uses unknown schema {schema!r}")
             validated.append(path)
 
+    # Every served JavaScript module, read for a call to a name that is not
+    # there. It sits in the repository validator rather than in a test because
+    # every build script runs this function first, and the defect it exists for
+    # -- a function deleted on a path only a live relay evaluates -- reached a
+    # published release with the whole test suite green.
+    from arena_runtime import (
+        LOADER_FILES,
+        RUNTIME_SOURCE_FILES,
+        javascript_unresolved_calls,
+    )
+
+    for served in LOADER_FILES:
+        source = root / RUNTIME_SOURCE_FILES[served]
+        if source.suffix != ".js" or not source.is_file():
+            continue
+        missing = sorted(javascript_unresolved_calls(source.read_text(encoding="utf-8")))
+        if missing:
+            _fail(
+                str(source),
+                f"calls {missing}, which it neither declares nor imports; a "
+                "browser path that is never exercised would raise ReferenceError "
+                "at run time and nothing else here reads for it",
+            )
+        validated.append(source)
+
     release_index_path = root / "release" / "browser-release.json"
     if release_index_path.is_file():
         # The release index deliberately lives outside locks/manifests/

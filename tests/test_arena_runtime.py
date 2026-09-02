@@ -7,6 +7,7 @@ import copy
 import gc
 import hashlib
 import json
+import re
 import shutil
 import subprocess
 import socket
@@ -45,7 +46,11 @@ from arena_runtime import (  # noqa: E402
     check_command_line_budget,
     check_match_end_cvars,
     check_no_committed_map,
+    JAVASCRIPT_GLOBALS,
+    LOADER_FILES,
     PLAYER_NAME_FORBIDDEN,
+    RUNTIME_SOURCE_FILES,
+    javascript_unresolved_calls,
     load_relay_profile,
     player_model,
     player_name,
@@ -3442,3 +3447,81 @@ class PlayerInputTest(unittest.TestCase):
             except ArenaRuntimeError:
                 answers.add(False)
         self.assertEqual(answers, {True, False})
+
+
+class ServedJavaScriptTest(unittest.TestCase):
+    """A called name that is not there, read for rather than run into.
+
+    **The defect this exists for shipped.** `relayEngineArguments` called
+    `relayDestination`, a refactor deleted that function, and the whole Python
+    suite, `node --check` and a browser acceptance stayed green — because the
+    line is reached only when a page is connected to a hosted server through the
+    relay, and nothing the producer can run gets there. The gate is static
+    because a routed acceptance needs an endpoint this repository deliberately
+    does not own, so it could not run on the change that caused the defect.
+    """
+
+    def modules(self) -> list[Path]:
+        found = []
+        for served in LOADER_FILES:
+            source = ROOT / RUNTIME_SOURCE_FILES[served]
+            if source.suffix == ".js" and source.is_file():
+                found.append(source)
+        return found
+
+    def test_every_served_module_resolves_every_call_it_makes(self) -> None:
+        for source in self.modules():
+            with self.subTest(module=source.name):
+                self.assertEqual(
+                    sorted(javascript_unresolved_calls(source.read_text(encoding="utf-8"))),
+                    [],
+                )
+
+    def test_it_finds_more_than_one_module(self) -> None:
+        """A file list that silently went empty would pass the rule above by
+        checking nothing, which is this repository's recurring failure shape."""
+        self.assertGreater(len(self.modules()), 1)
+
+    def test_the_exact_defect_that_shipped_is_refused(self) -> None:
+        """Written as the shape it had, not as a generic missing name: a
+        function called in one place and defined nowhere."""
+        source = """
+        import { helper } from "./helper.js";
+        function build(configuration) {
+          return [helper(configuration), relayDestination(configuration)];
+        }
+        """
+        self.assertEqual(javascript_unresolved_calls(source), {"relayDestination"})
+
+    def test_removing_a_real_declaration_turns_the_committed_file_red(self) -> None:
+        """The gate is not vacuous on the file it is meant to protect. Deleting
+        the restored function from a copy of `loader.js` must report exactly the
+        name that went missing."""
+        loader = (ROOT / "arena/loader.js").read_text(encoding="utf-8")
+        marker = "function relayDestination(configuration) {"
+        self.assertIn(marker, loader)
+        broken = loader.replace(marker, "function relayDestinationRenamed(configuration) {", 1)
+        self.assertEqual(javascript_unresolved_calls(broken), {"relayDestination"})
+
+    def test_a_name_inside_a_string_or_comment_is_not_a_call(self) -> None:
+        """The blanking pass, from the other side: a gate that read prose would
+        be turned off by whoever first wrote a message naming a function."""
+        source = """
+        // thereIsNoSuchFunction(x) is what this used to do
+        const message = "alsoNotAFunction(y)";
+        const template = `norThisOne(z)`;
+        """
+        self.assertEqual(javascript_unresolved_calls(source), set())
+
+    def test_the_allowlist_holds_only_platform_names(self) -> None:
+        """The way this gate would quietly stop working is a product name added
+        to the globals list, so no name any served module declares may be in
+        it. `fetch` and the rest are the platform's; `relayDestination` is not.
+        """
+        declared: set[str] = set()
+        for source in self.modules():
+            text = source.read_text(encoding="utf-8")
+            declared |= set(
+                re.findall(r"\bfunction\s+([A-Za-z_$][\w$]*)", text)
+            ) | set(re.findall(r"\bclass\s+([A-Za-z_$][\w$]*)", text))
+        self.assertEqual(sorted(declared & JAVASCRIPT_GLOBALS), [])
