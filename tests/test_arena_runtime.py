@@ -1101,7 +1101,7 @@ class MultiMapRecipeTest(SyntheticRepositoryTest):
         self._fragments(
             [
                 {"map": "oa_shine", "type": "ffa", "fraglimit": "15"},
-                {"map": "oa_pvomit", "type": "ffa tourney", "fraglimit": "15"},
+                {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
             ]
         )
         self._artifacts(["oa_pvomit", "oa_shine"])
@@ -1143,7 +1143,25 @@ class MultiMapRecipeTest(SyntheticRepositoryTest):
             with self.assertRaises(ArenaRuntimeError) as caught:
                 load_profile(self.repository.root)
             self.assertIn(f"content/maps/{offender}.json", str(caught.exception))
-            self.assertIn("must include 'ffa'", str(caught.exception))
+            self.assertIn("must be exactly 'ffa'", str(caught.exception))
+
+    def test_a_supported_extra_tag_is_refused_too(self) -> None:
+        """The reduction rule is `ffa`, always, and until WP-F batch 3 it had no
+        gate: the check asked whether `ffa` was among the tags, so `ffa tourney`
+        passed while every published fragment said `ffa`. A rule enforced
+        nowhere is a rule the next document guesses at, which is exactly what
+        happened."""
+        self._fragments(
+            [
+                {"map": "oa_shine", "type": "ffa", "fraglimit": "15"},
+                {"map": "oa_pvomit", "type": "ffa tourney", "fraglimit": "15"},
+            ]
+        )
+        self._artifacts(["oa_pvomit", "oa_shine"])
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            load_profile(self.repository.root)
+        self.assertIn("content/maps/oa_pvomit.json", str(caught.exception))
+        self.assertIn("must be exactly 'ffa'", str(caught.exception))
 
     def test_an_unsupported_arena_type_is_refused(self) -> None:
         """Upstream types carry OpenArena-only tags whose game code this product
@@ -1958,7 +1976,7 @@ class EngineLogClassificationTest(unittest.TestCase):
             self.assertGreater(len(reason), 20)
 
     def test_every_reachable_accepted_sound_has_a_note_in_every_phrasing(self) -> None:
-        """A missing sound has three spellings, and a note must cover them all.
+        """A missing sound has several spellings, and a note must cover them all.
 
         The engine reports one missing sound differently depending on the layer
         and the backend: `snd_codec.c` prints 'Failed to load|open sound
@@ -1978,10 +1996,39 @@ class EngineLogClassificationTest(unittest.TestCase):
         `windfly` with no note at all until a native run happened to show it,
         and what left `fireloud` accepted in two spellings out of three.
 
+        Three things this rule got wrong when it was first written, each found
+        by the next batch of maps rather than by re-reading it:
+
+        * the reference is not the unit. One worldspawn `music` value can name
+          two tracks and the engine reports each separately (oa_dm2);
+        * `.wav` widening is an entity rule, not a music rule. Nothing appends
+          an extension to a music value, so `music/sonic5` and
+          `music/sonic5.wav` are two distinct names -- and the widening let
+          oa_pvomit's note cover ce1m7's bare stem, which the engine would have
+          reported as an unaccepted line;
+        * asking for one verb is asking half the question. `Failed to load` and
+          `Failed to open` are the same site with and without an `snd_info_t`,
+          and a note written for the one that cannot occur passes a check that
+          only looks at the other.
+
         Only sounds are covered. A missing image is reported by R_FindImageFile
         alone, a missing skyParms outerbox silently becomes tr.defaultImage, and
         a BSP shader-lump name with neither script nor image is PRINT_DEVELOPER
-        only.
+        only -- and if no surface indexes it, as with `textures/NULL`, it is
+        never even registered.
+
+        **What this still infers rather than reads.** A reference is treated as
+        background music because it came from a map fragment and starts with
+        `music/`, and that is a claim about which engine path it travels, not
+        something the fragment records: `content_pack._add_bsp` reads a
+        worldspawn `music` key and an entity `noise` key into the same list, and
+        `cg_servercmds.c` registers *any* CS_SOUNDS string through
+        S_RegisterSound whatever directory it names. So a map whose `noise` key
+        named a `music/...` path would be exempted here from the two spellings it
+        can actually produce. It holds for this set because every accepted
+        `music/` reference in a fragment was read out of the BSP's entity lump
+        and is a worldspawn value; it would stop holding silently, which is why
+        it is written down.
         """
         # References the closure accepts because a QVM names them, that this
         # profile cannot reach, with the engine site that decides it. An entry
@@ -1999,23 +2046,55 @@ class EngineLogClassificationTest(unittest.TestCase):
             "sound/teamplay/flagret_red.wav": "game/ai_dmq3.c, team gametypes only",
         }
 
-        entries = list(
+        # Kept apart on purpose. A reference's spellings depend on how the
+        # engine reaches it, not on its path: a `music/` value in a map
+        # fragment is a worldspawn key and reaches only
+        # S_StartBackgroundTrack, while the recipe's list is what the QVMs
+        # name, and q3_ui/ui_sppostgame.c registers "music/win.wav" and
+        # "music/loss.wav" through trap_S_RegisterSound. So the background
+        # -music shortcut below applies to the fragments' references and not
+        # to a prefix.
+        recipe_entries = list(
             json.loads(
                 (ROOT / "content/pack-recipe.json").read_text(encoding="utf-8")
             )["acceptedUnresolved"]
         )
+        map_entries: list = []
         for fragment in sorted((ROOT / "content/maps").glob("*.json")):
-            entries += json.loads(fragment.read_text(encoding="utf-8"))[
+            map_entries += json.loads(fragment.read_text(encoding="utf-8"))[
                 "acceptedUnresolved"
             ]
-        references = {
-            reference
-            for reference in (
-                (entry["reference"] if isinstance(entry, dict) else entry).lstrip("/")
-                for entry in entries
-            )
-            if reference.startswith(("sound/", "music/"))
+        entries = recipe_entries + map_entries
+        # A closure entry is one reference; the engine's unit is the token. One
+        # `music` key can name two tracks -- CG_StartMusic runs COM_Parse over
+        # CS_MUSIC twice and hands the pair to trap_S_StartBackgroundTrack as
+        # intro and loop (ioq3 code/cgame/cg_main.c) -- and under OpenAL both
+        # are opened, so the engine reports each name on a line of its own.
+        # oa_dm2 is such a key, and a note written against the whole value
+        # would match nothing the engine ever prints.
+        def tokens(source: list) -> set[str]:
+            return {
+                token
+                for reference in (
+                    (entry["reference"] if isinstance(entry, dict) else entry).lstrip(
+                        "/"
+                    )
+                    for entry in source
+                )
+                for token in (
+                    reference.split()
+                    if reference.startswith("music/")
+                    else (reference,)
+                )
+                if token.startswith(("sound/", "music/"))
+            }
+
+        # The worldspawn music values: the only references here that reach the
+        # engine through S_StartBackgroundTrack alone.
+        background = {
+            token for token in tokens(map_entries) if token.startswith("music/")
         }
+        references = tokens(entries)
         self.assertTrue(references, "the published set accepts no sound reference")
         self.assertLessEqual(
             set(UNREACHABLE),
@@ -2023,8 +2102,15 @@ class EngineLogClassificationTest(unittest.TestCase):
             "an exemption for a reference nothing accepts any more",
         )
 
+        # `info` decides the verb in snd_codec.c: S_CodecLoad passes one and
+        # prints "load", S_CodecOpenStream passes NULL and prints "open". Music
+        # only ever reaches the second, an entity sound only the first, and
+        # asking for both is what stops a note from being written against the
+        # spelling that cannot occur -- which passes a check that only looks at
+        # the other one.
         spellings = {
-            "codec": "^3WARNING: Failed to load sound {name}!",
+            "codec-load": "^3WARNING: Failed to load sound {name}!",
+            "codec-open": "^3WARNING: Failed to open sound {name}!",
             "dma": "^3WARNING: could not find {name} - using default",
             "openal": "^3WARNING: Using default sound for {name}",
         }
@@ -2032,13 +2118,20 @@ class EngineLogClassificationTest(unittest.TestCase):
         for reference in sorted(references - set(UNREACHABLE)):
             # SP_target_speaker appends .wav unless the value already contains
             # it (game/g_target.c), so the engine may report either name and a
-            # note covering one of them covers the reference.
+            # note covering one of them covers the reference. That is an entity
+            # rule and not a music one: neither backend adds an extension to a
+            # worldspawn music value, so `music/sonic5` and `music/sonic5.wav`
+            # are two names the engine reports as written, and letting one note
+            # cover both would hide the second.
             names = {reference}
-            if not reference.lower().endswith(".wav"):
+            if not reference.startswith("music/") and not reference.lower().endswith(
+                ".wav"
+            ):
                 names.add(f"{reference}.wav")
             for layer, template in sorted(spellings.items()):
-                if reference.startswith("music/") and layer != "codec":
-                    # Background music goes through S_CodecOpenStream and never
+                if reference in background and not layer.startswith("codec"):
+                    # A worldspawn music value goes through
+                    # S_StartBackgroundTrack to S_CodecOpenStream and never
                     # reaches S_RegisterSound, so only the codec line exists.
                     continue
                 if not any(
@@ -2048,6 +2141,29 @@ class EngineLogClassificationTest(unittest.TestCase):
                 ):
                     uncovered.append(f"{reference} [{layer}]")
         self.assertEqual(uncovered, [], "reachable accepted sounds without a note")
+
+        # And the converse, because a note is an acceptance and an acceptance
+        # that reaches further than its mechanism is how a real defect gets
+        # waved through. A worldspawn music value cannot produce an
+        # S_RegisterSound line, so no note for one may match those spellings.
+        # Deliberately not "no music/ reference": the QVMs register
+        # music/win.wav and music/loss.wav through S_RegisterSound, and a note
+        # for one of those would rightly carry all three.
+        overreaching = [
+            f"{reference} [{layer}]"
+            for reference in sorted(background - set(UNREACHABLE))
+            for layer in ("dma", "openal")
+            if any(
+                pattern.search(spellings[layer].format(name=reference))
+                for pattern, _ in ACCEPTED_ENGINE_NOTES
+            )
+        ]
+        self.assertEqual(
+            overreaching,
+            [],
+            "a worldspawn music note accepting a line only S_RegisterSound "
+            "can print",
+        )
 
     def test_the_unreachable_exemptions_are_still_defects_if_they_appear(self) -> None:
         """The exemption above is about reachability, not about acceptability."""

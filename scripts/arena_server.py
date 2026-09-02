@@ -510,8 +510,11 @@ def max_server_rotation(repo_root: Path, profile: dict[str, Any]) -> int:
     """How many of the published maps one server can be launched with.
 
     Reported rather than assumed. The cost of a rotation entry is not constant —
-    each carries its map's name twice — so this is a property of the published
-    names, not a number that can be interpolated between two releases.
+    the step names the map once and its own `d<N>` cvar twice — so this is a
+    property of the published names, not a number that can be interpolated
+    between two releases. It answers for prefixes of the published list in
+    order; see `max_rotation_length` for why a repeating rotation can be refused
+    below the number it reports.
     """
     return max_rotation_length(
         list(profile["serverArguments"]),

@@ -1,0 +1,24 @@
+{
+  "acceptedUnresolved": [
+    {
+      "reason": "worldspawn music key of maps/oa_dm2.bsp, which names two tracks in one value: CG_StartMusic runs COM_Parse over CS_MUSIC twice and passes the pair to trap_S_StartBackgroundTrack as intro and loop (ioq3 code/cgame/cg_main.c). The closure resolves the key as written and finds nothing, which is the right answer, because no pinned OpenArena release ships either track. How often the engine says so depends on the backend: S_AL_StartBackgroundTrack opens the intro and then the loop, so an OpenAL client reports both names, while S_Base_StartBackgroundTrack opens only the intro and never reaches the loop, because s_backgroundStream stays NULL and S_UpdateBackgroundTrack returns at once. A missing track is silence, not a failure",
+      "reference": "music/fla22k_04_intro.ogg music/fla22k_04_loop.ogg"
+    },
+    {
+      "reason": "q3map2's placeholder for a face the compiler could not texture, written into the shader lump of maps/oa_dm2.bsp; no OpenArena release ships an image for it. The closure walks the whole lump, which is the conservative reading, and the engine does not: R_LoadShaders only byte-swaps the flags, so a shader-lump entry reaches R_FindShader through ShaderForShaderNum alone, once per surface (ioq3 code/renderergl2/tr_bsp.c), and none of this BSP's 2,524 surfaces references the entry. Two other lumps can register a shader name independently of the shader lump, and neither names this one: a fog record carries its own shader string and R_LoadFogs registers that (this BSP has no fog volume), and R_LoadEntities registers 'remapshader' and 'vertexremapshader' worldspawn values through R_RemapShader, which this BSP has none of. So R_FindShader never runs for it, nothing renders through it, and the engine reports nothing - not even at PRINT_DEVELOPER",
+      "reference": "textures/NULL"
+    }
+  ],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "15",
+    "longname": "Trappie Land",
+    "map": "oa_dm2",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/oa_dm2.arena"
+  ],
+  "map": "oa_dm2"
+}

@@ -1,0 +1,44 @@
+{
+  "acceptedUnresolved": [
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_bk"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_dn"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_ft"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_lf"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_rt"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_up"
+    },
+    {
+      "reason": "worldspawn music key of maps/oa_dm5.bsp, the same track oa_dm6 names. The extension is written out, so S_CodecGetSound uses the ogg codec first and, when that fails, strips the extension and retries the remaining codecs as 'music/sonic3.wav' and 'music/sonic3.opus' (ioq3 code/client/snd_codec.c); no pinned OpenArena release ships any of the three, and a missing track is silence, not a failure",
+      "reference": "music/sonic3.ogg"
+    }
+  ],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "15",
+    "longname": "Inner Cistern",
+    "map": "oa_dm5",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/oa_dm5.arena"
+  ],
+  "map": "oa_dm5"
+}

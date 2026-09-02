@@ -567,7 +567,7 @@ class MultiMapRecipeTests(ProfileFixture):
         self._fragments(
             [
                 {"map": "oa_shine", "type": "ffa", "fraglimit": "15"},
-                {"map": "oa_pvomit", "type": "ffa tourney", "fraglimit": "15"},
+                {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
             ]
         )
         profile = load_profile(self.root)
@@ -592,9 +592,26 @@ class MultiMapRecipeTests(ProfileFixture):
                     for name in ("oa_shine", "oa_pvomit")
                 ]
             )
-            with self.assertRaisesRegex(ArenaServerError, "must include 'ffa'") as caught:
+            with self.assertRaisesRegex(
+                ArenaServerError, "must be exactly 'ffa'"
+            ) as caught:
                 load_profile(self.root)
             self.assertIn(f"content/maps/{offender}.json", str(caught.exception))
+
+    def test_a_supported_extra_tag_is_refused_too(self) -> None:
+        """`ffa tourney` passed the membership check that stood in for the
+        reduction rule until WP-F batch 3 gave the rule a gate."""
+        self._fragments(
+            [
+                {"map": "oa_shine", "type": "ffa", "fraglimit": "15"},
+                {"map": "oa_pvomit", "type": "ffa tourney", "fraglimit": "15"},
+            ]
+        )
+        with self.assertRaisesRegex(
+            ArenaServerError, "must be exactly 'ffa'"
+        ) as caught:
+            load_profile(self.root)
+        self.assertIn("content/maps/oa_pvomit.json", str(caught.exception))
 
     def test_an_archive_the_content_manifest_lacks_is_refused(self) -> None:
         """The recipe derives the archive set from the fragments; if the content

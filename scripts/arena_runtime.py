@@ -230,11 +230,17 @@ MATCH_END_UNREACHABLE = {
 # copies; what survives is a space-separated set drawn from these two.
 SUPPORTED_ARENA_TYPES = ("ffa", "tourney")
 
-# What every published map has to declare. The map is a launch argument now, so
-# a rotation may reach any archive the release publishes, and the committed
-# gametype is GT_FFA on both profiles — so "the started arena is an FFA arena"
-# stops being a statement about one map and becomes one about the set.
-REQUIRED_ARENA_TYPE = "ffa"
+# What every published map declares, and the only thing it may declare. The map
+# is a launch argument now, so a rotation may reach any archive the release
+# publishes, and the committed gametype is GT_FFA on both profiles — so "the
+# started arena is an FFA arena" stops being a statement about one map and
+# becomes one about the set. `tourney` stays in the vocabulary above because it
+# is what upstream may say and what the normalisation drops, not because a
+# fragment may carry it: the reduction rule is `ffa`, always
+# (docs/wp3-content-closure.md, "A fragment's arena `type` is `ffa`, always").
+# Checking membership rather than equality left that rule with no gate at all,
+# which is how it came to be documented as something else.
+PUBLISHED_ARENA_TYPE = "ffa"
 
 DECIMAL = re.compile(r"\A(?:0|[1-9][0-9]*)\Z")
 
@@ -775,9 +781,16 @@ def max_rotation_length(
 ) -> int:
     """How many of `names`, in order, a rotation can hold beside `fixed`.
 
-    Reported rather than assumed: the cost of an entry is not a constant — it
-    carries the map's own name twice over — so a bound stated as a map count is
-    only true of a particular set of names.
+    Reported rather than assumed, and narrower than it looks. The cost of an
+    entry is not a constant — the step names the map once and its own `d<N>`
+    cvar twice, and `d10` is a byte longer than `d9` — so a bound stated as a
+    map count is only true of a particular list.
+
+    **This answers for prefixes of `names`, in the order given.** A rotation may
+    repeat a map (`validate_rotation`), and fifteen entries of one long name
+    cost more than the fifteen longest distinct ones, so a rotation this
+    function's answer appears to permit can still be refused. The binding check
+    is `check_command_line_budget` on the rotation that is actually launched.
     """
     for count in range(len(names), 0, -1):
         try:
@@ -829,7 +842,7 @@ def check_match_end_cvars(repo_root: Path, cvars: dict[str, Any], what: str) -> 
     This replaces a check that the rotation made unaskable. Until now both
     profiles required `fraglimit` to equal the *arena definition's* frag limit
     for the one committed map. Across a published set that is not a single
-    value — the sixteen fragments declare 10, 15, 20 and 30 — so the equality
+    value — the fragments declare 10, 15, 20 and 30 — so the equality
     is not merely inconvenient under a rotation, it is unsatisfiable.
 
     It was also never worth what it looked like. `arena.fraglimit` is written
@@ -1248,12 +1261,14 @@ def load_map_fragment(
             f"the OpenArena-only tags are normalised away rather than copied "
             f"(unsupported: {unknown})",
         )
-    if REQUIRED_ARENA_TYPE not in types:
+    if types != [PUBLISHED_ARENA_TYPE]:
         _fail(
             f"{relative}.arena.type",
-            f"must include '{REQUIRED_ARENA_TYPE}': the map a server plays is a "
-            "launch argument, so a rotation may reach any published archive and "
-            "both profiles commit GT_FFA",
+            f"must be exactly '{PUBLISHED_ARENA_TYPE}': the map a server plays "
+            "is a launch argument, so a rotation may reach any published "
+            "archive and both profiles commit GT_FFA, and the normalisation "
+            "drops the rest of the upstream type rather than carrying it for "
+            "some maps and not others",
         )
     if not DECIMAL.fullmatch(_string(arena.get("fraglimit"), f"{relative}.arena.fraglimit")):
         _fail(f"{relative}.arena.fraglimit", "must be a non-negative decimal integer")

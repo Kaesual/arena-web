@@ -1,0 +1,44 @@
+{
+  "acceptedUnresolved": [
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_bk"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_dn"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_ft"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_lf"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_rt"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_up"
+    },
+    {
+      "reason": "worldspawn music key of maps/ce1m7.bsp, written without a file extension. Neither backend supplies one - S_AL_StartBackgroundTrack hands the value straight to S_CodecOpenStream and S_Base_StartBackgroundTrack does the same through S_OpenBackgroundStream - so S_CodecGetSound tries 'music/sonic5.<ext>' against every registered codec in search order, wav then ogg then opus, because S_CodecInit registers them the other way round and S_CodecRegister prepends (ioq3 code/client/snd_codec.c). No pinned OpenArena release ships any of them, and oa_pvomit names the same track with '.wav' written out, which does not exist either; a missing track is silence, not a failure",
+      "reference": "music/sonic5"
+    }
+  ],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "15",
+    "longname": "Lava House Of Thon",
+    "map": "ce1m7",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/ce1m7.arena"
+  ],
+  "map": "ce1m7"
+}

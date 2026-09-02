@@ -11,8 +11,11 @@ archive plus one archive per map, and the base carries seven player
 presentations rather than one; see
 [the archive split](#amendment-of-2026-09-01-the-archive-split). Everything
 below the selected-profile table is WP3's reasoning about *how* content is
-selected and licensed, which the split does not change; the numbers in it are
-WP3's, and the current ones are in the split section.
+selected and licensed, which the split does not change. **Every number in this
+document is of the amendment that wrote it**, including the split section's own
+archive table; the current ones are in
+`provenance/arena-web-ffa-content-manifest.json`, which is the authority the
+release index and the gates read.
 
 This document records what the arena-web content pack is: how its members were
 selected, which upstream inputs they come from, how their licences were
@@ -586,9 +589,30 @@ change: no schema, validator or WP0/WP1 artifact was modified.
   `"music/fla22k_04_intro.ogg music/fla22k_04_loop.ogg"` — a name no filesystem
   could hold. Neither of the two real names exists in any pinned archive, so
   nothing is missing today; a source that shipped them would leave the closure
-  packaging neither while still reporting a single unresolved reference. Whoever
-  publishes `oa_dm2` inherits that acceptance entry and should read it as one
-  string standing for two references rather than as a path.
+  packaging neither while still reporting a single unresolved reference.
+
+  **WP-F batch 3 published `oa_dm2` and found the consequence this paragraph
+  did not name.** One closure entry is one reference, but the *engine* reports
+  per token, and how many tokens it reaches depends on the backend:
+  `S_AL_StartBackgroundTrack` opens the intro and then the loop, so an OpenAL
+  client — which is what the acceptance browser is — prints a failure for each
+  name, while `S_Base_StartBackgroundTrack` opens only the intro and never
+  reaches the loop, because `s_backgroundStream` stays NULL and
+  `S_UpdateBackgroundTrack` returns at once. A native run therefore sees one of
+  the two names and the acceptance sees both. The accepted-notes rule in
+  `tests/test_arena_runtime.py` now splits a `music` reference on whitespace
+  for exactly this reason, so the second name cannot be missed by reading the
+  closure entry instead of the engine.
+- **`remapshader` is invisible to the closure.** `_add_bsp` reads three entity
+  keys — `model`, `noise` and `music` (`content_pack.py`) — while
+  `R_LoadEntities` also acts on `remapshader` and `vertexremapshader` worldspawn
+  values, passing the name to `R_RemapShader` → `RE_RegisterShaderLightMap` →
+  `R_FindShader` (`renderergl2/tr_bsp.c`, `tr_shader.c`). A map using one would
+  name an image the closure never sees and the pack would not carry it. Not
+  live: no BSP in the published set writes either key, checked over their entity
+  lumps. It is the same fail-open class as the `SP_target_speaker` gap recorded
+  above, and it is why "no other consumer registers this name" needs the entity
+  lump read as well as the shader lump. Found by the WP-F batch-3 review.
 - **The shader stage reader models the stage image directives common to both
   renderers.** `map`, `clampmap`, `videomap`, `animMap` and `skyParms` are what
   name images in either renderer; `renderergl2`'s stage-type keywords
@@ -949,6 +973,13 @@ archive's own selection input, so the base's bytes would move with it.
 
 ### The archive set
 
+**As this amendment was written (2026-09-01), before the shader authority moved
+and before WP-F published any map.** The identities below are of that release
+and have moved since; `provenance/arena-web-ffa-content-manifest.json` is the
+authority for what the current archives are, and it is what the release index
+and every gate read. They are kept because the two rows are what the reasoning
+in this section is about, not because they are current.
+
 | Archive | Identity | Members | Uncompressed |
 | --- | --- | --- | --- |
 | `baseq3/arena-web-ffa-base.pk3` | `sha256:6c3341ef87d16c75b7d3fb5f368d9f935dac304c1dd7667f96b64dd73912bb03`, 40,913,889 bytes | 832 (824 assets, 6 notices, 2 generated) | 82.86 MB |
@@ -1016,6 +1047,37 @@ directory in **both** directions: an enumerated fragment that is missing, a
 fragment on disk that is not enumerated, and a digest that does not match are
 all failures. `arena_runtime.py` and `arena_server.py` read a fragment only
 after its digest matches the identity the manifest records.
+
+### A fragment's arena `type` is `ffa`, always
+
+Written down here by WP-F batch 3 because until then it existed only as code —
+and not even as code in this repository, but in the generator that produced the
+fragments. `arena_runtime.py` enforces two halves of it: the value must be a
+non-empty set drawn from `SUPPORTED_ARENA_TYPES` (`ffa`, `tourney`), and it must
+include `REQUIRED_ARENA_TYPE` (`ffa`), because the map is a launch argument and a
+rotation may reach any published archive while both profiles commit `GT_FFA`.
+What neither constant says is what to do with upstream's *other* supported tag,
+and the answer the published set encodes is: drop it. Nine of the twenty-four
+published maps are typed `tourney` beside `ffa` upstream — seven of the sixteen
+that were published before this batch, and `oa_dm4` and `oa_dm7` in it — and
+every one of them carries plain `ffa`.
+
+So a map upstream types `tourney` **without** `ffa` — `oa_dm6` is the only one in
+v1 — normalises to `ffa` as well, rather than becoming the one fragment whose
+field says more than the others. The field then means exactly one thing,
+"published for FFA", instead of meaning "upstream also said tourney, if this map
+happened to be packaged after someone thought about it". Upstream's own type is
+not lost by this: it stays upstream, and if a tournament mode is ever shipped it
+can be re-derived for the whole set at once, which is better than carrying it
+for part of the set now.
+
+The reason this needed writing down is the mistake it caused. A later document
+described the rule as "the normalized supported subset as a space-separated
+set", which is what the code *looks* like it does and is not what it does.
+Applied to the set, that reading would have moved every one of those nine
+published archives and their immutable URLs for a field nothing in this profile
+reads; applied to `oa_dm6` alone, it would have left one fragment saying more
+than the other twenty-three.
 
 ### Served names carry their own digest
 
@@ -1158,10 +1220,15 @@ inside the six pinned archives.
 | `suspended` | Suspended Satellite | BaronOfHell | source/assets/maps/credits 'Suspended - BaronOfHell'; CREDITS 'BaronOfHell - Map (Suspended), texture, shaders' | — |
 | `wrackdm17` | Never Ending Yard | cosmo | maps_cosmo.txt entry 'wrackdm17 / Never Ending Yard' | E |
 
-Nine of the twenty-nine are named in `source/assets/maps/credits`; the rest
-rest on a role line in `CREDITS`, `CREDITS-0.8.5` or `CREDITS-0.8.8` — all
-three of which are packaged notice members in every archive — on a per-map
-readme in the source tree, or on the `.map` worldspawn `message`. Every author
+Nine of the twenty-nine are named in `source/assets/maps/credits` —
+`aggressor`, `ce1m7`, `czest1dm`, `oa_dm7`, `oa_pvomit`, `oa_rpg3dm2`,
+`oa_shine`, `oa_shouse` and `suspended`, the last written `Suspended` there. The
+Evidence column above cites that file for seven of them, because `czest1dm` and
+`oa_rpg3dm2` carry their own licence documents and those are the stronger
+evidence. The remaining twenty rest on a role line in `CREDITS`,
+`CREDITS-0.8.5` or `CREDITS-0.8.8` — all three of which are packaged notice
+members in every archive — on a per-map readme in the source tree, or on the
+`.map` worldspawn `message`. Every author
 named above has at least one of those.
 
 ### The notes, and why none of them is a licence blocker
@@ -1200,9 +1267,9 @@ copying a template. Five classes, over the twenty-nine kept maps:
 | Class | Count | What it is |
 | --- | --- | --- |
 | sky outerbox | 90 across 15 maps | OpenArena's sky shaders write `skyParms full <height> -` and `ParseSkyParms` expands that outerbox name into six images the release does not ship. Harmless by the renderer's own code: a missing outerbox image becomes `tr.defaultImage`, and the box is drawn only `if (outerbox[0] && outerbox[0] != tr.defaultImage)`, so it is skipped and the cloud layers still draw |
-| worldspawn music | 14 across 13 maps | A `music` key naming a track no pinned release ships. `kaos2` contributes two, because the lookup tries the name and the name plus `.wav`; `oa_dm2`'s single key names an intro and a loop track in one value. A missing track is silence |
+| worldspawn music | 14 across 13 maps | A `music` key naming a track no pinned release ships. `kaos2` contributes two because its entities write the same track under two names, `music/fla22k_05` and `music/fla22k_05.wav` — not because one lookup tries both, which is the entity rule and not the music one (nothing appends an extension to a `music` value); `oa_dm2`'s single key names an intro and a loop track in one value, and `CG_StartMusic` splits it with two `COM_Parse` calls, so the engine looks for both — under OpenAL it opens intro *and* loop and reports each name, while the dma backend opens only the intro. A missing track is silence |
 | entity sounds | 2 across 2 maps | A `noise` key naming a sound the release does not ship — `am_underworks2` and `oa_shouse` |
-| `textures/NULL` | 4 across 4 maps | q3map2's placeholder for a face the compiler could not texture, written into the BSP's shader lump — `oa_dm1`, `oa_dm2`, `oa_dm4`, `oa_dm6`. No OpenArena release ships an image for it |
+| `textures/NULL` | 4 across 4 maps | q3map2's placeholder for a face the compiler could not texture, written into the BSP's shader lump — `oa_dm1`, `oa_dm2`, `oa_dm4`, `oa_dm6`. No OpenArena release ships an image for it, and the engine never registers it: `R_LoadShaders` only byte-swaps the flags, so a shader-lump entry reaches `R_FindShader` through `ShaderForShaderNum` alone, once per surface, and none of the four maps' 902, 2,524, 1,045 and 2,697 surfaces indexes it. Two other lumps can register a name independently — a fog record carries its own shader string, and `R_LoadEntities` passes `remapshader`/`vertexremapshader` worldspawn values to `R_RemapShader` — and neither names it in any of the four. The closure walks the whole lump, which is the conservative reading |
 | images named but absent | 3 across 3 maps | An image a shipped shader or the BSP's shader lump names that no pinned archive provides. This is the only class a player can see, so it decided the cut below |
 
 ### What the engine did with them
@@ -1393,12 +1460,13 @@ survive a move unremeasured.
   string over the *whole published set*, as if every archive were referenced,
   and refuses a set that would not fit.
 
-  Measured rather than assumed: a dedicated server started with all nine
-  published archives reports two referenced archives, not nine —
-  `FS_ClearPakReferences(0)` runs on every `SV_SpawnServer` and only the base
-  and the loaded map are opened afterwards — and its `CS_SYSTEMINFO` is 275
-  bytes of 8192 across thirteen cvars. The projection is pessimistic on
-  purpose, because a bound may not depend on which files a session happens to
+  Measured rather than assumed: a dedicated server started with every archive
+  the release published at the time — nine, when this was measured — reports
+  two referenced archives, not nine, because `FS_ClearPakReferences(0)` runs on
+  every `SV_SpawnServer` and only the base and the loaded map are opened
+  afterwards, and its `CS_SYSTEMINFO` is 275 bytes of 8192 across thirteen
+  cvars. The mechanism is what generalises; the count belongs to that
+  measurement. The projection is pessimistic on purpose, because a bound may not depend on which files a session happens to
   open. Each archive costs `37 + len(<map name>)` bytes, so the ceiling is
   `(8192 − 590) / (37 + longest map name)` — 149 map archives at today's
   longest name, `am_underworks2`. Any rotation is a subset of the published set
@@ -1416,7 +1484,34 @@ survive a move unremeasured.
   once it holds `MAX_CONSOLE_LINES` (32) console lines, leaving the rest neither
   parsed nor reported. A rotation is one `+set d<N>` line per map plus
   `+vstr d1`, so against this release's committed server arguments the ceiling
-  is **15 of the 16 published maps** — both bounds are read out of the pinned
+  is **15 of the 24 published maps** — both bounds are read out of the pinned
   tree by `scripts/arena_runtime.py` and enforced where the rotation actually
   exists. The other bound is what a player downloads and holds in the tab,
   which is why the manifest records both sizes.
+
+  **Which of the two bounds binds is itself worth stating, because it changed
+  without the number changing.** The committed server arguments occupy 16
+  console lines, so a rotation of *n* maps brings the total to `16 + n + 1` and
+  the line bound alone permits at most 15 — whatever the maps are called. A
+  rotation of 16 one-character names is refused for the same reason as a
+  rotation of 16 real ones. So the ceiling is 15 through both batch 2 and batch
+  3 not because two effects cancelled, but because the binding half never
+  depended on the content at all. It falls when the profile grows a launch
+  argument, since every extra console line costs a rotation slot.
+
+  The byte bound is the half that moves with the names, and **it is closer than
+  it looks**. `max_rotation_length` answers for prefixes of the published list
+  in order, so its 15 is the alphabetically first fifteen, which assemble to
+  987 of 1024 bytes; the fifteen *longest* published names assemble to **1018**,
+  six bytes of headroom rather than thirty-seven. Measure with
+  `arena_runtime.engine_command_line`, which is what the budget check uses —
+  joining the arguments with single spaces omits the quoting the engine's own
+  assembly adds, and understates the total.
+
+  And for a rotation that **repeats** a map it does not hold at all.
+  `validate_rotation` permits repetition deliberately, and fifteen entries of
+  `am_underworks2` assemble to 1073 bytes and are refused. So "15 of the
+  published maps" is a statement about fifteen *distinct* maps in the published
+  order; the binding check is `check_command_line_budget` on the rotation that
+  is actually launched, which is fail-closed and is what `server_launch_arguments`
+  runs.

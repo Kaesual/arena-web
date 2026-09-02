@@ -176,10 +176,18 @@ ACCEPTED_ENGINE_NOTES: tuple[tuple[re.Pattern[str], str], ...] = (
     #                                           under either backend;
     #   'could not find <name> - using default' snd_dma.c S_RegisterSound;
     #   'Using default sound for <name>'        snd_openal.c S_AL_BufferUseDefault.
-    # Background music reaches only the first, because S_StartBackgroundTrack
-    # does not go through S_RegisterSound. An entity or gamecode sound reaches
-    # S_RegisterSound and can therefore produce any of the three, so its note
-    # must list all three - and the third is not hypothetical here: USE_OPENAL
+    # A worldspawn music value reaches only the first, because neither backend's
+    # StartBackgroundTrack goes through S_RegisterSound: S_AL_StartBackgroundTrack
+    # calls S_CodecOpenStream directly and S_Base_StartBackgroundTrack does the
+    # same through S_OpenBackgroundStream. Such a note therefore carries the
+    # codec spelling *only* - the other two would accept a line that cannot come
+    # from the mechanism the note reasons about. (The dma path prints a fourth
+    # line beside the codec one, snd_dma.c's "couldn't open music file <name>";
+    # it is unclassified because no ENGINE_DEFECT_PATTERNS entry matches it, so
+    # adding a "couldn't open" alternative there would need a note per music
+    # reference.) An entity or gamecode sound
+    # reaches S_RegisterSound and can produce any of the three, so its note must
+    # list all three - and the third is not hypothetical here: USE_OPENAL
     # is on and only USE_OPENAL_DLOPEN is disabled for Emscripten
     # (ioq3/CMakeLists.txt, cmake/platforms/emscripten.cmake), and s_useOpenAL
     # defaults to "1" (client/snd_main.c), so the acceptance browser runs the
@@ -202,10 +210,7 @@ ACCEPTED_ENGINE_NOTES: tuple[tuple[re.Pattern[str], str], ...] = (
         "czest1tourney does",
     ),
     (
-        re.compile(
-            r"Failed to (?:load|open) sound music/OA09\.ogg"
-            r"|could not find music/OA09\.ogg - using default"
-        ),
+        re.compile(r"Failed to (?:load|open) sound music/OA09\.ogg!"),
         "the worldspawn music key of czest1dm and of oa_koth1 names a track no "
         "pinned OpenArena release ships; both map fragments accept it and a "
         "missing track is silence, not a failure",
@@ -235,37 +240,25 @@ ACCEPTED_ENGINE_NOTES: tuple[tuple[re.Pattern[str], str], ...] = (
     # reference, each belonging to a map this release publishes, each observed
     # in the native run that loaded it.
     (
-        re.compile(
-            r"Failed to (?:load|open) sound music/OA10\.ogg"
-            r"|could not find music/OA10\.ogg - using default"
-        ),
+        re.compile(r"Failed to (?:load|open) sound music/OA10\.ogg!"),
         "sleekgrinder's worldspawn music key names a track no pinned OpenArena "
         "release ships; the map fragment accepts it and a missing track is "
         "silence, not a failure",
     ),
     (
-        re.compile(
-            r"Failed to (?:load|open) sound music/OA11\.ogg"
-            r"|could not find music/OA11\.ogg - using default"
-        ),
+        re.compile(r"Failed to (?:load|open) sound music/OA11\.ogg!"),
         "pul1duel-oa's worldspawn music key names a track no pinned OpenArena "
         "release ships; the map fragment accepts it and a missing track is "
         "silence, not a failure",
     ),
     (
-        re.compile(
-            r"Failed to (?:load|open) sound music/OA03\.ogg"
-            r"|could not find music/OA03\.ogg - using default"
-        ),
+        re.compile(r"Failed to (?:load|open) sound music/OA03\.ogg!"),
         "oa_shouse's worldspawn music key names a track no pinned OpenArena "
         "release ships; the map fragment accepts it and a missing track is "
         "silence, not a failure",
     ),
     (
-        re.compile(
-            r"Failed to (?:load|open) sound music/sonic6!"
-            r"|could not find music/sonic6 - using default"
-        ),
+        re.compile(r"Failed to (?:load|open) sound music/sonic6!"),
         "slimefac's worldspawn music key names music/sonic6 without a file "
         "extension; S_CodecGetSound then probes wav, ogg and opus against that "
         "stem (ioq3 code/client/snd_codec.c) and no pinned OpenArena release "
@@ -291,6 +284,57 @@ ACCEPTED_ENGINE_NOTES: tuple[tuple[re.Pattern[str], str], ...] = (
         "It defaults one shader on oa_koth1, 31 of that map's 2,200 faces; the "
         "map fragment accepts the reference and the audit records the "
         "measurement",
+    ),
+    # WP-F batch 3, the Quake 1 conversion family. Every entry here is a
+    # worldspawn `music` key -- checked in the entity lump of each BSP, not
+    # inferred from the closure, which reports a worldspawn key and an entity
+    # `noise` key under the same origin. That check is load-bearing rather than
+    # thorough: cgame/cg_servercmds.c registers *any* CS_SOUNDS string through
+    # S_RegisterSound whatever directory it names, so a `music/...` path in an
+    # entity `noise` key would reach the two S_RegisterSound spellings, and
+    # nothing in a fragment records which key a reference came from.
+    #
+    # The family's other acceptance class, `textures/NULL`, needs no note at
+    # all, and the reason is narrower than "PRINT_DEVELOPER only":
+    # R_LoadShaders byte-swaps flags, so a shader-lump entry reaches
+    # R_FindShader through ShaderForShaderNum alone, and no surface of the four
+    # maps indexes it. The fog lump and R_LoadEntities' `remapshader` keys can
+    # register a name independently -- they are separate lumps, not consumers
+    # of this one -- and neither names it either. The fragments record the
+    # measurement.
+    (
+        re.compile(r"Failed to (?:load|open) sound music/sonic5!"),
+        "ce1m7's worldspawn music key names music/sonic5 without a file "
+        "extension, so the engine reports the bare stem after probing wav, ogg "
+        "and opus against it. oa_pvomit names the same track *with* '.wav' and "
+        "is reported under that name, which is why this release accepts two "
+        "spellings of one absent track rather than one",
+    ),
+    (
+        re.compile(r"Failed to (?:load|open) sound music/sonic6\.ogg!"),
+        "oa_dm1's worldspawn music key names music/sonic6.ogg; S_CodecGetSound "
+        "tries the ogg codec, then the stem against wav and opus, and no "
+        "pinned OpenArena release ships any of them. slimefac names the same "
+        "stem bare, so this is the second spelling of that absence too",
+    ),
+    (
+        re.compile(r"Failed to (?:load|open) sound music/sonic3\.ogg!"),
+        "the worldspawn music key of oa_dm5 and of oa_dm6 names a track no "
+        "pinned OpenArena release ships; both map fragments accept it and a "
+        "missing track is silence, not a failure",
+    ),
+    (
+        re.compile(
+            r"Failed to (?:load|open) sound music/fla22k_04_intro\.ogg!"
+            r"|Failed to (?:load|open) sound music/fla22k_04_loop\.ogg!"
+        ),
+        "oa_dm2's worldspawn music key names two tracks in one value, which "
+        "CG_StartMusic splits into intro and loop with two COM_Parse calls "
+        "(ioq3 code/cgame/cg_main.c). Neither is shipped, and how many lines "
+        "that produces depends on the backend: S_AL_StartBackgroundTrack opens "
+        "the intro and then the loop, so the OpenAL client this acceptance runs "
+        "reports both names, while the dma backend opens only the intro. One "
+        "fragment entry, two names the engine can report",
     ),
 )
 

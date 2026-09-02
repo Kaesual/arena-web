@@ -1,0 +1,24 @@
+{
+  "acceptedUnresolved": [
+    {
+      "reason": "worldspawn music key of maps/oa_dm6.bsp, the same track oa_dm5 names. The extension is written out, so S_CodecGetSound uses the ogg codec first and, when that fails, strips the extension and retries the remaining codecs as 'music/sonic3.wav' and 'music/sonic3.opus' (ioq3 code/client/snd_codec.c); no pinned OpenArena release ships any of the three, and a missing track is silence, not a failure",
+      "reference": "music/sonic3.ogg"
+    },
+    {
+      "reason": "q3map2's placeholder for a face the compiler could not texture, written into the shader lump of maps/oa_dm6.bsp; no OpenArena release ships an image for it. The closure walks the whole lump, which is the conservative reading, and the engine does not: R_LoadShaders only byte-swaps the flags, so a shader-lump entry reaches R_FindShader through ShaderForShaderNum alone, once per surface (ioq3 code/renderergl2/tr_bsp.c), and none of this BSP's 2,697 surfaces references the entry. Two other lumps can register a shader name independently of the shader lump, and neither names this one: a fog record carries its own shader string and R_LoadFogs registers that (its one fog volume names 'textures/sfx/xlightgreyfog'), and R_LoadEntities registers 'remapshader' and 'vertexremapshader' worldspawn values through R_RemapShader, which this BSP has none of. So R_FindShader never runs for it, nothing renders through it, and the engine reports nothing - not even at PRINT_DEVELOPER",
+      "reference": "textures/NULL"
+    }
+  ],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "10",
+    "longname": "The Dark Zone",
+    "map": "oa_dm6",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/oa_dm6.arena"
+  ],
+  "map": "oa_dm6"
+}
