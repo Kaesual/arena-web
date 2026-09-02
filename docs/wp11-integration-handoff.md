@@ -10,8 +10,10 @@ field below. The immutable public Git commit containing this document and
 release source. Mutable branch names and local container tags are not release
 identities.
 
-The only supported profile is `arena-web-ffa`: FFA on
-`oa_pvomit`, frag limit 15, no time limit, eight slots and three server bots.
+The only supported profile is `arena-web-ffa`: FFA, frag limit 15, no time
+limit, eight slots and three server bots. **The map is not part of the
+profile.** It is a launch argument on both halves — the rotation the caller
+supplies — and section 9 is the rule that binds the two derivations together.
 The accepted browser is Chrome for Testing 152.0.7977.64 on Fedora Linux 44
 `x86_64`; the dedicated server is Linux `amd64`. These are deliberately narrow
 prototype bounds, not a wider platform or capacity claim.
@@ -190,11 +192,14 @@ returns a rejected Promise with `LoaderError: Start has already been accepted`
 and starts no second engine or relay. A call outside `ready` rejects without
 changing state, and a synthetic/no-activation call rejects with
 `Start requires transient user activation`. Without a relay configuration the
-engine runs a local listen server from the profile's committed
-`engineArguments`, which start `map` (section 1); if the rotation did not fetch
-that map's archive, `start()` rejects with
-`the offline profile starts <map>, which ?maps=... did not fetch` and changes
-no state. A relay client starts no map of its own and is unaffected.
+engine runs a local listen server, and the map it starts is **the first entry
+of `?maps=` as written** — the loader prepends `+map <that map>` to the
+profile's committed `engineArguments`, which carry no map of their own. Its
+archive is therefore in the fetch set by construction, so there is no Start
+refusal for a missing offline map any more; the release before this one had one
+because the started map was committed independently of the rotation. A relay
+client starts no map of its own and takes its rotation from the server it
+connects to.
 
 The main status path is:
 
@@ -269,7 +274,7 @@ The exact server identities are:
 | --- | --- |
 | OCI configuration/image ID | `sha256:21acf69282db5bb74708a0ea026bd6b2a657850f8c756fa0ae3cd30f4c8a60b1` |
 | Server artifact manifest | `sha256:f23f244e9a86469afb12436d1933c486357aed10bdb50864c3cf4fa0cd0879bd` |
-| Server profile | `sha256:6d48c19238b1874bf30d276a8419ec771007f13739f0e69c447b33d412a69472` |
+| Server profile | `sha256:829441e319d623b5134a9fbbda87a674689148bc7a8390954f4dbc0e4ed8f40f` |
 
 The image is `linux/amd64`, user/group `65534:65534`, workdir
 `/opt/arena-web`, environment `HOME=/var/lib/arena`, entrypoint
@@ -303,17 +308,81 @@ cannot run the build at all. Passing the commit the record itself carries is
 what makes the accepted image ID reachable. Omit the flag and you get a
 different image, which is a new release, not this one.
 
-Pass the exact `native/server-profile.json.serverArguments` array in its
-committed order. In command-line notation it is:
+Pass the **rotation arguments, then** the exact
+`native/server-profile.json.serverArguments` array in its committed order. The
+committed array carries no map — a map inside it would be a rotation the caller
+cannot see — and `scripts/arena_server.py` `server_launch_arguments` is the one
+supported derivation of the pair. In command-line notation, for a rotation of
+`oa_pvomit, am_galmevish`:
 
 ```text
++set d1 "map oa_pvomit;set nextmap vstr d2"
++set d2 "map am_galmevish;set nextmap vstr d1"
++vstr d1
 +set bot_enable 1 +set com_basegame arena +set com_legacyprotocol 0
 +set dedicated 1 +set fraglimit 15 +set g_gametype 0 +set net_enabled 1
 +set net_port 27960 +set sv_maxclients 8 +set sv_pure 0
-+set sv_rateLimitPerPort 1 +set timelimit 0 +map oa_pvomit
++set sv_rateLimitPerPort 1 +set timelimit 0
 +addbot Skelebot 1 free 2000 +addbot Rai 1 free 3500
 +addbot Sly 1 free 5000
 ```
+
+One `d<N>` cvar per rotation entry, each loading its map and pointing `nextmap`
+at the next; `vstr d1` enters the cycle. This is stock ioquake3's own idiom —
+`ExitLevel` runs `vstr nextmap` and baseq3 carries no map list of its own
+(ioq3 `code/game/g_main.c`). The rotation goes **first** because every `+set`
+line is applied by `Com_StartupVariable` before the command buffer runs at all,
+so `vstr d1` still precedes every `+addbot`, which `Svcmd_AddBot_f` requires.
+
+**A rotation has a hard ceiling, and both halves of it are silent.** ioquake3
+concatenates argv into a fixed `char commandLine[MAX_STRING_CHARS]` (1024 bytes)
+with `Q_strcat`, which truncates through `Q_strncpyz` rather than failing, and
+`Com_ParseCommandLine` stops taking console lines at `MAX_CONSOLE_LINES` (32)
+and returns, leaving the rest neither parsed nor reported. Both numbers are
+published in `native/server-profile.json.engineCommandLine` and are checked
+against the pinned engine on every validation, so they cannot go stale.
+`server_launch_arguments` refuses a rotation that would not fit;
+`max_server_rotation` reports how many of the published map names do. **At this
+release that ceiling is 15 of the 16 published maps** — the cost of an entry
+carries its map's name twice, so it is a property of these names and not a
+figure to interpolate. A rotation is bounded far below it in practice by what a
+player downloads, which section 1's per-archive figures let you compute.
+
+**A rotation only advances when a level ends, and this profile gives a level
+exactly one way to end.** `CheckExitRules` (ioq3 `code/game/g_main.c`) returns
+early for sudden death — `if ( ScoreIsTied() ) return;`, ahead of both limit
+checks — and 0:0 is a tie, so a map on which two or more players are playing
+and nobody scores never exits, on the time limit or on anything else.
+
+Read the guard exactly, because it is narrower than it looks: `ScoreIsTied`
+returns false when `level.numPlayingClients < 2`, so an **empty** server is not
+in sudden death and a non-zero `timelimit` would end its level normally. This
+release's profile commits `timelimit 0`, which leaves the frag limit as the
+only exit — so here an idle or empty server does stay on its map indefinitely,
+but for that reason rather than for the tie. A profile that set a time limit
+would behave differently, and "the time limit bounds how long a map runs" is
+false only under a tie.
+
+There is **no automatic second path**: `vstr nextmap` is sent from `ExitLevel`
+and nowhere else in the gamecode (`g_main.c:1072`). The manual paths all need
+players, so none of them is available in the state that produces a stall on an
+empty server:
+
+- a passed `callvote nextmap`, which builds the same command string
+  (`g_cmds.c:1388`);
+- a passed `callvote timelimit <n>` or `callvote fraglimit <n>`, which change
+  *when* a level ends and can therefore advance a stalled rotation — and can
+  equally set both to zero at run time, undoing there what this release's
+  build-time rule refuses — `arena-web` requires the committed `fraglimit` and
+  `timelimit` not to be both zero, and a vote is outside that gate's reach.
+
+`g_allowVote` defaults to `1` (`g_main.c:158`) and neither profile disables it,
+so on an occupied server those ways out exist; on an empty one none does.
+
+A server launched with **no** rotation is not a special case that needs its own
+error path: it comes up mapless and never answers a `getstatus` the readiness
+contract below accepts, so the omission fails the gate you already run instead
+of surfacing at a map change.
 
 Drop all capabilities, set no-new-privileges, make the root filesystem
 read-only and mount an initially empty, `rw,noexec,nosuid,nodev`, mode-1777,
@@ -321,7 +390,7 @@ read-only and mount an initially empty, `rw,noexec,nosuid,nodev`, mode-1777,
 and `games.log`. There is **no persistent path or volume** in this release; no
 world, save, secret or host file is required. The read-only image is
 208,750,031 bytes; the measured container writable layer after stop
-was 12,554 bytes and is disposable.
+was 12,647 bytes and is disposable.
 
 Readiness is the native binary UDP query, no more than once per second from a
 stable source address and port:
@@ -332,15 +401,29 @@ ff ff ff ff + ASCII "getstatus " + short whitespace-free hex challenge + "\n"
 
 Require a response from the target endpoint beginning with four `0xff` bytes
 and `statusResponse\n`; parse the following info string and require the echoed
-challenge plus `mapname=oa_pvomit`, `g_gametype=0`, `fraglimit=15`,
-`timelimit=0` and `sv_maxclients=8`. Discard the unneeded player-list tail.
+challenge plus `g_gametype`, `fraglimit`, `timelimit` and `sv_maxclients` equal
+to `native/server-profile.json`'s committed cvars — read from the profile
+rather than copied, since a later release may set them differently. Discard the
+unneeded player-list tail.
+
+**`mapname` is checked differently at readiness and afterwards.** At readiness
+require it to equal the **first entry of the rotation you launched with**: that
+is the caller's own expectation, and it is what proves the launch argument took
+effect and therefore that a rotation was supplied at all — a server that
+ignored or never received one does not become ready. **After readiness require
+only that `mapname` is some entry of that rotation.** `SV_SpawnServer` sets
+`mapname` afresh on every map change (ioq3 `code/server/sv_init.c`), which is
+the entire point of a rotation, so a repeated check pinned to the first entry
+would declare a healthy server failed a few seconds into its second map, every
+cycle. A map from outside the rotation is still a failure in both phases.
+
 Startup has a 20-second deadline. After readiness, three consecutive failed
 one-second checks make the observation failed.
 
 Send `SIGTERM` or `SIGINT` to the entrypoint and allow 10 seconds before a
 forced kill. The normal signal path sends the final server message, closes the
 VM/network and exits with code 1; code 1 is therefore success only when the
-manager requested this stop. The measured graceful exit took 0.114 seconds.
+manager requested this stop. The measured graceful exit took 0.129 seconds.
 Any unsolicited exit, including code 1, is failure.
 
 ## 5. Indivisible compatibility identity
@@ -418,18 +501,18 @@ for this exact eight-slot/two-human/three-bot prototype is:
 
 | Resource | Limit | Busy observed maximum | Remaining safety margin |
 | --- | ---: | ---: | ---: |
-| CPU | 1 core | 0.054634-core peak sample | 0.945366 core; 18.304x |
-| Memory | 268,435,456 bytes | 29,958,144-byte peak cgroup; 31,395,840-byte process HWM | 238,477,312 bytes; 8.96x against cgroup peak |
+| CPU | 1 core | 0.048415-core peak sample | 0.951585 core; 20.655x |
+| Memory | 268,435,456 bytes | 29,999,104-byte peak cgroup; 31,539,200-byte process HWM | 238,436,352 bytes; 8.948x against cgroup peak |
 | Writable home | 67,108,864 bytes | 1,272 bytes | 67,107,592 bytes; 52,758.541x |
 | Processes | 128 PIDs | constrained successfully by the probe | guard, not a measured demand claim |
 
-Startup readiness was 1.75 seconds, which is a poll-loop
+Startup readiness was 1.751 seconds, which is a poll-loop
 figure and not a startup time: the readiness probe waits out a 0.75-second
 socket timeout and then a one-second interval, so it says the server was ready
 before the second poll and no more than that. The ten-second idle phase
-averaged 0.021239 cores. The 30-second two-native-client phase, with
+averaged 0.021132 cores. The 30-second two-native-client phase, with
 movement, weapon, fire, chat and respawn traffic while all three bots remained
-active, averaged 0.038657 cores. These values preserve large practical headroom, but are
+active, averaged 0.039373 cores. These values preserve large practical headroom, but are
 capacity guards only—not an SLO, autoscaling rule, production concurrency
 claim or evidence for more than two humans.
 

@@ -7,8 +7,8 @@
     },
     "browserAcceptance": {
       "path": "scripts/accept-host-lifecycle.py",
-      "sha256": "5422ab7c8a7e1d66a8b4576d805d52d38c1d40f19c73ad91d644a868b95856f6",
-      "size": 24315
+      "sha256": "d4c2aba0bf053fdc1eb030714080e81a10450aad85f2b1dae9aae835f48dff72",
+      "size": 24629
     },
     "browserBuild": {
       "path": "scripts/build-browser.sh",
@@ -27,8 +27,8 @@
     },
     "browserProfile": {
       "path": "arena/game-profile.json",
-      "sha256": "058bbbd24d0ac8fc81bdf99974a690b9f62f6ac846584254fbb70035c39390ce",
-      "size": 10680
+      "sha256": "322a2c1aca8a4fba4962b133d5bd9cecd19c5207ed0c8028eb9c10aa5ffd957a",
+      "size": 12982
     },
     "contentAssembly": {
       "path": "scripts/build-content-pack.sh",
@@ -37,8 +37,8 @@
     },
     "contentLicenseClosure": {
       "path": "docs/wp3-content-closure.md",
-      "sha256": "54a242d8e62a8f1a37c36ca787d6e9a7933c3d46bc5094b22930d5646eaed84b",
-      "size": 94680
+      "sha256": "dd924c00eb6b56e7b173b99d7415525cf04e98eb1527181f03709f54457df5a5",
+      "size": 95361
     },
     "contentManifest": {
       "path": "provenance/arena-web-ffa-content-manifest.json",
@@ -57,8 +57,8 @@
     },
     "integrationHandoff": {
       "path": "docs/wp11-integration-handoff.md",
-      "sha256": "4ebaae5f2b96dd0d23aa569560ca61ab28ccc3fc0a11d515c23bbe9c700483e2",
-      "size": 29766
+      "sha256": "3c6e33989fe07564a8775387bf614a1aa5c53603157ff6e0615cd4d61f9910bb",
+      "size": 34984
     },
     "projectLicense": {
       "path": "LICENSE",
@@ -72,8 +72,8 @@
     },
     "resourceMeasurement": {
       "path": "records/wp11-server-resources.json",
-      "sha256": "5089de4d4793af43fd5299cae6e23423d44cadb67484c193d04c2fd35710487d",
-      "size": 3090
+      "sha256": "4d677a3d8afae26b34c835463c31d4ab646ae1ec91216ea89557691eeea0ceee",
+      "size": 3131
     },
     "serverAssembly": {
       "path": "scripts/build-server-image.sh",
@@ -92,8 +92,8 @@
     },
     "serverProfile": {
       "path": "native/server-profile.json",
-      "sha256": "6d48c19238b1874bf30d276a8419ec771007f13739f0e69c447b33d412a69472",
-      "size": 7863
+      "sha256": "829441e319d623b5134a9fbbda87a674689148bc7a8390954f4dbc0e4ed8f40f",
+      "size": 9474
     },
     "serverVerification": {
       "path": "scripts/verify-server-image.py",
@@ -251,8 +251,8 @@
     },
     {
       "path": "game-profile.json",
-      "sha256": "058bbbd24d0ac8fc81bdf99974a690b9f62f6ac846584254fbb70035c39390ce",
-      "size": 10680
+      "sha256": "322a2c1aca8a4fba4962b133d5bd9cecd19c5207ed0c8028eb9c10aa5ffd957a",
+      "size": 12982
     },
     {
       "path": "index.html",
@@ -261,8 +261,8 @@
     },
     {
       "path": "loader.js",
-      "sha256": "f4b8e604dd0a0b357a992cbc23505e0f0d8db77b82cc91e2ea7b0d7fdd5d6d3b",
-      "size": 50289
+      "sha256": "165948ae8535753ea96d9c097baa64e364d49189f653c85a80c5447f085b8753",
+      "size": 55525
     },
     {
       "path": "manifests/browser-client.json",

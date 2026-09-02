@@ -8,16 +8,16 @@
   },
   "formatVersion": 1,
   "headroom": {
-    "cpuCores": 0.945366,
-    "cpuFactor": 18.304,
-    "memoryBytes": 238477312,
-    "memoryFactor": 8.96,
+    "cpuCores": 0.951585,
+    "cpuFactor": 20.655,
+    "memoryBytes": 238436352,
+    "memoryFactor": 8.948,
     "writableHomeBytes": 67107592,
     "writableHomeFactor": 52758.541
   },
   "lifecycle": {
     "gracefulExitCode": 1,
-    "gracefulStopSeconds": 0.114,
+    "gracefulStopSeconds": 0.129,
     "healthIntervalSeconds": 1,
     "postReadyFailureThreshold": 3,
     "startupDeadlineSeconds": 20,
@@ -33,17 +33,17 @@
   "measuredAt": "2026-09-02",
   "measurement": {
     "busy": {
-      "cpuSeconds": 1.159722,
+      "cpuSeconds": 1.1812,
       "durationSeconds": 30.0,
-      "meanCpuCores": 0.038657,
-      "peakCgroupMemoryBytes": 29958144,
-      "peakProcessHwmBytes": 31395840,
-      "peakProcessRssBytes": 31395840,
-      "peakSampleCpuCores": 0.054634,
+      "meanCpuCores": 0.039373,
+      "peakCgroupMemoryBytes": 29999104,
+      "peakProcessHwmBytes": 31539200,
+      "peakProcessRssBytes": 31539200,
+      "peakSampleCpuCores": 0.048415,
       "peakWritableHomeBytes": 1272,
       "samples": 53
     },
-    "containerWritableLayerBytesAfterStop": 12554,
+    "containerWritableLayerBytesAfterStop": 12647,
     "healthFields": {
       "challenge": "a11ce55",
       "fraglimit": "15",
@@ -53,24 +53,24 @@
       "timelimit": "0"
     },
     "idle": {
-      "cpuSeconds": 0.212396,
+      "cpuSeconds": 0.211322,
       "durationSeconds": 10.0,
-      "meanCpuCores": 0.021239,
-      "peakCgroupMemoryBytes": 29937664,
-      "peakProcessHwmBytes": 31395840,
-      "peakProcessRssBytes": 31395840,
-      "peakSampleCpuCores": 0.022587,
+      "meanCpuCores": 0.021132,
+      "peakCgroupMemoryBytes": 29933568,
+      "peakProcessHwmBytes": 31506432,
+      "peakProcessRssBytes": 31506432,
+      "peakSampleCpuCores": 0.022827,
       "peakWritableHomeBytes": 1272,
       "samples": 18
     },
     "maximums": {
-      "peakCgroupMemoryBytes": 29958144,
-      "peakProcessRssBytes": 31395840,
-      "peakSampleCpuCores": 0.054634,
+      "peakCgroupMemoryBytes": 29999104,
+      "peakProcessRssBytes": 31539200,
+      "peakSampleCpuCores": 0.048415,
       "peakWritableHomeBytes": 1272
     },
     "readOnlyImageBytes": 208750031,
-    "startupReadySeconds": 1.75
+    "startupReadySeconds": 1.751
   },
   "observations": {
     "failed": "the owned process exited unexpectedly, missed its startup deadline, or failed three consecutive post-ready checks",
@@ -82,7 +82,10 @@
     "bots": 3,
     "busyTraffic": "ordinary native-client movement, weapon selection, fire, chat and respawn commands",
     "humans": 2,
-    "map": "oa_pvomit",
+    "rotation": [
+      "oa_pvomit",
+      "am_galmevish"
+    ],
     "slots": 8,
     "udpPort": 27960
   },

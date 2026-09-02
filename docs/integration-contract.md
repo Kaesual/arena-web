@@ -365,10 +365,13 @@ requires the complete OCI configuration above, the exact four provenance/title
 labels and the absence of any extra label; the baseline and all preserved
 per-package copyright files remain the licence authority.
 
-Start the entrypoint with `native/server-profile.json.serverArguments` in its
-committed order. Those arguments are validated as the exact derivation of the
-profile's cvars, map and bots. Do not append an override or replace the bundled
-configuration: that creates a different, unsupported server profile.
+Start the entrypoint with the rotation's arguments followed by
+`native/server-profile.json.serverArguments` in its committed order — build the
+pair with `scripts/arena_server.py` `server_launch_arguments`. The committed
+array is validated as the exact derivation of the profile's cvars and bots and
+is required to carry no map; the rotation is the launch input. Do not append any
+other override or replace the bundled configuration: that creates a different,
+unsupported server profile.
 
 The runtime should apply the same confinement used by acceptance:
 
@@ -416,10 +419,19 @@ query rather than a server-log substring:
 2. Require a UDP response from that endpoint beginning with four `0xff` bytes
    and `statusResponse\n`.
 3. Parse the following ioquake3 info string, require the echoed challenge, and
-   require at least `mapname=oa_pvomit`, `g_gametype=0`, `fraglimit=15`,
-   `timelimit=0` and `sv_maxclients=8`. The active game directory is not a
-   `getstatus` server-info field; it is already fixed by the verified image and
-   exact command profile and must not be inferred from this probe.
+   require at least `g_gametype`, `fraglimit`, `timelimit` and `sv_maxclients`
+   to equal `native/server-profile.json`'s committed cvars. The active game
+   directory is not a `getstatus` server-info field; it is already fixed by the
+   verified image and exact command profile and must not be inferred from this
+   probe.
+4. **`mapname` is checked differently at readiness and afterwards, and
+   conflating the two would fail every rotating server.** At readiness require
+   `mapname` to equal the **first entry of the rotation you launched with**:
+   that is what proves the launch argument took effect, and therefore that a
+   rotation was supplied at all. After readiness require only that `mapname` is
+   **some** entry of that rotation. `SV_SpawnServer` sets `mapname` afresh on
+   every map change, so a repeated check pinned to the first entry would declare
+   a healthy server `failed` a few seconds into its second map, every cycle.
 
 Use a stable health-check source address and UDP source port, do not send more
 than one query per second, and apply a bounded timeout. The server rate-limits
@@ -527,7 +539,7 @@ Two consequences worth stating:
   the conservative choice when the two are decided at different times. Only the
   subset direction fails.
 
-**The client half is now load-bearing; the server half is not yet.** The browser
+**Both halves are now load-bearing.** The browser
 page is opened with the rotation as a required query parameter:
 
 ```text
@@ -538,11 +550,16 @@ It fetches the base archive plus exactly those maps' archives and nothing else,
 and it refuses — before fetching anything — if the parameter is absent, empty,
 names a map this release does not publish, or names the base. A page opened
 without it does not fall back to a default, because both plausible defaults are
-wrong: the whole set is the download this exists to remove, and the profile's
-own map is a client whose archive set is a strict subset of the server's
-rotation, which is the failure described above. So arena-web cannot check the
-*relation* between the two halves, but it does check that the caller made a
-choice at all.
+wrong: the whole set is the download this exists to remove, and one map is a
+client whose archive set is a strict subset of the server's rotation, which is
+the failure described above. So arena-web cannot check the *relation* between
+the two halves, but it does check that the caller made a choice at all.
+
+The **first entry as you wrote it** is where the rotation starts, on both
+halves. The browser's offline slice starts that map; the dedicated server's
+`vstr d1` loads it first. Ordering is the one thing the two derivations read
+identically out of the same list — the client additionally canonicalises it
+into a fetch set, which is why a repeat is not an error.
 
 Names are canonicalised — sorted and de-duplicated — so `?maps=b,a,b` and
 `?maps=a,b` fetch the same set. Pass the rotation list as you hold it; a
@@ -564,11 +581,51 @@ breaks; when it breaks, the engine prints
 `cl_allowDownload` is 0 on both profiles — and `rotation.missingOnServer`
 carries that line. Together they are what a post-mortem starts from.
 
-**The server half is still committed:** `native/server-profile.json` carries
-`+map` inside its committed `serverArguments`. The rotation becomes an
-uncommitted launch argument in a later work package. Until then an integration
-still has to hold one rotation list and derive both halves from it, so that
-change is a substitution rather than a redesign.
+**The server half is a launch argument too.** `native/server-profile.json`
+carries no map at all, and neither does its committed `serverArguments`: a map
+inside an array a caller passes verbatim would be a rotation nobody can see. The
+launch command is the rotation's own arguments followed by that array, and
+`scripts/arena_server.py` `server_launch_arguments` is the one supported
+derivation of the pair — it refuses an empty rotation, a name this release
+publishes no archive for, and an argument list the engine would silently cut
+down. The shape and the ceiling are in the handoff's server section.
+
+**A rotation only advances when a level ends, and this profile gives a level
+exactly one way to end.** `CheckExitRules` (ioq3 `code/game/g_main.c`) returns
+early for sudden death — `if ( ScoreIsTied() ) return;`, ahead of both limit
+checks — and 0:0 is a tie, so a map on which two or more players are playing
+and nobody scores never exits, on the time limit or on anything else.
+
+Read the guard exactly, because it is narrower than it looks: `ScoreIsTied`
+returns false when `level.numPlayingClients < 2`, so an **empty** server is not
+in sudden death and a non-zero `timelimit` would end its level normally. This
+release's profile commits `timelimit 0`, which leaves the frag limit as the
+only exit — so here an idle or empty server does stay on its map indefinitely,
+but for that reason rather than for the tie. A profile that set a time limit
+would behave differently, and "the time limit bounds how long a map runs" is
+false only under a tie.
+
+There is **no automatic second path**: `vstr nextmap` is sent from `ExitLevel`
+and nowhere else in the gamecode (`g_main.c:1072`). The manual paths all need
+players, so none of them is available in the state that produces a stall on an
+empty server:
+
+- a passed `callvote nextmap`, which builds the same command string
+  (`g_cmds.c:1388`);
+- a passed `callvote timelimit <n>` or `callvote fraglimit <n>`, which change
+  *when* a level ends and can therefore advance a stalled rotation — and can
+  equally set both to zero at run time, undoing there what this release's
+  build-time rule refuses — `arena-web` requires the committed `fraglimit` and
+  `timelimit` not to be both zero, and a vote is outside that gate's reach.
+
+`g_allowVote` defaults to `1` (`g_main.c:158`) and neither profile disables it,
+so on an occupied server those ways out exist; on an empty one none does.
+
+Forgetting the rotation is not a quiet failure on this side: a mapless
+dedicated server never answers a `getstatus` the readiness contract accepts, so
+the omission fails the gate you already run rather than surfacing at a map
+change. What no gate can catch is the two halves being derived from *different*
+lists, which is why the rule above is a rule.
 
 Recorded as later hardening rather than a present requirement: the loader could
 read the server's advertised rotation out of `serverinfo` before Start and verify
@@ -613,7 +670,7 @@ tuple; do not diff `compatibility` alone and conclude nothing else moved.
 | browser loader/shell bytes (`loader.js`, `index.html`, shell JS) | one `servedFiles` entry and nothing else — they are in no manifest and no authority, so `compatibility` stays bit-identical |
 | base pack content (QVM closure, player models, bots, notices) | content manifest, content payload, server manifest, server image |
 | **a map added to or removed from the supported set** | three `compatibility` members — `contentManifestIdentity`, `serverManifestIdentity`, `serverImageId` — plus the browser profile, the content member provenance, the resource measurement and `servedFiles`. `contentPayloadIdentity` does **not** move, subject to the one condition below |
-| the rotation a server plays | nothing |
+| the rotation a server plays, or the rotation a client fetches | nothing — both are launch inputs, and the released artifacts do not name a map |
 | which archives a client fetches | nothing — a runtime selection from the already published set, made per page load through the `?maps=` parameter above |
 | relay profile | the relay-profile authority and the release index |
 | product presentation, launch selector | nothing |
