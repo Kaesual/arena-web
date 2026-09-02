@@ -51,6 +51,10 @@ const RELAY_PROFILE_URL = "arena/relay-profile.json";
 // assumed. It is required: see selectArtifacts.
 const ROTATION_PARAMETER = "maps";
 
+// The one placeholder a ready marker may carry, filled in with the map the
+// rotation actually starts. scripts/arena_runtime.py writes the same constant.
+const MARKER_MAP_PLACEHOLDER = "{map}";
+
 // The engine's own verdict on a rotation that was too small. With
 // `cl_allowDownload` clear — which both profiles guarantee — `CL_InitDownloads`
 // compares the server's referenced paks against what this client mounted and
@@ -134,7 +138,11 @@ let canvasResizeBridge = null;
 let loadedProfile = null;
 let loadedArtifacts = null;
 let loadedSelection = null;
+// The canonical fetch set, for the record the snapshot carries.
 let loadedRotation = null;
+// The map the offline slice starts: the rotation's first entry as the caller
+// wrote it. Null on the relay path, which starts no map of its own.
+let loadedStartMap = null;
 let startAccepted = false;
 let startOperation = null;
 let stopRequested = false;
@@ -388,7 +396,18 @@ function parseProfile(profile) {
     throw new LoaderError(`${PROFILE_URL}: unsupported formatVersion`);
   }
   requireString(profile.package, `${PROFILE_URL}: package`);
-  requireString(profile.map, `${PROFILE_URL}: map`);
+  // The two silent ceilings the assembled engine command line runs into. They
+  // are committed rather than measured here because a page cannot read the
+  // pinned engine tree; scripts/arena_runtime.py refuses this profile unless
+  // both equal what that tree defines, so what is enforced below is the
+  // engine's own bound and not a number somebody typed.
+  requireObject(profile.engineCommandLine, `${PROFILE_URL}: engineCommandLine`);
+  for (const name of ["maxBytes", "maxLines"]) {
+    const value = profile.engineCommandLine[name];
+    if (!Number.isInteger(value) || value <= 0) {
+      throw new LoaderError(`${PROFILE_URL}: engineCommandLine.${name} is not a positive integer`);
+    }
+  }
   requireObject(profile.manifests, `${PROFILE_URL}: manifests`);
   requireObject(profile.readyMarkers, `${PROFILE_URL}: readyMarkers`);
   // An empty marker string would be found in every console line the engine
@@ -616,6 +635,12 @@ function selectArtifacts(profile, manifests) {
   // legitimately play the same map more than once per cycle. Two spellings of
   // one set must fetch one set.
   const resolved = [...new Set(requested)].sort();
+  // Where the rotation *starts*, as the caller wrote it. The fetch set is the
+  // canonical one above, but a rotation is an ordered list and its first entry
+  // is the map that comes up first — which is how the dedicated server reads
+  // the same list (scripts/arena_runtime.py rotation_arguments), so the two
+  // halves cannot disagree about where a session begins.
+  const startMap = requested[0];
   const selected = [
     ...profile.artifacts.filter((artifact) => artifact.manifest !== "content"),
     // The base is implicit and can never be named: it carries no map, so its
@@ -627,6 +652,7 @@ function selectArtifacts(profile, manifests) {
     parameter,
     requested,
     resolved,
+    startMap,
     published,
     // What this selection *chose*. `fetched` below is what actually arrived,
     // which differs for a run that failed partway; the two are separate on
@@ -637,7 +663,7 @@ function selectArtifacts(profile, manifests) {
     fetched: [],
     missingOnServer: [],
   };
-  return { selected, resolved };
+  return { selected, resolved, startMap };
 }
 
 // Load every selected artifact and prove it is the committed one. The digest is
@@ -652,7 +678,7 @@ async function loadArtifacts(profile) {
   }
   report.timings.manifestsLoadedMs = since();
 
-  const { selected, resolved } = selectArtifacts(profile, manifests);
+  const { selected, resolved, startMap } = selectArtifacts(profile, manifests);
   const expectedTotal = selected.reduce((total, artifact) => {
     const index = manifests.get(artifact.manifest);
     if (!index) {
@@ -725,7 +751,7 @@ async function loadArtifacts(profile) {
   // digest is still being computed. Only this post-comparison publication is
   // allowed to claim the explicit verified phase.
   setProgress(1, completedBytes, expectedTotal, "verified");
-  return { bytes: loaded, selected, resolved };
+  return { bytes: loaded, selected, resolved, startMap };
 }
 
 // Quake III colour codes are '^' followed by any character other than '^'
@@ -763,8 +789,9 @@ function recordEngineLine(line, stream, markers, botNames) {
     }
   }
 
-  for (const [name, needle] of markers) {
-    if (report.markers[name] === undefined && line.includes(needle)) {
+  for (const [name, needle, how] of markers) {
+    const hit = how === "endsWith" ? plain.endsWith(needle) : line.includes(needle);
+    if (report.markers[name] === undefined && hit) {
       report.markers[name] = since();
       note("engine-marker", name);
       // The client game module printing its init time is the engine's own
@@ -1003,9 +1030,67 @@ function throwIfStopped() {
   }
 }
 
+// ioq3 code/sys/sys_main.c main(): argv is concatenated into one fixed buffer,
+// an argument containing a space is quoted, each is followed by a space. Both
+// ceilings below are silent — Q_strcat truncates through Q_strncpyz, and
+// Com_ParseCommandLine returns once it holds MAX_CONSOLE_LINES — so an
+// argument list that does not fit boots an engine that is subtly not the one
+// this page asked for. Refused here instead, before the module is imported.
+function engineCommandLineOf(argv) {
+  return argv.map((argument) => (argument.includes(" ") ? `"${argument}" ` : `${argument} `)).join("");
+}
+
+function engineConsoleLinesOf(argv) {
+  let lines = 1;
+  let quoted = false;
+  for (const character of engineCommandLineOf(argv)) {
+    if (character === '"') {
+      quoted = !quoted;
+    } else if (character === "+" && !quoted) {
+      lines += 1;
+    }
+  }
+  return lines;
+}
+
+function checkCommandLineBudget(argv, limits) {
+  const size = engineCommandLineOf(argv).length;
+  if (size >= limits.maxBytes) {
+    throw new LoaderError(
+      `the engine command line is ${size} bytes against the pinned engine's ` +
+        `${limits.maxBytes}-byte buffer, which truncates in silence`,
+    );
+  }
+  const lines = engineConsoleLinesOf(argv);
+  if (lines > limits.maxLines) {
+    throw new LoaderError(
+      `the engine command line is ${lines} console lines against the pinned ` +
+        `engine's ${limits.maxLines}, past which nothing is parsed or reported`,
+    );
+  }
+}
+
 async function boot(profile, artifacts, networkBackend = null) {
   throwIfStopped();
-  const markers = Object.entries(profile.readyMarkers);
+  // The map is a launch argument, so the marker that names it is a template.
+  // A relay client starts no map of its own and never prints the line at all,
+  // so a marker that still carried the placeholder there would be a needle
+  // that cannot match; it is dropped rather than left in as one.
+  const markers = Object.entries(profile.readyMarkers).flatMap(([name, needle]) => {
+    if (!needle.includes(MARKER_MAP_PLACEHOLDER)) {
+      return [[name, needle, "includes"]];
+    }
+    if (loadedStartMap === null || networkBackend) {
+      return [];
+    }
+    // Anchored at the end of the line, not matched as a substring. The engine
+    // prints `Server: %s` with the map last (ioq3 code/server/sv_init.c), and
+    // one published map name can be a prefix of another — `am_galmevish` and
+    // `am_galmevish2` are both in this release — so a substring match would let
+    // the wrong spawn satisfy this marker. The marker's whole claim is that the
+    // map that came up is the one that was asked for, so it has to be exact.
+    return [[name, needle.split(MARKER_MAP_PLACEHOLDER).join(loadedStartMap), "endsWith"]];
+  });
   const botNames = networkBackend ? [] : profile.bots.map((bot) => bot.name);
   const byRole = new Map();
   for (const artifact of profile.artifacts) {
@@ -1022,10 +1107,16 @@ async function boot(profile, artifacts, networkBackend = null) {
     (artifact) => artifact.role === "filesystem",
   );
 
+  // The offline slice's map, prepended rather than spliced: every `+set` line
+  // is applied by Com_StartupVariable before the command buffer runs at all
+  // (ioq3 code/qcommon/common.c Com_Init), so `+map` still precedes every
+  // `+addbot` in buffer order, which is what Svcmd_AddBot_f needs. A relay
+  // client starts no map — its rotation is the server's.
   const profileArguments = networkBackend
     ? relayEngineArguments(relayProfile, relayRuntimeConfiguration)
-    : profile.engineArguments;
+    : ["+map", loadedStartMap, ...profile.engineArguments];
   const engineArguments = [...profileArguments, ...initialRenderSizeArguments()];
+  checkCommandLineBudget(engineArguments, profile.engineCommandLine);
   // The record is a copy: Emscripten's callMain unshifts the program name onto
   // the array it is given, so handing the engine this exact array would edit
   // the evidence.
@@ -1227,19 +1318,12 @@ function start() {
   if (report.status !== "ready" || loadedProfile === null || loadedArtifacts === null) {
     return Promise.reject(new LoaderError("Start is only available in the ready state"));
   }
-  // Without a relay the engine runs a local listen server from the profile's
-  // committed engineArguments, which contain `+map <profile.map>`. That map's
-  // archive therefore has to be in the rotation, and refusing here is the last
-  // point at which this is a clean pre-start error rather than an engine that
-  // cannot find its BSP. A relay client starts no map of its own.
-  if (relayRuntimeConfiguration === null && !loadedRotation.includes(loadedProfile.map)) {
-    return Promise.reject(
-      new LoaderError(
-        `the offline profile starts ${loadedProfile.map}, which ` +
-          `?${ROTATION_PARAMETER}=${loadedRotation.join(",")} did not fetch`,
-      ),
-    );
-  }
+  // There was a refusal here, for an offline profile whose committed `+map`
+  // named a map the rotation had not fetched. It is gone rather than kept,
+  // because the map is no longer committed: the offline slice starts the
+  // rotation's own first entry, so the archive it needs is in the fetch set by
+  // construction and the refusal could not fire. A check that cannot fail is
+  // not a cheap guard, it is a claim that reads as one.
   if (navigator.userActivation?.isActive !== true) {
     return Promise.reject(new LoaderError("Start requires transient user activation"));
   }
@@ -1303,23 +1387,26 @@ async function main() {
   relayProfile = parseRelayProfile(
     await fetchJson(resolveServed(RELAY_PROFILE_URL, "relay profile"), RELAY_PROFILE_URL),
   );
-  report.profile = { package: profile.package, map: profile.map, formatVersion: profile.formatVersion };
+  // The map is a launch argument, so what the profile identifies is the
+  // release; `snapshot().rotation` is where the session's own maps are.
+  report.profile = { package: profile.package, formatVersion: profile.formatVersion };
   report.timings.profileLoadedMs = since();
 
-  const { bytes, selected, resolved } = await loadArtifacts(profile);
+  const { bytes, selected, resolved, startMap } = await loadArtifacts(profile);
   report.timings.artifactsVerifiedMs = since();
   throwIfStopped();
   loadedProfile = profile;
   loadedArtifacts = bytes;
   loadedSelection = selected;
   loadedRotation = resolved;
+  loadedStartMap = startMap;
   setStatus("ready");
 
   const megabytes = (report.totalArtifactBytes / (1024 * 1024)).toFixed(1);
   setMessage(
     `${selected.length} artifacts verified against the committed manifests (${megabytes} MiB).\n` +
       `Rotation: ${resolved.join(", ")}.\n` +
-      `Press Start to enter ${profile.map} with ${profile.bots?.length ?? 0} bots.`,
+      `Press Start to enter ${startMap} with ${profile.bots?.length ?? 0} bots.`,
   );
   elements.start.disabled = false;
   elements.fullscreen.disabled = false;
@@ -1329,11 +1416,20 @@ async function main() {
       void reconnectRelay();
     } else {
       void start().catch((error) => {
-        // start() can refuse before it has consumed anything — an offline
-        // profile whose map the rotation did not fetch is the case this page
-        // can actually produce. The loader is then still in the ready state, so
-        // the reason has to reach the overlay or the click looks like it did
-        // nothing at all.
+        // start() can refuse before it has consumed anything, and the loader
+        // is then still in the ready state, so the reason has to reach the
+        // overlay or the click looks like it did nothing at all.
+        //
+        // Exactly one rejection still satisfies both halves of that condition:
+        // a click carrying no transient user activation. A real click always
+        // carries one, so the way in is a synthetic `element.click()` from a
+        // host page or an embedder. The other two rejections cannot reach this
+        // branch — `startAccepted` fails its own guard and a non-`ready` status
+        // fails the other — and WP-E removed the rotation refusal that used to
+        // be the interesting case. Kept because a Promise rejection nobody
+        // renders is a button that silently does nothing, and exercised rather
+        // than asserted: `start-refusal-is-visible` in scripts/arena_acceptance.py
+        // dispatches that synthetic click in the pinned browser.
         if (report.status === "ready" && !startAccepted) {
           setMessage(`Cannot start: ${safeError(error).message}`);
         }

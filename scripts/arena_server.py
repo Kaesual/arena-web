@@ -30,10 +30,17 @@ from typing import Any
 
 from arena_runtime import (
     ArenaRuntimeError,
+    check_command_line_budget,
+    check_command_line_limits,
+    check_match_end_cvars,
+    check_no_committed_map,
     file_sha256,
-    load_map_fragment,
     manifest_index,
     manifest_map_inputs,
+    max_rotation_length,
+    published_maps,
+    rotation_arguments,
+    validate_rotation,
 )
 
 PROFILE_SOURCE = "native/server-profile.json"
@@ -53,9 +60,10 @@ PROFILE_KEYS = (
     "configFiles",
     "cvarNotes",
     "cvars",
+    "engineCommandLine",
+    "engineCommandLineNotes",
     "formatVersion",
     "gameDirectory",
-    "map",
     "package",
     "playerModel",
     "port",
@@ -169,16 +177,20 @@ def expected_server_arguments(profile: dict[str, Any]) -> list[str]:
 
     ``+set`` lines are read by ioq3's Com_StartupVariable before anything else
     runs and again after Com_ExecuteCfg, and the remaining lines are executed
-    from the command buffer in order (code/qcommon/common.c), so ``+map`` must
-    precede every ``+addbot``. ``addbot`` is not an engine command:
-    Cmd_ExecuteString forwards it to the running game module's Svcmd_AddBot_f
-    (code/qcommon/cmd.c, code/game/g_bot.c), which is why the map has to exist
-    first.
+    from the command buffer in order (code/qcommon/common.c). ``addbot`` is not
+    an engine command: Cmd_ExecuteString forwards it to the running game
+    module's Svcmd_AddBot_f (code/qcommon/cmd.c, code/game/g_bot.c), which is
+    why a map has to be up first.
+
+    **This half carries no map.** The rotation is supplied at container launch
+    and never committed, so `server_launch_arguments` prepends it to this list;
+    every ``+set`` line here is applied before the command buffer runs, so
+    prepending puts ``vstr d1`` ahead of the ``+addbot`` lines in buffer order,
+    which is the ordering the paragraph above requires.
     """
     arguments: list[str] = []
     for name in sorted(profile["cvars"]):
         arguments += ["+set", name, profile["cvars"][name]]
-    arguments += ["+map", profile["map"]]
     for index, bot in enumerate(profile["bots"]):
         delay = BOT_BEGIN_DELAY_BASE_MS + index * BOT_BEGIN_DELAY_INCREMENT_MS
         arguments += ["+addbot", bot["name"], str(bot["skill"]), "free", str(delay)]
@@ -270,7 +282,7 @@ def _validate_against_browser_profile(
     profile: dict[str, Any], browser: dict[str, Any]
 ) -> None:
     """Bind the native profile to the browser slice it has to match."""
-    for key in ("basegame", "map", "package", "playerModel"):
+    for key in ("basegame", "package", "playerModel"):
         if profile[key] != browser.get(key):
             _fail(
                 f"profile.{key}",
@@ -298,15 +310,14 @@ def _validate_against_recipe(
         _fail(
             "profile.package", f"must equal the recipe package id '{package.get('id')}'"
         )
+    # Every published map, not one committed map. The rotation is a launch
+    # argument, so any archive this release publishes may be the one a server
+    # starts; `published_maps` reads each fragment through its
+    # manifest-recorded digest and requires an arena this profile can start.
     try:
-        fragment = load_map_fragment(repo_root, profile["map"], CONTENT_MANIFEST)
+        published_maps(repo_root, CONTENT_MANIFEST)
     except ArenaRuntimeError as error:
-        _fail("profile.map", str(error))
-    arena = fragment["arena"]
-    if arena.get("type") != "ffa":
-        _fail("recipe.profile.arena.type", "the native profile only starts an FFA arena")
-    if profile["cvars"].get("fraglimit") != arena.get("fraglimit"):
-        _fail("profile.cvars.fraglimit", "must equal the recipe arena's frag limit")
+        _fail(CONTENT_MANIFEST, str(error))
     recipe_bots = {
         _string(
             _object(bot, "recipe.profile.bots entry").get("name"),
@@ -326,10 +337,8 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
     if profile.get("formatVersion") != 1:
         _fail("profile.formatVersion", "must be 1")
     _array(profile.get("$comment"), "profile.$comment")
-    for key in ("basegame", "map", "package", "playerModel", "serverBinary"):
+    for key in ("basegame", "package", "playerModel", "serverBinary"):
         _string(profile.get(key), f"profile.{key}")
-    if not MAP_NAME.fullmatch(profile["map"]):
-        _fail("profile.map", f"'{profile['map']}' is not a map name")
     if not MAP_NAME.fullmatch(profile["basegame"]):
         _fail("profile.basegame", f"'{profile['basegame']}' is not a game directory")
     if profile["basegame"] == IOQ3_RETAIL_BASEGAME:
@@ -438,6 +447,25 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
                 f"profile.{key}",
                 "must be exactly the derivation of the profile's declarative fields",
             )
+        try:
+            check_no_committed_map(committed, f"profile.{key}")
+        except ArenaRuntimeError as error:
+            _fail(f"profile.{key}", str(error))
+
+    try:
+        check_match_end_cvars(repo_root, profile["cvars"], "profile.cvars")
+        profile["_commandLineLimits"] = check_command_line_limits(
+            repo_root, profile.get("engineCommandLine"), "profile.engineCommandLine"
+        )
+    except ArenaRuntimeError as error:
+        _fail("profile", str(error))
+    notes = _object(
+        profile.get("engineCommandLineNotes"), "profile.engineCommandLineNotes"
+    )
+    _exact_keys(notes, ("maxBytes", "maxLines"), "profile.engineCommandLineNotes")
+    for name in notes:
+        if len(_string(notes[name], f"profile.engineCommandLineNotes.{name}")) < 20:
+            _fail(f"profile.engineCommandLineNotes.{name}", "must state the engine site")
 
     profile["_manifests"] = {
         "content": manifest_index(
@@ -448,6 +476,48 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
         ),
     }
     return profile
+
+
+def server_launch_arguments(
+    repo_root: Path, profile: dict[str, Any], rotation: list[str]
+) -> list[str]:
+    """The complete command line for one dedicated server, rotation and all.
+
+    This is the server half of §7.3's rule, and the only supported way to build
+    it. The integration holds exactly one rotation list; it passes that list
+    here for the server's arguments and the same list to the browser as
+    ``?maps=``. Deriving the two separately is the defect the rule exists to
+    prevent, and nothing downstream catches it — with ``sv_pure 0`` and
+    ``cl_allowDownload 0`` the engine performs no content-agreement check, so a
+    client short one archive plays normally until the rotation reaches it.
+
+    Fail-closed on everything this repository *can* see: an empty rotation, a
+    name this release publishes no archive for, and an argument list the engine
+    would silently cut down. It cannot see the relation between the two halves,
+    because it holds neither input.
+    """
+    names = validate_rotation(
+        rotation, published_maps(repo_root, CONTENT_MANIFEST), "rotation"
+    )
+    arguments = rotation_arguments(names) + list(profile["serverArguments"])
+    check_command_line_budget(
+        arguments, profile["_commandLineLimits"], "the server launch arguments"
+    )
+    return arguments
+
+
+def max_server_rotation(repo_root: Path, profile: dict[str, Any]) -> int:
+    """How many of the published maps one server can be launched with.
+
+    Reported rather than assumed. The cost of a rotation entry is not constant —
+    each carries its map's name twice — so this is a property of the published
+    names, not a number that can be interpolated between two releases.
+    """
+    return max_rotation_length(
+        list(profile["serverArguments"]),
+        profile["_commandLineLimits"],
+        published_maps(repo_root, CONTENT_MANIFEST),
+    )
 
 
 def _content_pack_paths(repo_root: Path) -> list[str]:

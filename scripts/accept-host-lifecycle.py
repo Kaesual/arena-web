@@ -23,6 +23,7 @@ from arena_acceptance import (  # noqa: E402
 from arena_runtime import (  # noqa: E402
     ArenaRuntimeError,
     load_profile,
+    published_maps,
     stage,
     verify_staged,
 )
@@ -585,12 +586,17 @@ def page_url(origin: str) -> str:
     """The loader page, with the rotation it has to be opened with.
 
     The rotation is a required parameter — there is no safe default, so the
-    page refuses without one. This acceptance drives the offline lifecycle, so
-    the rotation it needs is exactly the map the committed profile starts;
-    every other published archive is deliberately not fetched, which also makes
-    this run smaller than it was.
+    page refuses without one. This acceptance drives the offline lifecycle and
+    has no opinion about which map it drives, so it takes the first published
+    one; every other published archive is deliberately not fetched, which also
+    makes this run smaller than it was.
+
+    Derived rather than written down, because the profile commits no map any
+    more: the map the offline slice starts *is* the rotation's first entry, so
+    naming one here would be inventing a second source for it.
     """
-    return f"{origin}/?maps={load_profile(ROOT)['map']}"
+    rotation = published_maps(ROOT, load_profile(ROOT)["manifests"]["content"])[0]
+    return f"{origin}/?maps={rotation}"
 
 
 def main() -> int:

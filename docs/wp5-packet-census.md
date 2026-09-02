@@ -709,7 +709,7 @@ scripts/build-native-toolchain.sh                # offline from here on
 scripts/build-native.sh --target server
 scripts/build-native.sh --target client
 scripts/build-server-image.sh
-scripts/run-packet-census.sh \
+scripts/run-packet-census.sh --rotation oa_pvomit \
   --play-seconds 240 --max-play-seconds 420 \
   --record records/wp5-packet-census.json
 ```
@@ -717,7 +717,10 @@ scripts/run-packet-census.sh \
 That last line is the exact command the accepted census was taken with, options
 included: the defaults are shorter (120 seconds of driven play, no record
 written), and `--record` is what turns a run into the committed evidence — it
-refuses to write when a required check failed.
+refuses to write when a required check failed. `--rotation` has no default and
+is required: the map a server plays is a launch argument, and the census is a
+caller like any other. The accepted census was taken on `oa_pvomit`, which is
+why that is the rotation written here rather than a placeholder.
 
 These scripts default to `CONTAINER_RUNTIME=podman` and check up front that the
 runtime provides the constructs they use; see the note on that below.
@@ -779,7 +782,10 @@ podman run --rm --name arena-witness-server \
   --read-only \
   --tmpfs /var/lib/arena:rw,noexec,nosuid,nodev,mode=1777 \
   arena-web-server:latest $(python3 -c \
-    'import json;print(" ".join(json.load(open("native/server-profile.json"))["serverArguments"]))')
+    'import sys;sys.path.insert(0,"scripts")
+from pathlib import Path
+from arena_server import load_profile, server_launch_arguments
+print(" ".join(server_launch_arguments(Path("."), load_profile(Path(".")), ["oa_pvomit"])))')
 ```
 
 Then stage the client's own tree — it is not the server's, because a client

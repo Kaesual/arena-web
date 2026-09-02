@@ -37,6 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from arena_runtime import (  # noqa: E402
     ArenaRuntimeError,
     file_sha256,
+    offline_map_arguments,
     load_profile,
     served_files,
     stage,
@@ -325,7 +326,8 @@ class Expectations:
     rotation_parameter: str
     rotation_served: frozenset[str]
     rotation_excluded: frozenset[str]
-    rotation_excluded_maps: tuple[str, ...]
+    # The map the offline slice starts: the rotation's first entry as given.
+    start_map: str
 
 
 def pinned_browser_version(repo_root: Path) -> str:
@@ -725,8 +727,7 @@ def probe_rotation_refusals(
     chrome: Path,
     serve: StaticServe,
     directory: Path,
-    expected: Expectations,
-    profile_map: str,
+    start_map: str,
     boot_timeout: float,
     headless: bool,
     angle_backend: str,
@@ -737,28 +738,27 @@ def probe_rotation_refusals(
     The run above proves the selection selects. These prove it *refuses*, which
     is the half a passing run cannot show: the rotation is a required parameter
     precisely because both silent defaults are wrong — fetching everything is
-    the problem this exists to solve, and falling back to the profile's own map
-    produces a client whose archive set is a strict subset of the server's
-    rotation, which the engine drops mid-match with no earlier symptom.
+    the problem this exists to solve, and fetching one map produces a client
+    whose archive set is a strict subset of the server's rotation, which the
+    engine drops mid-match with no earlier symptom.
 
     Every case is loaded into the real page rather than reasoned about, because
     a message the code can produce and a message anyone has seen it produce are
     different claims.
+
+    **One refusal is gone rather than replaced.** WP-D had to refuse Start when
+    the rotation did not contain the map the profile committed, because those
+    were two independent inputs; WP-E made the started map *be* the rotation's
+    first entry, so the archive it needs is in the fetch set by construction
+    and no case can produce that refusal. It is not re-created here with a
+    synthetic one: what is left is the five refusals that still have subject
+    matter, plus the positive check that the offline slice starts the entry the
+    caller put first.
     """
-    excluded = sorted(expected.rotation_excluded_maps)
-    if not excluded:
-        # Fail rather than skip. A guarded "if there is something to test"
-        # around the last two checks would make them disappear silently the
-        # first time a release published few enough maps, which is the shape
-        # this whole work package exists to stop.
-        raise AcceptanceError(
-            "no published map is outside the rotation, so the offline start "
-            "guard cannot be exercised"
-        )
     cases = [
         ("no-rotation", "", "must be opened with ?maps="),
         ("empty-rotation", "?maps=", "is empty"),
-        ("empty-entry", f"?maps={profile_map},", "is empty"),
+        ("empty-entry", f"?maps={start_map},", "is empty"),
         ("unknown-map", "?maps=no_such_map", "publishes no archive for no_such_map"),
         # The base is implicit and unnameable: its archive carries no map, so a
         # rotation cannot ask for it and cannot leave it out either.
@@ -796,68 +796,35 @@ def probe_rotation_refusals(
                     f"status '{status}', message '{message}'",
                 )
             )
-        # The offline profile starts profile["map"] from its committed
-        # engineArguments, so a rotation without it must be refused at Start
-        # rather than handed to an engine that cannot find its BSP.
-        session.call("Page.navigate", {"url": f"{serve.origin}/?maps={excluded[0]}"})
+        # The sixth case, and the one that keeps the loader's click handler from
+        # becoming a comment about something that cannot happen. After the two
+        # rotation refusals WP-E deleted, exactly one `start()` rejection is
+        # still reachable while the page is `ready` and nothing has been
+        # consumed: a click that carries no transient user activation. A real
+        # click always carries one, so the only way in is a synthetic
+        # `element.click()` — which a host page or an embedder can produce, and
+        # which the five cases above never reach because they fail before
+        # `ready` and never call `start()` at all.
+        session.call("Page.navigate", {"url": f"{serve.origin}/?maps={start_map}"})
         wait_until(
-            lambda: _evaluate(session, "window.arenaWeb?.report?.status")
-            in ("ready", "failed"),
+            lambda: _evaluate(session, "window.arenaWeb?.report?.status") == "ready",
             timeout=boot_timeout,
-            description="the loader becoming ready without the profile's map",
+            description="the loader becoming ready for the synthetic-click case",
         )
-        status = _evaluate(session, "window.arenaWeb.report.status")
-        refusal = _evaluate(
-            session,
-            "window.arenaWeb.start().then(() => 'started', (error) => error.message)",
-            await_promise=True,
-        )
-        # start() refuses before it consumes user activation, so the
-        # reason is reachable from a headless probe too, not only from a
-        # real click.
-        checks.append(
-            Check(
-                "rotation-refused-offline-without-its-map",
-                status == "ready"
-                and isinstance(refusal, str)
-                and "the offline profile starts" in refusal,
-                f"status '{status}', start() said '{refusal}'",
-            )
-        )
-        # A refusal a person cannot see is a button that does nothing. The
-        # rejected Promise above is the host's channel; this is the player's,
-        # and it only exists if the click handler surfaces it — so the check
-        # goes through a real click rather than the API.
-        rectangle = json.loads(
-            _evaluate(
-                session,
-                "JSON.stringify(document.getElementById('start')"
-                ".getBoundingClientRect())",
-            )
-        )
-        _dispatch_click(
-            session,
-            rectangle["x"] + rectangle["width"] / 2,
-            rectangle["y"] + rectangle["height"] / 2,
-        )
+        _evaluate(session, "document.getElementById('start').click()")
         wait_until(
             lambda: "Cannot start"
-            in (
-                _evaluate(
-                    session, "document.getElementById('message').textContent"
-                )
-                or ""
-            ),
+            in (_evaluate(session, "document.getElementById('message').textContent") or ""),
             timeout=15.0,
             description="the refusal reaching the overlay",
         )
-        overlay = _evaluate(
-            session, "document.getElementById('message').textContent"
-        )
+        overlay = _evaluate(session, "document.getElementById('message').textContent")
         checks.append(
             Check(
-                "rotation-refusal-is-visible",
-                isinstance(overlay, str) and "Cannot start" in overlay,
+                "start-refusal-is-visible",
+                isinstance(overlay, str)
+                and "Cannot start" in overlay
+                and "transient user activation" in overlay,
                 f"overlay said '{overlay}'",
             )
         )
@@ -1266,8 +1233,9 @@ def _score(result: RunResult, expected: Expectations) -> None:
         )
     )
 
-    # F5: the arguments the engine actually received are the committed ones,
-    # plus exactly the render-size suffix the loader derives from its canvas.
+    # F5: the arguments the engine actually received are the rotation's map,
+    # then the committed ones, then exactly the render-size suffix the loader
+    # derives from its canvas.
     render = snapshot.get("render") or {}
     startup_width = render.get("startupCssWidth", render.get("cssWidth"))
     startup_height = render.get("startupCssHeight", render.get("cssHeight"))
@@ -1284,7 +1252,7 @@ def _score(result: RunResult, expected: Expectations) -> None:
     ]
     result.checks.append(
         Check(
-            "engine-arguments-are-the-committed-profile",
+            "engine-arguments-are-the-rotation-then-the-committed-profile",
             snapshot.get("engineArguments") == expected_arguments,
             " ".join(snapshot.get("engineArguments") or []),
         )
@@ -1374,6 +1342,30 @@ def _score(result: RunResult, expected: Expectations) -> None:
             "rotation-canonicalised",
             tuple(rotation.get("resolved") or ()) == expected.rotation,
             f"resolved {rotation.get('resolved')} from '{rotation.get('parameter')}'",
+        )
+    )
+    # The ordering claim, live. The parameter's *first* entry is where the
+    # rotation starts, and it is what the offline slice must have come up on —
+    # proven from the engine's own `Server: <map>` line through the templated
+    # marker, not from the page's account of itself.
+    result.checks.append(
+        Check(
+            "offline-starts-the-rotations-first-entry",
+            rotation.get("startMap") == expected.start_map
+            and snapshot.get("markers", {}).get("serverSpawned") is not None
+            and any(
+                line.strip().endswith(f"Server: {expected.start_map}")
+                for line in result.engine_log
+            )
+            # And no *other* spawn line, which is what a prefix pair could
+            # otherwise hide: `Server: am_galmevish2` ends with neither the
+            # needle for `am_galmevish` nor this one.
+            and not any(
+                line.strip().startswith("Server: ")
+                and not line.strip().endswith(f"Server: {expected.start_map}")
+                for line in result.engine_log
+            ),
+            f"startMap {rotation.get('startMap')}, expected {expected.start_map}",
         )
     )
     fetched_archives = served_paths & (expected.rotation_served | expected.rotation_excluded)
@@ -1489,6 +1481,7 @@ def run_acceptance(
     headless: bool = True,
     angle_backend: str = "gl",
     skip_stage: bool = False,
+    rotation: str | None = None,
 ) -> dict[str, Any]:
     if skip_stage:
         verify_staged(REPO_ROOT, serve_dir)
@@ -1511,8 +1504,14 @@ def run_acceptance(
     # The rotation this acceptance opens the page for. It is derived rather
     # than written down, so publishing a map needs no edit here, and it is a
     # strict subset of the published set on purpose: the point of the run is
-    # that the archives outside it are never fetched. The offline profile
-    # starts profile["map"], so that one has to be in it.
+    # that the archives outside it are never fetched.
+    #
+    # `--rotation` overrides it, and that is what makes a per-map browser sweep
+    # possible at all: the offline slice starts the rotation's own first entry,
+    # so pointing this at one published map renders that map in the pinned
+    # browser. Before WP-E the started map was committed and no parameter could
+    # move it, which is why the published archives had no automated rendering
+    # evidence beyond the one map the profile named.
     content_manifest = json.loads(
         (REPO_ROOT / profile["manifests"]["content"]).read_text(encoding="utf-8")
     )
@@ -1521,16 +1520,25 @@ def run_acceptance(
         for artifact in content_manifest["artifacts"]
         if isinstance(artifact.get("map"), str)
     }
-    others = sorted(name for name in archive_by_map if name != profile["map"])
-    if not others:
+    published = sorted(archive_by_map)
+    if len(published) < 2:
         raise AcceptanceError(
             "the release publishes one map archive, so a selection cannot be "
             "distinguished from fetching everything"
         )
-    rotation = tuple(sorted((profile["map"], others[0])))
-    # Unsorted, and with a repeat, so the canonicalisation is exercised in the
-    # browser rather than only in a unit test.
-    rotation_parameter = ",".join((others[0], profile["map"], others[0]))
+    if rotation is None:
+        # Unsorted, and with a repeat, so the canonicalisation is exercised in
+        # the browser rather than only in a unit test. The second entry is the
+        # start map, which is the ordering claim this run then checks live.
+        rotation_parameter = ",".join((published[1], published[0], published[1]))
+    else:
+        rotation_parameter = rotation
+    requested = [name.strip() for name in rotation_parameter.split(",")]
+    unknown = sorted(set(requested) - set(archive_by_map))
+    if unknown:
+        raise AcceptanceError(f"the release publishes no archive for {unknown}")
+    start_map = requested[0]
+    rotation = tuple(sorted(set(requested)))
     served_by_path = {
         entry["artifactPath"]: served
         for served, entry in files.items()
@@ -1543,9 +1551,6 @@ def run_acceptance(
         or path in {archive_by_map[name] for name in rotation}
     )
     rotation_excluded = frozenset(served_by_path.values()) - rotation_served
-    rotation_excluded_maps = tuple(
-        sorted(name for name in archive_by_map if name not in rotation)
-    )
     if not rotation_excluded:
         raise AcceptanceError("the rotation covers every archive; nothing is excluded")
 
@@ -1570,13 +1575,20 @@ def run_acceptance(
             origin=serve.origin,
             config_digests=expected_config_digests,
             artifact_digests=expected_artifact_digests,
-            engine_arguments=tuple(profile["engineArguments"]),
+            # What the page must actually hand the engine: the offline map,
+            # prepended, and then the committed list. The map is no longer in
+            # the committed half, so an acceptance that compared against that
+            # half alone would no longer be checking the argument the rotation
+            # decides.
+            engine_arguments=tuple(
+                offline_map_arguments([start_map]) + profile["engineArguments"]
+            ),
+            start_map=start_map,
             bot_names=tuple(bot["name"] for bot in profile["bots"]),
             rotation=rotation,
             rotation_parameter=rotation_parameter,
             rotation_served=rotation_served,
             rotation_excluded=rotation_excluded,
-            rotation_excluded_maps=rotation_excluded_maps,
         )
         for index in range(1, runs + 1):
             results.append(
@@ -1598,8 +1610,7 @@ def run_acceptance(
             chrome=chrome,
             serve=serve,
             directory=output_root / "rotation-refusals",
-            expected=expectations,
-            profile_map=profile["map"],
+            start_map=start_map,
             boot_timeout=boot_timeout,
             headless=headless,
             angle_backend=angle_backend,
@@ -1662,6 +1673,10 @@ def main(argv: list[str] | None = None) -> int:
         "--output-dir", type=Path, default=REPO_ROOT / "build/arena-acceptance"
     )
     parser.add_argument("--runs", type=int, default=2)
+    # The rotation to open the page with. Without it the acceptance derives a
+    # two-map one from the published set; with it, one published map per run is
+    # what makes a per-map browser sweep possible.
+    parser.add_argument("--rotation", default=None)
     parser.add_argument("--play-seconds", type=float, default=25.0)
     parser.add_argument("--boot-timeout", type=float, default=300.0)
     parser.add_argument(
@@ -1690,6 +1705,7 @@ def main(argv: list[str] | None = None) -> int:
             headless=not arguments.headed,
             angle_backend=arguments.angle,
             skip_stage=arguments.skip_stage,
+            rotation=arguments.rotation,
         )
     except (ArenaRuntimeError, AcceptanceError, BrowserSessionError) as error:
         print(f"pre-acceptance could not run: {error}", file=sys.stderr)

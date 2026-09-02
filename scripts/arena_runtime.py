@@ -55,9 +55,10 @@ PROFILE_KEYS = (
     "cvarNotes",
     "cvars",
     "engineArguments",
+    "engineCommandLine",
+    "engineCommandLineNotes",
     "formatVersion",
     "manifests",
-    "map",
     "package",
     "playerModel",
     "readyMarkerNotes",
@@ -149,6 +150,94 @@ SYSTEMINFO_CVAR_PATTERNS = (
         re.S,
     ),
 )
+
+# The rotation, and the two ceilings it runs into.
+#
+# ioq3 code/game/g_main.c ExitLevel: when a level ends the gamecode executes
+# `vstr nextmap`, and `nextmap` is an ordinary cvar. Stock baseq3 carries no map
+# list of its own, so a rotation is id's own idiom -- a cycle of `d<N>` cvars,
+# each of which loads its map and points `nextmap` at the next one. The cycle is
+# started with `vstr d1` rather than with `+map <first>`, so that ExitLevel's
+# `nextmap == "map_restart 0"` special case (g_main.c) is not on the automatic
+# path: every spawn a `d<N>` step performs is immediately followed by that
+# step's own `set nextmap`, and `SV_SpawnServer` is synchronous inside the
+# `map` command, so the value at the next level end is never the engine's
+# default.
+#
+# That is a statement about the automatic path and not an unconditional one.
+# `SV_MapRestart_f` calls `SV_SpawnServer` directly when `sv_maxclients` or
+# `sv_gametype` is modified (ioq3 code/server/sv_ccmds.c), with nothing
+# restoring `nextmap` afterwards, and both `callvote g_gametype` and
+# `callvote map_restart` are permitted votes with `g_allowVote` at its default
+# of 1. After that sequence the special case does fire at the next level end —
+# bounded, because it runs `vstr d1` and the cycle resumes from its first
+# entry, but the rotation has then skipped back to the top rather than
+# continued. `callvote map <x>` is safe: the gamecode rebuilds that vote as
+# `map <x>; set nextmap "<current>"` (code/game/g_cmds.c).
+ROTATION_CVAR = "d{index}"
+ROTATION_STEP = "map {map};set nextmap vstr {next}"
+ROTATION_START = "d1"
+
+# ioq3 code/sys/sys_main.c main(): argv is concatenated into one command line,
+# an argument containing a space is wrapped in quotes, and each is followed by a
+# space. The buffer is fixed and `Q_strcat` reaches it through `Q_strncpyz`,
+# which truncates rather than failing (code/qcommon/q_shared.c), so an
+# overlong list loses its tail in silence.
+COMMAND_LINE_SOURCE = "code/sys/sys_main.c"
+COMMAND_LINE_BUFFER = re.compile(
+    r"^\s*char\s+commandLine\[\s*([A-Za-z_][A-Za-z0-9_]*)\s*\]", re.M
+)
+COMMAND_LINE_LIMIT_HEADER = "code/qcommon/q_shared.h"
+
+# ioq3 code/qcommon/common.c Com_ParseCommandLine: the command line starts as
+# one console line and every unquoted '+' begins another, but the function
+# *returns* once it holds MAX_CONSOLE_LINES of them -- so arguments past that
+# point are not truncated so much as glued to the last line, and neither
+# outcome is reported.
+CONSOLE_LINE_SOURCE = "code/qcommon/common.c"
+CONSOLE_LINE_LIMIT = "MAX_CONSOLE_LINES"
+
+# The committed, engine-derived bound each profile carries so a consumer can
+# read it without running this module, and the keys it holds.
+COMMAND_LINE_LIMIT_KEYS = ("maxBytes", "maxLines")
+
+# The one placeholder a ready marker may carry. The map is a launch argument, so
+# the marker that names it is a template rather than a literal.
+MARKER_MAP_PLACEHOLDER = "{map}"
+SERVER_SPAWNED_MARKER = f"Server: {MARKER_MAP_PLACEHOLDER}"
+
+# ioq3 code/game/g_main.c CheckExitRules: a level ends on a limit cvar, and
+# `vstr nextmap` runs only when it ends. Which limits those are is read out of
+# the pinned gamecode rather than restated here — see `match_end_limits` — and
+# these are the ones this profile's gametype can reach.
+MATCH_END_SOURCE = "code/game/g_main.c"
+MATCH_END_FUNCTION = "void CheckExitRules( void ) {"
+MATCH_END_LIMIT = re.compile(r"\bg_([a-z]+limit)\.integer\b")
+MATCH_END_CVARS = ("fraglimit", "timelimit")
+
+# A limit `CheckExitRules` reads that this profile cannot reach, with the engine
+# site that decides it. An entry is a claim about reachability, not a way to
+# skip covering a limit: if the gamecode grows another one it is neither covered
+# nor exempted, and this fails rather than silently checking two rules of three.
+MATCH_END_UNREACHABLE = {
+    "capturelimit": "guarded by g_gametype.integer >= GT_CTF, and this profile "
+    "is GT_FFA",
+}
+
+# The arena `type` vocabulary this release supports. Upstream types carry the
+# OpenArena-only tags whose game code this product does not ship (`lms`,
+# `elimination`, `dom`, `dd`, `harvester`), so a fragment normalises rather than
+# copies; what survives is a space-separated set drawn from these two.
+SUPPORTED_ARENA_TYPES = ("ffa", "tourney")
+
+# What every published map has to declare. The map is a launch argument now, so
+# a rotation may reach any archive the release publishes, and the committed
+# gametype is GT_FFA on both profiles — so "the started arena is an FFA arena"
+# stops being a statement about one map and becomes one about the set.
+REQUIRED_ARENA_TYPE = "ffa"
+
+DECIMAL = re.compile(r"\A(?:0|[1-9][0-9]*)\Z")
+
 
 # "clientEnteredGame" is deliberately not a bot marker: ioq3
 # code/game/g_client.c:1026 prints it for every client that begins, the local
@@ -433,18 +522,382 @@ def check_systeminfo_budget(repo_root: Path, profile: dict[str, Any]) -> int:
     return projected
 
 
+def engine_command_line_limits(engine_root: Path) -> dict[str, int]:
+    """The two silent ceilings a launch argument list runs into, read from the pin.
+
+    Neither is restated here. ``MAX_CONSOLE_LINES`` is read from the file that
+    defines it, and the byte bound is read *through* the declaration that uses
+    it: ``sys_main.c`` sizes its command-line buffer with a named constant, so
+    the name is taken from that declaration and only then resolved in the
+    header. Hard-coding either would make this gate a copy of a number rather
+    than a reading of the engine, and an engine pin that shrank a buffer would
+    leave it permissive.
+    """
+    from content_pack import ContentError, engine_constant
+
+    source = engine_root / COMMAND_LINE_SOURCE
+    try:
+        text = source.read_text(encoding="latin-1")
+    except OSError as error:
+        _fail(
+            "engine command line",
+            f"cannot read {COMMAND_LINE_SOURCE} out of the pinned engine tree at "
+            f"{engine_root}: {error}",
+        )
+    match = COMMAND_LINE_BUFFER.search(text)
+    if match is None:
+        _fail(
+            "engine command line",
+            f"{COMMAND_LINE_SOURCE} no longer declares a fixed `char commandLine[]`, "
+            "so the byte bound of a launch argument list cannot be read out of the "
+            "pinned engine",
+        )
+    try:
+        return {
+            "maxBytes": engine_constant(
+                engine_root, match.group(1), COMMAND_LINE_LIMIT_HEADER
+            ),
+            "maxLines": engine_constant(
+                engine_root, CONSOLE_LINE_LIMIT, CONSOLE_LINE_SOURCE
+            ),
+        }
+    except ContentError as error:
+        _fail("engine command line", str(error))
+    return {}
+
+
+def engine_command_line(arguments: Iterable[str]) -> str:
+    """The exact string ioq3 assembles from argv (code/sys/sys_main.c main())."""
+    return "".join(
+        f'"{argument}" ' if " " in argument else f"{argument} "
+        for argument in arguments
+    )
+
+
+def engine_console_lines(arguments: Iterable[str]) -> int:
+    """How many console lines that string becomes (Com_ParseCommandLine).
+
+    The whole line is one console line to begin with, and each '+' outside a
+    quoted section starts another. Quoting is tracked because a '+' inside a
+    rotation step's value must not count — and a newline or carriage return
+    breaks a line *regardless* of quoting, which is modelled here even though
+    nothing this repository generates can contain one: a counter that is exact
+    only because of a property of its inputs is a counter that stops being
+    exact when the inputs change.
+    """
+    lines = 1
+    quoted = False
+    for character in engine_command_line(arguments):
+        if character == '"':
+            quoted = not quoted
+        elif character in ("\n", "\r") or (character == "+" and not quoted):
+            lines += 1
+    return lines
+
+
+def check_command_line_budget(
+    arguments: list[str], limits: dict[str, int], what: str
+) -> None:
+    """Refuse an argument list the engine would silently cut down.
+
+    Both failures are quiet: `Q_strcat` reaches a full buffer through
+    `Q_strncpyz` and simply stops copying, and `Com_ParseCommandLine` returns
+    once it holds `MAX_CONSOLE_LINES`, leaving everything after that point
+    attached to the last line it took. A list that does not fit therefore
+    starts a server that is subtly not the one that was asked for, which is
+    exactly the class of failure this repository refuses to ship unguarded.
+    """
+    size = len(engine_command_line(arguments))
+    if size >= limits["maxBytes"]:
+        _fail(
+            what,
+            f"assembles a {size}-byte engine command line against the pinned "
+            f"engine's {limits['maxBytes']}-byte buffer; the overflow is "
+            "truncated in silence (ioq3 code/sys/sys_main.c, "
+            "code/qcommon/q_shared.c Q_strcat)",
+        )
+    lines = engine_console_lines(arguments)
+    if lines > limits["maxLines"]:
+        _fail(
+            what,
+            f"becomes {lines} console lines against the pinned engine's "
+            f"{limits['maxLines']}; Com_ParseCommandLine returns at that count "
+            "and the rest is neither parsed nor reported (ioq3 "
+            "code/qcommon/common.c)",
+        )
+
+
+def check_command_line_limits(
+    repo_root: Path, committed: Any, what: str
+) -> dict[str, int]:
+    """Bind a profile's published bound to the engine it claims to describe."""
+    record = _object(committed, what)
+    _exact_keys(record, COMMAND_LINE_LIMIT_KEYS, what)
+    limits = engine_command_line_limits(repo_root / ENGINE_ROOT)
+    for name in COMMAND_LINE_LIMIT_KEYS:
+        value = record.get(name)
+        if not isinstance(value, int) or isinstance(value, bool):
+            _fail(f"{what}.{name}", "must be an integer")
+        if value != limits[name]:
+            _fail(
+                f"{what}.{name}",
+                f"is {value}, and the pinned engine's is {limits[name]}",
+            )
+    return limits
+
+
+def validate_rotation(rotation: Any, published: Iterable[str], what: str) -> list[str]:
+    """The rotation as a list: ordered, repeats allowed, never empty.
+
+    Order and repetition are kept because they are the rotation — the server
+    plays the list as written and a cycle may legitimately visit one map twice.
+    The client's fetch set is the same list canonicalised, which is the loader's
+    job; the two derivations differ in exactly that and in nothing else.
+
+    Refusing an empty list is the server-side half of the rule the loader
+    enforces for the browser: this repository cannot check that a caller's two
+    derivations came from one list (it holds neither input), but it can refuse
+    to produce a command line for a rotation nobody chose.
+    """
+    names = _array(rotation, what)
+    if not names:
+        _fail(
+            what,
+            "is empty; the map a server plays is a launch argument and there is "
+            "no default, because the only plausible one is a server playing a "
+            "map its clients were never told to fetch",
+        )
+    known = set(published)
+    for index, name in enumerate(names):
+        entry = _string(name, f"{what}[{index}]")
+        if not MAP_NAME.fullmatch(entry):
+            _fail(f"{what}[{index}]", f"'{entry}' is not a map name")
+        if entry not in known:
+            _fail(
+                f"{what}[{index}]",
+                f"this release publishes no archive for '{entry}'; it published "
+                f"{sorted(known)}",
+            )
+    return list(names)
+
+
+def rotation_arguments(rotation: list[str]) -> list[str]:
+    """The launch arguments that play a rotation and keep it cycling.
+
+    One `d<N>` cvar per entry, each loading its map and pointing `nextmap` at
+    the next, and `vstr d1` to enter the cycle. They are `+set` lines and one
+    command, so they are prepended to a profile's committed arguments:
+    Com_StartupVariable applies every `set` line before the command buffer runs
+    at all (ioq3 code/qcommon/common.c Com_Init), and `vstr d1` therefore
+    precedes the profile's `+addbot` lines in buffer order — which it must,
+    because addbot is forwarded to a game module that has to be running.
+    """
+    total = len(rotation)
+    arguments: list[str] = []
+    for index, name in enumerate(rotation, start=1):
+        arguments += [
+            "+set",
+            ROTATION_CVAR.format(index=index),
+            ROTATION_STEP.format(
+                map=name, next=ROTATION_CVAR.format(index=index % total + 1)
+            ),
+        ]
+    return arguments + ["+vstr", ROTATION_START]
+
+
+def offline_map_arguments(rotation: list[str]) -> list[str]:
+    """The launch argument the browser's offline slice starts its map with.
+
+    Deliberately *not* `rotation_arguments`. The offline slice is a local listen
+    server for one player and its bots; the product's multiplayer client starts
+    no map at all and takes its rotation from the server it connects to. Putting
+    the cycle here as well would make the browser's command line the binding
+    constraint on how long a rotation may be — the loader adds its own
+    render-size arguments — and that is the wrong direction: the client's set
+    must be able to cover the server's rotation, never the reverse.
+
+    The first entry is the map, because that is where a rotation starts and
+    both halves have to read the one list the same way.
+    """
+    return ["+map", rotation[0]]
+
+
+def check_no_committed_map(arguments: list[str], what: str) -> None:
+    """Refuse a committed argument list that already chooses a map.
+
+    This is the committed-side half of the rule the loader enforces at run time.
+    The loader refuses to fetch without `?maps=` because both plausible defaults
+    are wrong; the same reasoning applies one step earlier, to the arrays this
+    repository publishes for a caller to pass verbatim. A stray rotation cvar
+    left in one of them would be a default that no caller can see and that
+    nothing downstream reports — the server would simply play a map its clients
+    were never told to fetch.
+
+    **Only the cvar half of this can fire on a committed profile, and saying so
+    is the point.** Both callers compare the committed array against
+    `expected_*_arguments()` before calling this, and that derivation emits only
+    `+set` and `+addbot` — so a literal map command in a committed array is
+    already refused one line earlier, by a different message. What *is* live is
+    the `+set d<N>` branch: `CVAR_NAME` admits a cvar named `d1`, so a profile
+    can legitimately declare one and the derivation will emit it. The command
+    branch is a forward guard for a derivation that could one day emit more
+    than it does, kept and labelled rather than believed in — the mistake this
+    repository has already paid for is a check whose reach is assumed rather
+    than stated.
+
+    A caller that supplies no rotation at all is caught elsewhere and loudly: a
+    mapless dedicated server never answers a `getstatus` the readiness contract
+    accepts, so the omission fails the gate the integration already runs rather
+    than surfacing at a map change.
+    """
+    rotation_cvar = re.compile(
+        r"\A" + re.escape(ROTATION_CVAR.format(index="")) + r"[0-9]+\Z"
+    )
+    # Every command the pinned server registers that loads a map, plus `vstr`,
+    # which can carry one indirectly (ioq3 code/server/sv_ccmds.c SV_AddOperatorCommands).
+    for index, argument in enumerate(arguments):
+        if argument in ("+map", "+devmap", "+spmap", "+spdevmap", "+vstr"):
+            _fail(what, f"carries '{argument}': the map is a launch argument")
+        if (
+            argument == "+set"
+            and index + 1 < len(arguments)
+            and rotation_cvar.fullmatch(arguments[index + 1])
+        ):
+            _fail(
+                what,
+                f"sets the rotation cvar '{arguments[index + 1]}': the rotation is "
+                "a launch argument and may not be committed",
+            )
+
+
+def max_rotation_length(
+    fixed: list[str], limits: dict[str, int], names: list[str]
+) -> int:
+    """How many of `names`, in order, a rotation can hold beside `fixed`.
+
+    Reported rather than assumed: the cost of an entry is not a constant — it
+    carries the map's own name twice over — so a bound stated as a map count is
+    only true of a particular set of names.
+    """
+    for count in range(len(names), 0, -1):
+        try:
+            check_command_line_budget(
+                rotation_arguments(names[:count]) + fixed, limits, "rotation"
+            )
+        except ArenaRuntimeError:
+            continue
+        return count
+    return 0
+
+def match_end_limits(engine_root: Path) -> set[str]:
+    """The limit cvars the pinned `CheckExitRules` actually ends a level on.
+
+    Read rather than remembered. The rule below is a claim about the gamecode,
+    and a claim about a pin that nothing re-derives is the term of a gate that
+    goes quietly wrong — the shape WP-D's review found in the systeminfo
+    allowance. A gamecode that grew a fourth exit rule would otherwise leave
+    this checking three out of four with nothing red.
+    """
+    source = engine_root / MATCH_END_SOURCE
+    try:
+        text = source.read_text(encoding="latin-1")
+    except OSError as error:
+        _fail("match end", f"cannot read {MATCH_END_SOURCE}: {error}")
+    start = text.find(MATCH_END_FUNCTION)
+    if start < 0:
+        _fail(
+            "match end",
+            f"{MATCH_END_SOURCE} no longer defines CheckExitRules, so the rules "
+            "that end a level cannot be read out of the pinned gamecode",
+        )
+    end = text.find("\n}", start)
+    if end < 0:
+        _fail("match end", f"{MATCH_END_SOURCE}: CheckExitRules has no end")
+    found = set(MATCH_END_LIMIT.findall(text[start:end]))
+    if not found:
+        _fail(
+            "match end",
+            "the pinned CheckExitRules reads no limit cvar at all, so this rule "
+            "would be satisfied by measuring nothing",
+        )
+    return found
+
+
+def check_match_end_cvars(repo_root: Path, cvars: dict[str, Any], what: str) -> None:
+    """A rotation can only advance if a match can end.
+
+    This replaces a check that the rotation made unaskable. Until now both
+    profiles required `fraglimit` to equal the *arena definition's* frag limit
+    for the one committed map. Across a published set that is not a single
+    value — the sixteen fragments declare 10, 15, 20 and 30 — so the equality
+    is not merely inconvenient under a rotation, it is unsatisfiable.
+
+    It was also never worth what it looked like. `arena.fraglimit` is written
+    into the generated arena data, and **nothing reads that data outside
+    `GT_SINGLE_PLAYER`**: every consumer in `G_LoadArenas` sits inside
+    `if (g_gametype.integer == GT_SINGLE_PLAYER)` (ioq3 code/game/g_bot.c), and
+    this profile is `GT_FFA`. The packaged q3_ui reads it only in the skirmish
+    menus, which this product never enters — it launches straight into a game.
+    So the equality bound a live cvar to a value the running game cannot see.
+    That sentence is here so the binding is not reinstated later by someone who
+    finds a cvar and an arena field with the same name; it has been written into
+    this repository once already.
+
+    What replaces it is a rule with live subject matter, and one the rotation
+    itself creates. `CheckExitRules` ends a level on the frag limit or the time
+    limit and on nothing else (ioq3 code/game/g_main.c), and `ExitLevel` is the
+    only thing that runs `vstr nextmap`. A profile that zeroes both therefore
+    commits a rotation that can never reach its second map — with no error
+    anywhere, just a server that stays on one map forever.
+    """
+    limits = match_end_limits(repo_root / ENGINE_ROOT)
+    uncovered = sorted(limits - set(MATCH_END_CVARS) - set(MATCH_END_UNREACHABLE))
+    if uncovered:
+        _fail(
+            what,
+            f"the pinned gamecode ends a level on {uncovered} as well, and this "
+            "rule neither covers nor exempts them",
+        )
+    missing = sorted(set(MATCH_END_CVARS) - limits)
+    if missing:
+        _fail(
+            what,
+            f"the pinned gamecode's CheckExitRules no longer reads {missing}, so "
+            "this rule is about a level exit that no longer exists",
+        )
+    values = []
+    for name in MATCH_END_CVARS:
+        value = cvars.get(name)
+        if not isinstance(value, str) or not DECIMAL.fullmatch(value):
+            _fail(f"{what}.{name}", "must be a non-negative decimal integer")
+        values.append(int(value))
+    if not any(values):
+        _fail(
+            what,
+            "sets both "
+            + " and ".join(MATCH_END_CVARS)
+            + " to 0, so CheckExitRules never ends a level (ioq3 "
+            "code/game/g_main.c) and a rotation could never advance past its "
+            "first map",
+        )
+
+
 def expected_engine_arguments(profile: dict[str, Any]) -> list[str]:
-    """The one derivation of the engine command line from the profile.
+    """The one derivation of the committed half of the engine command line.
 
     ``+set`` lines are read by ioq3's Com_StartupVariable and the remaining
     lines are executed from the command buffer in order
-    (code/qcommon/common.c), so ``+map`` must precede every ``+addbot`` and the
-    bots follow G_SpawnBots' delay cadence.
+    (code/qcommon/common.c), so the map has to precede every ``+addbot`` and
+    the bots follow G_SpawnBots' delay cadence.
+
+    **The map is not in here.** It is a launch argument, supplied by whoever
+    knows the rotation, and `offline_map_arguments` is prepended to this list
+    rather than spliced into it — which is the same buffer order, because every
+    ``+set`` line is applied before the command buffer runs at all.
     """
     arguments: list[str] = []
     for name in sorted(profile["cvars"]):
         arguments += ["+set", name, profile["cvars"][name]]
-    arguments += ["+map", profile["map"]]
     for index, bot in enumerate(profile["bots"]):
         delay = BOT_BEGIN_DELAY_BASE_MS + index * BOT_BEGIN_DELAY_INCREMENT_MS
         arguments += ["+addbot", bot["name"], str(bot["skill"]), "free", str(delay)]
@@ -475,7 +928,7 @@ def _validate_bots(profile: dict[str, Any]) -> None:
             _fail("profile.bots[].skill", f"must be an integer in {low}..{high}")
 
 
-def _validate_cvars(profile: dict[str, Any]) -> None:
+def _validate_cvars(profile: dict[str, Any], repo_root: Path) -> None:
     cvars = _object(profile.get("cvars"), "profile.cvars")
     if not cvars:
         _fail("profile.cvars", "is empty")
@@ -523,6 +976,7 @@ def _validate_cvars(profile: dict[str, Any]) -> None:
         _fail("profile.cvars.model", "must equal profile.playerModel")
     if cvars.get("headmodel") != profile["playerModel"]:
         _fail("profile.cvars.headmodel", "must equal profile.playerModel")
+    check_match_end_cvars(repo_root, cvars, "profile.cvars")
 
 
 def _validate_markers(profile: dict[str, Any]) -> None:
@@ -530,11 +984,17 @@ def _validate_markers(profile: dict[str, Any]) -> None:
     _exact_keys(markers, READY_MARKER_NAMES, "profile.readyMarkers")
     for name in READY_MARKER_NAMES:
         _string(markers[name], f"profile.readyMarkers.{name}")
-    expected = f"Server: {profile['map']}"
-    if markers["serverSpawned"] != expected:
+    # The map is a launch argument, so the marker that names it is a template
+    # and the loader fills it in with the map it actually started. Keeping the
+    # name in the marker is the point: a bare `Server: ` prefix would be
+    # satisfied by *any* spawn, and what this marker is evidence for is that
+    # the map the rotation asked for is the map that came up.
+    if markers["serverSpawned"] != SERVER_SPAWNED_MARKER:
         _fail(
             "profile.readyMarkers.serverSpawned",
-            f"must be '{expected}' (ioq3 code/server/sv_init.c)",
+            f"must be '{SERVER_SPAWNED_MARKER}' — the exact Com_Printf of ioq3 "
+            f"code/server/sv_init.c with the started map as "
+            f"'{MARKER_MAP_PLACEHOLDER}'",
         )
     _exact_keys(
         _object(profile.get("readyMarkerNotes"), "profile.readyMarkerNotes"),
@@ -779,7 +1239,44 @@ def load_map_fragment(
     arena = _object(fragment.get("arena"), f"{relative}.arena")
     if arena.get("map") != map_name:
         _fail(f"{relative}.arena", f"must define map '{map_name}'")
+    types = _string(arena.get("type"), f"{relative}.arena.type").split()
+    unknown = sorted(set(types) - set(SUPPORTED_ARENA_TYPES))
+    if unknown or not types:
+        _fail(
+            f"{relative}.arena.type",
+            f"must be a non-empty set drawn from {list(SUPPORTED_ARENA_TYPES)}; "
+            f"the OpenArena-only tags are normalised away rather than copied "
+            f"(unsupported: {unknown})",
+        )
+    if REQUIRED_ARENA_TYPE not in types:
+        _fail(
+            f"{relative}.arena.type",
+            f"must include '{REQUIRED_ARENA_TYPE}': the map a server plays is a "
+            "launch argument, so a rotation may reach any published archive and "
+            "both profiles commit GT_FFA",
+        )
+    if not DECIMAL.fullmatch(_string(arena.get("fraglimit"), f"{relative}.arena.fraglimit")):
+        _fail(f"{relative}.arena.fraglimit", "must be a non-negative decimal integer")
     return fragment
+
+
+def published_maps(repo_root: Path, manifest_relative: str) -> list[str]:
+    """Every map this release publishes, each fragment read and checked.
+
+    Reading them all is the point. The profile used to name one map and check
+    that map's arena; under a rotation the archive a server starts is chosen
+    after the release is built, so the property has to hold for every archive
+    the release publishes or it holds for nothing.
+    """
+    manifest = _object(
+        _load_json(repo_root / manifest_relative, manifest_relative), manifest_relative
+    )
+    names = sorted(manifest_map_inputs(manifest, manifest_relative))
+    if not names:
+        _fail(f"{manifest_relative}.inputs", "records no map fragment at all")
+    for name in names:
+        load_map_fragment(repo_root, name, manifest_relative)
+    return names
 
 
 def _validate_against_recipe(
@@ -800,12 +1297,10 @@ def _validate_against_recipe(
         _object(profile.get("manifests"), "profile.manifests").get("content"),
         "profile.manifests.content",
     )
-    fragment = load_map_fragment(repo_root, profile["map"], manifest_relative)
-    arena = fragment["arena"]
-    if arena.get("type") != "ffa":
-        _fail(
-            "recipe.profile.arena.type", "the loader profile only starts an FFA arena"
-        )
+    # Every published map, not one committed map: `published_maps` reads each
+    # fragment through its manifest-recorded digest and requires each to declare
+    # an arena this profile's gametype can start.
+    published_maps(repo_root, manifest_relative)
     if profile["playerModel"] not in _array(
         recipe_profile.get("playerModels"), "recipe.profile.playerModels"
     ):
@@ -813,9 +1308,6 @@ def _validate_against_recipe(
             "profile.playerModel",
             "is not a player presentation the content pack packages",
         )
-    if profile["cvars"].get("fraglimit") != arena.get("fraglimit"):
-        _fail("profile.cvars.fraglimit", "must equal the recipe arena's frag limit")
-
     recipe_bots = {
         _string(
             _object(bot, "recipe.profile.bots entry").get("name"),
@@ -975,10 +1467,8 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
     if profile.get("formatVersion") != 1:
         _fail("profile.formatVersion", "must be 1")
     _array(profile.get("$comment"), "profile.$comment")
-    for key in ("basegame", "map", "package", "playerModel"):
+    for key in ("basegame", "package", "playerModel"):
         _string(profile.get(key), f"profile.{key}")
-    if not MAP_NAME.fullmatch(profile["map"]):
-        _fail("profile.map", f"'{profile['map']}' is not a map name")
     if not BASEGAME_NAME.fullmatch(profile["basegame"]):
         _fail(
             "profile.basegame", f"'{profile['basegame']}' is not a game directory name"
@@ -991,7 +1481,7 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
         )
 
     _validate_bots(profile)
-    _validate_cvars(profile)
+    _validate_cvars(profile, repo_root)
     _validate_markers(profile)
     _validate_config_files(profile, repo_root)
 
@@ -1016,6 +1506,21 @@ def load_profile(repo_root: Path) -> dict[str, Any]:
             "is not the derivation of the profile's own fields; expected "
             + " ".join(expected),
         )
+    # The committed half may not carry a map, or the rotation would have a
+    # default hiding inside the list a caller passes verbatim — which is the
+    # one thing the loader refuses to have on its own side.
+    check_no_committed_map(arguments, "profile.engineArguments")
+    limits = check_command_line_limits(
+        repo_root, profile.get("engineCommandLine"), "profile.engineCommandLine"
+    )
+    notes = _object(
+        profile.get("engineCommandLineNotes"), "profile.engineCommandLineNotes"
+    )
+    _exact_keys(notes, COMMAND_LINE_LIMIT_KEYS, "profile.engineCommandLineNotes")
+    for name in COMMAND_LINE_LIMIT_KEYS:
+        if len(_string(notes[name], f"profile.engineCommandLineNotes.{name}")) < 20:
+            _fail(f"profile.engineCommandLineNotes.{name}", "must state the engine site")
+    profile["_commandLineLimits"] = limits
 
     _validate_against_recipe(
         profile,
@@ -1118,7 +1623,6 @@ def stage(
 
     report = {
         "package": profile["package"],
-        "map": profile["map"],
         "servedFiles": sorted(files),
         "artifacts": verified,
         "totalArtifactBytes": sum(item["size"] for item in verified),

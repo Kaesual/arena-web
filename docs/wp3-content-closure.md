@@ -1407,5 +1407,16 @@ survive a move unremeasured.
 
   **This is not the constraint on rotation size.** It was expected to be; it is
   not, by two orders of magnitude against the 29-map v1 set, which projects to
-  1,908 bytes. What bounds a rotation is what a player downloads and holds in
-  the tab, which is why the manifest now records both sizes.
+  1,908 bytes.
+
+  The constraint turned out to be the **engine command line**, and it is far
+  tighter: ioquake3 concatenates argv into a fixed `char
+  commandLine[MAX_STRING_CHARS]` (1024 bytes) with `Q_strcat`, which truncates
+  through `Q_strncpyz` rather than failing, and `Com_ParseCommandLine` returns
+  once it holds `MAX_CONSOLE_LINES` (32) console lines, leaving the rest neither
+  parsed nor reported. A rotation is one `+set d<N>` line per map plus
+  `+vstr d1`, so against this release's committed server arguments the ceiling
+  is **15 of the 16 published maps** — both bounds are read out of the pinned
+  tree by `scripts/arena_runtime.py` and enforced where the rotation actually
+  exists. The other bound is what a player downloads and holds in the tab,
+  which is why the manifest records both sizes.

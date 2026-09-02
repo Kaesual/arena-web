@@ -28,7 +28,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from arena_server import load_profile  # noqa: E402
+from arena_server import load_profile, server_launch_arguments  # noqa: E402
 from census_run import (  # noqa: E402
     CLIENT_BINARIES,
     PLAY_CYCLE,
@@ -70,7 +70,14 @@ def _json(command: list[str]) -> Any:
     return json.loads(_run(command).stdout)
 
 
-def parse_getstatus(payload: bytes, challenge: str = CHALLENGE) -> dict[str, str]:
+def parse_getstatus(
+    payload: bytes,
+    rotation: list[str],
+    profile: dict[str, Any],
+    challenge: str = CHALLENGE,
+    *,
+    started: bool = False,
+) -> dict[str, str]:
     prefix = b"\xff\xff\xff\xffstatusResponse\n"
     if not payload.startswith(prefix):
         raise ProbeError("health reply has no statusResponse prefix")
@@ -85,26 +92,57 @@ def parse_getstatus(payload: bytes, challenge: str = CHALLENGE) -> dict[str, str
     if len(parts) % 2 != 0 or any(part == "" for part in parts):
         raise ProbeError("health info string is malformed")
     values = dict(zip(parts[0::2], parts[1::2], strict=True))
+    # Read out of the profile rather than restated. `check_match_end_cvars`
+    # now permits any `fraglimit`/`timelimit` pair that is not both zero, so a
+    # legal profile change would leave literals here quietly wrong — the same
+    # remembered-measurement shape this repository refused for the systeminfo
+    # allowance.
+    cvars = profile["cvars"]
     required = {
         "challenge": challenge,
-        "mapname": "oa_pvomit",
-        "g_gametype": "0",
-        "fraglimit": "15",
-        "timelimit": "0",
-        "sv_maxclients": "8",
+        "g_gametype": cvars["g_gametype"],
+        "fraglimit": cvars["fraglimit"],
+        "timelimit": cvars["timelimit"],
+        "sv_maxclients": cvars["sv_maxclients"],
     }
+    # **Readiness and liveness ask different things of `mapname`, and
+    # conflating them would fail every rotating server.** `SV_SpawnServer` sets
+    # `mapname` afresh on every map change (ioq3 code/server/sv_init.c), which
+    # is the whole point of a rotation — so a check that pins it to the
+    # rotation's first entry is right exactly once, at readiness, where it
+    # proves the launch argument took effect and therefore that a rotation was
+    # supplied at all. Applied again a second later it would declare a server
+    # failed for doing what it was asked to do. After readiness the map only
+    # has to still be one of the rotation's own.
+    required["mapname"] = rotation[0] if not started else None
     for name, expected in required.items():
+        if expected is None:
+            continue
         if values.get(name) != expected:
             raise ProbeError(f"health field {name} does not match the profile")
+    if started:
+        if values.get("mapname") not in rotation:
+            raise ProbeError(
+                f"health field mapname is '{values.get('mapname')}', which is not "
+                f"in the rotation {rotation}"
+            )
+        required["mapname"] = values["mapname"]
     return {name: values[name] for name in required}
 
 
-def health(socket_: socket.socket, endpoint: tuple[str, int]) -> dict[str, str]:
+def health(
+    socket_: socket.socket,
+    endpoint: tuple[str, int],
+    rotation: list[str],
+    profile: dict[str, Any],
+    *,
+    started: bool = False,
+) -> dict[str, str]:
     socket_.sendto(b"\xff\xff\xff\xffgetstatus " + CHALLENGE.encode() + b"\n", endpoint)
     payload, source = socket_.recvfrom(65535)
     if source != endpoint:
         raise ProbeError("health reply came from another endpoint")
-    return parse_getstatus(payload)
+    return parse_getstatus(payload, rotation, profile, started=started)
 
 
 def observation(*, exists: bool, running: bool, ready: bool, within_deadline: bool, failures: int) -> str:
@@ -239,12 +277,17 @@ def _free_udp_port() -> int:
         return socket_.getsockname()[1]
 
 
-def _wait_ready(socket_: socket.socket, endpoint: tuple[str, int]) -> tuple[float, dict[str, str]]:
+def _wait_ready(
+    socket_: socket.socket,
+    endpoint: tuple[str, int],
+    rotation: list[str],
+    profile: dict[str, Any],
+) -> tuple[float, dict[str, str]]:
     started = time.monotonic()
     last_error = None
     while time.monotonic() - started < STARTUP_DEADLINE_SECONDS:
         try:
-            return time.monotonic() - started, health(socket_, endpoint)
+            return time.monotonic() - started, health(socket_, endpoint, rotation, profile)
         except (OSError, ProbeError) as error:
             last_error = error
             time.sleep(HEALTH_INTERVAL_SECONDS)
@@ -408,6 +451,11 @@ def main() -> int:
     parser.add_argument("--server-image", default="arena-web-server:latest")
     parser.add_argument("--output", type=Path, default=ROOT / "build/server-resource-probe.json")
     parser.add_argument("--client-dir", type=Path, default=ROOT / "build/native-client/tree/Release")
+    # Required, with no default. The map a server plays is a launch argument and
+    # this probe is a caller like any other, so it makes the choice explicitly
+    # rather than inheriting one — the same reason the loader refuses a page
+    # opened without ?maps=.
+    parser.add_argument("--rotation", required=True)
     arguments = parser.parse_args()
     output = arguments.output.resolve()
     if (ROOT / "build").resolve() not in output.parents:
@@ -415,6 +463,7 @@ def main() -> int:
 
     runtime = arguments.runtime
     profile = load_profile(ROOT)
+    rotation = [name.strip() for name in arguments.rotation.split(",")]
     toolchain = _run([str(ROOT / "scripts/build-native-toolchain.sh"), "--print-tag"]).stdout.strip()
     client_dir = arguments.client_dir.resolve()
     for name in CLIENT_BINARIES:
@@ -444,13 +493,14 @@ def main() -> int:
     try:
         _run([runtime, "network", "create", "--subnet", "10.203.0.0/24", network])
         created_network = True
-        _start_server(runtime, server, network, server_ip, host_port, image, profile["serverArguments"])
+        launch = server_launch_arguments(ROOT, profile, rotation)
+        _start_server(runtime, server, network, server_ip, host_port, image, launch)
         started.append(server)
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as health_socket:
             health_socket.bind(("127.0.0.1", 0))
             health_socket.settimeout(0.75)
             startup_seconds, health_fields = _wait_ready(
-                health_socket, ("127.0.0.1", host_port)
+                health_socket, ("127.0.0.1", host_port), rotation, profile
             )
 
             idle = PhaseSampler.begin(runtime, server)
@@ -481,7 +531,15 @@ def main() -> int:
             _busy_sample(busy, clients)
             busy_result = busy.result()
             time.sleep(HEALTH_INTERVAL_SECONDS)
-            health(health_socket, ("127.0.0.1", host_port))
+            # The post-readiness check, which is the liveness one: the server
+            # has been playing for a minute and may legitimately have rotated.
+            health(
+                health_socket,
+                ("127.0.0.1", host_port),
+                rotation,
+                profile,
+                started=True,
+            )
 
         for client in clients:
             _send(client, "quit")
@@ -514,13 +572,13 @@ def main() -> int:
             server_ip,
             host_port,
             image,
-            profile["serverArguments"],
+            launch,
         )
         started.append(failed_server)
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as health_socket:
             health_socket.bind(("127.0.0.1", 0))
             health_socket.settimeout(0.75)
-            _wait_ready(health_socket, ("127.0.0.1", host_port))
+            _wait_ready(health_socket, ("127.0.0.1", host_port), rotation, profile)
         _run([runtime, "kill", "--signal", "KILL", failed_server])
         failed_inspect = _json([runtime, "inspect", failed_server])[0]
         failed_exit = failed_inspect["State"]["ExitCode"]
@@ -553,9 +611,17 @@ def main() -> int:
             # of the same shape as a document restating a value nothing checks.
             "measuredAt": datetime.date.today().isoformat(),
             "release": {
-                "serverManifestCommit": _run(
-                    ["git", "-C", str(ROOT), "rev-parse", "HEAD"]
-                ).stdout.strip(),
+                # The commit that produced the *server manifest*, taken from
+                # the manifest's own producer record rather than from HEAD. A
+                # probe re-run against an unchanged image — which is what a
+                # reissue that moves no content does — must not restamp this
+                # with whatever commit happened to be checked out, or the field
+                # would name a commit that built nothing.
+                "serverManifestCommit": json.loads(
+                    (ROOT / "provenance/arena-web-server.json").read_text(
+                        encoding="utf-8"
+                    )
+                )["producer"]["commit"],
                 "engineCommit": _run(
                     [sys.executable, str(ROOT / "scripts/baseline-inputs.py"), "engine-commit"]
                 ).stdout.strip(),
@@ -566,7 +632,7 @@ def main() -> int:
                 "humans": 2,
                 "bots": 3,
                 "slots": 8,
-                "map": profile["map"],
+                "rotation": list(rotation),
                 "udpPort": profile["port"],
                 "busyTraffic": "ordinary native-client movement, weapon selection, fire, chat and respawn commands",
             },

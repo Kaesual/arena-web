@@ -1,13 +1,21 @@
 {
   "$comment": [
     "The WP5 native profile: one dedicated server and one matching native test",
-    "client, both running the same one-map FFA arena the browser slice runs.",
+    "client, both running the same FFA arena the browser slice runs.",
     "scripts/arena_server.py derives every command line from the declarative",
     "fields below and refuses this file if the committed argument lists differ,",
     "so what the census observes cannot drift away from what is recorded here.",
     "The profile is additionally bound to arena/game-profile.json and to",
-    "content/pack-recipe.json: the game directory, map, package, frag limit and",
-    "the bots themselves are the browser slice's, not a second set of numbers.",
+    "content/pack-recipe.json: the game directory, package, frag limit and the",
+    "bots themselves are the browser slice's, not a second set of numbers.",
+    "",
+    "The map is NOT here, and 'serverArguments' carries none. The rotation is a",
+    "launch argument supplied at container launch and never committed; build the",
+    "full command line with scripts/arena_server.py server_launch_arguments,",
+    "which prepends the rotation's own '+set d<N>' cycle and '+vstr d1' to the",
+    "array below. A server started without one never answers a getstatus the",
+    "readiness contract accepts, so the omission fails that gate rather than",
+    "surfacing at a map change.",
     "The one deliberate difference is bot skill. The browser slice is played by",
     "a person and uses skill 3; the census client is driven blind from a script",
     "and would spend a session respawning rather than playing, so its bots run",
@@ -136,14 +144,14 @@
     "com_basegame": "Not baseq3. FS_CheckPak0 leaves com_standalone at 0 for ioquake3's own base game and the engine then refuses to start without the retail paks (code/qcommon/files.c). Any other directory name selects standalone operation.",
     "com_legacyprotocol": "0 is CVAR_INIT and forces the current checksummed netchan header on the matching client and server.",
     "dedicated": "1 is LAN dedicated. 2 would send heartbeats to the public master servers, which is an explicit WP5 non-goal (code/server/sv_main.c SV_MasterHeartbeat).",
-    "fraglimit": "The arena profile of content/pack-recipe.json.",
+    "fraglimit": "ioq3 code/game/g_main.c CheckExitRules: with timelimit this is what ends a level, and ExitLevel is the only thing that runs 'vstr nextmap', so the two together are what lets a launched rotation advance. It is deliberately not bound to a map fragment's arena.fraglimit any more: nothing reads arena data outside GT_SINGLE_PLAYER (ioq3 code/game/g_bot.c) and the published maps declare four different values",
     "g_gametype": "GT_FFA (code/game/bg_public.h).",
     "net_enabled": "1 is IPv4 only, so the census observes exactly one address family.",
     "net_port": "The UDP port the census captures; PORT_SERVER (code/qcommon/qcommon.h).",
     "sv_maxclients": "Slots for the test client and the bots.",
     "sv_pure": "Load-bearing: FS_FindVM only considers a loose vm/*.qvm while fs_numServerPaks is 0 (code/qcommon/files.c), and the QVMs are written beside the pack rather than inside it.",
     "sv_rateLimitPerPort": "1 is safe only on the managed relay path: the relay controls live source ports and gives concurrent clients separate connectionless buckets. An open-Internet server must leave this opt-in cvar at its default 0 because arbitrary source ports can evade limits and exhaust the finite bucket pool.",
-    "timelimit": "The arena profile of content/pack-recipe.json: no time limit."
+    "timelimit": "ioq3 code/game/g_main.c CheckExitRules: 0 means the frag limit alone ends a level. Both may not be 0, or no level would ever end and a rotation could never advance past its first map"
   },
   "cvars": {
     "bot_enable": "1",
@@ -159,9 +167,16 @@
     "sv_rateLimitPerPort": "1",
     "timelimit": "0"
   },
+  "engineCommandLine": {
+    "maxBytes": 1024,
+    "maxLines": 32
+  },
+  "engineCommandLineNotes": {
+    "maxBytes": "ioq3 code/sys/sys_main.c main() concatenates argv into char commandLine[MAX_STRING_CHARS] with Q_strcat, which truncates through Q_strncpyz rather than failing (code/qcommon/q_shared.c). This is the hard ceiling on how long a rotation may be; scripts/arena_server.py max_server_rotation reports how many of the published map names fit",
+    "maxLines": "ioq3 code/qcommon/common.c MAX_CONSOLE_LINES. Com_ParseCommandLine returns once it holds that many console lines, so a rotation past that point is silently not the rotation that was asked for"
+  },
   "formatVersion": 1,
   "gameDirectory": "/opt/arena-web",
-  "map": "oa_pvomit",
   "package": "arena-web-ffa",
   "playerModel": "skelebot/default",
   "port": 27960,
@@ -203,8 +218,6 @@
     "+set",
     "timelimit",
     "0",
-    "+map",
-    "oa_pvomit",
     "+addbot",
     "Skelebot",
     "1",

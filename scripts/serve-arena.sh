@@ -85,13 +85,17 @@ fi
 
 # The loader requires the rotation it is being opened for; there is no default,
 # because the two plausible ones are "download everything" and "download less
-# than the server will play". For this offline slice the rotation is the one
-# map the committed profile starts, read from the profile rather than typed
-# here so this URL cannot go stale.
-rotation="$(python3 -c '
-import json, sys
-print(json.load(open(sys.argv[1]))["map"])
-' "${repo_dir}/arena/game-profile.json")"
+# than the server will play". The profile commits no map any more — it is a
+# launch argument — so ARENA_ROTATION picks one and the first published map is
+# what a bare `serve-arena.sh` offers, derived from the release rather than
+# typed here so this URL cannot go stale.
+rotation="${ARENA_ROTATION:-$(python3 -c '
+import sys
+sys.path.insert(0, sys.argv[1])
+from pathlib import Path
+from arena_runtime import published_maps
+print(published_maps(Path(sys.argv[2]), sys.argv[3])[0])
+' "${repo_dir}/scripts" "${repo_dir}" provenance/arena-web-ffa-content-manifest.json)}"
 
 printf 'serving %s\n' "${target}"
 printf 'arena:   http://%s:%s/?maps=%s\n' "${host}" "${port}" "${rotation}"

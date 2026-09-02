@@ -30,7 +30,9 @@ usage: run-arena-acceptance.sh [--chrome PATH] [options passed on]
 
 Every other option is passed to scripts/arena_acceptance.py; see --help there
 for --engine-dir, --content-dir, --runs, --play-seconds, --headed and
---skip-stage.
+--skip-stage. --rotation <map>[,<map>...] opens the page for that rotation
+instead of the two-map one derived from the published set; the offline slice
+starts its first entry, which is what makes a per-map browser sweep possible.
 EOF
 }
 

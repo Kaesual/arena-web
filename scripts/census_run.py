@@ -31,10 +31,12 @@ from typing import Any
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+from arena_runtime import ArenaRuntimeError  # noqa: E402
 from arena_server import (  # noqa: E402
     ArenaServerError,
     client_tree_files,
     load_profile,
+    server_launch_arguments,
     stage_tree,
 )
 from packet_census import (  # noqa: E402
@@ -431,6 +433,9 @@ def main() -> int:  # noqa: C901 - a session is a sequence, and it reads as one
     parser.add_argument("--runtime", default=os.environ.get("CONTAINER_RUNTIME", "podman"))
     parser.add_argument("--server-image", default="arena-web-server:latest")
     parser.add_argument("--toolchain-image", default=None)
+    # Required, with no default: the map a server plays is a launch argument
+    # and the census is a caller like any other.
+    parser.add_argument("--rotation", required=True)
     parser.add_argument("--subnet", default=DEFAULT_SUBNET)
     parser.add_argument("--server-ip", default=DEFAULT_SERVER_IP)
     parser.add_argument("--client-ip", default=DEFAULT_CLIENT_IP)
@@ -506,8 +511,14 @@ def main() -> int:  # noqa: C901 - a session is a sequence, and it reads as one
 
     try:
         profile = load_profile(REPO_ROOT)
+        server_arguments = server_launch_arguments(
+            REPO_ROOT, profile, [name.strip() for name in arguments.rotation.split(",")]
+        )
     except ArenaServerError as error:
         print(f"native profile refused: {error}", file=sys.stderr)
+        return 1
+    except ArenaRuntimeError as error:
+        print(f"rotation refused: {error}", file=sys.stderr)
         return 1
 
     server_endpoint = f"{arguments.server_ip}:{profile['port']}"
@@ -544,7 +555,7 @@ def main() -> int:  # noqa: C901 - a session is a sequence, and it reads as one
                 "--read-only",
                 "--tmpfs", "/var/lib/arena:rw,noexec,nosuid,nodev,mode=1777",
                 arguments.server_image,
-                *profile["serverArguments"],
+                *server_arguments,
             ]
         )
         started.append(server_name)
@@ -779,7 +790,7 @@ def main() -> int:  # noqa: C901 - a session is a sequence, and it reads as one
         "maxPlaySeconds": arguments.max_play_seconds,
         "playSeconds": arguments.play_seconds,
         "serverAddress": arguments.server_ip,
-        "serverArguments": profile["serverArguments"],
+        "serverArguments": server_arguments,
         "serverImage": arguments.server_image,
         "serverImageId": server_image_id,
         "serverPort": profile["port"],

@@ -40,10 +40,21 @@ from arena_acceptance import (  # noqa: E402
 from arena_runtime import (  # noqa: E402
     SYSTEMINFO_FIXED_ALLOWANCE,
     ArenaRuntimeError,
+    check_command_line_budget,
+    check_no_committed_map,
+    match_end_limits,
     check_systeminfo_budget,
     content_archive_names,
+    engine_command_line,
+    engine_command_line_limits,
+    engine_console_lines,
     expected_engine_arguments,
     load_profile,
+    max_rotation_length,
+    offline_map_arguments,
+    published_maps,
+    rotation_arguments,
+    validate_rotation,
     manifest_index,
     projected_systeminfo_size,
     served_files,
@@ -99,6 +110,15 @@ CONTENT_RECORDS = {
 }
 
 
+def refused_message(action) -> str:
+    """The message of the ArenaRuntimeError an action must raise."""
+    try:
+        action()
+    except ArenaRuntimeError as error:
+        return str(error)
+    raise AssertionError("the action was accepted")
+
+
 def _manifest(
     files: dict[str, bytes], inputs: list[dict[str, str]] | None = None
 ) -> dict[str, Any]:
@@ -134,7 +154,6 @@ def _profile() -> dict[str, Any]:
         "formatVersion": 1,
         "package": "arena-web-ffa",
         "basegame": "arena",
-        "map": "oa_pvomit",
         "playerModel": "skelebot/default",
         "bots": [{"name": "Skelebot", "skill": 3}, {"name": "Rai", "skill": 3}],
         "cvars": {
@@ -149,6 +168,7 @@ def _profile() -> dict[str, Any]:
             "r_fullscreen": "0",
             "sv_maxclients": "8",
             "sv_pure": "0",
+            "timelimit": "0",
         },
         "cvarNotes": {
             name: "note"
@@ -164,10 +184,11 @@ def _profile() -> dict[str, Any]:
                 "r_fullscreen",
                 "sv_maxclients",
                 "sv_pure",
+                "timelimit",
             )
         },
         "readyMarkers": {
-            "serverSpawned": "Server: oa_pvomit",
+            "serverSpawned": "Server: {map}",
             "clientGameLoaded": "CL_InitCGame:",
             "clientEnteredGame": "entered the game",
         },
@@ -223,6 +244,11 @@ def _profile() -> dict[str, Any]:
             },
         ],
         "engineArguments": [],
+        "engineCommandLine": {"maxBytes": 1024, "maxLines": 32},
+        "engineCommandLineNotes": {
+            "maxBytes": "sys_main.c command line buffer",
+            "maxLines": "common.c MAX_CONSOLE_LINES",
+        },
     }
 
 
@@ -271,6 +297,14 @@ def _recipe() -> dict[str, Any]:
 SYSTEMINFO_HEADER = "ioq3/code/qcommon/q_shared.h"
 SYSTEMINFO_SOURCE = "ioq3/code/server/sv_init.c"
 
+# The two sources the command-line bound is read *through*: the declaration
+# that sizes the buffer, and the file that defines the console-line count.
+COMMAND_LINE_SOURCE = "ioq3/code/sys/sys_main.c"
+CONSOLE_LINE_SOURCE = "ioq3/code/qcommon/common.c"
+
+# The gamecode the level-exit rule is read out of.
+MATCH_END_SOURCE = "ioq3/code/game/g_main.c"
+
 # The registrations of the pinned tree, in both shapes the enumeration reads,
 # plus one line that names the flag without registering anything.
 SYSTEMINFO_CVARS = (
@@ -287,11 +321,39 @@ SYSTEMINFO_CVARS = (
 )
 
 
-def _engine_header(big_info_string: int = 8192) -> str:
+def _engine_header(big_info_string: int = 8192, max_string_chars: int = 1024) -> str:
     return (
         "#define\tMAX_INFO_STRING\t\t1024\n"
+        f"#define\tMAX_STRING_CHARS\t{max_string_chars}"
+        "\t// max length of a string passed to Cmd_TokenizeString\n"
         f"#define\tBIG_INFO_STRING\t\t{big_info_string}"
         "  // used for system info key only\n"
+    )
+
+
+def _command_line_source(buffer: str = "MAX_STRING_CHARS") -> str:
+    return (
+        "int main( int argc, char **argv )\n{\n"
+        f"\tchar  commandLine[ {buffer} ] = {{ 0 }};\n"
+        "\tCom_Init( commandLine );\n}\n"
+    )
+
+
+def _console_line_source(max_console_lines: int = 32) -> str:
+    return f"#define\tMAX_CONSOLE_LINES\t{max_console_lines}\n"
+
+
+def _match_end_source(limits: tuple[str, ...] = ("timelimit", "fraglimit", "capturelimit")) -> str:
+    """The shape of the pinned CheckExitRules, limit guards included."""
+    body = "".join(
+        f"\tif ( g_{name}.integer ) {{\n\t\tLogExit( \"{name} hit.\" );\n\t}}\n"
+        for name in limits
+    )
+    return (
+        "void CheckExitRules( void ) {\n"
+        "\tif ( ScoreIsTied() ) {\n\t\treturn;\n\t}\n"
+        f"{body}"
+        "}\n"
     )
 
 
@@ -321,6 +383,8 @@ class SyntheticRepository:
     def write(self) -> None:
         self.set_engine_header()
         self.set_engine_source()
+        self.set_command_line_sources()
+        self.set_match_end_source()
         (self.root / "arena").mkdir(parents=True, exist_ok=True)
         (self.root / "probe").mkdir(parents=True, exist_ok=True)
         (self.root / "manifests").mkdir(parents=True, exist_ok=True)
@@ -410,10 +474,33 @@ class SyntheticRepository:
             path.parent.mkdir(parents=True, exist_ok=True)
             path.write_bytes(data)
 
-    def set_engine_header(self, big_info_string: int = 8192) -> None:
+    def set_engine_header(
+        self, big_info_string: int = 8192, max_string_chars: int = 1024
+    ) -> None:
         path = self.root / SYSTEMINFO_HEADER
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(_engine_header(big_info_string), encoding="utf-8")
+        path.write_text(
+            _engine_header(big_info_string, max_string_chars), encoding="utf-8"
+        )
+
+    def set_match_end_source(self, limits: tuple[str, ...] | None = None) -> None:
+        path = self.root / MATCH_END_SOURCE
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            _match_end_source() if limits is None else _match_end_source(limits),
+            encoding="utf-8",
+        )
+
+    def set_command_line_sources(
+        self, max_console_lines: int = 32, buffer: str = "MAX_STRING_CHARS"
+    ) -> None:
+        for relative, text in (
+            (COMMAND_LINE_SOURCE, _command_line_source(buffer)),
+            (CONSOLE_LINE_SOURCE, _console_line_source(max_console_lines)),
+        ):
+            path = self.root / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(text, encoding="utf-8")
 
     def set_engine_source(self, extra: tuple[str, ...] = ()) -> None:
         path = self.root / SYSTEMINFO_SOURCE
@@ -461,11 +548,286 @@ class SyntheticRepositoryTest(unittest.TestCase):
         return str(caught.exception)
 
 
+class RotationDerivationTest(unittest.TestCase):
+    """The rotation itself: one list, and the arguments it becomes."""
+
+    def test_the_cycle_is_the_engine_idiom(self) -> None:
+        self.assertEqual(
+            rotation_arguments(["a", "b", "c"]),
+            [
+                "+set", "d1", "map a;set nextmap vstr d2",
+                "+set", "d2", "map b;set nextmap vstr d3",
+                "+set", "d3", "map c;set nextmap vstr d1",
+                "+vstr", "d1",
+            ],
+        )
+
+    def test_a_single_map_rotation_cycles_to_itself(self) -> None:
+        """`d1` pointing at itself is what makes the one-map case a rotation
+        rather than a special case, and it keeps ExitLevel's
+        `nextmap == "map_restart 0"` branch unreachable in every case."""
+        self.assertEqual(
+            rotation_arguments(["a"]),
+            ["+set", "d1", "map a;set nextmap vstr d1", "+vstr", "d1"],
+        )
+
+    def test_the_list_keeps_its_order_and_its_repeats(self) -> None:
+        """A rotation is an ordered list and may play one map twice per cycle.
+        The client canonicalises the same list into a fetch *set*; that is the
+        only difference between the two derivations."""
+        arguments = rotation_arguments(["b", "a", "b"])
+        self.assertEqual(arguments[2], "map b;set nextmap vstr d2")
+        self.assertEqual(arguments[5], "map a;set nextmap vstr d3")
+        self.assertEqual(arguments[8], "map b;set nextmap vstr d1")
+
+    def test_the_offline_slice_starts_the_first_entry(self) -> None:
+        self.assertEqual(offline_map_arguments(["b", "a"]), ["+map", "b"])
+
+    def test_an_empty_rotation_is_refused(self) -> None:
+        self.assertIn(
+            "is empty", refused_message(lambda: validate_rotation([], ["a"], "rotation"))
+        )
+
+    def test_a_rotation_naming_an_unpublished_map_is_refused(self) -> None:
+        message = refused_message(
+            lambda: validate_rotation(["a", "q3dm17"], ["a", "b"], "rotation")
+        )
+        self.assertIn("publishes no archive for 'q3dm17'", message)
+
+    def test_a_rotation_entry_that_is_not_a_map_name_is_refused(self) -> None:
+        self.assertIn(
+            "is not a map name",
+            refused_message(lambda: validate_rotation(["../x"], ["../x"], "rotation")),
+        )
+
+
+class CommandLineBudgetTest(unittest.TestCase):
+    """The two silent ceilings, and whether the gate goes red without them."""
+
+    LIMITS = {"maxBytes": 1024, "maxLines": 32}
+
+    def test_the_command_line_is_the_engine_s_own_concatenation(self) -> None:
+        self.assertEqual(
+            engine_command_line(["+set", "d1", "map a;set nextmap vstr d2"]),
+            '+set d1 "map a;set nextmap vstr d2" ',
+        )
+
+    def test_a_newline_breaks_a_line_even_inside_quotes(self) -> None:
+        """`Com_ParseCommandLine` breaks on a newline or carriage return
+        regardless of quoting. Nothing this repository generates can carry one —
+        but a counter that is exact only because of a property of its inputs
+        stops being exact when the inputs change, so it is modelled rather than
+        argued away."""
+        self.assertEqual(engine_console_lines(["+set", "x", "a\nb"]), 3)
+        self.assertEqual(engine_console_lines(["+set", "x", "a\rb"]), 3)
+
+    def test_a_plus_inside_a_quoted_value_is_not_a_console_line(self) -> None:
+        """Com_ParseCommandLine tracks quotes, so a '+' inside an argument that
+        had to be quoted does not split a line — and this counter must not
+        disagree with it, or the bound would be measured against a different
+        parse than the engine's."""
+        self.assertEqual(engine_console_lines(["+set", "x", "a + b"]), 2)
+        self.assertEqual(engine_console_lines(["+set", "x", "1", "+map", "a"]), 3)
+
+    def test_a_list_past_the_byte_bound_is_refused(self) -> None:
+        arguments = ["+set", "x", "y" * 1100]
+        self.assertIn(
+            "truncated in silence",
+            refused_message(
+                lambda: check_command_line_budget(arguments, self.LIMITS, "list")
+            ),
+        )
+
+    def test_a_list_past_the_line_bound_is_refused(self) -> None:
+        arguments = ["+echo"] * 32
+        self.assertIn(
+            "console lines",
+            refused_message(
+                lambda: check_command_line_budget(arguments, self.LIMITS, "list")
+            ),
+        )
+
+    def test_the_bound_is_a_boundary_and_not_a_slogan(self) -> None:
+        """One argument either side of each ceiling, so the gate is shown to
+        bite exactly where it claims to and not merely to exist."""
+        fits = ["+echo"] * 31
+        check_command_line_budget(fits, self.LIMITS, "list")
+        self.assertIn(
+            "console lines",
+            refused_message(
+                lambda: check_command_line_budget(fits + ["+echo"], self.LIMITS, "list")
+            ),
+        )
+        # 1023 bytes of command line is the last accepted length: the engine's
+        # buffer has to hold the terminator too.
+        fits = ["a" * 1022]
+        self.assertEqual(len(engine_command_line(fits)), 1023)
+        check_command_line_budget(fits, self.LIMITS, "list")
+        self.assertIn(
+            "truncated in silence",
+            refused_message(
+                lambda: check_command_line_budget(["a" * 1023], self.LIMITS, "list")
+            ),
+        )
+
+    def test_the_reported_ceiling_is_a_ceiling(self) -> None:
+        """`max_rotation_length` has to be the largest rotation that fits *and*
+        the smallest that does not — a report that is merely plausible would be
+        the number a caller sizes its rotation with."""
+        names = [f"map{index:02d}" for index in range(40)]
+        fixed = ["+set", "g_gametype", "0"]
+        count = max_rotation_length(fixed, self.LIMITS, names)
+        self.assertGreater(count, 0)
+        check_command_line_budget(
+            rotation_arguments(names[:count]) + fixed, self.LIMITS, "list"
+        )
+        self.assertIn(
+            "pinned engine's",
+            refused_message(
+                lambda: check_command_line_budget(
+                    rotation_arguments(names[: count + 1]) + fixed, self.LIMITS, "list"
+                )
+            ),
+        )
+
+
+class MatchEndRuleTest(SyntheticRepositoryTest):
+    """The rule that replaced the arena frag-limit equality, and its own pin."""
+
+    def test_the_limits_are_read_out_of_the_pinned_gamecode(self) -> None:
+        self.assertEqual(
+            match_end_limits(self.repository.root / "ioq3"),
+            {"timelimit", "fraglimit", "capturelimit"},
+        )
+
+    def test_a_fourth_exit_rule_is_a_failure_and_not_a_silent_pass(self) -> None:
+        """The question this repository asks of its own gates. A gamecode that
+        grew another limit would leave the rule checking two of three, and the
+        only thing that makes that red is refusing a limit that is neither
+        covered nor exempted by name."""
+        self.repository.set_match_end_source(
+            ("timelimit", "fraglimit", "capturelimit", "roundlimit")
+        )
+        self.assertIn(
+            "ends a level on ['roundlimit'] as well",
+            refused_message(lambda: load_profile(self.repository.root)),
+        )
+        self.repository.set_match_end_source()
+        load_profile(self.repository.root)
+
+    def test_a_gamecode_that_stopped_reading_a_covered_limit_is_a_failure(self) -> None:
+        self.repository.set_match_end_source(("fraglimit",))
+        self.assertIn(
+            "no longer reads ['timelimit']",
+            refused_message(lambda: load_profile(self.repository.root)),
+        )
+        self.repository.set_match_end_source()
+
+    def test_a_gamecode_with_no_exit_rule_at_all_is_a_failure(self) -> None:
+        """An empty enumeration would satisfy the rule by measuring nothing —
+        the `check_shader_authority` failure shape, in a different gate."""
+        (self.repository.root / MATCH_END_SOURCE).write_text(
+            "void CheckExitRules( void ) {\n\treturn;\n}\n", encoding="utf-8"
+        )
+        self.assertIn(
+            "reads no limit cvar at all",
+            refused_message(lambda: load_profile(self.repository.root)),
+        )
+        (self.repository.root / MATCH_END_SOURCE).write_text("", encoding="utf-8")
+        self.assertIn(
+            "no longer defines CheckExitRules",
+            refused_message(lambda: load_profile(self.repository.root)),
+        )
+        self.repository.set_match_end_source()
+
+
+class EngineCommandLineBoundTest(SyntheticRepositoryTest):
+    """Whether the bound is read out of the pin or merely restated beside it."""
+
+    def test_it_is_read_out_of_the_pinned_tree(self) -> None:
+        self.assertEqual(
+            engine_command_line_limits(self.repository.root / "ioq3"),
+            {"maxBytes": 1024, "maxLines": 32},
+        )
+
+    def test_shrinking_the_engine_bound_turns_a_passing_profile_red(self) -> None:
+        """The question this repository has learnt to ask of its own gates: does
+        it go red when the thing it assures is gone? A committed bound that
+        stops matching the engine is refused, in both directions."""
+        load_profile(self.repository.root)
+        self.repository.set_engine_header(max_string_chars=512)
+        self.assertIn(
+            "is 1024, and the pinned engine's is 512",
+            refused_message(lambda: load_profile(self.repository.root)),
+        )
+        self.repository.set_engine_header()
+        self.repository.set_command_line_sources(max_console_lines=16)
+        self.assertIn(
+            "is 32, and the pinned engine's is 16",
+            refused_message(lambda: load_profile(self.repository.root)),
+        )
+        self.repository.set_command_line_sources()
+        load_profile(self.repository.root)
+
+    def test_the_buffer_constant_is_read_through_its_declaration(self) -> None:
+        """Not by name. `sys_main.c` sizes the buffer with a named constant, so
+        an engine that renamed or re-sized it must move this bound with it —
+        hard-coding MAX_STRING_CHARS here would be a copy of a number rather
+        than a reading of the pin."""
+        header = self.repository.root / SYSTEMINFO_HEADER
+        header.write_text(
+            header.read_text(encoding="utf-8") + "#define\tMAX_CMD_CHARS\t2048\n",
+            encoding="utf-8",
+        )
+        self.repository.set_command_line_sources(buffer="MAX_CMD_CHARS")
+        self.assertEqual(
+            engine_command_line_limits(self.repository.root / "ioq3")["maxBytes"], 2048
+        )
+        self.repository.set_engine_header()
+        self.repository.set_command_line_sources()
+
+    def test_an_unreadable_declaration_is_a_failure_not_a_free_pass(self) -> None:
+        """The `check_shader_authority` lesson: a gate whose input can vanish
+        without anything going red is not a gate. Both halves are refused when
+        the pin stops carrying them."""
+        source = self.repository.root / COMMAND_LINE_SOURCE
+        source.write_text("int main(void) { return 0; }\n", encoding="utf-8")
+        self.assertIn(
+            "no longer declares a fixed `char commandLine[]`",
+            refused_message(
+                lambda: engine_command_line_limits(self.repository.root / "ioq3")
+            ),
+        )
+        source.unlink()
+        self.assertIn(
+            "cannot read",
+            refused_message(
+                lambda: engine_command_line_limits(self.repository.root / "ioq3")
+            ),
+        )
+        self.repository.set_command_line_sources()
+        (self.repository.root / CONSOLE_LINE_SOURCE).write_text("", encoding="utf-8")
+        self.assertIn(
+            "no longer defines MAX_CONSOLE_LINES",
+            refused_message(
+                lambda: engine_command_line_limits(self.repository.root / "ioq3")
+            ),
+        )
+        self.repository.set_command_line_sources()
+
+    def test_a_bound_the_profile_does_not_publish_is_refused(self) -> None:
+        self.assertIn(
+            "unexpected key set",
+            self.refuses(lambda profile: profile["engineCommandLine"].pop("maxLines")),
+        )
+
+
 class ProfileValidationTest(SyntheticRepositoryTest):
     def test_the_synthetic_profile_is_accepted(self) -> None:
         profile = load_profile(self.repository.root)
-        self.assertEqual(profile["map"], "oa_pvomit")
+        self.assertNotIn("map", profile)
         self.assertIn("_manifests", profile)
+        self.assertEqual(profile["_commandLineLimits"], {"maxBytes": 1024, "maxLines": 32})
 
     def test_an_unknown_key_is_refused(self) -> None:
         self.assertIn(
@@ -571,17 +933,45 @@ class ProfileValidationTest(SyntheticRepositoryTest):
 
         self.assertIn("player presentation", self.refuses(change))
 
-    def test_a_frag_limit_that_disagrees_with_the_recipe_is_refused(self) -> None:
+    def test_a_profile_that_can_never_end_a_level_is_refused(self) -> None:
+        """What replaced the arena frag-limit equality, and why it is better.
+
+        The old rule required `fraglimit` to equal one map fragment's
+        `arena.fraglimit`. Across a published set that is not one value, and
+        nothing reads arena data outside GT_SINGLE_PLAYER anyway, so it bound a
+        live cvar to a number the running game cannot see. This is the rule the
+        rotation creates instead: CheckExitRules ends a level on the frag limit
+        or the time limit and nothing else, and only ExitLevel runs
+        `vstr nextmap`, so zeroing both commits a rotation that can never reach
+        its second map.
+        """
         self.assertIn(
-            "frag limit",
-            self.refuses(lambda p: p["cvars"].update({"fraglimit": "30"})),
+            "could never advance",
+            self.refuses(lambda p: p["cvars"].update({"fraglimit": "0"})),
+        )
+        self.assertIn(
+            "non-negative decimal integer",
+            self.refuses(lambda p: p["cvars"].update({"fraglimit": "fifteen"})),
+        )
+
+    def test_a_frag_limit_that_disagrees_with_a_map_fragment_is_accepted(self) -> None:
+        """The published maps declare four different arena frag limits, so an
+        equality with any one of them would refuse the other three."""
+        self.repository.profile["cvars"]["fraglimit"] = "30"
+        self.repository.profile["cvarNotes"]["fraglimit"] = "note"
+        self.repository.profile["engineArguments"] = expected_engine_arguments(
+            self.repository.profile
+        )
+        self.repository.write()
+        self.assertEqual(
+            load_profile(self.repository.root)["cvars"]["fraglimit"], "30"
         )
 
     def test_a_marker_that_is_not_the_engine_string_is_refused(self) -> None:
         self.assertIn(
             "sv_init.c",
             self.refuses(
-                lambda p: p["readyMarkers"].update({"serverSpawned": "Map: oa_pvomit"})
+                lambda p: p["readyMarkers"].update({"serverSpawned": "Map: {map}"})
             ),
         )
 
@@ -591,12 +981,28 @@ class ProfileValidationTest(SyntheticRepositoryTest):
             self.refuses(lambda p: p["readyMarkers"].update({"other": "x"})),
         )
 
-    def test_a_map_the_content_recipe_does_not_assemble_is_refused(self) -> None:
+    def test_a_committed_map_is_refused(self) -> None:
+        """The committed half may carry no map: it is what a caller passes
+        verbatim, so a default hidden inside it is one nobody can see."""
         def change(profile: dict[str, Any]) -> None:
-            profile["map"] = "q3dm6ish"
-            profile["readyMarkers"]["serverSpawned"] = "Server: q3dm6ish"
+            profile["engineArguments"] = ["+map", "oa_pvomit"] + profile[
+                "engineArguments"
+            ]
 
-        self.assertIn("records no fragment for map", self.refuses(change))
+        self.assertIn("not the derivation", self.refuses(change))
+        for command in ("+map", "+devmap", "+spmap", "+spdevmap", "+vstr"):
+            self.assertIn(
+                "the map is a launch argument",
+                refused_message(
+                    lambda command=command: check_no_committed_map([command, "x"], "list")
+                ),
+            )
+        self.assertIn(
+            "rotation cvar",
+            refused_message(
+                lambda: check_no_committed_map(["+set", "d1", "map x"], "list")
+            ),
+        )
 
     def test_engine_arguments_that_are_not_the_derivation_are_refused(self) -> None:
         message = self.refuses(
@@ -604,8 +1010,14 @@ class ProfileValidationTest(SyntheticRepositoryTest):
         )
         self.assertIn("not the derivation", message)
 
-    def test_engine_arguments_place_the_map_before_every_bot(self) -> None:
-        arguments = expected_engine_arguments(self.repository.profile)
+    def test_the_offline_map_precedes_every_bot_once_prepended(self) -> None:
+        """`addbot` is forwarded to a running game module, so a map has to be up
+        first. The committed list carries none; the loader prepends one, and
+        prepending is what keeps that ordering."""
+        committed = expected_engine_arguments(self.repository.profile)
+        self.assertNotIn("+map", committed)
+        arguments = offline_map_arguments(["oa_pvomit", "am_galmevish"]) + committed
+        self.assertEqual(arguments[:2], ["+map", "oa_pvomit"])
         self.assertLess(arguments.index("+map"), arguments.index("+addbot"))
 
     def test_engine_arguments_use_the_upstream_bot_delay_cadence(self) -> None:
@@ -685,42 +1097,67 @@ class MultiMapRecipeTest(SyntheticRepositoryTest):
             )
         self.repository.write()
 
-    def test_a_profile_starting_one_of_several_packaged_maps_is_accepted(self) -> None:
+    def test_a_profile_with_several_packaged_maps_is_accepted(self) -> None:
         self._fragments(
             [
                 {"map": "oa_shine", "type": "ffa", "fraglimit": "15"},
-                {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
-            ]
-        )
-        self._artifacts(["oa_pvomit", "oa_shine"])
-        self.assertEqual(load_profile(self.repository.root)["map"], "oa_pvomit")
-
-    def test_a_map_outside_the_packaged_set_is_refused(self) -> None:
-        self._fragments([{"map": "oa_shine", "type": "ffa", "fraglimit": "15"}])
-        self._artifacts(["oa_shine"])
-        with self.assertRaises(ArenaRuntimeError) as caught:
-            load_profile(self.repository.root)
-        self.assertIn("records no fragment for map", str(caught.exception))
-
-    def test_the_started_arena_is_the_one_that_must_be_ffa(self) -> None:
-        self._fragments(
-            [
-                {"map": "oa_shine", "type": "tourney", "fraglimit": "15"},
-                {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
+                {"map": "oa_pvomit", "type": "ffa tourney", "fraglimit": "15"},
             ]
         )
         self._artifacts(["oa_pvomit", "oa_shine"])
         load_profile(self.repository.root)
+        self.assertEqual(
+            published_maps(
+                self.repository.root,
+                "provenance/arena-web-ffa-content-manifest.json",
+            ),
+            ["oa_pvomit", "oa_shine"],
+        )
+
+    def test_a_published_archive_with_no_fragment_is_refused(self) -> None:
+        """The profile serves an archive the manifest records no fragment for,
+        which is the shape a map added to the served set but not to the release
+        identity would have."""
+        self._fragments([{"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"}])
+        self._artifacts(["oa_pvomit", "oa_shine"])
+        with self.assertRaises(ArenaRuntimeError) as caught:
+            load_profile(self.repository.root)
+        self.assertIn("must serve exactly the recipe's archives", str(caught.exception))
+
+    def test_every_published_arena_must_be_ffa_not_just_a_started_one(self) -> None:
+        """The rule the rotation forces. The map is a launch argument, so there
+        is no 'started' map at build time and the property has to hold for every
+        archive the release publishes — whichever one it is that fails."""
+        for offender in ("oa_shine", "oa_pvomit"):
+            self._fragments(
+                [
+                    {
+                        "map": name,
+                        "type": "tourney" if name == offender else "ffa",
+                        "fraglimit": "15",
+                    }
+                    for name in ("oa_shine", "oa_pvomit")
+                ]
+            )
+            self._artifacts(["oa_pvomit", "oa_shine"])
+            with self.assertRaises(ArenaRuntimeError) as caught:
+                load_profile(self.repository.root)
+            self.assertIn(f"content/maps/{offender}.json", str(caught.exception))
+            self.assertIn("must include 'ffa'", str(caught.exception))
+
+    def test_an_unsupported_arena_type_is_refused(self) -> None:
+        """Upstream types carry OpenArena-only tags whose game code this product
+        does not ship; a fragment normalises rather than copies."""
         self._fragments(
             [
                 {"map": "oa_shine", "type": "ffa", "fraglimit": "15"},
-                {"map": "oa_pvomit", "type": "tourney", "fraglimit": "15"},
+                {"map": "oa_pvomit", "type": "ffa lms", "fraglimit": "15"},
             ]
         )
         self._artifacts(["oa_pvomit", "oa_shine"])
         with self.assertRaises(ArenaRuntimeError) as caught:
             load_profile(self.repository.root)
-        self.assertIn("only starts an FFA arena", str(caught.exception))
+        self.assertIn("unsupported: ['lms']", str(caught.exception))
 
     def test_a_fragment_that_is_not_the_one_the_manifest_records_is_refused(self) -> None:
         """Reading a fragment is gated on the identity the content manifest
@@ -1319,7 +1756,7 @@ class CommittedProfileTest(unittest.TestCase):
         self.profile = load_profile(ROOT)
 
     def test_it_is_valid_and_agrees_with_the_content_recipe(self) -> None:
-        self.assertEqual(self.profile["map"], "oa_pvomit")
+        self.assertNotIn("map", self.profile)
         self.assertEqual(self.profile["package"], "arena-web-ffa")
 
     def test_it_serves_the_engine_runtime_and_the_audited_pack_and_nothing_else(
@@ -2171,7 +2608,7 @@ class ScoreTest(unittest.TestCase):
             rotation_parameter="oa_pvomit",
             rotation_served=frozenset({"content/base-aa.pk3", "content/pvomit-bb.pk3"}),
             rotation_excluded=frozenset({"content/other-cc.pk3"}),
-            rotation_excluded_maps=("oa_shine",),
+            start_map="oa_pvomit",
         )
 
     def _snapshot(self, **overrides: Any) -> dict[str, Any]:
@@ -2211,6 +2648,7 @@ class ScoreTest(unittest.TestCase):
                 "parameter": "oa_pvomit",
                 "requested": ["oa_pvomit"],
                 "resolved": ["oa_pvomit"],
+                "startMap": "oa_pvomit",
                 "published": ["oa_pvomit", "oa_shine"],
                 "archives": ["baseq3/base.pk3", "baseq3/pvomit.pk3"],
             },
@@ -2228,6 +2666,7 @@ class ScoreTest(unittest.TestCase):
         result = RunResult(index=1, directory=Path("."))
         result.snapshot = self._snapshot(**overrides)
         result.engine_log = [
+            "Server: oa_pvomit",
             "[stderr] UnnamedPlayer^7 entered the game",
             "[stderr] Skelebot^7 entered the game",
             "[stderr] Rai^7 entered the game",
@@ -2259,12 +2698,49 @@ class ScoreTest(unittest.TestCase):
         for name in (
             "bots-entered-game",
             "engine-kept-running",
-            "engine-arguments-are-the-committed-profile",
+            "engine-arguments-are-the-rotation-then-the-committed-profile",
             "only-declared-local-artifacts",
             "rotation-canonicalised",
             "rotation-fetched-exactly-its-archives",
         ):
             self.assertTrue(checks[name].passed, f"{name}: {checks[name].detail}")
+
+    def test_the_offline_start_map_is_checked_against_the_engine_s_own_line(
+        self,
+    ) -> None:
+        """The rotation's first entry, proven from the engine console rather
+        than from the page's account of itself — and it goes red from either
+        side, a page that reported another start map and a console that printed
+        one."""
+        self.assertTrue(
+            self._checks(self._run())[
+                "offline-starts-the-rotations-first-entry"
+            ].passed
+        )
+        moved = self._run()
+        moved.snapshot["rotation"]["startMap"] = "oa_shine"
+        self.assertFalse(
+            self._checks(moved)["offline-starts-the-rotations-first-entry"].passed
+        )
+        quiet = self._run()
+        quiet.engine_log = [
+            line for line in quiet.engine_log if not line.startswith("Server: ")
+        ]
+        self.assertFalse(
+            self._checks(quiet)["offline-starts-the-rotations-first-entry"].passed
+        )
+        # A prefix pair must not satisfy it. `am_galmevish` and `am_galmevish2`
+        # are both published, so a substring match would let the wrong spawn
+        # through — which is exactly what the loader's marker had to stop
+        # doing as well.
+        prefixed = self._run()
+        prefixed.engine_log = [
+            "Server: oa_pvomit2" if line == "Server: oa_pvomit" else line
+            for line in prefixed.engine_log
+        ]
+        self.assertFalse(
+            self._checks(prefixed)["offline-starts-the-rotations-first-entry"].passed
+        )
 
     def test_a_rotation_the_page_did_not_canonicalise_fails(self) -> None:
         checks = self._checks(
@@ -2358,14 +2834,14 @@ class ScoreTest(unittest.TestCase):
         run = self._run()
         run.snapshot["engineArguments"] = ["+map", "q3dm6ish"]
         self.assertFalse(
-            self._checks(run)["engine-arguments-are-the-committed-profile"].passed
+            self._checks(run)["engine-arguments-are-the-rotation-then-the-committed-profile"].passed
         )
 
     def test_a_render_size_the_arguments_disagree_with_fails(self) -> None:
         run = self._run()
         run.snapshot["render"] = {"cssWidth": 640, "cssHeight": 480}
         self.assertFalse(
-            self._checks(run)["engine-arguments-are-the-committed-profile"].passed
+            self._checks(run)["engine-arguments-are-the-rotation-then-the-committed-profile"].passed
         )
 
     def test_a_later_render_size_does_not_rewrite_the_startup_arguments(self) -> None:
@@ -2378,7 +2854,7 @@ class ScoreTest(unittest.TestCase):
             "resizeEvents": 1,
         }
         self.assertTrue(
-            self._checks(run)["engine-arguments-are-the-committed-profile"].passed
+            self._checks(run)["engine-arguments-are-the-rotation-then-the-committed-profile"].passed
         )
 
     def test_a_foreign_origin_with_a_staged_file_name_is_refused(self) -> None:

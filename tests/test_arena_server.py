@@ -15,10 +15,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "scripts"))
 
+from arena_runtime import ArenaRuntimeError, published_maps  # noqa: E402
 from arena_server import (  # noqa: E402
     STAGED_DIRECTORY_MODE,
     STAGED_FILE_MODE,
     ArenaServerError,
+    max_server_rotation,
+    server_launch_arguments,
     client_tree_files,
     expected_client_arguments,
     expected_server_arguments,
@@ -49,11 +52,16 @@ class ProfileFixture(unittest.TestCase):
             "content/pack-recipe.json",
             "manifests/browser-client.json",
             "provenance/arena-web-ffa-content-manifest.json",
-            "content/maps/oa_pvomit.json",
         ):
             destination = self.root / relative
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / relative, destination)
+        # Every published fragment, because the profile is bound to the whole
+        # published set now rather than to one committed map.
+        shutil.copytree(ROOT / "content/maps", self.root / "content/maps")
+        # The pinned engine tree, read-only: the profile publishes the two
+        # command-line bounds and they are checked against it.
+        (self.root / "ioq3").symlink_to(ROOT / "ioq3")
         self.profile_path = self.root / "native/server-profile.json"
 
     def profile(self) -> dict:
@@ -83,14 +91,76 @@ class ProfileTests(ProfileFixture):
     def test_the_committed_profile_is_valid(self) -> None:
         profile = load_profile(ROOT)
         self.assertEqual(profile["basegame"], "arena")
-        self.assertEqual(profile["map"], "oa_pvomit")
+        self.assertNotIn("map", profile)
 
-    def test_server_arguments_are_derived(self) -> None:
+    def test_server_arguments_are_derived_and_carry_no_map(self) -> None:
         profile = load_profile(ROOT)
         arguments = expected_server_arguments(profile)
         self.assertEqual(arguments, profile["serverArguments"])
-        self.assertIn("+map", arguments)
-        self.assertLess(arguments.index("+map"), arguments.index("+addbot"))
+        self.assertNotIn("+map", arguments)
+
+    def test_the_rotation_precedes_every_bot_once_prepended(self) -> None:
+        """`addbot` is forwarded to a running game module, so a map has to be up
+        first. The rotation is prepended, and every `+set` line is applied by
+        Com_StartupVariable before the command buffer runs at all, so `vstr d1`
+        is the first *command* either way."""
+        profile = load_profile(ROOT)
+        arguments = server_launch_arguments(ROOT, profile, ["oa_pvomit"])
+        self.assertLess(arguments.index("+vstr"), arguments.index("+addbot"))
+        self.assertEqual(arguments[-len(profile["serverArguments"]) :], profile["serverArguments"])
+
+    def test_a_launch_without_a_rotation_is_refused(self) -> None:
+        """The server-side half of the rule the loader enforces for the browser:
+        this repository cannot check that a caller's two derivations came from
+        one list, but it can refuse to produce a command line for a rotation
+        nobody chose."""
+        profile = load_profile(ROOT)
+        with self.assertRaisesRegex(ArenaRuntimeError, "is empty"):
+            server_launch_arguments(ROOT, profile, [])
+        with self.assertRaisesRegex(ArenaRuntimeError, "publishes no archive"):
+            server_launch_arguments(ROOT, profile, ["q3dm17"])
+
+    def test_the_engine_ceiling_is_a_boundary_and_not_a_slogan(self) -> None:
+        """One entry either side of the ceiling, and deliberately not written so
+        that it can quietly stop testing anything.
+
+        Phrasing this against the published set would make the refusal half
+        conditional on the set being larger than the ceiling — true today at 16
+        maps against 15, and silently skipped the first time a release published
+        fewer. A rotation may repeat a map, so the boundary is found by growing
+        one instead, which works whatever the release publishes.
+        """
+        profile = load_profile(ROOT)
+        names = published_maps(ROOT, "provenance/arena-web-ffa-content-manifest.json")
+        cheapest = min(names, key=len)
+        fits = 0
+        for count in range(1, 200):
+            try:
+                server_launch_arguments(ROOT, profile, [cheapest] * count)
+            except ArenaRuntimeError as error:
+                self.assertIn("pinned engine's", str(error))
+                fits = count - 1
+                break
+        else:  # pragma: no cover - a bound that never bites is the failure
+            self.fail("no rotation length was refused")
+        self.assertGreater(fits, 1)
+        server_launch_arguments(ROOT, profile, [cheapest] * fits)
+
+    def test_the_reported_ceiling_is_the_one_the_derivation_enforces(self) -> None:
+        """`max_server_rotation` is what a caller sizes a rotation with, so it
+        has to be the largest rotation that is actually accepted and not merely
+        a plausible number."""
+        profile = load_profile(ROOT)
+        names = published_maps(ROOT, "provenance/arena-web-ffa-content-manifest.json")
+        ceiling = max_server_rotation(ROOT, profile)
+        self.assertGreater(ceiling, 1)
+        self.assertLessEqual(ceiling, len(names))
+        server_launch_arguments(ROOT, profile, names[:ceiling])
+        # One more entry, from the published set when there is one left over and
+        # otherwise a repeat, so this half never silently stops running.
+        one_more = names[: ceiling + 1] if ceiling < len(names) else names + [names[0]]
+        with self.assertRaisesRegex(ArenaRuntimeError, "pinned engine's"):
+            server_launch_arguments(ROOT, profile, one_more)
 
     def test_bots_follow_the_engine_delay_cadence(self) -> None:
         profile = load_profile(ROOT)
@@ -173,25 +243,15 @@ class ProfileTests(ProfileFixture):
             "player presentation",
         )
 
-    def test_a_map_the_pack_does_not_contain_is_refused(self) -> None:
-        # The browser cross-check fires first; the recipe cross-check is what
-        # catches a map both product profiles agree on but the pack lacks.
-        self.reject(
-            lambda profile: profile.__setitem__("map", "q3dm17"),
-            "must equal the browser slice's map",
-        )
-
-    def test_a_map_both_profiles_agree_on_but_the_pack_lacks_is_refused(self) -> None:
-        browser_path = self.root / "arena/game-profile.json"
-        browser = json.loads(browser_path.read_text(encoding="utf-8"))
-        browser["map"] = "q3dm17"
-        browser_path.write_text(
-            json.dumps(browser, indent=2, sort_keys=True) + "\n", encoding="utf-8"
-        )
-        self.reject(
-            lambda profile: profile.__setitem__("map", "q3dm17"),
-            "records no fragment for map",
-        )
+    def test_a_committed_map_is_refused(self) -> None:
+        """Neither committed list may choose a map. They are what a caller
+        passes verbatim, so a default inside one is a rotation nobody can see
+        and nothing downstream reports."""
+        profile = self.profile()
+        profile["serverArguments"] = ["+map", "q3dm17"] + profile["serverArguments"]
+        self.write(profile)
+        with self.assertRaisesRegex(ArenaServerError, "exactly the derivation"):
+            load_profile(self.root)
 
     def test_a_bot_the_pack_does_not_package_is_refused(self) -> None:
         def mutate(profile: dict) -> None:
@@ -503,36 +563,38 @@ class MultiMapRecipeTests(ProfileFixture):
         ]
         manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True) + "\n")
 
-    def test_a_profile_starting_one_of_several_packaged_maps_is_accepted(self) -> None:
+    def test_a_pack_with_several_maps_is_accepted_and_all_are_launchable(self) -> None:
         self._fragments(
             [
                 {"map": "oa_shine", "type": "ffa", "fraglimit": "15"},
-                {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
+                {"map": "oa_pvomit", "type": "ffa tourney", "fraglimit": "15"},
             ]
         )
-        self.assertEqual(load_profile(self.root)["map"], "oa_pvomit")
+        profile = load_profile(self.root)
+        arguments = server_launch_arguments(
+            self.root, profile, ["oa_shine", "oa_pvomit"]
+        )
+        self.assertIn("map oa_shine;set nextmap vstr d2", arguments)
+        self.assertIn("map oa_pvomit;set nextmap vstr d1", arguments)
 
-    def test_a_map_outside_the_packaged_set_is_refused(self) -> None:
-        self._fragments([{"map": "oa_shine", "type": "ffa", "fraglimit": "15"}])
-        with self.assertRaisesRegex(ArenaServerError, "records no fragment for map"):
-            load_profile(self.root)
-
-    def test_the_started_arena_is_the_one_that_must_be_ffa(self) -> None:
-        self._fragments(
-            [
-                {"map": "oa_shine", "type": "tourney", "fraglimit": "15"},
-                {"map": "oa_pvomit", "type": "ffa", "fraglimit": "15"},
-            ]
-        )
-        load_profile(self.root)
-        self._fragments(
-            [
-                {"map": "oa_shine", "type": "ffa", "fraglimit": "15"},
-                {"map": "oa_pvomit", "type": "tourney", "fraglimit": "15"},
-            ]
-        )
-        with self.assertRaisesRegex(ArenaServerError, "only starts an FFA arena"):
-            load_profile(self.root)
+    def test_every_published_arena_must_be_ffa_not_just_a_started_one(self) -> None:
+        """The map is a launch argument, so there is no started map at build
+        time: the property has to hold for every archive the release
+        publishes, whichever one it is that fails."""
+        for offender in ("oa_shine", "oa_pvomit"):
+            self._fragments(
+                [
+                    {
+                        "map": name,
+                        "type": "tourney" if name == offender else "ffa",
+                        "fraglimit": "15",
+                    }
+                    for name in ("oa_shine", "oa_pvomit")
+                ]
+            )
+            with self.assertRaisesRegex(ArenaServerError, "must include 'ffa'") as caught:
+                load_profile(self.root)
+            self.assertIn(f"content/maps/{offender}.json", str(caught.exception))
 
     def test_an_archive_the_content_manifest_lacks_is_refused(self) -> None:
         """The recipe derives the archive set from the fragments; if the content
