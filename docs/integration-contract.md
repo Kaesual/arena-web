@@ -54,12 +54,12 @@ container tag is not an identity.
 | ioq3 engine | `git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592` |
 | Browser loader producer | `git:95f45b537dd0bb8b4a542b97d0f4281eefa7604a` |
 | Browser artifact manifest | `sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047` |
-| Content artifact manifest | `sha256:5c173d2dccb95f4e2e13ea0320494a72a8392d30e680461533e9b8bf6aaec85c` |
+| Content artifact manifest | `sha256:69e7f5a24fa6282b2dc36ea06688a2fc169312259ff95a07bf4b2e363da04546` |
 | Content base archive | `sha256:caa003fcd7a79d3431a73166ed531d40b8a3d3728bca487d4b55c07d681c4229` |
 | Content map archives | covered transitively through the content artifact manifest, and each bound byte-for-byte to its counterpart in the server manifest |
-| Server artifact manifest | `sha256:9308efd9b762a882de36d99de6881f8fdff2dab3b3da0e95c209518c9a192b1e` |
-| Server image producer/build checkout | `git:ed99ef83773b01ffb6360e73605ee420cdbfb705` |
-| Accepted native server image ID | `sha256:e82dc11ad7aa2d8838627344790a03cc30b1daabf9631362135bfc733c38d166` |
+| Server artifact manifest | `sha256:aeebf069c36725202707e0ca91903b1331bcabe4bc50f85e8e536cbdb6920ed9` |
+| Server image producer/build checkout | `git:57fa9ed30cf882ffef472f5236b72a4cd629f21f` |
+| Accepted native server image ID | `sha256:03bdaf9927e9bd2171ec50cc74bb82adb1aabeec5f8aee42bbc21754ed16e97c` |
 
 The image value is the reproducible container configuration/image ID observed
 after loading the accepted single-platform image, not a promise that every
@@ -70,14 +70,16 @@ image ID rather than trusting its filename.
 
 The image records its producer in an OCI label. The whole release is
 reproduced from a clean checkout of the commit carrying these records with
-`CONTAINER_RUNTIME=podman scripts/reproduce-release.sh`, which reads the
-producer commit `dcbc35440ee88688c4c866e6404d95b3a69c168d` out of the
-records rather than taking it from its caller, rebuilds browser, content and
-server image, and compares each generated record with the committed one in
-full. It requires server manifest identity
-`sha256:9308efd9b762a882de36d99de6881f8fdff2dab3b3da0e95c209518c9a192b1e`
+`CONTAINER_RUNTIME=podman scripts/reproduce-release.sh`, which reads three
+producer commits out of the records rather than taking them from its caller —
+the browser's from `manifests/browser-client.json`, and the content pack's and
+the server image's, both
+`57fa9ed30cf882ffef472f5236b72a4cd629f21f`, from their provenance records — then
+rebuilds browser, content and server image and compares each generated record
+with the committed one in full. It requires server manifest identity
+`sha256:aeebf069c36725202707e0ca91903b1331bcabe4bc50f85e8e536cbdb6920ed9`
 and loaded image ID
-`sha256:e82dc11ad7aa2d8838627344790a03cc30b1daabf9631362135bfc733c38d166`.
+`sha256:03bdaf9927e9bd2171ec50cc74bb82adb1aabeec5f8aee42bbc21754ed16e97c`.
 
 A rebuild from the current documentation commit or any other later commit has
 a new image ID even when all four runtime files are byte-identical, because its
@@ -126,6 +128,7 @@ arena/host-lifecycle.js
 arena/network-backend.js
 arena/relay-profile.json
 content/baseq3/arena-web-ffa-base-caa003fcd7a79d34.pk3
+content/baseq3/arena-web-ffa-map-aggressor-99ee9bc566cdcff2.pk3
 content/baseq3/arena-web-ffa-map-am_galmevish-5dd57747e2f7d6de.pk3
 content/baseq3/arena-web-ffa-map-am_galmevish2-1d6de81a82a739c7.pk3
 content/baseq3/arena-web-ffa-map-am_spacecont-2962ec77faf8b02d.pk3
@@ -133,6 +136,8 @@ content/baseq3/arena-web-ffa-map-am_underworks2-e41fb0669c74341d.pk3
 content/baseq3/arena-web-ffa-map-ce1m7-f042d1ed90ffa40f.pk3
 content/baseq3/arena-web-ffa-map-czest1dm-322f6b1ffef9e3d0.pk3
 content/baseq3/arena-web-ffa-map-czest1tourney-ec7d74e3a8892c2b.pk3
+content/baseq3/arena-web-ffa-map-dm6ish-afdd1f7d97b05b08.pk3
+content/baseq3/arena-web-ffa-map-kaos2-e746f2b1dc28f20f.pk3
 content/baseq3/arena-web-ffa-map-mlca1-2e785c0fd463ce0e.pk3
 content/baseq3/arena-web-ffa-map-oa_dm1-e3628b183cc314c9.pk3
 content/baseq3/arena-web-ffa-map-oa_dm2-a4707258dd43c22c.pk3
@@ -144,6 +149,8 @@ content/baseq3/arena-web-ffa-map-oa_dm7-d2a32b3387be4f4d.pk3
 content/baseq3/arena-web-ffa-map-oa_koth1-d0fd6c5ec61771ef.pk3
 content/baseq3/arena-web-ffa-map-oa_minia-91d9380e910cf9d4.pk3
 content/baseq3/arena-web-ffa-map-oa_pvomit-9a4b9caf4ddd4405.pk3
+content/baseq3/arena-web-ffa-map-oa_rpg3dm2-d0a4aa742712c5a5.pk3
+content/baseq3/arena-web-ffa-map-oa_shine-d45710fb4ad06e4c.pk3
 content/baseq3/arena-web-ffa-map-oa_shouse-1c52b3f3fe0bda3f.pk3
 content/baseq3/arena-web-ffa-map-pul1duel-oa-1f27817fc959097d.pk3
 content/baseq3/arena-web-ffa-map-sleekgrinder-88f37f5375cce381.pk3

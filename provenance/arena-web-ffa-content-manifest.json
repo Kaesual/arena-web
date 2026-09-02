@@ -8,6 +8,14 @@
       "uncompressedSize": 83436076
     },
     {
+      "map": "aggressor",
+      "path": "baseq3/arena-web-ffa-map-aggressor.pk3",
+      "peakHunkBytes": 27413992,
+      "sha256": "99ee9bc566cdcff2875000a327bfcc9c5e5b7c022ca64bfb825b6cfc8fd1feee",
+      "size": 2589454,
+      "uncompressedSize": 3602550
+    },
+    {
       "map": "am_galmevish",
       "path": "baseq3/arena-web-ffa-map-am_galmevish.pk3",
       "peakHunkBytes": 26977640,
@@ -62,6 +70,22 @@
       "sha256": "ec7d74e3a8892c2bb8f5dfb5e8f7114ec71da848701f5118acb58df49971049f",
       "size": 3271062,
       "uncompressedSize": 6744099
+    },
+    {
+      "map": "dm6ish",
+      "path": "baseq3/arena-web-ffa-map-dm6ish.pk3",
+      "peakHunkBytes": 29158440,
+      "sha256": "afdd1f7d97b05b0821a4c38680f997332e114f882c6a0eb948eab8d65111a5c9",
+      "size": 4122810,
+      "uncompressedSize": 7108591
+    },
+    {
+      "map": "kaos2",
+      "path": "baseq3/arena-web-ffa-map-kaos2.pk3",
+      "peakHunkBytes": 30319496,
+      "sha256": "e746f2b1dc28f20fca313c12d6846fb4333df4fcadaa133bae65f0d53de42b4f",
+      "size": 6503335,
+      "uncompressedSize": 10859664
     },
     {
       "map": "mlca1",
@@ -152,6 +176,22 @@
       "uncompressedSize": 5366597
     },
     {
+      "map": "oa_rpg3dm2",
+      "path": "baseq3/arena-web-ffa-map-oa_rpg3dm2.pk3",
+      "peakHunkBytes": 32380968,
+      "sha256": "d0a4aa742712c5a550f5f4c8d7aadcfd6385f162f0a5ffb0d74f25ad59f41574",
+      "size": 3881640,
+      "uncompressedSize": 8294818
+    },
+    {
+      "map": "oa_shine",
+      "path": "baseq3/arena-web-ffa-map-oa_shine.pk3",
+      "peakHunkBytes": 29625704,
+      "sha256": "d45710fb4ad06e4c7ef38dcba934f2c7ba7df89fb4df4e29b3da5437097230a2",
+      "size": 1773961,
+      "uncompressedSize": 5453818
+    },
+    {
       "map": "oa_shouse",
       "path": "baseq3/arena-web-ffa-map-oa_shouse.pk3",
       "peakHunkBytes": 31362472,
@@ -213,6 +253,11 @@
       "kind": "archive"
     },
     {
+      "id": "arena-web-map-aggressor",
+      "identity": "sha256:b2a8a5bc44dd7011c63b59771fb0962ccf9f09e9f7b7af883f477685f0d8a442",
+      "kind": "archive"
+    },
+    {
       "id": "arena-web-map-am_galmevish",
       "identity": "sha256:131973c0a951ff70ef63d0a02a2ff6bad0069b8f6cf39f39bfaeffcec3e6a6c0",
       "kind": "archive"
@@ -245,6 +290,16 @@
     {
       "id": "arena-web-map-czest1tourney",
       "identity": "sha256:f6dfa5d27bd80fcf76360d957b6f9ffb66acb781afda48b5f86c9ebdad2bb969",
+      "kind": "archive"
+    },
+    {
+      "id": "arena-web-map-dm6ish",
+      "identity": "sha256:02f2859d229154ba33d1aff153b8bdd673006a986d57f52ff12aa1f72ec54f33",
+      "kind": "archive"
+    },
+    {
+      "id": "arena-web-map-kaos2",
+      "identity": "sha256:4517d85a85d42afc3118e4316ddd1021131dab7ff8c1e7d590d95fff9f5b99e3",
       "kind": "archive"
     },
     {
@@ -303,6 +358,16 @@
       "kind": "archive"
     },
     {
+      "id": "arena-web-map-oa_rpg3dm2",
+      "identity": "sha256:2ff425a1a3e6d1ea7b1d429675db5543414ae4159583ef65f65d6e14811d4388",
+      "kind": "archive"
+    },
+    {
+      "id": "arena-web-map-oa_shine",
+      "identity": "sha256:ba515de15b7c651bf1734203c1f2fc422b885f5e5d2ec9525ce0e5e513f0840e",
+      "kind": "archive"
+    },
+    {
       "id": "arena-web-map-oa_shouse",
       "identity": "sha256:847943cc73ecb5741477c1d21880162860e80db8b58a2f9fe2aa4cb133855041",
       "kind": "archive"
@@ -334,7 +399,7 @@
     },
     {
       "id": "arena-web-resource-measurements",
-      "identity": "sha256:93aa3fd2fa7601e23b07c5c461d1d7fdf74f7791dcc2ca950b2fc8be92573553",
+      "identity": "sha256:b774d1c08e7d2eb9160e510925f8fceb9c81e717f3c336e7ba823f2afbe37a09",
       "kind": "archive"
     },
     {
@@ -374,7 +439,7 @@
     }
   ],
   "producer": {
-    "commit": "ed99ef83773b01ffb6360e73605ee420cdbfb705",
+    "commit": "57fa9ed30cf882ffef472f5236b72a4cd629f21f",
     "name": "arena-web scripts/build-content-pack.sh"
   }
 }

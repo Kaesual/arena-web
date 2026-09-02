@@ -35,9 +35,9 @@ The primary immutable identities are:
 | --- | --- |
 | Baseline lock | `sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287` |
 | Browser artifact manifest | `sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047` |
-| Content artifact manifest | `sha256:5c173d2dccb95f4e2e13ea0320494a72a8392d30e680461533e9b8bf6aaec85c` |
+| Content artifact manifest | `sha256:69e7f5a24fa6282b2dc36ea06688a2fc169312259ff95a07bf4b2e363da04546` |
 | Base content archive | `sha256:caa003fcd7a79d3431a73166ed531d40b8a3d3728bca487d4b55c07d681c4229`, 40,985,746 bytes |
-| Map archives | twenty-four, one per map, enumerated in the content artifact manifest |
+| Map archives | twenty-nine, one per map, enumerated in the content artifact manifest |
 
 **The content is a set of archives, not one PK3.** A base archive carries
 everything not tied to a map — the gamecode's own closure, the seven player
@@ -275,8 +275,8 @@ The exact server identities are:
 
 | Input | Identity |
 | --- | --- |
-| OCI configuration/image ID | `sha256:e82dc11ad7aa2d8838627344790a03cc30b1daabf9631362135bfc733c38d166` |
-| Server artifact manifest | `sha256:9308efd9b762a882de36d99de6881f8fdff2dab3b3da0e95c209518c9a192b1e` |
+| OCI configuration/image ID | `sha256:03bdaf9927e9bd2171ec50cc74bb82adb1aabeec5f8aee42bbc21754ed16e97c` |
+| Server artifact manifest | `sha256:aeebf069c36725202707e0ca91903b1331bcabe4bc50f85e8e536cbdb6920ed9` |
 | Server profile | `sha256:829441e319d623b5134a9fbbda87a674689148bc7a8390954f4dbc0e4ed8f40f` |
 
 The image is `linux/amd64`, user/group `65534:65534`, workdir
@@ -346,10 +346,10 @@ published in `native/server-profile.json.engineCommandLine` and are checked
 against the pinned engine on every validation, so they cannot go stale.
 `server_launch_arguments` refuses a rotation that would not fit;
 `max_server_rotation` reports how many of the published map names do. **At this
-release that ceiling is 15 of the 24 published maps.**
+release that ceiling is 15 of the 29 published maps.**
 
-It was 15 of 16 at the previous release, and the number staying still is a
-coincidence worth not relying on, because the two halves behave differently.
+It has been 15 since the set held sixteen maps, and the number staying still is
+not a coincidence but a property of one half, so do not read it as a constant.
 The **line** bound is a pure count: this release's committed server arguments
 occupy 16 console lines and a rotation of *n* maps adds `n + 1`, so 15 is the
 most that fits whatever the maps are called — a rotation of 16 one-character
@@ -357,14 +357,20 @@ names is refused for the same reason as a rotation of 16 real ones. It falls if
 the profile grows a launch argument, since every extra console line costs a
 rotation slot.
 
-The **byte** bound is the one that moves with the names, and it is closer than
-the count suggests. `max_server_rotation` answers for the published list *in
-order*, so its 15 is the alphabetically first fifteen and they assemble to 987
-of 1024 bytes; the fifteen longest published names assemble to 1018, six bytes
-of headroom. **And a rotation may repeat a map** — that is deliberate, a cycle
-may legitimately visit one map twice — in which case the bound can be exceeded
-below fifteen entries: fifteen entries of `am_underworks2` assemble to 1073
-bytes and are refused.
+The **byte** bound is the one that moves with the names, it is closer than the
+count suggests, and it closed further at this release. `max_server_rotation`
+answers for the published list *in order*, so its 15 is the alphabetically first
+fifteen and they assemble to 989 of 1024 bytes; the fifteen longest published
+names assemble to 1021. The check refuses at 1024 rather than above it, so that
+is room for **two** further characters, where the twenty-four-map set had five —
+one extra character in a rotated name costs exactly one byte. Two characters,
+not two maps: one newly published map with an eleven-character name would
+already exceed it, and the byte bound would then bind before the line bound
+does.
+**And a rotation may repeat a map** — that is deliberate, a cycle may
+legitimately visit one map twice — in which case the bound can be exceeded below
+fifteen entries: fifteen entries of `am_underworks2` assemble to 1073 bytes and
+are refused.
 
 So treat `max_server_rotation` as what it is: an upper bound for distinct maps
 in the published order, not a promise about an arbitrary fifteen-entry
@@ -416,8 +422,8 @@ read-only and mount an initially empty, `rw,noexec,nosuid,nodev`, mode-1777,
 64-MiB tmpfs at `/var/lib/arena`. That home holds only ephemeral engine config
 and `games.log`. There is **no persistent path or volume** in this release; no
 world, save, secret or host file is required. The read-only image is
-256,595,407 bytes; the measured container writable layer after stop
-was 12,647 bytes and is disposable.
+275,470,287 bytes; the measured container writable layer after stop
+was 12,644 bytes and is disposable.
 
 Readiness is the native binary UDP query, no more than once per second from a
 stable source address and port:
@@ -450,7 +456,7 @@ one-second checks make the observation failed.
 Send `SIGTERM` or `SIGINT` to the entrypoint and allow 10 seconds before a
 forced kill. The normal signal path sends the final server message, closes the
 VM/network and exits with code 1; code 1 is therefore success only when the
-manager requested this stop. The measured graceful exit took 0.119 seconds.
+manager requested this stop. The measured graceful exit took 0.135 seconds.
 Any unsolicited exit, including code 1, is failure.
 
 ## 5. Indivisible compatibility identity
@@ -462,10 +468,10 @@ loader, profile, QVM, pack, binary or relay profile:
 baseline          sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287
 ioq3               git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592
 browser manifest   sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047
-content manifest   sha256:5c173d2dccb95f4e2e13ea0320494a72a8392d30e680461533e9b8bf6aaec85c
+content manifest   sha256:69e7f5a24fa6282b2dc36ea06688a2fc169312259ff95a07bf4b2e363da04546
 content base       sha256:caa003fcd7a79d3431a73166ed531d40b8a3d3728bca487d4b55c07d681c4229
-server manifest    sha256:9308efd9b762a882de36d99de6881f8fdff2dab3b3da0e95c209518c9a192b1e
-server image ID    sha256:e82dc11ad7aa2d8838627344790a03cc30b1daabf9631362135bfc733c38d166
+server manifest    sha256:aeebf069c36725202707e0ca91903b1331bcabe4bc50f85e8e536cbdb6920ed9
+server image ID    sha256:03bdaf9927e9bd2171ec50cc74bb82adb1aabeec5f8aee42bbc21754ed16e97c
 ```
 
 `release/browser-release.json.compatibility` repeats these values and its
@@ -528,8 +534,8 @@ for this exact eight-slot/two-human/three-bot prototype is:
 
 | Resource | Limit | Busy observed maximum | Remaining safety margin |
 | --- | ---: | ---: | ---: |
-| CPU | 1 core | 0.04727-core peak sample | 0.95273 core; 21.155x |
-| Memory | 268,435,456 bytes | 30,371,840-byte peak cgroup; 31,604,736-byte process HWM | 238,063,616 bytes; 8.838x against cgroup peak |
+| CPU | 1 core | 0.048485-core peak sample | 0.951515 core; 20.625x |
+| Memory | 268,435,456 bytes | 30,511,104-byte peak cgroup; 31,784,960-byte process HWM | 237,924,352 bytes; 8.798x against cgroup peak |
 | Writable home | 67,108,864 bytes | 1,272 bytes | 67,107,592 bytes; 52,758.541x |
 | Processes | 128 PIDs | constrained successfully by the probe | guard, not a measured demand claim |
 
@@ -537,9 +543,9 @@ Startup readiness was 1.751 seconds, which is a poll-loop
 figure and not a startup time: the readiness probe waits out a 0.75-second
 socket timeout and then a one-second interval, so it says the server was ready
 before the second poll and no more than that. The ten-second idle phase
-averaged 0.021134 cores. The 30-second two-native-client phase, with
+averaged 0.020843 cores. The 30-second two-native-client phase, with
 movement, weapon, fire, chat and respawn traffic while all three bots remained
-active, averaged 0.0401 cores. These values preserve large practical headroom, but are
+active, averaged 0.039762 cores. These values preserve large practical headroom, but are
 capacity guards only—not an SLO, autoscaling rule, production concurrency
 claim or evidence for more than two humans.
 

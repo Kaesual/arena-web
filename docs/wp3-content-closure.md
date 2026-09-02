@@ -1561,11 +1561,11 @@ survive a move unremeasured.
   itself measures — joining the arguments with single spaces omits the quoting
   the engine's own assembly adds and understates the total.
 
-  | Rotation of 15 | Bytes of 1024 | |
-  | --- | --- | --- |
-  | the alphabetically first fifteen — what `max_rotation_length` answers for | 989 | was 987 over the 24 published before batch 4 |
-  | the fifteen **longest** published names | **1021** | was 1018; three bytes below the limit, which is refused at 1024 |
-  | fifteen entries of `am_underworks2` | 1073 | refused, and permitted by `validate_rotation` |
+  | Rotation of 15 | Bytes | Before batch 4 |
+  | --- | ---: | --- |
+  | the alphabetically first fifteen — what `max_rotation_length` answers for | 989 | 987 over the 24 then published |
+  | the fifteen **longest** published names | **1021** | 1018; two further bytes still fit, because the check refuses *at* 1024 |
+  | fifteen entries of `am_underworks2`, which `validate_rotation` permits | 1073 | 1073, refused then as now |
 
   An extra character in a rotated name costs exactly one byte, measured the same
   way, and `check_command_line_budget` refuses at 1024 rather than above it, so

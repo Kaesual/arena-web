@@ -144,6 +144,13 @@
     },
     {
       "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-aggressor.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-aggressor-99ee9bc566cdcff2.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-aggressor.pk3"
+    },
+    {
+      "manifest": "content",
       "path": "baseq3/arena-web-ffa-map-am_galmevish.pk3",
       "served": "content/baseq3/arena-web-ffa-map-am_galmevish-5dd57747e2f7d6de.pk3",
       "role": "filesystem",
@@ -190,6 +197,20 @@
       "served": "content/baseq3/arena-web-ffa-map-czest1tourney-ec7d74e3a8892c2b.pk3",
       "role": "filesystem",
       "fsPath": "/arena/arena-web-ffa-map-czest1tourney.pk3"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-dm6ish.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-dm6ish-afdd1f7d97b05b08.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-dm6ish.pk3"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-kaos2.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-kaos2-e746f2b1dc28f20f.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-kaos2.pk3"
     },
     {
       "manifest": "content",
@@ -267,6 +288,20 @@
       "served": "content/baseq3/arena-web-ffa-map-oa_pvomit-9a4b9caf4ddd4405.pk3",
       "role": "filesystem",
       "fsPath": "/arena/arena-web-ffa-map-oa_pvomit.pk3"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-oa_rpg3dm2.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-oa_rpg3dm2-d0a4aa742712c5a5.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-oa_rpg3dm2.pk3"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-oa_shine.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-oa_shine-d45710fb4ad06e4c.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-oa_shine.pk3"
     },
     {
       "manifest": "content",

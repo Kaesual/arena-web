@@ -7,6 +7,11 @@
       "size": 40985746
     },
     {
+      "path": "opt/arena-web/arena/arena-web-ffa-map-aggressor.pk3",
+      "sha256": "99ee9bc566cdcff2875000a327bfcc9c5e5b7c022ca64bfb825b6cfc8fd1feee",
+      "size": 2589454
+    },
+    {
       "path": "opt/arena-web/arena/arena-web-ffa-map-am_galmevish.pk3",
       "sha256": "5dd57747e2f7d6def46d8b8c24dfdf76e5a6052b0868af1bdbb89da10f4a3bb8",
       "size": 1404047
@@ -40,6 +45,16 @@
       "path": "opt/arena-web/arena/arena-web-ffa-map-czest1tourney.pk3",
       "sha256": "ec7d74e3a8892c2bb8f5dfb5e8f7114ec71da848701f5118acb58df49971049f",
       "size": 3271062
+    },
+    {
+      "path": "opt/arena-web/arena/arena-web-ffa-map-dm6ish.pk3",
+      "sha256": "afdd1f7d97b05b0821a4c38680f997332e114f882c6a0eb948eab8d65111a5c9",
+      "size": 4122810
+    },
+    {
+      "path": "opt/arena-web/arena/arena-web-ffa-map-kaos2.pk3",
+      "sha256": "e746f2b1dc28f20fca313c12d6846fb4333df4fcadaa133bae65f0d53de42b4f",
+      "size": 6503335
     },
     {
       "path": "opt/arena-web/arena/arena-web-ffa-map-mlca1.pk3",
@@ -95,6 +110,16 @@
       "path": "opt/arena-web/arena/arena-web-ffa-map-oa_pvomit.pk3",
       "sha256": "9a4b9caf4ddd4405b07a33555972d2a043f5679e97af9594096eb40850888931",
       "size": 1915429
+    },
+    {
+      "path": "opt/arena-web/arena/arena-web-ffa-map-oa_rpg3dm2.pk3",
+      "sha256": "d0a4aa742712c5a550f5f4c8d7aadcfd6385f162f0a5ffb0d74f25ad59f41574",
+      "size": 3881640
+    },
+    {
+      "path": "opt/arena-web/arena/arena-web-ffa-map-oa_shine.pk3",
+      "sha256": "d45710fb4ad06e4c7ef38dcba934f2c7ba7df89fb4df4e29b3da5437097230a2",
+      "size": 1773961
     },
     {
       "path": "opt/arena-web/arena/arena-web-ffa-map-oa_shouse.pk3",
@@ -158,7 +183,7 @@
     },
     {
       "id": "arena-web-ffa-content",
-      "identity": "sha256:5c173d2dccb95f4e2e13ea0320494a72a8392d30e680461533e9b8bf6aaec85c",
+      "identity": "sha256:69e7f5a24fa6282b2dc36ea06688a2fc169312259ff95a07bf4b2e363da04546",
       "kind": "artifact-manifest"
     },
     {
@@ -183,7 +208,7 @@
     }
   ],
   "producer": {
-    "commit": "ed99ef83773b01ffb6360e73605ee420cdbfb705",
+    "commit": "57fa9ed30cf882ffef472f5236b72a4cd629f21f",
     "name": "arena-web scripts/build-server-image.sh"
   }
 }
