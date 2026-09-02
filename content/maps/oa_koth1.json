@@ -1,0 +1,48 @@
+{
+  "acceptedUnresolved": [
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_bk"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_dn"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_ft"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_lf"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_rt"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_up"
+    },
+    {
+      "reason": "worldspawn key of maps/oa_koth1.bsp names an audio track no pinned OpenArena release ships, so the reference dangles upstream; a missing track is silence, not a failure.",
+      "reference": "music/OA09.ogg"
+    },
+    {
+      "reason": "image named by the shipped shader 'textures/cosmo_sfx/diamond_blue' that no pinned archive provides. ParseStage returns qfalse when R_FindImageFile fails, and R_FindShader then sets shader.defaultShader for the *whole* shader (ioq3 code/renderergl2/tr_shader.c), so every surface drawn through it renders untextured rather than losing one layer. Accepted because the audit measured how much geometry that is.",
+      "reference": "textures/cosmo_sfx/diamond_b.tga"
+    }
+  ],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "30",
+    "longname": "Repulsive Castle",
+    "map": "oa_koth1",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/oa_koth1.arena"
+  ],
+  "map": "oa_koth1"
+}

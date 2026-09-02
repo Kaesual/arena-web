@@ -1520,6 +1520,111 @@ class EngineLogClassificationTest(unittest.TestCase):
             self.assertTrue(pattern.pattern)
             self.assertGreater(len(reason), 20)
 
+    def test_every_reachable_accepted_sound_has_a_note_in_every_phrasing(self) -> None:
+        """A missing sound has three spellings, and a note must cover them all.
+
+        The engine reports one missing sound differently depending on the layer
+        and the backend: `snd_codec.c` prints 'Failed to load|open sound
+        <name>!' under either backend, `snd_dma.c` prints '<name> - using
+        default' and `snd_openal.c` prints 'Using default sound for <name>'.
+        The acceptance browser runs the OpenAL backend -- USE_OPENAL is on and
+        only USE_OPENAL_DLOPEN is disabled for Emscripten, and s_useOpenAL
+        defaults to "1" -- while a native run on the dummy audio driver falls
+        back to dma and shows the other one. Every one of those lines is a
+        `missing-asset` defect unless a note accepts it.
+
+        So a reference this release accepts as dangling and the profile can
+        actually reach has to be accepted in every applicable spelling, or a
+        rotation that reaches it turns a known and reasoned upstream gap into an
+        acceptance failure -- the one thing ACCEPTED_ENGINE_NOTES exists to
+        prevent. Checked here rather than by hand, because by hand is what left
+        `windfly` with no note at all until a native run happened to show it,
+        and what left `fireloud` accepted in two spellings out of three.
+
+        Only sounds are covered. A missing image is reported by R_FindImageFile
+        alone, a missing skyParms outerbox silently becomes tr.defaultImage, and
+        a BSP shader-lump name with neither script nor image is PRINT_DEVELOPER
+        only.
+        """
+        # References the closure accepts because a QVM names them, that this
+        # profile cannot reach, with the engine site that decides it. An entry
+        # here is a claim about unreachability, not a way to skip writing a
+        # note: if the profile ever reaches one, its line is a defect and the
+        # run fails, which is the right outcome for a claim that turned out to
+        # be wrong.
+        UNREACHABLE = {
+            "music/loss": "q3_ui/ui_sppostgame.c only",
+            "music/loss.wav": "q3_ui/ui_sppostgame.c only",
+            "music/win": "q3_ui/ui_sppostgame.c only",
+            "music/win.wav": "q3_ui/ui_sppostgame.c only",
+            "sound/player/announce/youwin.wav": "q3_ui/ui_sppostgame.c only",
+            "sound/teamplay/flagret_blu.wav": "game/ai_dmq3.c, team gametypes only",
+            "sound/teamplay/flagret_red.wav": "game/ai_dmq3.c, team gametypes only",
+        }
+
+        entries = list(
+            json.loads(
+                (ROOT / "content/pack-recipe.json").read_text(encoding="utf-8")
+            )["acceptedUnresolved"]
+        )
+        for fragment in sorted((ROOT / "content/maps").glob("*.json")):
+            entries += json.loads(fragment.read_text(encoding="utf-8"))[
+                "acceptedUnresolved"
+            ]
+        references = {
+            reference
+            for reference in (
+                (entry["reference"] if isinstance(entry, dict) else entry).lstrip("/")
+                for entry in entries
+            )
+            if reference.startswith(("sound/", "music/"))
+        }
+        self.assertTrue(references, "the published set accepts no sound reference")
+        self.assertLessEqual(
+            set(UNREACHABLE),
+            references,
+            "an exemption for a reference nothing accepts any more",
+        )
+
+        spellings = {
+            "codec": "^3WARNING: Failed to load sound {name}!",
+            "dma": "^3WARNING: could not find {name} - using default",
+            "openal": "^3WARNING: Using default sound for {name}",
+        }
+        uncovered: list[str] = []
+        for reference in sorted(references - set(UNREACHABLE)):
+            # SP_target_speaker appends .wav unless the value already contains
+            # it (game/g_target.c), so the engine may report either name and a
+            # note covering one of them covers the reference.
+            names = {reference}
+            if not reference.lower().endswith(".wav"):
+                names.add(f"{reference}.wav")
+            for layer, template in sorted(spellings.items()):
+                if reference.startswith("music/") and layer != "codec":
+                    # Background music goes through S_CodecOpenStream and never
+                    # reaches S_RegisterSound, so only the codec line exists.
+                    continue
+                if not any(
+                    pattern.search(template.format(name=name))
+                    for name in sorted(names)
+                    for pattern, _ in ACCEPTED_ENGINE_NOTES
+                ):
+                    uncovered.append(f"{reference} [{layer}]")
+        self.assertEqual(uncovered, [], "reachable accepted sounds without a note")
+
+    def test_the_unreachable_exemptions_are_still_defects_if_they_appear(self) -> None:
+        """The exemption above is about reachability, not about acceptability."""
+        found = classify_engine_log(
+            [
+                "^3WARNING: Failed to load sound "
+                "sound/player/announce/youwin.wav!",
+                "^3WARNING: could not find sound/teamplay/flagret_red.wav "
+                "- using default",
+            ]
+        )
+        self.assertEqual(len(found["missing-asset"]), 2)
+        self.assertEqual(len(found["accepted-note"]), 0)
+
 
 class PinnedBrowserTest(unittest.TestCase):
     def test_the_acceptance_browser_version_comes_from_the_baseline_lock(self) -> None:

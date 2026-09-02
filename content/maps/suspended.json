@@ -1,0 +1,15 @@
+{
+  "acceptedUnresolved": [],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "15",
+    "longname": "Suspended Satellite",
+    "map": "suspended",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/suspended.arena"
+  ],
+  "map": "suspended"
+}

@@ -1,0 +1,20 @@
+{
+  "acceptedUnresolved": [
+    {
+      "reason": "worldspawn music key of maps/slimefac.bsp, written without a file extension. S_CodecGetSound then tries 'music/sonic6.<ext>' against every registered codec in search order - wav, ogg, opus, because S_CodecInit registers them the other way round and S_CodecRegister prepends (ioq3 code/client/snd_codec.c) - and no pinned OpenArena release ships any of them, so the reference dangles upstream under every name the engine looks for; a missing track is silence, not a failure",
+      "reference": "music/sonic6"
+    }
+  ],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "10",
+    "longname": "Slime Facility",
+    "map": "slimefac",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/slimefac.arena"
+  ],
+  "map": "slimefac"
+}

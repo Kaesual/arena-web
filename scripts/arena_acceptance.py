@@ -130,6 +130,8 @@ ACCEPTED_ENGINE_NOTES: tuple[tuple[re.Pattern[str], str], ...] = (
         re.compile(
             r"Failed to (?:load|open) sound sound/player/sarge/taunt\.wav"
             r"|Using default sound for sound/player/(?:skelebot|sarge)/taunt\.wav"
+            r"|could not find sound/player/(?:skelebot|sarge)/taunt\.wav"
+            r" - using default"
         ),
         "the taunt fallback to DEFAULT_MODEL (ioq3 code/cgame/cg_players.c "
         "CG_LoadClientInfo); 'sarge' is retail Quake III data and is not packaged",
@@ -165,14 +167,31 @@ ACCEPTED_ENGINE_NOTES: tuple[tuple[re.Pattern[str], str], ...] = (
     # map this profile starts, so a rotation change cannot turn a known and
     # reasoned upstream gap into an acceptance failure. Each was observed in a
     # native client that actually loaded the map it belongs to, not predicted:
-    # the exact reference is the anchor, and the two phrasings are the OpenAL
-    # and the dma sound backends reporting the same fact (ioq3
-    # code/client/snd_openal.c S_AL_BufferUseDefault and code/client/snd_dma.c
-    # S_RegisterSound).
+    # the exact reference is the anchor.
+    #
+    # There are three phrasings for one missing sound, and which of them appears
+    # depends on the layer and the backend, not on the fact:
+    #   'Failed to load|open sound <name>!'     snd_codec.c S_CodecGetSound,
+    #                                           under either backend;
+    #   'could not find <name> - using default' snd_dma.c S_RegisterSound;
+    #   'Using default sound for <name>'        snd_openal.c S_AL_BufferUseDefault.
+    # Background music reaches only the first, because S_StartBackgroundTrack
+    # does not go through S_RegisterSound. An entity or gamecode sound reaches
+    # S_RegisterSound and can therefore produce any of the three, so its note
+    # must list all three - and the third is not hypothetical here: USE_OPENAL
+    # is on and only USE_OPENAL_DLOPEN is disabled for Emscripten
+    # (ioq3/CMakeLists.txt, cmake/platforms/emscripten.cmake), and s_useOpenAL
+    # defaults to "1" (client/snd_main.c), so the acceptance browser runs the
+    # OpenAL backend. A native run on the dummy audio driver falls back to dma
+    # and shows the *other* phrasing, which is why a native log alone cannot
+    # tell you which of them the acceptance will see.
+    # sound_notes_are_complete() in tests/test_arena_runtime.py holds this
+    # rule for every sound reference the published set accepts.
     (
         re.compile(
             r"Failed to (?:load|open) sound sound/misc/windfly\.wav"
             r"|could not find sound/misc/windfly\.wav - using default"
+            r"|Using default sound for sound/misc/windfly\.wav"
         ),
         "SP_target_push registers sound/misc/windfly.wav unless the entity "
         "carries the bouncepad spawnflag (ioq3 code/game/g_trigger.c), and no "
@@ -186,14 +205,15 @@ ACCEPTED_ENGINE_NOTES: tuple[tuple[re.Pattern[str], str], ...] = (
             r"Failed to (?:load|open) sound music/OA09\.ogg"
             r"|could not find music/OA09\.ogg - using default"
         ),
-        "czest1dm's worldspawn music key names a track no pinned OpenArena "
-        "release ships; the map fragment accepts it and a missing track is "
-        "silence, not a failure",
+        "the worldspawn music key of czest1dm and of oa_koth1 names a track no "
+        "pinned OpenArena release ships; both map fragments accept it and a "
+        "missing track is silence, not a failure",
     ),
     (
         re.compile(
             r"Failed to (?:load|open) sound sound/ambient/sparks\.ogg\.wav"
             r"|could not find sound/ambient/sparks\.ogg\.wav - using default"
+            r"|Using default sound for sound/ambient/sparks\.ogg\.wav"
         ),
         "an am_underworks2 entity names sound/ambient/sparks.ogg, which no "
         "pinned release ships; the engine appends .wav to the name it reports, "
@@ -209,6 +229,67 @@ ACCEPTED_ENGINE_NOTES: tuple[tuple[re.Pattern[str], str], ...] = (
         "It defaults one mapobject shader on am_underworks2, 26 of that map's "
         "4,197 faces; the map fragment accepts the reference and the audit "
         "records the measurement",
+    ),
+    # WP-F batch 2. Same rule as the block above: one entry per exact
+    # reference, each belonging to a map this release publishes, each observed
+    # in the native run that loaded it.
+    (
+        re.compile(
+            r"Failed to (?:load|open) sound music/OA10\.ogg"
+            r"|could not find music/OA10\.ogg - using default"
+        ),
+        "sleekgrinder's worldspawn music key names a track no pinned OpenArena "
+        "release ships; the map fragment accepts it and a missing track is "
+        "silence, not a failure",
+    ),
+    (
+        re.compile(
+            r"Failed to (?:load|open) sound music/OA11\.ogg"
+            r"|could not find music/OA11\.ogg - using default"
+        ),
+        "pul1duel-oa's worldspawn music key names a track no pinned OpenArena "
+        "release ships; the map fragment accepts it and a missing track is "
+        "silence, not a failure",
+    ),
+    (
+        re.compile(
+            r"Failed to (?:load|open) sound music/OA03\.ogg"
+            r"|could not find music/OA03\.ogg - using default"
+        ),
+        "oa_shouse's worldspawn music key names a track no pinned OpenArena "
+        "release ships; the map fragment accepts it and a missing track is "
+        "silence, not a failure",
+    ),
+    (
+        re.compile(
+            r"Failed to (?:load|open) sound music/sonic6!"
+            r"|could not find music/sonic6 - using default"
+        ),
+        "slimefac's worldspawn music key names music/sonic6 without a file "
+        "extension; S_CodecGetSound then probes wav, ogg and opus against that "
+        "stem (ioq3 code/client/snd_codec.c) and no pinned OpenArena release "
+        "ships any of them, so the name the engine reports is the bare stem",
+    ),
+    (
+        re.compile(
+            r"Failed to (?:load|open) sound sound/world/fireloud\.wav"
+            r"|could not find sound/world/fireloud\.wav - using default"
+            r"|Using default sound for sound/world/fireloud\.wav"
+        ),
+        "five func_bobbing entities of oa_shouse name sound/world/fireloud.wav "
+        "in their 'noise' key and no pinned OpenArena release ships it; "
+        "InitMover registers the value as written (ioq3 code/game/g_mover.c), "
+        "the map fragment accepts it, and a missing looping sound is silence",
+    ),
+    (
+        re.compile(
+            r"R_FindImageFile could not find 'textures/cosmo_sfx/diamond_b\.tga' "
+            r"in shader 'textures/cosmo_sfx/diamond_blue'"
+        ),
+        "a shipped OpenArena shader names an image no pinned archive provides. "
+        "It defaults one shader on oa_koth1, 31 of that map's 2,200 faces; the "
+        "map fragment accepts the reference and the audit records the "
+        "measurement",
     ),
 )
 

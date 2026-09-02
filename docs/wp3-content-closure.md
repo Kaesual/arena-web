@@ -544,13 +544,51 @@ change: no schema, validator or WP0/WP1 artifact was modified.
   gate, and a silent sound. Fixing it means modelling which spawn functions
   append and which do not, which is a closure-model change rather than a
   content one. Found by the WP-F review.
-- **`_stage_images` emits `skyParms` outerbox names without an extension**, and
-  the image resolver then accepts any of seven, while `ParseSkyParms` only ever
-  tries `"%s_%s.tga"` (`renderergl2/tr_shader.c`). Not live — no pinned archive
-  provides `full_*` in any extension, which is why the whole class is accepted
-  — but it is the mechanism the largest acceptance class rests on, so a future
-  source that shipped one of those names as `.jpg` would resolve here and still
-  be missing in the engine. Found by the WP-F review.
+- **The `skyParms` finding recorded here was wrong, and is withdrawn.** It said
+  that `_stage_images` emits outerbox names without an extension while
+  `ParseSkyParms` only ever tries `"%s_%s.tga"` (`renderergl2/tr_shader.c`), so
+  a source shipping `full_rt.jpg` would resolve in the closure and be missing in
+  the engine. `ParseSkyParms` does build a `.tga` name, but it hands it to
+  `R_FindImageFile`, and `R_LoadImage` (`renderergl2/tr_image.c`) strips the
+  given extension and probes **every** registered loader against the stem.
+  `renderergl2`'s loader table and `game_assets.IMAGE_EXTENSIONS` hold the same
+  seven formats, so the closure's extension-less emission matches the engine
+  rather than being wider than it,
+  and the largest acceptance class rests on a correct model. What the closure
+  genuinely does not model is `R_LoadImage`'s separate `.dds` path, tried first
+  under `r_ext_compressed_textures` and as a last fallback without it. That gap
+  points the *safe* way: the closure would call a reference unresolved that the
+  engine can open, which is a loud failure needing an explicit acceptance entry,
+  not a silent one. No pinned source ships a `.dds`, so it is not live either.
+  What the two tables do **not** share is their order. `IMAGE_EXTENSIONS` is
+  `renderergl1`'s order, which its own comment cites, while the browser builds
+  `renderergl2` only, whose table leads with `png`. That difference is real
+  rather than hypothetical — 43 image stems in the pinned sources ship in more
+  than one format, seven of them as `.png` **and** `.tga`, and
+  `levelshots/oa_shouse` is one of the 43 — but it cannot change a member or a
+  verdict here, for a reason worth writing down rather than trusting: the
+  closure packages the **first** existing candidate and only that one, and
+  `R_LoadImage` stops at the first loader that actually returns an image, so a
+  renderer that would have preferred the other format finds it absent and falls
+  through to the member that is packaged. No stem is packaged in two formats
+  (checked over the built archives: 856 image stems, none doubled). The order
+  would decide something only if two candidates for one stem were both
+  packaged — which needs two references naming the same stem with different
+  extensions, and no reference set here produces that.
+  Recorded by WP-F batch 2, which re-derived the class from the engine while
+  publishing two more maps that depend on it.
+- **The closure treats a two-track `music` value as one game path.**
+  `CG_StartMusic` (`code/cgame/cg_main.c`) runs `COM_Parse` twice over the
+  worldspawn `music` string and passes the two tokens to
+  `trap_S_StartBackgroundTrack` as an intro and a loop track, while `_add_bsp`
+  resolves the whole value as a single reference. `oa_dm2` is the one audited
+  map that writes both, so its acceptance entry is the combined string
+  `"music/fla22k_04_intro.ogg music/fla22k_04_loop.ogg"` — a name no filesystem
+  could hold. Neither of the two real names exists in any pinned archive, so
+  nothing is missing today; a source that shipped them would leave the closure
+  packaging neither while still reporting a single unresolved reference. Whoever
+  publishes `oa_dm2` inherits that acceptance entry and should read it as one
+  string standing for two references rather than as a path.
 - **The shader stage reader models the stage image directives common to both
   renderers.** `map`, `clampmap`, `videomap`, `animMap` and `skyParms` are what
   name images in either renderer; `renderergl2`'s stage-type keywords
@@ -1334,11 +1372,16 @@ survive a move unremeasured.
 
 ### Two bounds read from the pinned engine
 
-- **Peak hunk against `DEF_COMHUNKMEGS`.** `Com_InitHunkMemory` allocates that
-  many megabytes and `MIN_COMHUNKMEGS` is defined as the same constant, so it is
-  both ceiling and floor. Every declared figure must fit it, read out of
-  `ioq3/code/qcommon/common.c` rather than restated. The published set peaks at
-  32,297,320 bytes (`am_underworks2`) against 134,217,728.
+- **Peak hunk against `DEF_COMHUNKMEGS`.** `Com_InitHunkMemory` allocates
+  `com_hunkMegs` megabytes, defaulting to `DEF_COMHUNKMEGS`, and refuses to go
+  below `MIN_COMHUNKMEGS`, which is defined as the same constant — so it is the
+  default and the floor for a client, not a ceiling: `com_hunkMegs` is
+  `CVAR_LATCH|CVAR_ARCHIVE` and a larger value raises the allocation, and a
+  dedicated server floors at `MIN_DEDICATED_COMHUNKMEGS` instead. The bound this
+  gate enforces is the default, which is what an unconfigured client gets. Every
+  declared figure must fit it, read out of `ioq3/code/qcommon/common.c` rather
+  than restated. The published set peaks at 35,641,800 bytes (`suspended`)
+  against 134,217,728.
 - **The published archive set against `BIG_INFO_STRING`.**
   `SV_SpawnServer` assembles all `CVAR_SYSTEMINFO` cvars with
   `Cvar_InfoString_Big` into one 8192-byte buffer, and `sv_referencedPakNames`

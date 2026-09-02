@@ -1,0 +1,15 @@
+{
+  "acceptedUnresolved": [],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "20",
+    "longname": "Never Ending Yard",
+    "map": "wrackdm17",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/wrackdm17.arena"
+  ],
+  "map": "wrackdm17"
+}

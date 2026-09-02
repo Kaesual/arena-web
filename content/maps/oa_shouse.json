@@ -1,0 +1,24 @@
+{
+  "acceptedUnresolved": [
+    {
+      "reason": "worldspawn key of maps/oa_shouse.bsp names an audio track no pinned OpenArena release ships, so the reference dangles upstream; a missing track is silence, not a failure.",
+      "reference": "music/OA03.ogg"
+    },
+    {
+      "reason": "five func_bobbing entities of maps/oa_shouse.bsp name this sound in their 'noise' key, and no pinned OpenArena release ships it. InitMover registers the value as written (ioq3 code/game/g_mover.c G_SoundIndex), so unlike SP_target_speaker there is no second name to try; a missing looping sound is silence, not a failure",
+      "reference": "sound/world/fireloud.wav"
+    }
+  ],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "20",
+    "longname": "Strange House",
+    "map": "oa_shouse",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/oa_shouse.arena"
+  ],
+  "map": "oa_shouse"
+}

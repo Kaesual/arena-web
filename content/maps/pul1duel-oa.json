@@ -1,0 +1,20 @@
+{
+  "acceptedUnresolved": [
+    {
+      "reason": "worldspawn key of maps/pul1duel-oa.bsp names an audio track no pinned OpenArena release ships, so the reference dangles upstream; a missing track is silence, not a failure.",
+      "reference": "music/OA11.ogg"
+    }
+  ],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "20",
+    "longname": "Five Steps Ahead",
+    "map": "pul1duel-oa",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/pul1duel-oa.arena"
+  ],
+  "map": "pul1duel-oa"
+}
