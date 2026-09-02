@@ -30,7 +30,7 @@ The primary immutable identities are:
 | --- | --- |
 | Baseline lock | `sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287` |
 | Browser artifact manifest | `sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047` |
-| Content artifact manifest | `sha256:3ec982977ea0d23dae03b565f68d6f3296796b2a3f9f49b25451713bc50055fe` |
+| Content artifact manifest | `sha256:aeb745adb71e4cf0f34bed5f3a7dd857e035a354958edcd6e5f0b3c584529885` |
 | Base content archive | `sha256:caa003fcd7a79d3431a73166ed531d40b8a3d3728bca487d4b55c07d681c4229`, 40,985,746 bytes |
 | Map archives | eight, one per map, enumerated in the content artifact manifest |
 
@@ -42,13 +42,54 @@ map and what only it reaches. Each is served under a name containing the first
 published URL is never rewritten and a returning player re-downloads only what
 actually changed. The dedicated server carries every archive.
 
-**The client currently fetches every declared archive**, not only the ones for
-the maps it will play. The committed profile declares the published set and the
-loader verifies each artifact against the committed manifest before it starts,
-so nothing is unverified — but the fetch is the whole set, and it grows with
-the set. Selecting a subset per rotation is the next work package; until it
-lands, size the first load against the total of every `filesystem` artifact in
-`arena/game-profile.json`.
+**The client fetches the base plus the archives it is told to, and the page has
+to be told.** Open it as
+
+```text
+<release root>/index.html?maps=<map>[,<map>...]
+```
+
+naming the maps the server will rotate through. The base archive is implicit
+and cannot be named. Names are canonicalised — sorted and de-duplicated —
+because a rotation list may legitimately play the same map twice in a cycle, so
+`?maps=b,a,b` and `?maps=a,b` fetch the same set. Every other published archive
+is not fetched at all.
+
+**The parameter is required, and both plausible defaults are wrong.** Falling
+back to the whole set is the cost this exists to remove; falling back to the
+profile's own map gives a client whose archive set is a strict *subset* of the
+server's rotation, which is the one direction that fails — invisibly, until
+rotation reaches the missing map and drops that client mid-match. So a page
+opened without the parameter refuses before it fetches anything, with a message
+naming the published maps.
+
+Two consequences worth stating rather than leaving to be found:
+
+- **The parameter is in a URL and is therefore editable by the person viewing
+  the page.** That is not a trust question: the committed profile declares every
+  published archive and the loader verifies each artifact it fetches against the
+  committed manifest, so a selection is a choice from an already trusted set and
+  never a new one. What an edited URL can do is give that viewer a rotation
+  their server does not match — an `ERR_DROP` they brought on themselves. Do not
+  treat the parameter as a protected control surface.
+- **The loader records what it fetched, and what the server later said was
+  missing.** `window.arenaWeb.snapshot().rotation` carries the parameter as
+  given, the canonical map list, the published set, the archives it *selected*
+  and the archives actually *fetched* — separate, because a run that failed
+  partway differs in the second. Nothing can catch a rotation that is too small
+  *before* it breaks; the engine does say so when it breaks, and
+  `missingOnServer` carries that line (`CL_InitDownloads` prints
+  `WARNING: You are missing some files referenced by the server` with the names,
+  because `cl_allowDownload` is 0 on both profiles). It arrives at the map
+  change that drops the client, so it prevents nothing — it names the cause
+  inside the component that fails.
+
+**Sizing a first load.** The content artifact manifest records, per archive,
+`size` (packed), `uncompressedSize` (extracted) and — for a map archive —
+`map` and `peakHunkBytes`, the measured peak engine hunk for that map. Sum the
+base and the rotation's archives rather than the whole set. `peakHunkBytes` is
+a per-map figure and a rotation's cost is the maximum, not the sum:
+`Hunk_Clear` resets the marks on every map load.
 
 **`contentPayloadIdentity` now names the base archive.** The field name did not
 change and no consumer sees an error, so it is called out here: it used to mean
@@ -125,11 +166,13 @@ reconnectRelay()
 must not parse UI text or engine logs. Every `snapshot()` is a defensive copy;
 mutating it cannot change the loader. It contains the public `status`, bounded
 `error`, final `exit`, `progress`, surface/fullscreen state and safe relay
-counters. It contains no authorization value. Progress has exactly
-`{phase, loadedBytes, totalBytes, fraction}`: `phase` is `loading` until all seven
-declared runtime artifacts verify and `verified` afterward; `fraction` is
-clamped to 0..1, and byte totals become exact once artifact manifests have been
-read.
+counters. It contains no authorization value, and it carries `rotation` — what the page
+was opened for and what it fetched (section 1). Progress has exactly
+`{phase, loadedBytes, totalBytes, fraction}`: `phase` is `loading` until every
+*selected* runtime artifact verifies and `verified` afterward. The count is
+rotation-dependent and is deliberately not stated here; derive it from
+`snapshot().rotation` or `identities`. `fraction` is clamped to 0..1, and byte
+totals become exact once artifact manifests have been read.
 
 `subscribe(listener)` registers a function, calls it **synchronously and
 immediately** with the current snapshot, then calls it for later public state
@@ -146,7 +189,12 @@ the map is live. A second call, including one made while the first is pending,
 returns a rejected Promise with `LoaderError: Start has already been accepted`
 and starts no second engine or relay. A call outside `ready` rejects without
 changing state, and a synthetic/no-activation call rejects with
-`Start requires transient user activation`.
+`Start requires transient user activation`. Without a relay configuration the
+engine runs a local listen server from the profile's committed
+`engineArguments`, which start `map` (section 1); if the rotation did not fetch
+that map's archive, `start()` rejects with
+`the offline profile starts <map>, which ?maps=... did not fetch` and changes
+no state. A relay client starts no map of its own and is unaffected.
 
 The main status path is:
 
@@ -219,8 +267,8 @@ The exact server identities are:
 
 | Input | Identity |
 | --- | --- |
-| OCI configuration/image ID | `sha256:2509723cb663bdbe02a00ff8fc4f6565297f73faa67f656e237b5e004cf2fa30` |
-| Server artifact manifest | `sha256:763e1797c1965c13b02caf36d6e984cd9a0a0ecabbac42b62b2a423f14631834` |
+| OCI configuration/image ID | `sha256:632d60d4069d70421939eeb9f2c96046e9f14ddc1e87a9b6cbf9baefc23904aa` |
+| Server artifact manifest | `sha256:e64480d0812754e7db29a0282fe3f1396136190a79e6c76ded893a3c83635f8f` |
 | Server profile | `sha256:6d48c19238b1874bf30d276a8419ec771007f13739f0e69c447b33d412a69472` |
 
 The image is `linux/amd64`, user/group `65534:65534`, workdir
@@ -272,8 +320,8 @@ read-only and mount an initially empty, `rw,noexec,nosuid,nodev`, mode-1777,
 64-MiB tmpfs at `/var/lib/arena`. That home holds only ephemeral engine config
 and `games.log`. There is **no persistent path or volume** in this release; no
 world, save, secret or host file is required. The read-only image is
-125,209,549 bytes; the measured container writable layer after stop was 12,554
-bytes and is disposable.
+157,714,893 bytes; the measured container writable layer after stop
+was 12,554 bytes and is disposable.
 
 Readiness is the native binary UDP query, no more than once per second from a
 stable source address and port:
@@ -292,7 +340,7 @@ one-second checks make the observation failed.
 Send `SIGTERM` or `SIGINT` to the entrypoint and allow 10 seconds before a
 forced kill. The normal signal path sends the final server message, closes the
 VM/network and exits with code 1; code 1 is therefore success only when the
-manager requested this stop. The measured graceful exit took 0.137 seconds.
+manager requested this stop. The measured graceful exit took 0.111 seconds.
 Any unsolicited exit, including code 1, is failure.
 
 ## 5. Indivisible compatibility identity
@@ -304,10 +352,10 @@ loader, profile, QVM, pack, binary or relay profile:
 baseline          sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287
 ioq3               git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592
 browser manifest   sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047
-content manifest   sha256:7785b2a65104257d1f0cd67d9b59771dc259726155acc54bdae0451cef92dfc5
-content base       sha256:6c3341ef87d16c75b7d3fb5f368d9f935dac304c1dd7667f96b64dd73912bb03
-server manifest    sha256:580654c261a364ad71a0ae5e92b6ad291032ae8f97e5f4276e557ea3a6081281
-server image ID    sha256:2509723cb663bdbe02a00ff8fc4f6565297f73faa67f656e237b5e004cf2fa30
+content manifest   sha256:aeb745adb71e4cf0f34bed5f3a7dd857e035a354958edcd6e5f0b3c584529885
+content base       sha256:caa003fcd7a79d3431a73166ed531d40b8a3d3728bca487d4b55c07d681c4229
+server manifest    sha256:e64480d0812754e7db29a0282fe3f1396136190a79e6c76ded893a3c83635f8f
+server image ID    sha256:632d60d4069d70421939eeb9f2c96046e9f14ddc1e87a9b6cbf9baefc23904aa
 ```
 
 `release/browser-release.json.compatibility` repeats these values and its
@@ -370,15 +418,18 @@ for this exact eight-slot/two-human/three-bot prototype is:
 
 | Resource | Limit | Busy observed maximum | Remaining safety margin |
 | --- | ---: | ---: | ---: |
-| CPU | 1 core | 0.041056-core peak sample | 0.958944 core; 24.357x |
-| Memory | 268,435,456 bytes | 29,724,672-byte peak cgroup; 31,039,488-byte process HWM | 238,501,888 bytes; 8.968x against cgroup peak |
+| CPU | 1 core | 0.041566-core peak sample | 0.958434 core; 24.058x |
+| Memory | 268,435,456 bytes | 29,982,720-byte peak cgroup; 31,178,752-byte process HWM | 238,452,736 bytes; 8.953x against cgroup peak |
 | Writable home | 67,108,864 bytes | 1,272 bytes | 67,107,592 bytes; 52,758.541x |
 | Processes | 128 PIDs | constrained successfully by the probe | guard, not a measured demand claim |
 
-Startup readiness was 1.751 seconds. The ten-second idle phase averaged
-0.020647 cores. The 30-second two-native-client phase, with movement, weapon,
-fire, chat and respawn traffic while all three bots remained active, averaged
-0.032544 cores. These values preserve large practical headroom, but are
+Startup readiness was 1.75 seconds, which is a poll-loop
+figure and not a startup time: the readiness probe waits out a 0.75-second
+socket timeout and then a one-second interval, so it says the server was ready
+before the second poll and no more than that. The ten-second idle phase
+averaged 0.019687 cores. The 30-second two-native-client phase, with
+movement, weapon, fire, chat and respawn traffic while all three bots remained
+active, averaged 0.032449 cores. These values preserve large practical headroom, but are
 capacity guards only—not an SLO, autoscaling rule, production concurrency
 claim or evidence for more than two humans.
 
@@ -444,17 +495,23 @@ offer creates a new release and requires a newly checked index.
 
 ## Producer acceptance evidence
 
-The final producer state passed all 841 deterministic tests and the strict
-25-file stage/index check. Two clean browser builds at producer checkout
-`95f45b537dd0bb8b4a542b97d0f4281eefa7604a` produced the same browser manifest
-and bytes. Three clean content assemblies at that checkout produced the same
-archives, and a fourth with one map added left every archive that already
-existed byte-identical — the property the archive split exists for, checked
-mechanically by `scripts/verify-content-pack.sh` rather than argued. Two clean native-server builds and two image builds at producer
-checkout `95f45b537dd0bb8b4a542b97d0f4281eefa7604a` produced the same binary,
-server manifest and OCI image ID. The image verifier checked the exact OCI
-configuration, complete added filesystem, unchanged runtime-base remainder and
-all 78 per-package copyright files.
+The final producer state passed the deterministic test suite and the strict
+25-file stage/index check. Reproducibility is not asserted here but performed:
+`scripts/reproduce-release.sh`, run from a clean checkout of the commit that
+carries this document, rebuilds the browser, the content archives, the native
+server and the image and compares the browser manifest, the content manifest,
+the member-level content provenance, the server manifest and the loaded image
+ID with the committed ones, byte for byte and failing closed. Content
+assemblies additionally reassemble the set with one map added and require every
+archive that already existed to be byte-identical — the property the archive
+split exists for, checked mechanically by `scripts/verify-content-pack.sh`
+rather than argued. The image verifier checked the exact OCI configuration,
+complete added filesystem, unchanged runtime-base remainder and all 78
+per-package copyright files.
+
+Counts and producer checkouts are deliberately not restated in this paragraph.
+They moved with every reissue and were wrong twice; the release index and the
+`producer` field of each manifest are where they are checked.
 
 The final Chrome for Testing 152.0.7977.64 lifecycle run passed 22/22 checks.
 It stopped during static loading and after actual Emscripten runtime

@@ -54,12 +54,12 @@ container tag is not an identity.
 | ioq3 engine | `git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592` |
 | Browser loader producer | `git:95f45b537dd0bb8b4a542b97d0f4281eefa7604a` |
 | Browser artifact manifest | `sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047` |
-| Content artifact manifest | `sha256:7785b2a65104257d1f0cd67d9b59771dc259726155acc54bdae0451cef92dfc5` |
-| Content base archive | `sha256:6c3341ef87d16c75b7d3fb5f368d9f935dac304c1dd7667f96b64dd73912bb03` |
+| Content artifact manifest | `sha256:aeb745adb71e4cf0f34bed5f3a7dd857e035a354958edcd6e5f0b3c584529885` |
+| Content base archive | `sha256:caa003fcd7a79d3431a73166ed531d40b8a3d3728bca487d4b55c07d681c4229` |
 | Content map archives | covered transitively through the content artifact manifest, and each bound byte-for-byte to its counterpart in the server manifest |
-| Server artifact manifest | `sha256:580654c261a364ad71a0ae5e92b6ad291032ae8f97e5f4276e557ea3a6081281` |
-| Server image producer/build checkout | `git:95f45b537dd0bb8b4a542b97d0f4281eefa7604a` |
-| Accepted native server image ID | `sha256:73ba426831ffee51811d24d6ead5a241723a1aa1bc446ecf3d6405dbb806bd2f` |
+| Server artifact manifest | `sha256:e64480d0812754e7db29a0282fe3f1396136190a79e6c76ded893a3c83635f8f` |
+| Server image producer/build checkout | `git:94f27c0a6470f3c5cea12d0c3f8d4c96ed391f7e` |
+| Accepted native server image ID | `sha256:632d60d4069d70421939eeb9f2c96046e9f14ddc1e87a9b6cbf9baefc23904aa` |
 
 The image value is the reproducible container configuration/image ID observed
 after loading the accepted single-platform image, not a promise that every
@@ -68,15 +68,16 @@ must be pinned by its own immutable manifest digest and must additionally load
 to the accepted image ID. An archive transfer must likewise verify the loaded
 image ID rather than trusting its filename.
 
-The image records its producer in an OCI label. Reproduce it from a clean
-checkout at `95f45b537dd0bb8b4a542b97d0f4281eefa7604a`, after reproducing the
-accepted browser, content and native builds, and run
-`scripts/build-server-image.sh`. Compare the generated
-`build/server-image/artifact-manifest.json` byte-for-byte with this release's
-`provenance/arena-web-server.json`; require manifest identity
-`sha256:580654c261a364ad71a0ae5e92b6ad291032ae8f97e5f4276e557ea3a6081281`
+The image records its producer in an OCI label. The whole release is
+reproduced from a clean checkout of the commit carrying these records with
+`CONTAINER_RUNTIME=podman scripts/reproduce-release.sh`, which reads the
+producer commit `94f27c0a6470f3c5cea12d0c3f8d4c96ed391f7e` out of the
+records rather than taking it from its caller, rebuilds browser, content and
+server image, and compares each generated record with the committed one in
+full. It requires server manifest identity
+`sha256:e64480d0812754e7db29a0282fe3f1396136190a79e6c76ded893a3c83635f8f`
 and loaded image ID
-`sha256:73ba426831ffee51811d24d6ead5a241723a1aa1bc446ecf3d6405dbb806bd2f`.
+`sha256:632d60d4069d70421939eeb9f2c96046e9f14ddc1e87a9b6cbf9baefc23904aa`.
 
 A rebuild from the current documentation commit or any other later commit has
 a new image ID even when all four runtime files are byte-identical, because its
@@ -120,24 +121,31 @@ per supported map, so a release that publishes more maps stages more files.
 Derive the set from the release index rather than asserting a number:
 
 ```text
-index.html
-loader.js
-default.cfg
-game-profile.json
 arena/canvas-resize.js
 arena/host-lifecycle.js
 arena/network-backend.js
 arena/relay-profile.json
-probe/relay-framing.js
-manifests/browser-client.json
-provenance/arena-web-ffa-content-manifest.json
-engine/ioquake3.js
-engine/ioquake3.wasm
+content/baseq3/arena-web-ffa-base-caa003fcd7a79d34.pk3
+content/baseq3/arena-web-ffa-map-am_galmevish-5dd57747e2f7d6de.pk3
+content/baseq3/arena-web-ffa-map-am_galmevish2-1d6de81a82a739c7.pk3
+content/baseq3/arena-web-ffa-map-am_spacecont-2962ec77faf8b02d.pk3
+content/baseq3/arena-web-ffa-map-am_underworks2-e41fb0669c74341d.pk3
+content/baseq3/arena-web-ffa-map-czest1dm-322f6b1ffef9e3d0.pk3
+content/baseq3/arena-web-ffa-map-czest1tourney-ec7d74e3a8892c2b.pk3
+content/baseq3/arena-web-ffa-map-mlca1-2e785c0fd463ce0e.pk3
+content/baseq3/arena-web-ffa-map-oa_pvomit-9a4b9caf4ddd4405.pk3
+default.cfg
 engine/baseq3/vm/cgame.qvm
 engine/baseq3/vm/qagame.qvm
 engine/baseq3/vm/ui.qvm
-content/baseq3/arena-web-ffa-base-6c3341ef87d16c75.pk3
-content/baseq3/arena-web-ffa-map-oa_pvomit-304a2266a08ebe2f.pk3
+engine/ioquake3.js
+engine/ioquake3.wasm
+game-profile.json
+index.html
+loader.js
+manifests/browser-client.json
+probe/relay-framing.js
+provenance/arena-web-ffa-content-manifest.json
 ```
 
 The staging check refuses an extra, missing, symlinked or changed file. It
@@ -511,13 +519,48 @@ Two consequences worth stating:
   the conservative choice when the two are decided at different times. Only the
   subset direction fails.
 
-**Today the map is still committed**, so this obligation is not yet load-bearing:
-`native/server-profile.json` carries `+map` inside its committed
-`serverArguments`, and the browser profile commits the matching
-`engineArguments`. The rotation becomes an uncommitted launch argument in a later
-work package, and both halves move together when it does. An integration built
-before then should already keep its rotation in one place, so that change is a
-substitution rather than a redesign.
+**The client half is now load-bearing; the server half is not yet.** The browser
+page is opened with the rotation as a required query parameter:
+
+```text
+<release root>/index.html?maps=<map>[,<map>...]
+```
+
+It fetches the base archive plus exactly those maps' archives and nothing else,
+and it refuses — before fetching anything — if the parameter is absent, empty,
+names a map this release does not publish, or names the base. A page opened
+without it does not fall back to a default, because both plausible defaults are
+wrong: the whole set is the download this exists to remove, and the profile's
+own map is a client whose archive set is a strict subset of the server's
+rotation, which is the failure described above. So arena-web cannot check the
+*relation* between the two halves, but it does check that the caller made a
+choice at all.
+
+Names are canonicalised — sorted and de-duplicated — so `?maps=b,a,b` and
+`?maps=a,b` fetch the same set. Pass the rotation list as you hold it; a
+rotation that plays a map twice per cycle is not an error.
+
+**The parameter is user-editable, and that is not a trust question.** The
+committed profile declares every published archive and the loader verifies each
+artifact it fetches against the committed manifest, so a selection is a choice
+from an already trusted set. What a viewer editing the URL can do is give
+themselves a rotation their server does not match. Do not treat the parameter as
+a protected control surface, and do not derive anything from it that a viewer
+must not influence.
+
+`window.arenaWeb.snapshot().rotation` records the parameter as given, the
+canonical map list, the published set, the archives it selected and the archives
+actually fetched. Nothing can catch a rotation that is too small before it
+breaks; when it breaks, the engine prints
+`WARNING: You are missing some files referenced by the server` with the names —
+`cl_allowDownload` is 0 on both profiles — and `rotation.missingOnServer`
+carries that line. Together they are what a post-mortem starts from.
+
+**The server half is still committed:** `native/server-profile.json` carries
+`+map` inside its committed `serverArguments`. The rotation becomes an
+uncommitted launch argument in a later work package. Until then an integration
+still has to hold one rotation list and derive both halves from it, so that
+change is a substitution rather than a redesign.
 
 Recorded as later hardening rather than a present requirement: the loader could
 read the server's advertised rotation out of `serverinfo` before Start and verify
@@ -563,7 +606,7 @@ tuple; do not diff `compatibility` alone and conclude nothing else moved.
 | base pack content (QVM closure, player models, bots, notices) | content manifest, content payload, server manifest, server image |
 | **a map added to or removed from the supported set** | three `compatibility` members — `contentManifestIdentity`, `serverManifestIdentity`, `serverImageId` — plus the browser profile, the content member provenance, the resource measurement and `servedFiles`. `contentPayloadIdentity` does **not** move, subject to the one condition below |
 | the rotation a server plays | nothing |
-| which archives a client fetches | nothing — a runtime selection from the already published set. **Note the present state:** that selection is not built yet, so the loader fetches *every* archive the profile declares. The row states the identity consequence, not today's behaviour |
+| which archives a client fetches | nothing — a runtime selection from the already published set, made per page load through the `?maps=` parameter above |
 | relay profile | the relay-profile authority and the release index |
 | product presentation, launch selector | nothing |
 
