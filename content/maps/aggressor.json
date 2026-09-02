@@ -1,0 +1,40 @@
+{
+  "acceptedUnresolved": [
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_bk"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_dn"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_ft"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_lf"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_rt"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_up"
+    }
+  ],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "20",
+    "longname": "Aggressive Tendencies",
+    "map": "aggressor",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/aggressor.arena"
+  ],
+  "map": "aggressor"
+}

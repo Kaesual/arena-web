@@ -36,6 +36,10 @@ HANDOFF = ROOT / "docs/wp11-integration-handoff.md"
 INDEX = ROOT / "release/browser-release.json"
 
 TOKEN = re.compile(r"(?:sha256:[0-9a-f]{64}|git:[0-9a-f]{40})")
+# A commit id written without the `git:` prefix, which the contract's prose
+# does when it names a producer. The lookarounds keep it from matching inside a
+# `git:` token or inside a 64-character digest, so it finds only bare ids.
+BARE_COMMIT = re.compile(r"(?<![0-9a-f:])[0-9a-f]{40}(?![0-9a-f])")
 ROW = re.compile(r"^\|\s*([^|]+?)\s*\|\s*(.*?)\s*\|\s*$", re.M)
 
 # Label -> the key of the expected identity. The mapping is the check.
@@ -231,6 +235,41 @@ class PublishedIdentityTests(unittest.TestCase):
             unknown, [], "identities that belong to no part of this release"
         )
 
+        # And the same rule for a commit written without its prefix, which is
+        # how the contract's prose names the producer `reproduce-release.sh`
+        # reads out of the records. That spelling escaped the check above for
+        # two releases and drifted a batch behind the table three rows earlier:
+        # a value restated in prose and gated nowhere is the failure this whole
+        # test file exists for.
+        commits = {
+            self.expected[name].removeprefix("git:")
+            for name in ("engineCommit", "browserProducer", "serverProducer")
+        }
+        commits.add(
+            json.loads(
+                (ROOT / "provenance/arena-web-ffa-content-manifest.json").read_text(
+                    encoding="utf-8"
+                )
+            )["producer"]["commit"]
+        )
+        found = set(BARE_COMMIT.findall(self.contract))
+        stale = sorted(found - commits)
+        self.assertEqual(
+            stale, [], "commit ids in prose that no record of this release names"
+        )
+        # And the rule needs a subject, or deleting the sentence satisfies it.
+        # The contract tells a reader to reproduce the release from the content
+        # pack's producer commit, so that id must actually be in the document.
+        self.assertIn(
+            json.loads(
+                (ROOT / "provenance/arena-web-ffa-content-manifest.json").read_text(
+                    encoding="utf-8"
+                )
+            )["producer"]["commit"],
+            found,
+            "the contract no longer names the producer commit to reproduce from",
+        )
+
     def test_the_staged_file_list_is_the_served_set(self) -> None:
         marker = "Derive the set from the release index rather than asserting a number:"
         self.assertIn(marker, self.contract)
@@ -245,3 +284,91 @@ class PublishedIdentityTests(unittest.TestCase):
 
 if __name__ == "__main__":  # pragma: no cover
     unittest.main()
+
+
+class RotationCeilingRestatementTest(unittest.TestCase):
+    """The published rotation figures, recomputed and matched to the documents.
+
+    Same reason as the identities above, one class of number further out.
+    `docs/wp3-content-closure.md` and `docs/wp11-integration-handoff.md` both
+    tell an operator how long a rotation may be and how close the byte bound
+    is, and until this test those figures were hand-copied: the ceiling had
+    been carried across two releases as "15" with the *reason* for it wrong,
+    and a byte figure was published that had been measured by joining the
+    arguments with spaces instead of through `engine_command_line`.
+
+    So the numbers are computed here from the published map set and the
+    committed server arguments, and the documents must contain what comes out.
+    A batch that publishes a map and does not re-derive them turns red.
+    """
+
+    def test_the_documents_carry_the_figures_this_release_produces(self) -> None:
+        import sys
+
+        sys.path.insert(0, str(ROOT / "scripts"))
+        from arena_runtime import engine_command_line, rotation_arguments
+        from arena_server import (
+            CONTENT_MANIFEST,
+            load_profile,
+            max_server_rotation,
+            published_maps,
+        )
+
+        profile = load_profile(ROOT)
+        fixed = list(profile["serverArguments"])
+        names = published_maps(ROOT, CONTENT_MANIFEST)
+        ceiling = max_server_rotation(ROOT, profile)
+
+        def size(rotation: list[str]) -> int:
+            return len(engine_command_line(rotation_arguments(rotation) + fixed))
+
+        closure = (ROOT / "docs/wp3-content-closure.md").read_text(encoding="utf-8")
+        handoff = HANDOFF.read_text(encoding="utf-8")
+        sentence = f"{ceiling} of the {len(names)} published maps"
+        for name, text in (("closure", closure), ("handoff", handoff)):
+            with self.subTest(document=name):
+                self.assertIn(sentence, text)
+
+        # The three rotations the closure document tabulates: what
+        # `max_rotation_length` answers for, the worst distinct one, and the
+        # repeating one it deliberately does not cover.
+        longest = sorted(names, key=lambda name: (-len(name), name))[:ceiling]
+        repeated = [max(names, key=len)] * ceiling
+        for label, rotation in (
+            ("alphabetically first", names[:ceiling]),
+            ("longest", longest),
+            ("repeated", repeated),
+        ):
+            with self.subTest(rotation=label):
+                self.assertIn(str(size(rotation)), closure)
+        for label, rotation in (
+            ("alphabetically first", names[:ceiling]),
+            ("longest", longest),
+        ):
+            with self.subTest(rotation=label, document="handoff"):
+                self.assertIn(str(size(rotation)), handoff)
+
+        # And the headroom, in the unit the documents state it in rather than
+        # as a constant restated here: the budget check refuses *at* maxBytes
+        # and a rotated name costs one byte per character, so this is how many
+        # characters the worst distinct rotation has left. Both documents spell
+        # the figure out in words, so the check is against the sentence a
+        # reader acts on.
+        limit = profile["_commandLineLimits"]["maxBytes"]
+        room = limit - size(longest) - 1
+        words = {
+            0: "no",
+            1: "one",
+            2: "two",
+            3: "three",
+            4: "four",
+            5: "five",
+            6: "six",
+        }
+        self.assertIn(room, words, "the headroom left the range the documents word")
+        phrase = f"room for **{words[room]}** further characters"
+        for name, text in (("closure", closure), ("handoff", handoff)):
+            with self.subTest(document=name, claim="headroom"):
+                # The documents are hard-wrapped, so compare on the sentence
+                # rather than on the line breaks.
+                self.assertIn(phrase, " ".join(text.split()))

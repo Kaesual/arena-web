@@ -1,0 +1,15 @@
+{
+  "acceptedUnresolved": [],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "20",
+    "longname": "Shine In The Atmosphere",
+    "map": "oa_shine",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/oa_shine.arena"
+  ],
+  "map": "oa_shine"
+}

@@ -1,0 +1,52 @@
+{
+  "acceptedUnresolved": [
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_bk"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_dn"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_ft"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_lf"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_rt"
+    },
+    {
+      "reason": "OpenArena sky shaders write 'skyParms full <height> -' and ParseSkyParms expands that outerbox name; a missing outerbox image becomes tr.defaultImage and tr_sky.c then skips the box entirely, so the cloud layers still draw",
+      "reference": "full_up"
+    },
+    {
+      "reason": "worldspawn music key of maps/kaos2.bsp, naming a track no pinned OpenArena release ships. The key carries no file extension, so S_CodecGetSound probes the stem against wav, ogg and opus and then reports the name exactly as it was passed, without one (ioq3 code/client/snd_codec.c). CG_StartMusic hands CS_MUSIC to trap_S_StartBackgroundTrack, which never reaches S_RegisterSound, so the two S_RegisterSound spellings cannot occur for it; what the backends differ in is the rest. The OpenAL client prints the codec line alone, while the dma backend adds \"couldn't open music file music/fla22k_05\" from S_OpenBackgroundStream (ioq3 code/client/snd_dma.c) - a line no acceptance classifies, recorded as such in scripts/arena_acceptance.py. A missing track is silence, not a failure",
+      "reference": "music/fla22k_05"
+    },
+    {
+      "reason": "the same track under a second name, written as a 'music' key on two func_door entities of maps/kaos2.bsp - two more keys in the entity lump, not a second lookup of the worldspawn value, because nothing appends an extension to the name the engine *reports*: S_CodecGetSound prints the filename as it was passed (ioq3 code/client/snd_codec.c). The closure reads 'music' and 'noise' off every entity (scripts/content_pack.py _add_bsp), which is the conservative reading; the engine reads a 'music' key from no entity but the world. 'music' is not in the game's spawn-field table, so G_ParseField drops it, and SP_worldspawn is the only code that asks for one (ioq3 code/game/g_spawn.c), so this name is never indexed, never opened and never reported missing. It does appear in a developer-level log, where S_CodecUtilOpen prints \"Can't read sound file music/fla22k_05.wav\" as one of the three codec attempts made for the *worldspawn* stem - the same spelling arriving from the other reference, not this key being read. Declared here because the closure sees it, and recorded as unreachable in tests/test_arena_runtime.py rather than given an engine note for a line that cannot occur",
+      "reference": "music/fla22k_05.wav"
+    },
+    {
+      "reason": "a texture named by the shader lump of maps/kaos2.bsp that no pinned archive provides and no shipped shader script defines. Nothing renders through it: R_LoadShaders only byte-swaps the flags, so a shader-lump entry reaches shader registration through ShaderForShaderNum alone - which calls R_FindShaderEx, the function R_FindShader wraps - once per surface (ioq3 code/renderergl2/tr_bsp.c), and none of this BSP's 2,194 surfaces indexes entry 48. The three other ways a name can be registered without the shader lump name it either: a fog record carries its own shader string, and this BSP's single record names textures/liquids/lavahell_750; R_LoadEntities passes worldspawn 'remapshader' and 'vertexremapshader' values to R_RemapShader; and 'targetShaderName'/'targetShaderNewName' are spawn fields, so G_UseTargets can remap a shader at run time over CS_SHADERSTATE (ioq3 code/game/g_utils.c, code/cgame/cg_servercmds.c). This BSP writes none of those four keys. So the name is never registered, the audit's face share is 0 of 2,194, and the engine reports nothing - not even at PRINT_DEVELOPER",
+      "reference": "textures/gothic_floor/goopq1metal7_98d"
+    }
+  ],
+  "arena": {
+    "bots": "Skelebot Rai Sly",
+    "fraglimit": "30",
+    "longname": "Khaos Everywhere!",
+    "map": "kaos2",
+    "type": "ffa"
+  },
+  "generatedMembers": [
+    "NOTICE-arena-web.txt",
+    "scripts/kaos2.arena"
+  ],
+  "map": "kaos2"
+}

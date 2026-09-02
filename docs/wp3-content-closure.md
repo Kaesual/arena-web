@@ -607,12 +607,53 @@ change: no schema, validator or WP0/WP1 artifact was modified.
   keys — `model`, `noise` and `music` (`content_pack.py`) — while
   `R_LoadEntities` also acts on `remapshader` and `vertexremapshader` worldspawn
   values, passing the name to `R_RemapShader` → `RE_RegisterShaderLightMap` →
-  `R_FindShader` (`renderergl2/tr_bsp.c`, `tr_shader.c`). A map using one would
-  name an image the closure never sees and the pack would not carry it. Not
-  live: no BSP in the published set writes either key, checked over their entity
-  lumps. It is the same fail-open class as the `SP_target_speaker` gap recorded
+  `R_FindShader` (`renderergl2/tr_bsp.c`, `tr_shader.c`). **And that is one
+  key-pair short**, as the batch-4 review found: `targetShaderName` and
+  `targetShaderNewName` *are* in the gamecode's spawn-field table, so
+  `G_UseTargets` calls `AddRemap` and publishes the pair over `CS_SHADERSTATE`,
+  where `CG_ShaderStateChanged` hands it to `trap_R_RemapShader` — the same
+  registration, reached at run time from an entity the closure reads three other
+  keys off. A map using any of the four would name an image the closure never
+  sees and the pack would not carry it. Not live: no BSP in the published set
+  writes any of them, checked over all twenty-nine entity lumps. It is the same fail-open class as the `SP_target_speaker` gap recorded
   above, and it is why "no other consumer registers this name" needs the entity
   lump read as well as the shader lump. Found by the WP-F batch-3 review.
+- **A `music` key is read off every entity, and the game reads it off one.**
+  The same `_add_bsp` loop takes `noise` *and* `music` from every entity in the
+  lump, while `music` is not in the gamecode's spawn-field table at all:
+  `G_ParseField` drops any key it does not know, and `SP_worldspawn` is the only
+  code that ever asks for one (ioq3 `code/game/g_spawn.c`). `kaos2` is where
+  that showed: it writes `music/fla22k_05` on the worldspawn and
+  `music/fla22k_05.wav` on two `func_door` entities, so the closure reports two
+  references where the engine has one. This direction is **fail-closed** — the
+  extra reference must be accepted or the build fails, and the surplus costs a
+  declaration rather than a missing member — which is why it is recorded here
+  and not fixed: narrowing `music` to the worldspawn would make the closure
+  depend on the gamecode's spawn table, the same modelling debt the
+  `SP_target_speaker` finding above names. What it does cost is a claim about
+  what the engine can print, so the unreachable name is exempted in
+  `tests/test_arena_runtime.py` rather than given an engine note. The exemption
+  is keyed on the reference and the classname is its stated reason, because no
+  fragment records a classname; a future map writing that same name on a
+  worldspawn would be exempted wrongly, and loudly — the unaccepted line fails
+  the run. Found by
+  WP-F batch 4, by reading which entity carries the key rather than that both
+  names are in the lump.
+- **A `*` sound value is skipped, and only thirteen of them are safe.**
+  `_add_bsp` drops any `noise` or `music` value beginning with `*`
+  (`content_pack.py`), which is right for the one the published set contains:
+  `oa_shine`'s `target_speaker` names `*falling1.wav`, `SP_target_speaker` puts
+  it in `CS_SOUNDS` unchanged, `cg_servercmds.c` refuses to register a string
+  starting with `*`, and the event is answered from the activating client's own
+  sound set by `CG_CustomSound` (ioq3 `code/cgame/cg_players.c`). That works
+  because `*falling1.wav` is one of the thirteen names in `cg_customSoundNames`
+  — every player model in this pack ships them. For any **other** `*name`,
+  `CG_CustomSound` reaches `CG_Error("Unknown custom sound: %s")` and drops the
+  client. The closure cannot tell the two apart: it skips both, reports neither,
+  and packages nothing. **Fail-open**, like the two findings above, but loud
+  rather than silent — the failure is a dropped client, not a missing sound.
+  Modelling it means carrying `cg_customSoundNames` in the recipe. Found by the
+  WP-F batch-4 review, on the first batch to publish a `*` value at all.
 - **The shader stage reader models the stage image directives common to both
   renderers.** `map`, `clampmap`, `videomap`, `animMap` and `skyParms` are what
   name images in either renderer; `renderergl2`'s stage-type keywords
@@ -1053,14 +1094,18 @@ after its digest matches the identity the manifest records.
 Written down here by WP-F batch 3 because until then it existed only as code —
 and not even as code in this repository, but in the generator that produced the
 fragments. `arena_runtime.py` enforces two halves of it: the value must be a
-non-empty set drawn from `SUPPORTED_ARENA_TYPES` (`ffa`, `tourney`), and it must
-include `REQUIRED_ARENA_TYPE` (`ffa`), because the map is a launch argument and a
-rotation may reach any published archive while both profiles commit `GT_FFA`.
+non-empty set drawn from `SUPPORTED_ARENA_TYPES` (`ffa`, `tourney`), which is
+what produces the better diagnostic for an OpenArena-only tag, and it must then
+be exactly `PUBLISHED_ARENA_TYPE` (`ffa`), because the map is a launch argument
+and a rotation may reach any published archive while both profiles commit
+`GT_FFA`. The second half was an `include` until batch 3's review made it an
+equality; a rule documented here and enforced nowhere is what produced the
+mistake this section closes with.
 What neither constant says is what to do with upstream's *other* supported tag,
-and the answer the published set encodes is: drop it. Nine of the twenty-four
-published maps are typed `tourney` beside `ffa` upstream — seven of the sixteen
-that were published before this batch, and `oa_dm4` and `oa_dm7` in it — and
-every one of them carries plain `ffa`.
+and the answer the published set encodes is: drop it. Twelve of the twenty-nine
+published maps are typed `tourney` beside `ffa` upstream — nine of the
+twenty-four that were published before the last batch, and `aggressor`, `dm6ish`
+and `oa_rpg3dm2` in it — and every one of them carries plain `ffa`.
 
 So a map upstream types `tourney` **without** `ffa` — `oa_dm6` is the only one in
 v1 — normalises to `ffa` as well, rather than becoming the one fragment whose
@@ -1077,7 +1122,7 @@ set", which is what the code *looks* like it does and is not what it does.
 Applied to the set, that reading would have moved every one of those nine
 published archives and their immutable URLs for a field nothing in this profile
 reads; applied to `oa_dm6` alone, it would have left one fragment saying more
-than the other twenty-three.
+than the other twenty-eight.
 
 ### Served names carry their own digest
 
@@ -1267,10 +1312,10 @@ copying a template. Five classes, over the twenty-nine kept maps:
 | Class | Count | What it is |
 | --- | --- | --- |
 | sky outerbox | 90 across 15 maps | OpenArena's sky shaders write `skyParms full <height> -` and `ParseSkyParms` expands that outerbox name into six images the release does not ship. Harmless by the renderer's own code: a missing outerbox image becomes `tr.defaultImage`, and the box is drawn only `if (outerbox[0] && outerbox[0] != tr.defaultImage)`, so it is skipped and the cloud layers still draw |
-| worldspawn music | 14 across 13 maps | A `music` key naming a track no pinned release ships. `kaos2` contributes two because its entities write the same track under two names, `music/fla22k_05` and `music/fla22k_05.wav` — not because one lookup tries both, which is the entity rule and not the music one (nothing appends an extension to a `music` value); `oa_dm2`'s single key names an intro and a loop track in one value, and `CG_StartMusic` splits it with two `COM_Parse` calls, so the engine looks for both — under OpenAL it opens intro *and* loop and reports each name, while the dma backend opens only the intro. A missing track is silence |
+| `music` keys | 14 across 13 maps | A `music` key naming a track no pinned release ships. Thirteen are worldspawn keys, which is the only kind the engine reads. The fourteenth is `kaos2`'s second: it writes `music/fla22k_05` on the worldspawn and `music/fla22k_05.wav` on two `func_door` entities, and the closure takes a `music` key off every entity while `G_ParseField` drops one the spawn-field table does not name — so that reference exists in the closure and reaches no engine lookup of its own — the string surfaces only in a `developer 1` log, as one of the three codec attempts made for the worldspawn stem — and it is exempted rather than given a note. Not one lookup trying two spellings, either: appending `.wav` is the entity rule and not the music one. `oa_dm2`'s single key names an intro and a loop track in one value, and `CG_StartMusic` splits it with two `COM_Parse` calls, so the engine looks for both — under OpenAL it opens intro *and* loop and reports each name, while the dma backend opens only the intro. A missing track is silence |
 | entity sounds | 2 across 2 maps | A `noise` key naming a sound the release does not ship — `am_underworks2` and `oa_shouse` |
-| `textures/NULL` | 4 across 4 maps | q3map2's placeholder for a face the compiler could not texture, written into the BSP's shader lump — `oa_dm1`, `oa_dm2`, `oa_dm4`, `oa_dm6`. No OpenArena release ships an image for it, and the engine never registers it: `R_LoadShaders` only byte-swaps the flags, so a shader-lump entry reaches `R_FindShader` through `ShaderForShaderNum` alone, once per surface, and none of the four maps' 902, 2,524, 1,045 and 2,697 surfaces indexes it. Two other lumps can register a name independently — a fog record carries its own shader string, and `R_LoadEntities` passes `remapshader`/`vertexremapshader` worldspawn values to `R_RemapShader` — and neither names it in any of the four. The closure walks the whole lump, which is the conservative reading |
-| images named but absent | 3 across 3 maps | An image a shipped shader or the BSP's shader lump names that no pinned archive provides. This is the only class a player can see, so it decided the cut below |
+| `textures/NULL` | 4 across 4 maps | q3map2's placeholder for a face the compiler could not texture, written into the BSP's shader lump — `oa_dm1`, `oa_dm2`, `oa_dm4`, `oa_dm6`. No OpenArena release ships an image for it, and the engine never registers it: `R_LoadShaders` only byte-swaps the flags, so a shader-lump entry reaches `R_FindShader` through `ShaderForShaderNum` alone, once per surface, and none of the four maps' 902, 2,524, 1,045 and 2,697 surfaces indexes it. Three other paths can register a name without the shader lump — a fog record carries its own shader string; `R_LoadEntities` passes `remapshader`/`vertexremapshader` worldspawn values to `R_RemapShader`; and `targetShaderName`/`targetShaderNewName` are spawn fields, so `G_UseTargets` can remap a shader at run time over `CS_SHADERSTATE` — and none of them names it in any of the four. No published BSP writes any of those four entity keys, checked over all twenty-nine entity lumps. The closure walks the whole lump, which is the conservative reading |
+| images named but absent | 3 across 3 maps | An image a shipped shader or the BSP's shader lump names that no pinned archive provides. It is the only class that *can* be visible, which is why it decided the cut below — but membership is not visibility: `kaos2`'s entry draws 0 of 2,194 faces and is as invisible as `textures/NULL`. The face share is the measurement, not the class |
 
 ### What the engine did with them
 
@@ -1302,8 +1347,17 @@ geometry the affected shader covers, not on their console output:
 The three kept maps in that class are one to two orders of magnitude below
 them, which is where the evidence separates rather than where a threshold was
 chosen: `oa_koth1` 31 of 2,200 faces (1.4 %), `am_underworks2` 26 of 4,197
-(0.6 %), and `kaos2` **0** — its shader lump names
-`textures/gothic_floor/goopq1metal7_98d` but no face uses it.
+(0.6 %), and `kaos2` **0 of 2,194** — its shader lump names
+`textures/gothic_floor/goopq1metal7_98d` at entry 48 and no surface indexes it,
+which puts it in the same position as `textures/NULL`: nothing ever registers
+the name. `ShaderForShaderNum` calls `R_FindShaderEx`, the function
+`R_FindShader` wraps, once per surface and from nowhere else. Checked over the
+three other paths that can register a name, as that row requires — the map's
+single fog record carries its own shader string
+(`textures/liquids/lavahell_750`), and it writes neither the
+`remapshader`/`vertexremapshader` worldspawn keys nor the
+`targetShaderName`/`targetShaderNewName` spawn fields — and confirmed by a
+`developer 1` native run that says nothing about it.
 
 Recovering any of the three cut maps means adding a content source, which is a
 recipe decision with its own licence audit, so they are held out rather than
@@ -1342,7 +1396,7 @@ the file name has no say. Two upstream files that define the same name, landing
 in two different map archives, therefore resolve to the definition the index
 did not choose, and the closure has packaged the other definition's images.
 
-Assembling all thirty-one candidates is what found it: 37 shader names across
+Assembling the then thirty-one kept candidates in one pack (§13.4's WP-A run, before `pxlfan` and `am_lavaarena` were cut) is what found it: 37 shader names across
 five upstream file pairs, `scripts/cosmoflash.shader` against
 `scripts/am_cosmoflash.shader` the largest at 30. Dropping maps does not fix
 it — over that set `scripts/detailtest.shader` was reached by 22 maps and
@@ -1484,7 +1538,7 @@ survive a move unremeasured.
   once it holds `MAX_CONSOLE_LINES` (32) console lines, leaving the rest neither
   parsed nor reported. A rotation is one `+set d<N>` line per map plus
   `+vstr d1`, so against this release's committed server arguments the ceiling
-  is **15 of the 24 published maps** — both bounds are read out of the pinned
+  is **15 of the 29 published maps** — both bounds are read out of the pinned
   tree by `scripts/arena_runtime.py` and enforced where the rotation actually
   exists. The other bound is what a player downloads and holds in the tab,
   which is why the manifest records both sizes.
@@ -1494,19 +1548,40 @@ survive a move unremeasured.
   console lines, so a rotation of *n* maps brings the total to `16 + n + 1` and
   the line bound alone permits at most 15 — whatever the maps are called. A
   rotation of 16 one-character names is refused for the same reason as a
-  rotation of 16 real ones. So the ceiling is 15 through both batch 2 and batch
-  3 not because two effects cancelled, but because the binding half never
-  depended on the content at all. It falls when the profile grows a launch
-  argument, since every extra console line costs a rotation slot.
+  rotation of 16 real ones. So the ceiling is 15 through batches 2, 3 and 4 not
+  because effects cancelled, but because the binding half never depended on the
+  content at all. It falls when the profile grows a launch argument, since every
+  extra console line costs a rotation slot.
 
   The byte bound is the half that moves with the names, and **it is closer than
-  it looks**. `max_rotation_length` answers for prefixes of the published list
-  in order, so its 15 is the alphabetically first fifteen, which assemble to
-  987 of 1024 bytes; the fifteen *longest* published names assemble to **1018**,
-  six bytes of headroom rather than thirty-seven. Measure with
-  `arena_runtime.engine_command_line`, which is what the budget check uses —
-  joining the arguments with single spaces omits the quoting the engine's own
-  assembly adds, and understates the total.
+  it looks and closing**. `max_rotation_length` answers for prefixes of the
+  published list in order, so its 15 is the alphabetically first fifteen. Every
+  figure here is `len(engine_command_line(rotation_arguments(rot) +
+  serverArguments))` over the fragment directory, which is what the budget check
+  itself measures — joining the arguments with single spaces omits the quoting
+  the engine's own assembly adds and understates the total.
+
+  | Rotation of 15 | Bytes of 1024 | |
+  | --- | --- | --- |
+  | the alphabetically first fifteen — what `max_rotation_length` answers for | 989 | was 987 over the 24 published before batch 4 |
+  | the fifteen **longest** published names | **1021** | was 1018; three bytes below the limit, which is refused at 1024 |
+  | fifteen entries of `am_underworks2` | 1073 | refused, and permitted by `validate_rotation` |
+
+  An extra character in a rotated name costs exactly one byte, measured the same
+  way, and `check_command_line_budget` refuses at 1024 rather than above it, so
+  the worst distinct-fifteen rotation this set can express has room for **two**
+  further characters; the twenty-four-map set had five. That headroom is in
+  characters, not in maps, and the two are not interchangeable: the fifteen
+  longest names currently end in two eight-character ones, so a **single** newly
+  published map with an eleven-character name would already exceed it and put
+  the byte bound below the line bound, at which point the ceiling would depend
+  on which maps are published rather than on how many.
+
+  What did *not* change is the sixteen-map case, and the first draft of this
+  paragraph said it had. The alphabetically first sixteen assemble to 1032 bytes
+  and 33 console lines — but so did the first sixteen of the twenty-four-map
+  set, whose names sum to the same 132 characters. Both bounds refused sixteen
+  before this batch and both refuse it now.
 
   And for a rotation that **repeats** a map it does not hold at all.
   `validate_rotation` permits repetition deliberately, and fifteen entries of

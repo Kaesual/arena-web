@@ -2020,23 +2020,37 @@ class EngineLogClassificationTest(unittest.TestCase):
         **What this still infers rather than reads.** A reference is treated as
         background music because it came from a map fragment and starts with
         `music/`, and that is a claim about which engine path it travels, not
-        something the fragment records: `content_pack._add_bsp` reads a
-        worldspawn `music` key and an entity `noise` key into the same list, and
+        something the fragment records: `content_pack._add_bsp` reads a `music`
+        or `noise` key off *every* entity into the same list, and
         `cg_servercmds.c` registers *any* CS_SOUNDS string through
         S_RegisterSound whatever directory it names. So a map whose `noise` key
         named a `music/...` path would be exempted here from the two spellings it
-        can actually produce. It holds for this set because every accepted
-        `music/` reference in a fragment was read out of the BSP's entity lump
-        and is a worldspawn value; it would stop holding silently, which is why
-        it is written down.
+        can actually produce.
+
+        The inference stopped holding on the map that published it, in the other
+        direction: `kaos2` writes `music/fla22k_05.wav` as a `music` key on two
+        `func_door` entities, and `music` is not in the game's spawn-field table,
+        so `G_ParseField` drops it and `SP_worldspawn` -- the only reader of a
+        `music` key -- never sees it. Treating it as background music asked for
+        two spellings where the answer is none: the engine cannot report the
+        name at all, so it belongs in the exemptions below rather than in a
+        note. The classname is what decides that, and no fragment records one,
+        which is why the check is a claim written down and not a reading. The
+        name does occur in a `developer 1` log, where `S_CodecUtilOpen` prints
+        "Can't read sound file music/fla22k_05.wav" while probing the
+        *worldspawn* stem against each codec extension -- the same spelling
+        arriving from the other reference, and not a line any acceptance
+        classifies.
         """
-        # References the closure accepts because a QVM names them, that this
-        # profile cannot reach, with the engine site that decides it. An entry
-        # here is a claim about unreachability, not a way to skip writing a
-        # note: if the profile ever reaches one, its line is a defect and the
-        # run fails, which is the right outcome for a claim that turned out to
-        # be wrong.
+        # References the closure accepts -- because a QVM names them, or
+        # because a BSP entity does -- that this profile cannot reach, each with
+        # the engine site that decides it. An entry here is a claim about
+        # unreachability, not a way to skip writing a note: if the profile ever
+        # reaches one, its line is a defect and the run fails, which is the
+        # right outcome for a claim that turned out to be wrong.
         UNREACHABLE = {
+            "music/fla22k_05.wav": "kaos2 func_door 'music' key; not in the "
+            "game's spawn-field table and only SP_worldspawn reads one",
             "music/loss": "q3_ui/ui_sppostgame.c only",
             "music/loss.wav": "q3_ui/ui_sppostgame.c only",
             "music/win": "q3_ui/ui_sppostgame.c only",
@@ -2166,16 +2180,24 @@ class EngineLogClassificationTest(unittest.TestCase):
         )
 
     def test_the_unreachable_exemptions_are_still_defects_if_they_appear(self) -> None:
-        """The exemption above is about reachability, not about acceptability."""
+        """The exemption above is about reachability, not about acceptability.
+
+        kaos2's second music name is the one that matters here. It is exempt
+        because two `func_door` entities cannot reach the engine's music path,
+        and the exemption is worth something only if no note covers the line
+        anyway: the map's *other* music name differs from it by an extension,
+        and an unanchored note for either would swallow both.
+        """
         found = classify_engine_log(
             [
                 "^3WARNING: Failed to load sound "
                 "sound/player/announce/youwin.wav!",
                 "^3WARNING: could not find sound/teamplay/flagret_red.wav "
                 "- using default",
+                "^3WARNING: Failed to open sound music/fla22k_05.wav!",
             ]
         )
-        self.assertEqual(len(found["missing-asset"]), 2)
+        self.assertEqual(len(found["missing-asset"]), 3)
         self.assertEqual(len(found["accepted-note"]), 0)
 
 

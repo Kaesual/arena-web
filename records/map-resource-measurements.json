@@ -16,6 +16,9 @@
   ],
   "formatVersion": 1,
   "maps": {
+    "aggressor": {
+      "peakHunkBytes": 27413992
+    },
     "am_galmevish": {
       "peakHunkBytes": 26977640
     },
@@ -36,6 +39,12 @@
     },
     "czest1tourney": {
       "peakHunkBytes": 28579368
+    },
+    "dm6ish": {
+      "peakHunkBytes": 29158440
+    },
+    "kaos2": {
+      "peakHunkBytes": 30319496
     },
     "mlca1": {
       "peakHunkBytes": 30275304
@@ -70,6 +79,12 @@
     "oa_pvomit": {
       "peakHunkBytes": 31441576
     },
+    "oa_rpg3dm2": {
+      "peakHunkBytes": 32380968
+    },
+    "oa_shine": {
+      "peakHunkBytes": 29625704
+    },
     "oa_shouse": {
       "peakHunkBytes": 31362472
     },
@@ -101,6 +116,6 @@
       "2026-09-01",
       "2026-09-02"
     ],
-    "peakHunkBytes": "One native client per session on Xvfb inside the pinned WP5 toolchain image, driven over its own console: 'map <name>', bot_minplayers 3, then 'meminfo'. Hunk_Clear zeroes both marks and both tempHighwater values on every map load (ioq3 code/qcommon/common.c), so each report is that map's own figure. The value is 'total hunk in use' plus 'unused highwater'. Sound is off, matching the method the whole set was ranked with. The three sessions behind these figures are tied together by a control rather than by assumption: oa_pvomit was re-loaded twice on 2026-09-02, each time as both the first map of a cold client and as the tenth, against mounts of seventeen and then twenty-five archives instead of the nine it was first measured with, and all five readings are the same 31441576 bytes."
+    "peakHunkBytes": "One native client per session on Xvfb inside the pinned WP5 toolchain image, driven over its own console: 'map <name>', bot_minplayers 3, then 'meminfo'. Hunk_Clear zeroes both marks and both tempHighwater values on every map load (ioq3 code/qcommon/common.c), so each report is that map's own figure. The value is 'total hunk in use' plus 'unused highwater'. Sound is off, matching the method the whole set was ranked with. The four sessions behind these figures are tied together by a control rather than by assumption: oa_pvomit was re-measured in three later sessions on 2026-09-02, each time as the first map of a cold client and again after the rest of the batch, against mounts of seventeen, twenty-five and thirty archives instead of the nine it was first measured with, and all seven readings are the same 31441576 bytes."
   }
 }

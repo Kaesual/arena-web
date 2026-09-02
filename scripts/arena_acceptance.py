@@ -118,7 +118,7 @@ ENGINE_DEFECT_PATTERNS: tuple[tuple[str, str, re.Pattern[str]], ...] = (
 # would hide the next real gap.
 ACCEPTED_ENGINE_NOTES: tuple[tuple[re.Pattern[str], str], ...] = (
     (
-        re.compile(r"Failed to (?:load|open) sound music/sonic5\.wav"),
+        re.compile(r"Failed to (?:load|open) sound music/sonic5\.wav!"),
         "oa_pvomit's worldspawn names a music track no OpenArena release ships; "
         "WP3 already accepted it as a dangling upstream reference",
     ),
@@ -335,6 +335,34 @@ ACCEPTED_ENGINE_NOTES: tuple[tuple[re.Pattern[str], str], ...] = (
         "the intro and then the loop, so the OpenAL client this acceptance runs "
         "reports both names, while the dma backend opens only the intro. One "
         "fragment entry, two names the engine can report",
+    ),
+    # WP-F batch 4, the last five maps. Only one of them reports anything:
+    # aggressor's music track and every entity sound of the five resolve, and
+    # oa_shine's one target_speaker names `*falling1.wav`, which
+    # cg_servercmds.c does not register because the string starts with '*'.
+    # That is not silence and not a property of the star: G_SoundIndex still
+    # puts the name in CS_SOUNDS, the event reaches CG_CustomSound, and
+    # cg_players.c answers it from the *activating client's own* sound set --
+    # for the thirteen names in cg_customSoundNames, of which `*falling1.wav`
+    # is one. For any other `*name` CG_CustomSound calls CG_Error and drops the
+    # client, and the closure cannot tell the two apart because _add_bsp skips
+    # every `*` value. Recorded as a closure gap in docs/wp3-content-closure.md.
+    #
+    # kaos2's second music name gets no note on purpose. Its `.wav` spelling is
+    # a 'music' key on two func_door entities, and 'music' is not in the game's
+    # spawn-field table: G_ParseField drops the key and SP_worldspawn is the
+    # only reader of one (ioq3 code/game/g_spawn.c), so nothing indexes, opens
+    # or reports that name. It is recorded as unreachable in
+    # tests/test_arena_runtime.py, where a wrong claim fails the run, rather
+    # than accepted here, where it would silently cover a line if the claim
+    # were wrong.
+    (
+        re.compile(r"Failed to (?:load|open) sound music/fla22k_05!"),
+        "kaos2's worldspawn music key names music/fla22k_05 without a file "
+        "extension, so S_CodecGetSound probes wav, ogg and opus against the "
+        "stem and reports the bare name. No pinned OpenArena release ships the "
+        "track under any of them, the map fragment accepts it, and a missing "
+        "track is silence",
     ),
 )
 
