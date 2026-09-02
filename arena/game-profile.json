@@ -183,10 +183,66 @@
     },
     {
       "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-oa_koth1.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-oa_koth1-d0fd6c5ec61771ef.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-oa_koth1.pk3"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-oa_minia.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-oa_minia-91d9380e910cf9d4.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-oa_minia.pk3"
+    },
+    {
+      "manifest": "content",
       "path": "baseq3/arena-web-ffa-map-oa_pvomit.pk3",
       "served": "content/baseq3/arena-web-ffa-map-oa_pvomit-9a4b9caf4ddd4405.pk3",
       "role": "filesystem",
       "fsPath": "/arena/arena-web-ffa-map-oa_pvomit.pk3"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-oa_shouse.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-oa_shouse-1c52b3f3fe0bda3f.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-oa_shouse.pk3"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-pul1duel-oa.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-pul1duel-oa-1f27817fc959097d.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-pul1duel-oa.pk3"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-sleekgrinder.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-sleekgrinder-88f37f5375cce381.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-sleekgrinder.pk3"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-slimefac.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-slimefac-9c8a461f3b53fd4d.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-slimefac.pk3"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-suspended.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-suspended-a8fd1e84a32178f0.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-suspended.pk3"
+    },
+    {
+      "manifest": "content",
+      "path": "baseq3/arena-web-ffa-map-wrackdm17.pk3",
+      "served": "content/baseq3/arena-web-ffa-map-wrackdm17-edd8beccbd66737b.pk3",
+      "role": "filesystem",
+      "fsPath": "/arena/arena-web-ffa-map-wrackdm17.pk3"
     }
   ],
   "engineArguments": [

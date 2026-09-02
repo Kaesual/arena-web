@@ -64,12 +64,76 @@
       "uncompressedSize": 10698751
     },
     {
+      "map": "oa_koth1",
+      "path": "baseq3/arena-web-ffa-map-oa_koth1.pk3",
+      "peakHunkBytes": 34341832,
+      "sha256": "d0fd6c5ec61771efd996376ad533182df0279e80bfeaf77736ee9710578c8a06",
+      "size": 12252419,
+      "uncompressedSize": 20792507
+    },
+    {
+      "map": "oa_minia",
+      "path": "baseq3/arena-web-ffa-map-oa_minia.pk3",
+      "peakHunkBytes": 32236712,
+      "sha256": "91d9380e910cf9d4766443c8c821f9a76b6b31ce1f562696a631f883b9428d25",
+      "size": 6323852,
+      "uncompressedSize": 13664155
+    },
+    {
       "map": "oa_pvomit",
       "path": "baseq3/arena-web-ffa-map-oa_pvomit.pk3",
       "peakHunkBytes": 31441576,
       "sha256": "9a4b9caf4ddd4405b07a33555972d2a043f5679e97af9594096eb40850888931",
       "size": 1915429,
       "uncompressedSize": 5366597
+    },
+    {
+      "map": "oa_shouse",
+      "path": "baseq3/arena-web-ffa-map-oa_shouse.pk3",
+      "peakHunkBytes": 31362472,
+      "sha256": "1c52b3f3fe0bda3f2321f72e58ff8c4db007cd313cd1d52fd81862b3240ee639",
+      "size": 3371024,
+      "uncompressedSize": 7634964
+    },
+    {
+      "map": "pul1duel-oa",
+      "path": "baseq3/arena-web-ffa-map-pul1duel-oa.pk3",
+      "peakHunkBytes": 30321160,
+      "sha256": "1f27817fc959097dcc5c7f4ea85952be448ad03cec2ac3b9011269cb543f8654",
+      "size": 7663290,
+      "uncompressedSize": 18497237
+    },
+    {
+      "map": "sleekgrinder",
+      "path": "baseq3/arena-web-ffa-map-sleekgrinder.pk3",
+      "peakHunkBytes": 29895368,
+      "sha256": "88f37f5375cce38132e47ac36375ab1e2c6df582b34d85d88b20da90cdcfa7e6",
+      "size": 4075717,
+      "uncompressedSize": 8481115
+    },
+    {
+      "map": "slimefac",
+      "path": "baseq3/arena-web-ffa-map-slimefac.pk3",
+      "peakHunkBytes": 29315048,
+      "sha256": "9c8a461f3b53fd4d4817f1133fd0361220a816b9899f00cf768b91626c2f0ebc",
+      "size": 2479876,
+      "uncompressedSize": 7334000
+    },
+    {
+      "map": "suspended",
+      "path": "baseq3/arena-web-ffa-map-suspended.pk3",
+      "peakHunkBytes": 35641800,
+      "sha256": "a8fd1e84a32178f0ee559cab6aca2429887d197ba65cbd23087a9157a4f45fcf",
+      "size": 5415335,
+      "uncompressedSize": 11306266
+    },
+    {
+      "map": "wrackdm17",
+      "path": "baseq3/arena-web-ffa-map-wrackdm17.pk3",
+      "peakHunkBytes": 33273864,
+      "sha256": "edd8beccbd66737b043e06ead9cd55b9f8816dcf4d0f80273c46ffa324b4583c",
+      "size": 9447295,
+      "uncompressedSize": 17306552
     }
   ],
   "baselineIdentity": "sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287",
@@ -120,13 +184,53 @@
       "kind": "archive"
     },
     {
+      "id": "arena-web-map-oa_koth1",
+      "identity": "sha256:49002cb1eb9564597bbdcd56a1a65bce91db53e11cf0cd85ac34243a1b115cf3",
+      "kind": "archive"
+    },
+    {
+      "id": "arena-web-map-oa_minia",
+      "identity": "sha256:b0f789846b54ffe8badc8de0cbd21eaba6aca4d3e4979bf1a35d52f47c0661e5",
+      "kind": "archive"
+    },
+    {
       "id": "arena-web-map-oa_pvomit",
       "identity": "sha256:2aee900f193f2fcc0e9dd4c4ff1fd5d04dc3111769cee139f96187e634ef4f91",
       "kind": "archive"
     },
     {
+      "id": "arena-web-map-oa_shouse",
+      "identity": "sha256:847943cc73ecb5741477c1d21880162860e80db8b58a2f9fe2aa4cb133855041",
+      "kind": "archive"
+    },
+    {
+      "id": "arena-web-map-pul1duel-oa",
+      "identity": "sha256:5cde43ef2d4975c54fa0fc224115d62152936d45bb7c50def53898dc82c41607",
+      "kind": "archive"
+    },
+    {
+      "id": "arena-web-map-sleekgrinder",
+      "identity": "sha256:37438b635283be1469c22232c99958e4bea95878d283b78ce4fc416771732cdb",
+      "kind": "archive"
+    },
+    {
+      "id": "arena-web-map-slimefac",
+      "identity": "sha256:361e90cbcfc7aa8891e0c3ec6653dbd064afdf8311ada94ddf3b6c2d25980e17",
+      "kind": "archive"
+    },
+    {
+      "id": "arena-web-map-suspended",
+      "identity": "sha256:89ccfcd89e79e2821e458ef1acb6636a8d81ee9fdf45a94a2c0ec5c9e8c0495e",
+      "kind": "archive"
+    },
+    {
+      "id": "arena-web-map-wrackdm17",
+      "identity": "sha256:3286c1dddf312d87a86aa83a335f144b2871afd97bd495896239089603254cd6",
+      "kind": "archive"
+    },
+    {
       "id": "arena-web-resource-measurements",
-      "identity": "sha256:449984ae281e6e8680826888c8e5dfc4b38474b35684d8afb091d444fc1c52b5",
+      "identity": "sha256:59fe0e6ec4a4b068d10c6a8aec860e45664d247e2babdff4a853eb8096c2d84c",
       "kind": "archive"
     },
     {
@@ -166,7 +270,7 @@
     }
   ],
   "producer": {
-    "commit": "94f27c0a6470f3c5cea12d0c3f8d4c96ed391f7e",
+    "commit": "dcbc35440ee88688c4c866e6404d95b3a69c168d",
     "name": "arena-web scripts/build-content-pack.sh"
   }
 }

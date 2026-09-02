@@ -19,7 +19,7 @@ prototype bounds, not a wider platform or capacity claim.
 ## 1. Browser manifest, digests and public layout
 
 The release index is outside the browser root to avoid hashing itself. Its
-`servedFiles` array is the complete, path-sorted browser root: exactly 25
+`servedFiles` array is the complete, path-sorted browser root: exactly 33
 relative files, each with byte length and SHA-256. The staging validator checks
 that list against both repository source and the generated artifact manifests;
 an extra, missing, symlinked or changed file fails the release.
@@ -30,9 +30,9 @@ The primary immutable identities are:
 | --- | --- |
 | Baseline lock | `sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287` |
 | Browser artifact manifest | `sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047` |
-| Content artifact manifest | `sha256:aeb745adb71e4cf0f34bed5f3a7dd857e035a354958edcd6e5f0b3c584529885` |
+| Content artifact manifest | `sha256:a56000d53c8d1190cf3d47e921f91bc0b9abcda406a86b95d300f3d45f3a76a4` |
 | Base content archive | `sha256:caa003fcd7a79d3431a73166ed531d40b8a3d3728bca487d4b55c07d681c4229`, 40,985,746 bytes |
-| Map archives | eight, one per map, enumerated in the content artifact manifest |
+| Map archives | sixteen, one per map, enumerated in the content artifact manifest |
 
 **The content is a set of archives, not one PK3.** A base archive carries
 everything not tied to a map — the gamecode's own closure, the seven player
@@ -267,8 +267,8 @@ The exact server identities are:
 
 | Input | Identity |
 | --- | --- |
-| OCI configuration/image ID | `sha256:632d60d4069d70421939eeb9f2c96046e9f14ddc1e87a9b6cbf9baefc23904aa` |
-| Server artifact manifest | `sha256:e64480d0812754e7db29a0282fe3f1396136190a79e6c76ded893a3c83635f8f` |
+| OCI configuration/image ID | `sha256:21acf69282db5bb74708a0ea026bd6b2a657850f8c756fa0ae3cd30f4c8a60b1` |
+| Server artifact manifest | `sha256:f23f244e9a86469afb12436d1933c486357aed10bdb50864c3cf4fa0cd0879bd` |
 | Server profile | `sha256:6d48c19238b1874bf30d276a8419ec771007f13739f0e69c447b33d412a69472` |
 
 The image is `linux/amd64`, user/group `65534:65534`, workdir
@@ -320,7 +320,7 @@ read-only and mount an initially empty, `rw,noexec,nosuid,nodev`, mode-1777,
 64-MiB tmpfs at `/var/lib/arena`. That home holds only ephemeral engine config
 and `games.log`. There is **no persistent path or volume** in this release; no
 world, save, secret or host file is required. The read-only image is
-157,714,893 bytes; the measured container writable layer after stop
+208,750,031 bytes; the measured container writable layer after stop
 was 12,554 bytes and is disposable.
 
 Readiness is the native binary UDP query, no more than once per second from a
@@ -340,7 +340,7 @@ one-second checks make the observation failed.
 Send `SIGTERM` or `SIGINT` to the entrypoint and allow 10 seconds before a
 forced kill. The normal signal path sends the final server message, closes the
 VM/network and exits with code 1; code 1 is therefore success only when the
-manager requested this stop. The measured graceful exit took 0.111 seconds.
+manager requested this stop. The measured graceful exit took 0.114 seconds.
 Any unsolicited exit, including code 1, is failure.
 
 ## 5. Indivisible compatibility identity
@@ -352,10 +352,10 @@ loader, profile, QVM, pack, binary or relay profile:
 baseline          sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287
 ioq3               git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592
 browser manifest   sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047
-content manifest   sha256:aeb745adb71e4cf0f34bed5f3a7dd857e035a354958edcd6e5f0b3c584529885
+content manifest   sha256:a56000d53c8d1190cf3d47e921f91bc0b9abcda406a86b95d300f3d45f3a76a4
 content base       sha256:caa003fcd7a79d3431a73166ed531d40b8a3d3728bca487d4b55c07d681c4229
-server manifest    sha256:e64480d0812754e7db29a0282fe3f1396136190a79e6c76ded893a3c83635f8f
-server image ID    sha256:632d60d4069d70421939eeb9f2c96046e9f14ddc1e87a9b6cbf9baefc23904aa
+server manifest    sha256:f23f244e9a86469afb12436d1933c486357aed10bdb50864c3cf4fa0cd0879bd
+server image ID    sha256:21acf69282db5bb74708a0ea026bd6b2a657850f8c756fa0ae3cd30f4c8a60b1
 ```
 
 `release/browser-release.json.compatibility` repeats these values and its
@@ -418,8 +418,8 @@ for this exact eight-slot/two-human/three-bot prototype is:
 
 | Resource | Limit | Busy observed maximum | Remaining safety margin |
 | --- | ---: | ---: | ---: |
-| CPU | 1 core | 0.041566-core peak sample | 0.958434 core; 24.058x |
-| Memory | 268,435,456 bytes | 29,982,720-byte peak cgroup; 31,178,752-byte process HWM | 238,452,736 bytes; 8.953x against cgroup peak |
+| CPU | 1 core | 0.054634-core peak sample | 0.945366 core; 18.304x |
+| Memory | 268,435,456 bytes | 29,958,144-byte peak cgroup; 31,395,840-byte process HWM | 238,477,312 bytes; 8.96x against cgroup peak |
 | Writable home | 67,108,864 bytes | 1,272 bytes | 67,107,592 bytes; 52,758.541x |
 | Processes | 128 PIDs | constrained successfully by the probe | guard, not a measured demand claim |
 
@@ -427,9 +427,9 @@ Startup readiness was 1.75 seconds, which is a poll-loop
 figure and not a startup time: the readiness probe waits out a 0.75-second
 socket timeout and then a one-second interval, so it says the server was ready
 before the second poll and no more than that. The ten-second idle phase
-averaged 0.019687 cores. The 30-second two-native-client phase, with
+averaged 0.021239 cores. The 30-second two-native-client phase, with
 movement, weapon, fire, chat and respawn traffic while all three bots remained
-active, averaged 0.032449 cores. These values preserve large practical headroom, but are
+active, averaged 0.038657 cores. These values preserve large practical headroom, but are
 capacity guards only—not an SLO, autoscaling rule, production concurrency
 claim or evidence for more than two humans.
 
@@ -496,7 +496,7 @@ offer creates a new release and requires a newly checked index.
 ## Producer acceptance evidence
 
 The final producer state passed the deterministic test suite and the strict
-25-file stage/index check. Reproducibility is not asserted here but performed:
+stage/index check over every file the release index names. Reproducibility is not asserted here but performed:
 `scripts/reproduce-release.sh`, run from a clean checkout of the commit that
 carries this document, rebuilds the browser, the content archives, the native
 server and the image and compares the browser manifest, the content manifest,
@@ -538,8 +538,8 @@ major or minor finding.
 
 ## Minimal consumer acceptance
 
-A consumer need only: validate the immutable checkout; stage and hash-check the
-25-file tree; verify the loaded image ID; observe exact server readiness; use
+A consumer need only: validate the immutable checkout; stage and hash-check the tree the
+release index names, whose size grows with the published map set; verify the loaded image ID; observe exact server readiness; use
 one real gesture to reach browser `running` plus relay `open`; exercise focus
 and enter/leave fullscreen; call `stop()` and receive the real final settlement;
 and make the complete Source and licences link durable. This is a smoke test,

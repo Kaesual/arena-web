@@ -27,8 +27,8 @@
     },
     "browserProfile": {
       "path": "arena/game-profile.json",
-      "sha256": "d505034df98f9c3699beba91f084aa84bced99c83df012514f695c8ec0b8ec52",
-      "size": 8546
+      "sha256": "058bbbd24d0ac8fc81bdf99974a690b9f62f6ac846584254fbb70035c39390ce",
+      "size": 10680
     },
     "contentAssembly": {
       "path": "scripts/build-content-pack.sh",
@@ -37,18 +37,18 @@
     },
     "contentLicenseClosure": {
       "path": "docs/wp3-content-closure.md",
-      "sha256": "5ba8f95675a007bbd6da2a7f74b0b4fcfd928ad5a832e1265538fabad04cfc3f",
-      "size": 91525
+      "sha256": "54a242d8e62a8f1a37c36ca787d6e9a7933c3d46bc5094b22930d5646eaed84b",
+      "size": 94680
     },
     "contentManifest": {
       "path": "provenance/arena-web-ffa-content-manifest.json",
-      "sha256": "aeb745adb71e4cf0f34bed5f3a7dd857e035a354958edcd6e5f0b3c584529885",
-      "size": 5628
+      "sha256": "a56000d53c8d1190cf3d47e921f91bc0b9abcda406a86b95d300f3d45f3a76a4",
+      "size": 9144
     },
     "contentMemberProvenance": {
       "path": "provenance/arena-web-ffa-content.json",
-      "sha256": "9f8fcdeae17e1b02533df6d562b9b8e96d84301902dc355c0b35f041bf35420d",
-      "size": 1021380
+      "sha256": "a3b0975f5aa6a40f656255984a15223f37807520758c89840508a68c2997ef96",
+      "size": 1461348
     },
     "contentRecipe": {
       "path": "content/pack-recipe.json",
@@ -57,8 +57,8 @@
     },
     "integrationHandoff": {
       "path": "docs/wp11-integration-handoff.md",
-      "sha256": "972ec7dcab1d510fd26d0b9af0ca46cb72b2aaaaa9b1661e6af5c84afb3c30e9",
-      "size": 29672
+      "sha256": "4ebaae5f2b96dd0d23aa569560ca61ab28ccc3fc0a11d515c23bbe9c700483e2",
+      "size": 29766
     },
     "projectLicense": {
       "path": "LICENSE",
@@ -72,8 +72,8 @@
     },
     "resourceMeasurement": {
       "path": "records/wp11-server-resources.json",
-      "sha256": "adb23cc5ea1e02a2ef4a1e37fd6c02a9eb44dbe3278539ce925c0264f8133125",
-      "size": 3093
+      "sha256": "5089de4d4793af43fd5299cae6e23423d44cadb67484c193d04c2fd35710487d",
+      "size": 3090
     },
     "serverAssembly": {
       "path": "scripts/build-server-image.sh",
@@ -87,8 +87,8 @@
     },
     "serverManifest": {
       "path": "provenance/arena-web-server.json",
-      "sha256": "e64480d0812754e7db29a0282fe3f1396136190a79e6c76ded893a3c83635f8f",
-      "size": 3729
+      "sha256": "f23f244e9a86469afb12436d1933c486357aed10bdb50864c3cf4fa0cd0879bd",
+      "size": 5236
     },
     "serverProfile": {
       "path": "native/server-profile.json",
@@ -105,11 +105,11 @@
   "compatibility": {
     "baselineIdentity": "sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287",
     "browserManifestIdentity": "sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047",
-    "contentManifestIdentity": "sha256:aeb745adb71e4cf0f34bed5f3a7dd857e035a354958edcd6e5f0b3c584529885",
+    "contentManifestIdentity": "sha256:a56000d53c8d1190cf3d47e921f91bc0b9abcda406a86b95d300f3d45f3a76a4",
     "contentPayloadIdentity": "sha256:caa003fcd7a79d3431a73166ed531d40b8a3d3728bca487d4b55c07d681c4229",
     "engineCommit": "d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
-    "serverImageId": "sha256:632d60d4069d70421939eeb9f2c96046e9f14ddc1e87a9b6cbf9baefc23904aa",
-    "serverManifestIdentity": "sha256:e64480d0812754e7db29a0282fe3f1396136190a79e6c76ded893a3c83635f8f"
+    "serverImageId": "sha256:21acf69282db5bb74708a0ea026bd6b2a657850f8c756fa0ae3cd30f4c8a60b1",
+    "serverManifestIdentity": "sha256:f23f244e9a86469afb12436d1933c486357aed10bdb50864c3cf4fa0cd0879bd"
   },
   "digestAlgorithm": "sha256",
   "formatVersion": 1,
@@ -175,9 +175,49 @@
       "size": 7479132
     },
     {
+      "path": "content/baseq3/arena-web-ffa-map-oa_koth1-d0fd6c5ec61771ef.pk3",
+      "sha256": "d0fd6c5ec61771efd996376ad533182df0279e80bfeaf77736ee9710578c8a06",
+      "size": 12252419
+    },
+    {
+      "path": "content/baseq3/arena-web-ffa-map-oa_minia-91d9380e910cf9d4.pk3",
+      "sha256": "91d9380e910cf9d4766443c8c821f9a76b6b31ce1f562696a631f883b9428d25",
+      "size": 6323852
+    },
+    {
       "path": "content/baseq3/arena-web-ffa-map-oa_pvomit-9a4b9caf4ddd4405.pk3",
       "sha256": "9a4b9caf4ddd4405b07a33555972d2a043f5679e97af9594096eb40850888931",
       "size": 1915429
+    },
+    {
+      "path": "content/baseq3/arena-web-ffa-map-oa_shouse-1c52b3f3fe0bda3f.pk3",
+      "sha256": "1c52b3f3fe0bda3f2321f72e58ff8c4db007cd313cd1d52fd81862b3240ee639",
+      "size": 3371024
+    },
+    {
+      "path": "content/baseq3/arena-web-ffa-map-pul1duel-oa-1f27817fc959097d.pk3",
+      "sha256": "1f27817fc959097dcc5c7f4ea85952be448ad03cec2ac3b9011269cb543f8654",
+      "size": 7663290
+    },
+    {
+      "path": "content/baseq3/arena-web-ffa-map-sleekgrinder-88f37f5375cce381.pk3",
+      "sha256": "88f37f5375cce38132e47ac36375ab1e2c6df582b34d85d88b20da90cdcfa7e6",
+      "size": 4075717
+    },
+    {
+      "path": "content/baseq3/arena-web-ffa-map-slimefac-9c8a461f3b53fd4d.pk3",
+      "sha256": "9c8a461f3b53fd4d4817f1133fd0361220a816b9899f00cf768b91626c2f0ebc",
+      "size": 2479876
+    },
+    {
+      "path": "content/baseq3/arena-web-ffa-map-suspended-a8fd1e84a32178f0.pk3",
+      "sha256": "a8fd1e84a32178f0ee559cab6aca2429887d197ba65cbd23087a9157a4f45fcf",
+      "size": 5415335
+    },
+    {
+      "path": "content/baseq3/arena-web-ffa-map-wrackdm17-edd8beccbd66737b.pk3",
+      "sha256": "edd8beccbd66737b043e06ead9cd55b9f8816dcf4d0f80273c46ffa324b4583c",
+      "size": 9447295
     },
     {
       "path": "default.cfg",
@@ -211,8 +251,8 @@
     },
     {
       "path": "game-profile.json",
-      "sha256": "d505034df98f9c3699beba91f084aa84bced99c83df012514f695c8ec0b8ec52",
-      "size": 8546
+      "sha256": "058bbbd24d0ac8fc81bdf99974a690b9f62f6ac846584254fbb70035c39390ce",
+      "size": 10680
     },
     {
       "path": "index.html",
@@ -236,8 +276,8 @@
     },
     {
       "path": "provenance/arena-web-ffa-content-manifest.json",
-      "sha256": "aeb745adb71e4cf0f34bed5f3a7dd857e035a354958edcd6e5f0b3c584529885",
-      "size": 5628
+      "sha256": "a56000d53c8d1190cf3d47e921f91bc0b9abcda406a86b95d300f3d45f3a76a4",
+      "size": 9144
     }
   ]
 }
