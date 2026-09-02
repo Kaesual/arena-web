@@ -54,12 +54,12 @@ container tag is not an identity.
 | ioq3 engine | `git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592` |
 | Browser loader producer | `git:95f45b537dd0bb8b4a542b97d0f4281eefa7604a` |
 | Browser artifact manifest | `sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047` |
-| Content artifact manifest | `sha256:a56000d53c8d1190cf3d47e921f91bc0b9abcda406a86b95d300f3d45f3a76a4` |
+| Content artifact manifest | `sha256:5c173d2dccb95f4e2e13ea0320494a72a8392d30e680461533e9b8bf6aaec85c` |
 | Content base archive | `sha256:caa003fcd7a79d3431a73166ed531d40b8a3d3728bca487d4b55c07d681c4229` |
 | Content map archives | covered transitively through the content artifact manifest, and each bound byte-for-byte to its counterpart in the server manifest |
-| Server artifact manifest | `sha256:f23f244e9a86469afb12436d1933c486357aed10bdb50864c3cf4fa0cd0879bd` |
-| Server image producer/build checkout | `git:dcbc35440ee88688c4c866e6404d95b3a69c168d` |
-| Accepted native server image ID | `sha256:21acf69282db5bb74708a0ea026bd6b2a657850f8c756fa0ae3cd30f4c8a60b1` |
+| Server artifact manifest | `sha256:9308efd9b762a882de36d99de6881f8fdff2dab3b3da0e95c209518c9a192b1e` |
+| Server image producer/build checkout | `git:ed99ef83773b01ffb6360e73605ee420cdbfb705` |
+| Accepted native server image ID | `sha256:e82dc11ad7aa2d8838627344790a03cc30b1daabf9631362135bfc733c38d166` |
 
 The image value is the reproducible container configuration/image ID observed
 after loading the accepted single-platform image, not a promise that every
@@ -75,9 +75,9 @@ producer commit `dcbc35440ee88688c4c866e6404d95b3a69c168d` out of the
 records rather than taking it from its caller, rebuilds browser, content and
 server image, and compares each generated record with the committed one in
 full. It requires server manifest identity
-`sha256:f23f244e9a86469afb12436d1933c486357aed10bdb50864c3cf4fa0cd0879bd`
+`sha256:9308efd9b762a882de36d99de6881f8fdff2dab3b3da0e95c209518c9a192b1e`
 and loaded image ID
-`sha256:21acf69282db5bb74708a0ea026bd6b2a657850f8c756fa0ae3cd30f4c8a60b1`.
+`sha256:e82dc11ad7aa2d8838627344790a03cc30b1daabf9631362135bfc733c38d166`.
 
 A rebuild from the current documentation commit or any other later commit has
 a new image ID even when all four runtime files are byte-identical, because its
@@ -130,9 +130,17 @@ content/baseq3/arena-web-ffa-map-am_galmevish-5dd57747e2f7d6de.pk3
 content/baseq3/arena-web-ffa-map-am_galmevish2-1d6de81a82a739c7.pk3
 content/baseq3/arena-web-ffa-map-am_spacecont-2962ec77faf8b02d.pk3
 content/baseq3/arena-web-ffa-map-am_underworks2-e41fb0669c74341d.pk3
+content/baseq3/arena-web-ffa-map-ce1m7-f042d1ed90ffa40f.pk3
 content/baseq3/arena-web-ffa-map-czest1dm-322f6b1ffef9e3d0.pk3
 content/baseq3/arena-web-ffa-map-czest1tourney-ec7d74e3a8892c2b.pk3
 content/baseq3/arena-web-ffa-map-mlca1-2e785c0fd463ce0e.pk3
+content/baseq3/arena-web-ffa-map-oa_dm1-e3628b183cc314c9.pk3
+content/baseq3/arena-web-ffa-map-oa_dm2-a4707258dd43c22c.pk3
+content/baseq3/arena-web-ffa-map-oa_dm3-462ffe978b4614a2.pk3
+content/baseq3/arena-web-ffa-map-oa_dm4-44e8aca3dcc6c289.pk3
+content/baseq3/arena-web-ffa-map-oa_dm5-ebac45fc68e052b1.pk3
+content/baseq3/arena-web-ffa-map-oa_dm6-bb147f07e8154e91.pk3
+content/baseq3/arena-web-ffa-map-oa_dm7-d2a32b3387be4f4d.pk3
 content/baseq3/arena-web-ffa-map-oa_koth1-d0fd6c5ec61771ef.pk3
 content/baseq3/arena-web-ffa-map-oa_minia-91d9380e910cf9d4.pk3
 content/baseq3/arena-web-ffa-map-oa_pvomit-9a4b9caf4ddd4405.pk3

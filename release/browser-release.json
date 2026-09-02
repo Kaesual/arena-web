@@ -27,8 +27,8 @@
     },
     "browserProfile": {
       "path": "arena/game-profile.json",
-      "sha256": "322a2c1aca8a4fba4962b133d5bd9cecd19c5207ed0c8028eb9c10aa5ffd957a",
-      "size": 12982
+      "sha256": "a15dae556f5c451cee39355b069bdf42306cee694d10db2634e62f1f0450ac77",
+      "size": 15035
     },
     "contentAssembly": {
       "path": "scripts/build-content-pack.sh",
@@ -37,18 +37,18 @@
     },
     "contentLicenseClosure": {
       "path": "docs/wp3-content-closure.md",
-      "sha256": "dd924c00eb6b56e7b173b99d7415525cf04e98eb1527181f03709f54457df5a5",
-      "size": 95361
+      "sha256": "9472b77c7209304c78f3cf705337001cf420f3be005fb43bf02962e34fbe7926",
+      "size": 102597
     },
     "contentManifest": {
       "path": "provenance/arena-web-ffa-content-manifest.json",
-      "sha256": "a56000d53c8d1190cf3d47e921f91bc0b9abcda406a86b95d300f3d45f3a76a4",
-      "size": 9144
+      "sha256": "5c173d2dccb95f4e2e13ea0320494a72a8392d30e680461533e9b8bf6aaec85c",
+      "size": 12577
     },
     "contentMemberProvenance": {
       "path": "provenance/arena-web-ffa-content.json",
-      "sha256": "a3b0975f5aa6a40f656255984a15223f37807520758c89840508a68c2997ef96",
-      "size": 1461348
+      "sha256": "a29ae09591b01f556f1e3ce160bc8dddef1f55e6512adbe0b0f92f706ad45641",
+      "size": 1800160
     },
     "contentRecipe": {
       "path": "content/pack-recipe.json",
@@ -57,8 +57,8 @@
     },
     "integrationHandoff": {
       "path": "docs/wp11-integration-handoff.md",
-      "sha256": "3c6e33989fe07564a8775387bf614a1aa5c53603157ff6e0615cd4d61f9910bb",
-      "size": 34984
+      "sha256": "3bc1d867e1e4c7b2711942184689310ff246122736121e1dc4244ce850bc0b2a",
+      "size": 36631
     },
     "projectLicense": {
       "path": "LICENSE",
@@ -72,8 +72,8 @@
     },
     "resourceMeasurement": {
       "path": "records/wp11-server-resources.json",
-      "sha256": "4d677a3d8afae26b34c835463c31d4ab646ae1ec91216ea89557691eeea0ceee",
-      "size": 3131
+      "sha256": "13c1a0eab8a7d51504a26c97376c2843ae623bc56c912818b301121b92120713",
+      "size": 3127
     },
     "serverAssembly": {
       "path": "scripts/build-server-image.sh",
@@ -87,8 +87,8 @@
     },
     "serverManifest": {
       "path": "provenance/arena-web-server.json",
-      "sha256": "f23f244e9a86469afb12436d1933c486357aed10bdb50864c3cf4fa0cd0879bd",
-      "size": 5236
+      "sha256": "9308efd9b762a882de36d99de6881f8fdff2dab3b3da0e95c209518c9a192b1e",
+      "size": 6715
     },
     "serverProfile": {
       "path": "native/server-profile.json",
@@ -105,11 +105,11 @@
   "compatibility": {
     "baselineIdentity": "sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287",
     "browserManifestIdentity": "sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047",
-    "contentManifestIdentity": "sha256:a56000d53c8d1190cf3d47e921f91bc0b9abcda406a86b95d300f3d45f3a76a4",
+    "contentManifestIdentity": "sha256:5c173d2dccb95f4e2e13ea0320494a72a8392d30e680461533e9b8bf6aaec85c",
     "contentPayloadIdentity": "sha256:caa003fcd7a79d3431a73166ed531d40b8a3d3728bca487d4b55c07d681c4229",
     "engineCommit": "d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
-    "serverImageId": "sha256:21acf69282db5bb74708a0ea026bd6b2a657850f8c756fa0ae3cd30f4c8a60b1",
-    "serverManifestIdentity": "sha256:f23f244e9a86469afb12436d1933c486357aed10bdb50864c3cf4fa0cd0879bd"
+    "serverImageId": "sha256:e82dc11ad7aa2d8838627344790a03cc30b1daabf9631362135bfc733c38d166",
+    "serverManifestIdentity": "sha256:9308efd9b762a882de36d99de6881f8fdff2dab3b3da0e95c209518c9a192b1e"
   },
   "digestAlgorithm": "sha256",
   "formatVersion": 1,
@@ -160,6 +160,11 @@
       "size": 8965303
     },
     {
+      "path": "content/baseq3/arena-web-ffa-map-ce1m7-f042d1ed90ffa40f.pk3",
+      "sha256": "f042d1ed90ffa40f7e7a4dbac4d3464cf048b8f436e9eeb8083716f76e0514d6",
+      "size": 3742390
+    },
+    {
       "path": "content/baseq3/arena-web-ffa-map-czest1dm-322f6b1ffef9e3d0.pk3",
       "sha256": "322f6b1ffef9e3d0533b2eeb3d60daa2935b71ba21f6a9f23bc65bad2e7baf92",
       "size": 5341451
@@ -173,6 +178,41 @@
       "path": "content/baseq3/arena-web-ffa-map-mlca1-2e785c0fd463ce0e.pk3",
       "sha256": "2e785c0fd463ce0e2d4a2e28c9bac8c680a279b746b8c07d1569604a834aa852",
       "size": 7479132
+    },
+    {
+      "path": "content/baseq3/arena-web-ffa-map-oa_dm1-e3628b183cc314c9.pk3",
+      "sha256": "e3628b183cc314c9ee27defa500d93e6ce426df44fde040c953f2120b657eefd",
+      "size": 4008113
+    },
+    {
+      "path": "content/baseq3/arena-web-ffa-map-oa_dm2-a4707258dd43c22c.pk3",
+      "sha256": "a4707258dd43c22c7eb5cbb7b8dcf386a47dc9cfc9f0d5749839724d7caf5e9e",
+      "size": 9880023
+    },
+    {
+      "path": "content/baseq3/arena-web-ffa-map-oa_dm3-462ffe978b4614a2.pk3",
+      "sha256": "462ffe978b4614a28eafb534aaec8b8c75bd80c985d44832184652d28e456db4",
+      "size": 7181160
+    },
+    {
+      "path": "content/baseq3/arena-web-ffa-map-oa_dm4-44e8aca3dcc6c289.pk3",
+      "sha256": "44e8aca3dcc6c2899e939cca78016e4f37f13d9b93a8ff7ec267bba427ad0892",
+      "size": 6352364
+    },
+    {
+      "path": "content/baseq3/arena-web-ffa-map-oa_dm5-ebac45fc68e052b1.pk3",
+      "sha256": "ebac45fc68e052b13185c69e973aa61664106a251132a8d2c509c94ff30dbb37",
+      "size": 8088989
+    },
+    {
+      "path": "content/baseq3/arena-web-ffa-map-oa_dm6-bb147f07e8154e91.pk3",
+      "sha256": "bb147f07e8154e91553f287f30c87880e1cc36cd349f638db191f489e2dd150a",
+      "size": 6025928
+    },
+    {
+      "path": "content/baseq3/arena-web-ffa-map-oa_dm7-d2a32b3387be4f4d.pk3",
+      "sha256": "d2a32b3387be4f4d73cdc52c3b65099766156ce2380b1f1881fda4d61cd8768e",
+      "size": 2560688
     },
     {
       "path": "content/baseq3/arena-web-ffa-map-oa_koth1-d0fd6c5ec61771ef.pk3",
@@ -251,8 +291,8 @@
     },
     {
       "path": "game-profile.json",
-      "sha256": "322a2c1aca8a4fba4962b133d5bd9cecd19c5207ed0c8028eb9c10aa5ffd957a",
-      "size": 12982
+      "sha256": "a15dae556f5c451cee39355b069bdf42306cee694d10db2634e62f1f0450ac77",
+      "size": 15035
     },
     {
       "path": "index.html",
@@ -276,8 +316,8 @@
     },
     {
       "path": "provenance/arena-web-ffa-content-manifest.json",
-      "sha256": "a56000d53c8d1190cf3d47e921f91bc0b9abcda406a86b95d300f3d45f3a76a4",
-      "size": 9144
+      "sha256": "5c173d2dccb95f4e2e13ea0320494a72a8392d30e680461533e9b8bf6aaec85c",
+      "size": 12577
     }
   ]
 }

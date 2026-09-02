@@ -21,8 +21,11 @@ prototype bounds, not a wider platform or capacity claim.
 ## 1. Browser manifest, digests and public layout
 
 The release index is outside the browser root to avoid hashing itself. Its
-`servedFiles` array is the complete, path-sorted browser root: exactly 33
-relative files, each with byte length and SHA-256. The staging validator checks
+`servedFiles` array is the complete, path-sorted browser root: every relative
+file with its byte length and SHA-256, and nothing else. The count is not
+restated here, because it grows with every published map and a copy that has to
+be rewritten each release is a copy waiting to be stale — read it off the array.
+The staging validator checks
 that list against both repository source and the generated artifact manifests;
 an extra, missing, symlinked or changed file fails the release.
 
@@ -32,9 +35,9 @@ The primary immutable identities are:
 | --- | --- |
 | Baseline lock | `sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287` |
 | Browser artifact manifest | `sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047` |
-| Content artifact manifest | `sha256:a56000d53c8d1190cf3d47e921f91bc0b9abcda406a86b95d300f3d45f3a76a4` |
+| Content artifact manifest | `sha256:5c173d2dccb95f4e2e13ea0320494a72a8392d30e680461533e9b8bf6aaec85c` |
 | Base content archive | `sha256:caa003fcd7a79d3431a73166ed531d40b8a3d3728bca487d4b55c07d681c4229`, 40,985,746 bytes |
-| Map archives | sixteen, one per map, enumerated in the content artifact manifest |
+| Map archives | twenty-four, one per map, enumerated in the content artifact manifest |
 
 **The content is a set of archives, not one PK3.** A base archive carries
 everything not tied to a map — the gamecode's own closure, the seven player
@@ -272,8 +275,8 @@ The exact server identities are:
 
 | Input | Identity |
 | --- | --- |
-| OCI configuration/image ID | `sha256:21acf69282db5bb74708a0ea026bd6b2a657850f8c756fa0ae3cd30f4c8a60b1` |
-| Server artifact manifest | `sha256:f23f244e9a86469afb12436d1933c486357aed10bdb50864c3cf4fa0cd0879bd` |
+| OCI configuration/image ID | `sha256:e82dc11ad7aa2d8838627344790a03cc30b1daabf9631362135bfc733c38d166` |
+| Server artifact manifest | `sha256:9308efd9b762a882de36d99de6881f8fdff2dab3b3da0e95c209518c9a192b1e` |
 | Server profile | `sha256:829441e319d623b5134a9fbbda87a674689148bc7a8390954f4dbc0e4ed8f40f` |
 
 The image is `linux/amd64`, user/group `65534:65534`, workdir
@@ -343,10 +346,34 @@ published in `native/server-profile.json.engineCommandLine` and are checked
 against the pinned engine on every validation, so they cannot go stale.
 `server_launch_arguments` refuses a rotation that would not fit;
 `max_server_rotation` reports how many of the published map names do. **At this
-release that ceiling is 15 of the 16 published maps** — the cost of an entry
-carries its map's name twice, so it is a property of these names and not a
-figure to interpolate. A rotation is bounded far below it in practice by what a
-player downloads, which section 1's per-archive figures let you compute.
+release that ceiling is 15 of the 24 published maps.**
+
+It was 15 of 16 at the previous release, and the number staying still is a
+coincidence worth not relying on, because the two halves behave differently.
+The **line** bound is a pure count: this release's committed server arguments
+occupy 16 console lines and a rotation of *n* maps adds `n + 1`, so 15 is the
+most that fits whatever the maps are called — a rotation of 16 one-character
+names is refused for the same reason as a rotation of 16 real ones. It falls if
+the profile grows a launch argument, since every extra console line costs a
+rotation slot.
+
+The **byte** bound is the one that moves with the names, and it is closer than
+the count suggests. `max_server_rotation` answers for the published list *in
+order*, so its 15 is the alphabetically first fifteen and they assemble to 987
+of 1024 bytes; the fifteen longest published names assemble to 1018, six bytes
+of headroom. **And a rotation may repeat a map** — that is deliberate, a cycle
+may legitimately visit one map twice — in which case the bound can be exceeded
+below fifteen entries: fifteen entries of `am_underworks2` assemble to 1073
+bytes and are refused.
+
+So treat `max_server_rotation` as what it is: an upper bound for distinct maps
+in the published order, not a promise about an arbitrary fifteen-entry
+rotation. The binding check is `server_launch_arguments`, which refuses a
+rotation that would not fit before it produces a command line — fail-closed,
+and the only figure that answers for the rotation you actually launch. Do not
+interpolate the ceiling from a map count in either direction. A rotation is
+bounded far below it in practice by what a player downloads, which section 1's
+per-archive figures let you compute.
 
 **A rotation only advances when a level ends, and this profile gives a level
 exactly one way to end.** `CheckExitRules` (ioq3 `code/game/g_main.c`) returns
@@ -389,7 +416,7 @@ read-only and mount an initially empty, `rw,noexec,nosuid,nodev`, mode-1777,
 64-MiB tmpfs at `/var/lib/arena`. That home holds only ephemeral engine config
 and `games.log`. There is **no persistent path or volume** in this release; no
 world, save, secret or host file is required. The read-only image is
-208,750,031 bytes; the measured container writable layer after stop
+256,595,407 bytes; the measured container writable layer after stop
 was 12,647 bytes and is disposable.
 
 Readiness is the native binary UDP query, no more than once per second from a
@@ -423,7 +450,7 @@ one-second checks make the observation failed.
 Send `SIGTERM` or `SIGINT` to the entrypoint and allow 10 seconds before a
 forced kill. The normal signal path sends the final server message, closes the
 VM/network and exits with code 1; code 1 is therefore success only when the
-manager requested this stop. The measured graceful exit took 0.129 seconds.
+manager requested this stop. The measured graceful exit took 0.119 seconds.
 Any unsolicited exit, including code 1, is failure.
 
 ## 5. Indivisible compatibility identity
@@ -435,10 +462,10 @@ loader, profile, QVM, pack, binary or relay profile:
 baseline          sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287
 ioq3               git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592
 browser manifest   sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047
-content manifest   sha256:a56000d53c8d1190cf3d47e921f91bc0b9abcda406a86b95d300f3d45f3a76a4
+content manifest   sha256:5c173d2dccb95f4e2e13ea0320494a72a8392d30e680461533e9b8bf6aaec85c
 content base       sha256:caa003fcd7a79d3431a73166ed531d40b8a3d3728bca487d4b55c07d681c4229
-server manifest    sha256:f23f244e9a86469afb12436d1933c486357aed10bdb50864c3cf4fa0cd0879bd
-server image ID    sha256:21acf69282db5bb74708a0ea026bd6b2a657850f8c756fa0ae3cd30f4c8a60b1
+server manifest    sha256:9308efd9b762a882de36d99de6881f8fdff2dab3b3da0e95c209518c9a192b1e
+server image ID    sha256:e82dc11ad7aa2d8838627344790a03cc30b1daabf9631362135bfc733c38d166
 ```
 
 `release/browser-release.json.compatibility` repeats these values and its
@@ -501,8 +528,8 @@ for this exact eight-slot/two-human/three-bot prototype is:
 
 | Resource | Limit | Busy observed maximum | Remaining safety margin |
 | --- | ---: | ---: | ---: |
-| CPU | 1 core | 0.048415-core peak sample | 0.951585 core; 20.655x |
-| Memory | 268,435,456 bytes | 29,999,104-byte peak cgroup; 31,539,200-byte process HWM | 238,436,352 bytes; 8.948x against cgroup peak |
+| CPU | 1 core | 0.04727-core peak sample | 0.95273 core; 21.155x |
+| Memory | 268,435,456 bytes | 30,371,840-byte peak cgroup; 31,604,736-byte process HWM | 238,063,616 bytes; 8.838x against cgroup peak |
 | Writable home | 67,108,864 bytes | 1,272 bytes | 67,107,592 bytes; 52,758.541x |
 | Processes | 128 PIDs | constrained successfully by the probe | guard, not a measured demand claim |
 
@@ -510,9 +537,9 @@ Startup readiness was 1.751 seconds, which is a poll-loop
 figure and not a startup time: the readiness probe waits out a 0.75-second
 socket timeout and then a one-second interval, so it says the server was ready
 before the second poll and no more than that. The ten-second idle phase
-averaged 0.021132 cores. The 30-second two-native-client phase, with
+averaged 0.021134 cores. The 30-second two-native-client phase, with
 movement, weapon, fire, chat and respawn traffic while all three bots remained
-active, averaged 0.039373 cores. These values preserve large practical headroom, but are
+active, averaged 0.0401 cores. These values preserve large practical headroom, but are
 capacity guards only—not an SLO, autoscaling rule, production concurrency
 claim or evidence for more than two humans.
 

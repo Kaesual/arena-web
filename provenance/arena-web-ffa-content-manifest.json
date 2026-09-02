@@ -40,6 +40,14 @@
       "uncompressedSize": 20431326
     },
     {
+      "map": "ce1m7",
+      "path": "baseq3/arena-web-ffa-map-ce1m7.pk3",
+      "peakHunkBytes": 27400424,
+      "sha256": "f042d1ed90ffa40f7e7a4dbac4d3464cf048b8f436e9eeb8083716f76e0514d6",
+      "size": 3742390,
+      "uncompressedSize": 6697031
+    },
+    {
       "map": "czest1dm",
       "path": "baseq3/arena-web-ffa-map-czest1dm.pk3",
       "peakHunkBytes": 30049352,
@@ -62,6 +70,62 @@
       "sha256": "2e785c0fd463ce0e2d4a2e28c9bac8c680a279b746b8c07d1569604a834aa852",
       "size": 7479132,
       "uncompressedSize": 10698751
+    },
+    {
+      "map": "oa_dm1",
+      "path": "baseq3/arena-web-ffa-map-oa_dm1.pk3",
+      "peakHunkBytes": 27803080,
+      "sha256": "e3628b183cc314c9ee27defa500d93e6ce426df44fde040c953f2120b657eefd",
+      "size": 4008113,
+      "uncompressedSize": 6796464
+    },
+    {
+      "map": "oa_dm2",
+      "path": "baseq3/arena-web-ffa-map-oa_dm2.pk3",
+      "peakHunkBytes": 30087400,
+      "sha256": "a4707258dd43c22c7eb5cbb7b8dcf386a47dc9cfc9f0d5749839724d7caf5e9e",
+      "size": 9880023,
+      "uncompressedSize": 13179286
+    },
+    {
+      "map": "oa_dm3",
+      "path": "baseq3/arena-web-ffa-map-oa_dm3.pk3",
+      "peakHunkBytes": 30262856,
+      "sha256": "462ffe978b4614a28eafb534aaec8b8c75bd80c985d44832184652d28e456db4",
+      "size": 7181160,
+      "uncompressedSize": 12775541
+    },
+    {
+      "map": "oa_dm4",
+      "path": "baseq3/arena-web-ffa-map-oa_dm4.pk3",
+      "peakHunkBytes": 27478440,
+      "sha256": "44e8aca3dcc6c2899e939cca78016e4f37f13d9b93a8ff7ec267bba427ad0892",
+      "size": 6352364,
+      "uncompressedSize": 9175056
+    },
+    {
+      "map": "oa_dm5",
+      "path": "baseq3/arena-web-ffa-map-oa_dm5.pk3",
+      "peakHunkBytes": 30273032,
+      "sha256": "ebac45fc68e052b13185c69e973aa61664106a251132a8d2c509c94ff30dbb37",
+      "size": 8088989,
+      "uncompressedSize": 12027980
+    },
+    {
+      "map": "oa_dm6",
+      "path": "baseq3/arena-web-ffa-map-oa_dm6.pk3",
+      "peakHunkBytes": 29814920,
+      "sha256": "bb147f07e8154e91553f287f30c87880e1cc36cd349f638db191f489e2dd150a",
+      "size": 6025928,
+      "uncompressedSize": 10095565
+    },
+    {
+      "map": "oa_dm7",
+      "path": "baseq3/arena-web-ffa-map-oa_dm7.pk3",
+      "peakHunkBytes": 27086344,
+      "sha256": "d2a32b3387be4f4d73cdc52c3b65099766156ce2380b1f1881fda4d61cd8768e",
+      "size": 2560688,
+      "uncompressedSize": 4910973
     },
     {
       "map": "oa_koth1",
@@ -169,6 +233,11 @@
       "kind": "archive"
     },
     {
+      "id": "arena-web-map-ce1m7",
+      "identity": "sha256:7342266ff8d5271df4580b7e9149beb84930b647540802fa7b4e5d6b59795979",
+      "kind": "archive"
+    },
+    {
       "id": "arena-web-map-czest1dm",
       "identity": "sha256:02ad5cd000e5def379cbed7f0a6a51e14df67989800a49b0e205b2654c5fff39",
       "kind": "archive"
@@ -181,6 +250,41 @@
     {
       "id": "arena-web-map-mlca1",
       "identity": "sha256:ad56e3810f4957e8108aa128f38b239fa68c9555f18400c07828eecf51ef05b1",
+      "kind": "archive"
+    },
+    {
+      "id": "arena-web-map-oa_dm1",
+      "identity": "sha256:7b44417c51ec870fadf52998e0070037e6401d6ce7c58a5e4a46843e4542b096",
+      "kind": "archive"
+    },
+    {
+      "id": "arena-web-map-oa_dm2",
+      "identity": "sha256:cfd3af1c0fa8306238f6f665f4cb819055bf2741959b7057e37bd1bf0f5a30bb",
+      "kind": "archive"
+    },
+    {
+      "id": "arena-web-map-oa_dm3",
+      "identity": "sha256:48609e93ec70ca8a03f6944091c8f4ba83b6a743e7348398074151b862f34256",
+      "kind": "archive"
+    },
+    {
+      "id": "arena-web-map-oa_dm4",
+      "identity": "sha256:f79fc0365411ee7dc29d9805239051fb16a35596d5b2b54b31d7147f0c7cb994",
+      "kind": "archive"
+    },
+    {
+      "id": "arena-web-map-oa_dm5",
+      "identity": "sha256:ad364b96641f63cf1fdb4af0cac4be7b2e7eac3dcdbc1891dadad4879633d052",
+      "kind": "archive"
+    },
+    {
+      "id": "arena-web-map-oa_dm6",
+      "identity": "sha256:127781d033a5ffc843ff8327711b6d28d7e426b55963ef83de04ed66e1688b10",
+      "kind": "archive"
+    },
+    {
+      "id": "arena-web-map-oa_dm7",
+      "identity": "sha256:17e148e0c60aa73ef8f569b18ca15e7a1389aa33c6c54364f77776a1013b6793",
       "kind": "archive"
     },
     {
@@ -230,7 +334,7 @@
     },
     {
       "id": "arena-web-resource-measurements",
-      "identity": "sha256:59fe0e6ec4a4b068d10c6a8aec860e45664d247e2babdff4a853eb8096c2d84c",
+      "identity": "sha256:93aa3fd2fa7601e23b07c5c461d1d7fdf74f7791dcc2ca950b2fc8be92573553",
       "kind": "archive"
     },
     {
@@ -270,7 +374,7 @@
     }
   ],
   "producer": {
-    "commit": "dcbc35440ee88688c4c866e6404d95b3a69c168d",
+    "commit": "ed99ef83773b01ffb6360e73605ee420cdbfb705",
     "name": "arena-web scripts/build-content-pack.sh"
   }
 }

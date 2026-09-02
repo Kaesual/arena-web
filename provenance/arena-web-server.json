@@ -27,6 +27,11 @@
       "size": 8965303
     },
     {
+      "path": "opt/arena-web/arena/arena-web-ffa-map-ce1m7.pk3",
+      "sha256": "f042d1ed90ffa40f7e7a4dbac4d3464cf048b8f436e9eeb8083716f76e0514d6",
+      "size": 3742390
+    },
+    {
       "path": "opt/arena-web/arena/arena-web-ffa-map-czest1dm.pk3",
       "sha256": "322f6b1ffef9e3d0533b2eeb3d60daa2935b71ba21f6a9f23bc65bad2e7baf92",
       "size": 5341451
@@ -40,6 +45,41 @@
       "path": "opt/arena-web/arena/arena-web-ffa-map-mlca1.pk3",
       "sha256": "2e785c0fd463ce0e2d4a2e28c9bac8c680a279b746b8c07d1569604a834aa852",
       "size": 7479132
+    },
+    {
+      "path": "opt/arena-web/arena/arena-web-ffa-map-oa_dm1.pk3",
+      "sha256": "e3628b183cc314c9ee27defa500d93e6ce426df44fde040c953f2120b657eefd",
+      "size": 4008113
+    },
+    {
+      "path": "opt/arena-web/arena/arena-web-ffa-map-oa_dm2.pk3",
+      "sha256": "a4707258dd43c22c7eb5cbb7b8dcf386a47dc9cfc9f0d5749839724d7caf5e9e",
+      "size": 9880023
+    },
+    {
+      "path": "opt/arena-web/arena/arena-web-ffa-map-oa_dm3.pk3",
+      "sha256": "462ffe978b4614a28eafb534aaec8b8c75bd80c985d44832184652d28e456db4",
+      "size": 7181160
+    },
+    {
+      "path": "opt/arena-web/arena/arena-web-ffa-map-oa_dm4.pk3",
+      "sha256": "44e8aca3dcc6c2899e939cca78016e4f37f13d9b93a8ff7ec267bba427ad0892",
+      "size": 6352364
+    },
+    {
+      "path": "opt/arena-web/arena/arena-web-ffa-map-oa_dm5.pk3",
+      "sha256": "ebac45fc68e052b13185c69e973aa61664106a251132a8d2c509c94ff30dbb37",
+      "size": 8088989
+    },
+    {
+      "path": "opt/arena-web/arena/arena-web-ffa-map-oa_dm6.pk3",
+      "sha256": "bb147f07e8154e91553f287f30c87880e1cc36cd349f638db191f489e2dd150a",
+      "size": 6025928
+    },
+    {
+      "path": "opt/arena-web/arena/arena-web-ffa-map-oa_dm7.pk3",
+      "sha256": "d2a32b3387be4f4d73cdc52c3b65099766156ce2380b1f1881fda4d61cd8768e",
+      "size": 2560688
     },
     {
       "path": "opt/arena-web/arena/arena-web-ffa-map-oa_koth1.pk3",
@@ -118,7 +158,7 @@
     },
     {
       "id": "arena-web-ffa-content",
-      "identity": "sha256:a56000d53c8d1190cf3d47e921f91bc0b9abcda406a86b95d300f3d45f3a76a4",
+      "identity": "sha256:5c173d2dccb95f4e2e13ea0320494a72a8392d30e680461533e9b8bf6aaec85c",
       "kind": "artifact-manifest"
     },
     {
@@ -143,7 +183,7 @@
     }
   ],
   "producer": {
-    "commit": "dcbc35440ee88688c4c866e6404d95b3a69c168d",
+    "commit": "ed99ef83773b01ffb6360e73605ee420cdbfb705",
     "name": "arena-web scripts/build-server-image.sh"
   }
 }
