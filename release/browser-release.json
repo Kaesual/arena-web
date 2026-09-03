@@ -331,8 +331,8 @@
     },
     {
       "path": "loader.js",
-      "sha256": "656046a6b599f9c2e55cd69be503a3e838fb6eff6ac606dad989ca8a3cfb1743",
-      "size": 60397
+      "sha256": "0621edeaa79c7ffb756410a0b79631aa82729feb35405c0470be0fbf3e6b9f9c",
+      "size": 63009
     },
     {
       "path": "manifests/browser-client.json",

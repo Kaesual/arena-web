@@ -125,7 +125,17 @@ const report = {
   rotation: null,
   unexpectedFileRequests: [],
   audioActivation: null,
-  pointerLock: { supported: "pointerLockElement" in document, engaged: false, errors: 0 },
+  // `unadjusted` is null until a lock is asked for, then true or false: the
+  // request below asks for raw pointer deltas and accepts the ordinary ones,
+  // so which of the two a session actually got is a fact about that session
+  // rather than about this build. It stays null on a browser that ignores the
+  // option without saying so, which is the honest answer there.
+  pointerLock: {
+    supported: "pointerLockElement" in document,
+    engaged: false,
+    errors: 0,
+    unadjusted: null,
+  },
   fullscreen: { supported: Boolean(elements.stage.requestFullscreen), engaged: false },
   progress: { phase: "loading", loadedBytes: 0, totalBytes: null, fraction: 0 },
   exit: null,
@@ -1018,6 +1028,54 @@ function installPageBehaviour() {
     note("pointerlockerror", null);
     lifecycle.publish();
   });
+
+  // SDL asks for the lock with a bare `requestPointerLock()` — its Emscripten
+  // backend calls Emscripten's helper, which calls the method with no options —
+  // and that leaves the engine reading the pointer deltas the operating system
+  // has already accelerated. An arena shooter wants the unaccelerated ones: with
+  // acceleration the same physical movement turns a different amount depending
+  // on how fast it was made, which is the one thing aim has to be able to rely
+  // on. `unadjustedMovement` is how that is asked for, and neither SDL nor
+  // Emscripten has a way to pass it, so the canvas's own method carries it.
+  //
+  // The instance's method rather than the prototype's, so this document's other
+  // elements keep the platform's behaviour, and it is installed here rather than
+  // at the boot site because SDL defers its request to a later user gesture and
+  // this has to already be in place by then.
+  //
+  // It is a request and not a requirement. A platform without raw deltas rejects
+  // it, and the answer to that is the ordinary lock rather than no lock at all —
+  // an unaccelerated pointer is better aim, a missing pointer lock is not a
+  // playable game.
+  const requestLock = elements.canvas.requestPointerLock.bind(elements.canvas);
+  elements.canvas.requestPointerLock = function requestUnadjustedPointerLock() {
+    const settle = (unadjusted) => {
+      report.pointerLock.unadjusted = unadjusted;
+      note("pointerlock-unadjusted", unadjusted);
+      lifecycle.publish();
+    };
+    let attempt;
+    try {
+      attempt = requestLock({ unadjustedMovement: true });
+    } catch (_) {
+      // A browser that rejects the argument shape outright, rather than by
+      // returning a promise that rejects.
+      settle(false);
+      return requestLock();
+    }
+    if (attempt === undefined || typeof attempt.then !== "function") {
+      // The pre-promise form: the option was ignored and there is no way to
+      // learn whether it took effect, so nothing is claimed about it.
+      return attempt;
+    }
+    return attempt.then(
+      () => settle(true),
+      () => {
+        settle(false);
+        return requestLock();
+      },
+    );
+  };
 
   // A lost drawing context stops the engine dead and is otherwise invisible in
   // the engine's own console, so the loader watches for it.

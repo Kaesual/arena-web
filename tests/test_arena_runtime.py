@@ -3534,6 +3534,27 @@ class ServedJavaScriptTest(unittest.TestCase):
         self.assertLess(quit_at, close_at)
         self.assertIn("await settledWithin(ENGINE_QUIT_GRACE_MILLISECONDS);", body)
 
+    def test_the_pointer_lock_request_asks_for_raw_deltas_and_accepts_less(self) -> None:
+        """Both halves, because only the pair is correct.
+
+        Asking for `unadjustedMovement` is the point: SDL's own call passes no
+        options, so without this the engine reads pointer deltas the operating
+        system has already accelerated. Falling back is what keeps that a
+        request — a platform without raw deltas rejects it, and a session with
+        an ordinary lock is playable while a session with no lock is not. A
+        version that only asked would trade a whole class of platforms for
+        better aim on the rest.
+        """
+        loader = (ROOT / "arena/loader.js").read_text(encoding="utf-8")
+        start = loader.index("function requestUnadjustedPointerLock()")
+        body = loader[start : loader.index("\n  };", start)]
+        self.assertIn("requestLock({ unadjustedMovement: true })", body)
+        # The bare retry appears once in each of the two ways the option can be
+        # refused: thrown outright, and a rejected promise.
+        self.assertEqual(body.count("return requestLock();"), 2)
+        self.assertIn("settle(true)", body)
+        self.assertIn("settle(false)", body)
+
     def test_the_allowlist_holds_only_platform_names(self) -> None:
         """The way this gate would quietly stop working is a product name added
         to the globals list, so no name any served module declares may be in
