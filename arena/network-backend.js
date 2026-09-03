@@ -29,6 +29,11 @@ export const RECEIVE_QUEUE_DEPTH = 256;
 export const WRITE_QUEUE_DEPTH = 256;
 export const ASSIGNMENT_TIMEOUT_MILLISECONDS = 10000;
 export const BUDGET_MONITOR_MILLISECONDS = 1000;
+// How long a clean close waits for datagrams that were already accepted. A
+// write only has to reach this browser's own send path, not the server, so it
+// is generous for the handful of frames a shutdown queues; it is bounded at
+// all because a stalled path must not be able to hold a stop open.
+export const CLOSE_DRAIN_MILLISECONDS = 250;
 
 const REFUSAL_REASONS = [
   "destination",
@@ -47,6 +52,7 @@ const SESSION_SUM_FIELDS = [
   "receivedInnerDatagrams",
   "queueOverflows",
   "invalidReturnFrames",
+  "foreignReturnFrames",
   "writeFailures",
   "writeQueueOverflows",
   "keepAlivesSent",
@@ -200,6 +206,7 @@ export class ArenaNetworkBackend {
     this.writeQueue = [];
     this.activeWrite = null;
     this.writeTask = null;
+    this.closeTask = null;
     this.sourcePortRegistered = false;
     this.readTask = null;
     this.keepAliveTimer = null;
@@ -215,6 +222,7 @@ export class ArenaNetworkBackend {
       queueHighWatermark: 0,
       queueOverflows: 0,
       invalidReturnFrames: 0,
+      foreignReturnFrames: 0,
       writeFailures: 0,
       writeQueueHighWatermark: 0,
       writeQueueOverflows: 0,
@@ -658,18 +666,38 @@ export class ArenaNetworkBackend {
       }
 
       let decoded;
+      let header;
       try {
         decoded = decodeFrame(value, SERVER_TO_BROWSER, budget);
         if (decoded.datagrams.length !== 1) {
           throw new ArenaNetworkError("a relay frame must carry exactly one datagram");
         }
-        if (!this.routing.acceptsReturn(decodeRelayHeader(decoded.prefix))) {
-          throw new ArenaNetworkError("return header mismatch");
-        }
+        header = decodeRelayHeader(decoded.prefix);
       } catch (_) {
         this.stats.invalidReturnFrames += 1;
         await this.#terminate("invalid_return_frame");
         return;
+      }
+      // A frame that parses but is addressed elsewhere is dropped, not fatal.
+      // One virtual address is reused across sessions, and a game server goes
+      // on sending to a client that has left until its own timeout expires,
+      // so a live session can be handed the tail of a dead one. Terminating
+      // on that gave a session that nobody is playing the power to end the
+      // one that somebody is. A non-zero count right after a reconnect is the
+      // expected shape rather than a fault; anything the loop could not parse
+      // at all still terminates above, because that says the path is not
+      // speaking the contract this session opened.
+      if (!this.routing.acceptsReturn(header)) {
+        // Counted, and deliberately not announced. The predecessor's tail is a
+        // burst — one measured reconnect left a game server sending 582
+        // packets a minute to nobody — and the host publishes a whole snapshot
+        // per event, so an event each would put a sort and a cross-window
+        // render on the engine's own thread for every stray packet, and would
+        // fill the bounded event list with the one thing this branch calls
+        // expected, pushing out the terminal events that diagnose real faults.
+        // `foreignReturnFrames` is in every snapshot already.
+        this.stats.foreignReturnFrames += 1;
+        continue;
       }
 
       const payload = decoded.datagrams[0].slice();
@@ -740,12 +768,76 @@ export class ArenaNetworkBackend {
     this.#event("relay-terminal", reason);
   }
 
+  // The engine's close is the one that has something to flush, and it is why
+  // the drain exists. ioquake3's quit path sends its `disconnect` datagrams and
+  // then shuts the network down inside one synchronous engine call, so at the
+  // moment this runs they are queued and nothing has drained them yet.
+  // #terminate cancels accepted writes, and cancelling those left the server
+  // holding a client that only sv_timeout removed — 200 seconds of a ghost,
+  // still being sent return traffic nobody would read.
   closeFromEngine() {
-    void this.#terminate("engine_shutdown");
+    void this.#closeOnce("engine_shutdown", true);
   }
 
+  // The host's close does not drain. Either the engine already closed from
+  // inside, in which case this awaits that drain rather than starting a
+  // second one, or there is nothing of the engine's left to send and waiting
+  // would only make a stop slower when the path is the thing that is stuck.
   async close() {
-    await this.#terminate("client_close");
+    await this.#closeOnce("client_close", false);
+  }
+
+  // One close operation however many callers ask, because two do: the engine
+  // closes from inside and the host closes from outside. Without this the
+  // second would race the first for the terminal reason and could cut its
+  // drain short by terminating underneath it.
+  #closeOnce(reason, drain) {
+    this.closeTask ??= this.#runClose(reason, drain);
+    return this.closeTask;
+  }
+
+  async #runClose(reason, drain) {
+    // The terminate is in a `finally` because #closeOnce memoizes this
+    // operation: a drain that threw would otherwise leave the transport open,
+    // the read loop running and the source port registered, with every later
+    // close returning the same rejected promise and no way to retry. Releasing
+    // the session is the one part of a close that may not be conditional on
+    // the rest of it succeeding.
+    try {
+      if (drain && this.state === "open") {
+        // Nothing more may be queued while the queue is being drained. The
+        // keep-alive is the only producer left; whatever queued the rest has
+        // already stopped, which is why this is a close and not a pause.
+        if (this.keepAliveTimer !== null) {
+          clearInterval(this.keepAliveTimer);
+          this.keepAliveTimer = null;
+        }
+        await this.#drainAcceptedWrites();
+      }
+    } finally {
+      await this.#terminate(reason);
+    }
+  }
+
+  async #drainAcceptedWrites() {
+    let timer = null;
+    let expired = false;
+    const deadline = new Promise((resolve) => {
+      timer = setTimeout(() => {
+        expired = true;
+        resolve();
+      }, CLOSE_DRAIN_MILLISECONDS);
+    });
+    try {
+      // #startWritePump's own continuation clears writeTask and restarts it if
+      // the queue refilled, so "no task" is the drained state and awaiting the
+      // task once is not enough.
+      while (!expired && this.state === "open" && this.writeTask !== null) {
+        await Promise.race([this.writeTask, deadline]);
+      }
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   snapshot() {

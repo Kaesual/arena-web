@@ -65,6 +65,12 @@ const MARKER_MAP_PLACEHOLDER = "{map}";
 // operator to reconstruct why a client dropped.
 const MISSING_PAK_MARKER = "You are missing some files referenced by the server";
 const ENGINE_LOG_LIMIT = 40000;
+// How long stop() waits for the engine's own quit to settle before it closes
+// the relay itself. The request is consumed on the next engine frame and the
+// shutdown that follows is synchronous, so this is far more than the path
+// needs; it exists so that an engine which never gets there cannot leave the
+// session open, not as a schedule anything depends on.
+const ENGINE_QUIT_GRACE_MILLISECONDS = 2000;
 const FRAME_SAMPLE_LIMIT = 30000;
 const EVENT_LIMIT = 10000;
 const LONG_FRAME_MS = 50;
@@ -1406,17 +1412,43 @@ async function runStop() {
   elements.overlay.hidden = false;
   elements.hint.hidden = true;
   setMessage("Stopping the arena.");
+  if (engineBootStarted) {
+    // The engine is what disconnects, and it does it on the way out: Com_Quit_f
+    // runs CL_Disconnect, which sends ioquake3's `disconnect` three times, and
+    // only then shuts the relay down from inside (NET_Shutdown). Closing the
+    // relay first refused exactly those datagrams, so every clean exit left the
+    // server holding the client until its own sv_timeout — 200 seconds of a
+    // ghost in the scoreboard and of return traffic aimed at nobody. The close
+    // below is now a backstop for an engine that did not get there, which is
+    // why it is still unconditional.
+    requestEngineQuit();
+    await settledWithin(ENGINE_QUIT_GRACE_MILLISECONDS);
+  } else if (lifecycle.terminal() === null) {
+    settle("exited", null, "host_stop");
+  }
   try {
     await relayBackend?.close();
   } catch (error) {
     note("relay-close-failed", String(error?.name ?? "Error"));
   }
-  if (engineBootStarted) {
-    requestEngineQuit();
-  } else if (lifecycle.terminal() === null) {
-    settle("exited", null, "host_stop");
-  }
   return lifecycle.whenSettled();
+}
+
+// Resolves when the lifecycle settles or the grace expires, whichever comes
+// first, and never rejects: the caller is a shutdown and has nothing to do
+// with a refusal here except carry on stopping.
+function settledWithin(milliseconds) {
+  if (lifecycle.terminal() !== null) {
+    return Promise.resolve();
+  }
+  let timer = null;
+  const deadline = new Promise((resolve) => {
+    timer = setTimeout(resolve, milliseconds);
+  });
+  return Promise.race([lifecycle.whenSettled(), deadline]).then(
+    () => clearTimeout(timer),
+    () => clearTimeout(timer),
+  );
 }
 
 function stop() {

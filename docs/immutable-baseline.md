@@ -16,7 +16,7 @@ reviewer obtains and verifies it.
 
 | Role | Version or revision | Immutable identity | Platform |
 | --- | --- | --- | --- |
-| Engine and bundled `baseq3` gamecode | ioq3 fork `d594b1cc9bfc5b58ccebffd4d840a13782cb6592` (`web`), on upstream base `588393618dbc82e7207c21c6ddecca229944a03a` | Git commit and submodule pin | source |
+| Engine and bundled `baseq3` gamecode | ioq3 fork `663bc0e6d94827c671090178418696aa5b0667c3` (`web`), on upstream base `588393618dbc82e7207c21c6ddecca229944a03a` | Git commit and submodule pin | source |
 | WebAssembly builder | Emscripten `6.0.8` | `sha256:8714ed3a9fb585e662c931259a996bac36a57a8dd34b81e8277436fd77364475` | `linux/amd64` |
 | Native builder base | Ubuntu `24.04` | `sha256:1e0a86e57d247923571b75e0aaf48a1449cf8c543d51fb3e07a4a7d7bfa79316` | `linux/amd64` |
 | Server runtime base | Debian `13-slim` (trixie, `13.6`) | `sha256:abc9cb88a5587630d7f915f47b23b0668fe250fbfc6457aa4d52b534c1bbf73f` | `linux/amd64` |
@@ -86,9 +86,17 @@ lock had to grow to hold it.
 At the time of this amendment the pin became
 `92351b8f0543448b9defaac25c552274eecbf15b` on the fork's `web` branch. WP7
 subsequently extended the enumerated series for the browser relay boundary,
-network sizing and managed-relay rate buckets and reissued the baseline at the
-current pin `d594b1cc9bfc5b58ccebffd4d840a13782cb6592`. WP11 adds only the host-requested graceful-quit handoff needed by the embedding lifecycle. The validation model
-described below did not change. `main` in that fork continues to mirror
+network sizing and managed-relay rate buckets and reissued the baseline. WP11
+adds only the host-requested graceful-quit handoff needed by the embedding
+lifecycle. The current pin is
+`663bc0e6d94827c671090178418696aa5b0667c3`. It adds one further patch — both
+confirmed exits quit the engine instead of opening the credits screen, which in
+an embedded client left the host waiting while the player looked at a screen
+that reads as a refusal — and extends the host-stop patch, whose main-loop
+keepalive is now dropped at the engine's single exit point, because every quit
+the host did not itself request was reaching `exit()` with that keepalive held
+and never delivering `Module.onExit`. The validation model described below did
+not change. `main` in that fork continues to mirror
 upstream and is where the upstream base lives.
 
 Two fields carry the claim, and they are meaningless apart:
@@ -129,15 +137,15 @@ the container check uses.
 `licenseComponents[].license` whose `evidenceIdentity` is a `git:` identity must
 equal the pinned engine commit; that gate is unchanged, so those identities and
 their `evidenceUrl`s moved to `92351b8f…` in the first amendment and now name
-`d594b1cc9bfc…`. The alternative — letting such evidence stay at the base,
+`663bc0e6d948…`. The alternative — letting such evidence stay at the base,
 since the patch changes
 none of it — would have given the gate two acceptable answers, and a gate with
 two answers is a weaker gate. Pointing the evidence at the exact tree that is
 built keeps one answer and stays true: `COPYING.txt`, every bundled
 third-party notice and every per-file exception are byte-identical at the two
 original amendment commits, because that amendment touched one renderer source
-file and nothing else. The later enumerated network patches likewise touch no
-licence-evidence path.
+file and nothing else. The later enumerated network and menu patches likewise
+touch no licence-evidence path.
 `upstreamEvidence.ioq3Commit` follows the same rule for the same reason; the
 workflow file it cites is likewise byte-identical at the upstream base and all
 named fork pins.
@@ -504,7 +512,7 @@ inspectable with:
 
 ```bash
 sha256sum locks/baseline.json
-# sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287
+# sha256:ba723aaccf72500de2ebda2dcd0dfa50afac60ebd345619c6574d2e4a63237ef
 ```
 
 The container check first verifies the lock against the host checkout's ioq3

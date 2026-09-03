@@ -3513,6 +3513,27 @@ class ServedJavaScriptTest(unittest.TestCase):
         """
         self.assertEqual(javascript_unresolved_calls(source), set())
 
+    def test_stop_asks_the_engine_to_quit_before_it_closes_the_relay(self) -> None:
+        """The order is the fix, and only the order is checkable here.
+
+        ioquake3 disconnects on its way out: `Com_Quit_f` runs `CL_Disconnect`,
+        which sends `disconnect` three times, and only then shuts the relay
+        down from inside. `runStop` used to close the relay first, so those
+        datagrams were refused and the server kept the client for its whole
+        `sv_timeout`. Whether they now arrive is a routed-session question this
+        repository cannot answer offline -- it owns the relay contract, not a
+        relay server -- but whether the loader still asks in the wrong order is
+        exactly answerable, and it is the half that regressed by being
+        rewritten rather than by the network behaving differently.
+        """
+        loader = (ROOT / "arena/loader.js").read_text(encoding="utf-8")
+        start = loader.index("async function runStop()")
+        body = loader[start : loader.index("\nfunction ", start)]
+        quit_at = body.index("requestEngineQuit();")
+        close_at = body.index("await relayBackend?.close();")
+        self.assertLess(quit_at, close_at)
+        self.assertIn("await settledWithin(ENGINE_QUIT_GRACE_MILLISECONDS);", body)
+
     def test_the_allowlist_holds_only_platform_names(self) -> None:
         """The way this gate would quietly stop working is a product name added
         to the globals list, so no name any served module declares may be in

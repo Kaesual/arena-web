@@ -238,9 +238,35 @@ engine boot it settles as `{status: "exited", exitCode: null,
 reason: "host_stop"}`. Once Emscripten boot has begun it waits for runtime
 initialization if necessary, invokes the exported `Web_RequestQuit` handoff on
 the engine thread, and resolves only after the real Emscripten `onExit`. It
-never presents a loader-only exit while the engine is still alive. The accepted
-running-stop browser smoke returned engine exit code 0; stopping before engine
-boot settles with `null` as described above.
+never presents a loader-only exit while the engine is still alive. Stopping
+before engine boot settles with `null` as described above. The engine exit code
+a running stop returns is 0; that figure is the WP11 smoke's, and the stop
+sequence has been reordered under it since — see below — so read it as the
+engine's own exit status rather than as evidence about the current order.
+
+The engine is asked to quit **before** the relay is closed, and the two are not
+interchangeable. ioquake3 disconnects on its way out — `Com_Quit_f` runs
+`CL_Disconnect`, which sends `disconnect` three times, and only then shuts the
+relay down from inside — so a relay closed from outside first refuses exactly
+those datagrams and the game server keeps the client until its own `sv_timeout`.
+The client-stop close still happens; it is now a bounded-wait backstop for an
+engine that did not reach its own shutdown. The relay session drains what the
+engine already handed it before the transport goes away, bounded by 250 ms, so a
+stalled path cannot hold a stop open either.
+
+**The player can also end the session from inside the engine.** Answering
+"EXIT GAME?" in the in-game or main menu now quits, where it previously opened
+the credits screen and waited there for two further keypresses. A host
+therefore sees an ordinary engine exit — `whenSettled()` with `exited` and
+reason `engine_exit` — that it did not ask for, at any moment while the runtime
+is live. That was always the contract; it is called out because until this
+release the path was effectively unreachable, and because reaching it exposed a
+second defect that this release also fixes: `exit()` was leaving the embedding
+host with a live status over a dead engine whenever the quit was not the host's
+own request. **A host that only reacts to settlement should not tear the frame
+down in the same task**: the engine's `disconnect` is drained after
+`closeFromEngine`, and a document removed synchronously on settlement takes that
+drain with it.
 
 `whenSettled()` always returns the same Promise and resolves exactly once. Its
 value is `{status, exitCode, reason}` with terminal status `failed` or `exited`,

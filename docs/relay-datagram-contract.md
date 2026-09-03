@@ -175,6 +175,14 @@ acknowledgement that the destination port is right: the client writes that port
 itself, and a wrong one is answered by the relay with error `0x00000003` rather
 than assumed away.
 
+A frame that fails one of these checks is **not this session's**, which is not
+the same as the path being broken: one virtual address is reused across
+sessions, and a destination goes on answering a client that has left until its
+own timeout expires, so a live session can be handed the tail of a dead one.
+Such a frame is dropped and counted. A frame that cannot be decoded at all is a
+different statement — that the peer is not speaking this subset — and a client
+may treat it as terminal.
+
 None of these checks is a security mechanism. They establish that a frame
 belongs to this session's destination pair; what attributes a datagram to a
 *measurement case* is the payload tag.

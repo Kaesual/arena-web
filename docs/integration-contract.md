@@ -313,9 +313,14 @@ globalThis.arenaWeb.setFullscreen(engaged)
 
 `snapshot()` is a defensive copy and reports exact loading byte progress.
 `stop()` is idempotent before Start, during static/relay/engine loading and
-while running: it aborts attempt work, closes the relay without Reconnect,
-requests the real engine quit and, once engine boot began, waits for the actual
-Emscripten exit. Every stop call returns the same Promise. `whenSettled()` also
+while running: it aborts attempt work and closes the relay without Reconnect.
+Once engine boot began it additionally requests the real engine quit, before
+that close, and waits for the actual Emscripten exit; before boot there is no
+engine to ask and it settles `host_stop`. The engine is asked first on purpose. Its quit path is what
+sends ioquake3's `disconnect`, and it shuts the relay down from inside
+afterwards, so closing from outside first refused exactly those datagrams and
+left the game server holding the client for its own timeout; the host's close is
+now the backstop for an engine that did not get there. Every stop call returns the same Promise. `whenSettled()` also
 returns one stable Promise and resolves exactly once with
 `{status, exitCode, reason}` for `failed` or `exited`; reconnect never settles
 it. The accepted running-stop smoke returns exit code 0; a pre-engine stop has

@@ -5,6 +5,7 @@ import assert from "node:assert/strict";
 import {
   ArenaNetworkBackend,
   ArenaNetworkSession,
+  CLOSE_DRAIN_MILLISECONDS,
   PathBudgetError,
   RelayClosedError,
   RelayConfigurationError,
@@ -163,12 +164,14 @@ function config(overrides = {}) {
 
 async function openBackend(overrides = {}, plan = {}) {
   let transport;
+  const events = [];
   transportPlans.push({ ...plan, capture: (value) => (transport = value) });
   const backend = new ArenaNetworkBackend(config(overrides), {
     WebTransportClass: FakeWebTransport,
+    onEvent: (kind, detail) => events.push({ kind, detail }),
   });
   await backend.open();
-  return { backend, transport };
+  return { backend, transport, events };
 }
 
 function engineAddress(overrides = {}) {
@@ -550,14 +553,90 @@ let checks = 0;
   checks += 1;
 }
 
+// A frame that parses but is addressed elsewhere is counted and dropped, and
+// the session goes on. Both shapes are here because both are real: a foreign
+// source is another game server, and a stale destination port is this client's
+// own predecessor, which is what the relay's own reconnect defect produced.
 {
   const sourcePort = nextSourcePort;
-  const { backend, transport } = await openBackend({ clientSourcePort: sourcePort });
+  const { backend, transport, events } = await openBackend({ clientSourcePort: sourcePort });
+  const before = events.length;
   transport.reader.push(returnFrame(Uint8Array.of(1), sourcePort, FOREIGN));
+  transport.reader.push(returnFrame(Uint8Array.of(2), sourcePort + 1));
+  transport.reader.push(returnFrame(Uint8Array.of(3), sourcePort));
   await settle();
-  assert.equal(backend.snapshot().state, "closed");
-  assert.equal(backend.snapshot().terminalReason, "invalid_return_frame");
+  assert.equal(backend.snapshot().state, "open");
+  assert.equal(backend.snapshot().terminalReason, null);
+  assert.equal(backend.snapshot().foreignReturnFrames, 2);
+  assert.equal(backend.snapshot().invalidReturnFrames, 0);
+  assert.equal(backend.snapshot().receivedInnerDatagrams, 1);
+  assert.deepEqual(backend.receiveForEngine(), Uint8Array.of(3));
   assert.equal(backend.receiveForEngine(), null);
+  // Counted in the snapshot and announced nowhere. A predecessor's tail is a
+  // burst, and the host publishes a whole snapshot per event, so an event each
+  // would cost a sort and a cross-window render per stray packet and would
+  // crowd real faults out of the bounded event list.
+  assert.equal(events.length, before);
+  await backend.close();
+  checks += 1;
+}
+
+// The engine's own close flushes what the engine already queued. This is the
+// ghost-client fix: ioquake3 enqueues its `disconnect` and shuts the network
+// down in the same synchronous call, so the datagrams are still pending here.
+{
+  let releaseWrite;
+  const relayWriteGate = new Promise((resolve) => {
+    releaseWrite = resolve;
+  });
+  const { backend, transport } = await openBackend({}, { relayWriteGate });
+  for (const value of [1, 2, 3]) {
+    assert.equal(
+      backend.sendFromEngine(engineAddress(), Uint8Array.of(value), 0),
+      SEND_ACCEPTED,
+    );
+  }
+  await settle();
+  backend.closeFromEngine();
+  await settle();
+  assert.equal(backend.snapshot().state, "open");
+  releaseWrite();
+  // The host closes after the engine has, which is the order the loader stops
+  // in; it must join the engine's drain rather than terminate underneath it.
+  await backend.close();
+  assert.equal(backend.snapshot().state, "closed");
+  assert.equal(backend.snapshot().terminalReason, "engine_shutdown");
+  assert.equal(backend.snapshot().cancelledAcceptedWrites, 0);
+  assert.equal(backend.snapshot().writtenInnerDatagrams, 3);
+  assert.equal(
+    transport.writes.filter((frame) => datagramType(frame) === TYPE_RELAY_PACKET).length,
+    3,
+  );
+  checks += 1;
+}
+
+// ...and it is bounded, so a path that never accepts the write cannot hold the
+// session open. The queued datagram is cancelled exactly as any other close
+// cancels it; what the drain buys is the case where the path still works.
+{
+  const relayWriteGate = new Promise(() => {});
+  const { backend } = await openBackend({}, { relayWriteGate });
+  assert.equal(
+    backend.sendFromEngine(engineAddress(), Uint8Array.of(1), 0),
+    SEND_ACCEPTED,
+  );
+  await settle();
+  const startedAt = Date.now();
+  backend.closeFromEngine();
+  await backend.close();
+  const elapsed = Date.now() - startedAt;
+  assert.equal(backend.snapshot().state, "closed");
+  assert.equal(backend.snapshot().terminalReason, "engine_shutdown");
+  assert.equal(backend.snapshot().cancelledAcceptedWrites, 1);
+  assert.ok(
+    elapsed >= CLOSE_DRAIN_MILLISECONDS - 20 && elapsed < CLOSE_DRAIN_MILLISECONDS * 8,
+    `the bounded drain took ${elapsed}ms`,
+  );
   checks += 1;
 }
 

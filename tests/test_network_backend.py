@@ -176,15 +176,40 @@ class EngineBoundaryTests(unittest.TestCase):
         source = (ROOT / "ioq3/code/sys/sys_main.c").read_text(encoding="utf-8")
         exported = source.index("EMSCRIPTEN_KEEPALIVE void Web_RequestQuit")
         loop = source.index("static void Sys_WebMainLoop", exported)
-        cancelled = source.index("emscripten_cancel_main_loop();", loop)
         consumed = source.index("Com_Quit_f();", loop)
         frame = source.index("Com_Frame();", consumed)
         installed = source.index("emscripten_set_main_loop( Sys_WebMainLoop")
         self.assertLess(exported, loop)
-        self.assertLess(loop, cancelled)
-        self.assertLess(cancelled, consumed)
+        self.assertLess(loop, consumed)
         self.assertLess(consumed, frame)
         self.assertLess(frame, installed)
+
+    def test_the_main_loop_keepalive_is_dropped_at_the_single_exit_point(self) -> None:
+        """Not on the host's own quit path, which is where it used to live.
+
+        `exit()` with the main-loop keepalive held records the status, throws
+        and unwinds out of the callback without delivering `Module.onExit`, so
+        an embedding host is left with a live status over a dead engine. That is
+        true of every way out, not of the one the host asked for — measured in a
+        routed session, where the in-game menu's "EXIT GAME" ran the complete
+        shutdown and the host never settled. The cancel therefore belongs to
+        `Sys_Exit`, and this test refuses a version that puts it back on one
+        path: the negative below is the whole point, because a per-path cancel
+        passes every positive assertion here and still leaves the next quit path
+        that is added silently broken.
+        """
+        source = (ROOT / "ioq3/code/sys/sys_main.c").read_text(encoding="utf-8")
+        loop_start = source.index("static void Sys_WebMainLoop")
+        loop_end = source.index("#endif", loop_start)
+        self.assertNotIn("emscripten_cancel_main_loop", source[loop_start:loop_end])
+
+        exit_start = source.index("static Q_NO_RETURN void Sys_Exit")
+        body = source[exit_start : source.index("\n}", exit_start)]
+        self.assertLess(
+            body.index("emscripten_cancel_main_loop();"),
+            body.index("exit( exitCode );"),
+        )
+        self.assertEqual(source.count("emscripten_cancel_main_loop();"), 1)
 
 
 @unittest.skipUnless(NODE, "node is not available to run the browser backend")
