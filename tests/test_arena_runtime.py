@@ -3549,11 +3549,35 @@ class ServedJavaScriptTest(unittest.TestCase):
         start = loader.index("function requestUnadjustedPointerLock()")
         body = loader[start : loader.index("\n  };", start)]
         self.assertIn("requestLock({ unadjustedMovement: true })", body)
-        # The bare retry appears once in each of the two ways the option can be
-        # refused: thrown outright, and a rejected promise.
+        # Both refusal shapes -- a rejected promise and a synchronous throw --
+        # reach the same fallback, and the already-refused case skips the
+        # question entirely.
+        self.assertIn("attempt.then(() => settle(true), refuse)", body)
+        self.assertIn("const retry = refuse();", body)
+        self.assertIn("if (unadjustedPointerLockRefused) {", body)
         self.assertEqual(body.count("return requestLock();"), 2)
-        self.assertIn("settle(true)", body)
-        self.assertIn("settle(false)", body)
+
+    def test_a_refused_pointer_lock_option_is_not_counted_as_an_error(self) -> None:
+        """It is provoked by this page, and it happens on every platform that
+        simply has no raw deltas — the pinned browser on a virtual X server
+        refuses it. Counting it in `errors` would report two pointer-lock
+        failures in every such session, which is acceptance evidence a person
+        reads. The listener attributes it instead, and the synchronous-throw
+        path gives back the allowance it took, because no event follows a
+        request that was never made."""
+        loader = (ROOT / "arena/loader.js").read_text(encoding="utf-8")
+        start = loader.index('document.addEventListener("pointerlockerror"')
+        listener = loader[start : loader.index("\n  });", start)]
+        self.assertIn("if (expectedPointerLockOptionErrors > 0) {", listener)
+        self.assertIn("report.pointerLock.optionRefusals += 1;", listener)
+        self.assertLess(
+            listener.index("optionRefusals += 1"),
+            listener.index("report.pointerLock.errors += 1"),
+        )
+        request_start = loader.index("function requestUnadjustedPointerLock()")
+        request = loader[request_start : loader.index("\n  };", request_start)]
+        self.assertIn("expectedPointerLockOptionErrors += 1;", request)
+        self.assertIn("expectedPointerLockOptionErrors -= 1;", request)
 
     def test_the_allowlist_holds_only_platform_names(self) -> None:
         """The way this gate would quietly stop working is a product name added

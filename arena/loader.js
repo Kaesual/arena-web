@@ -130,11 +130,23 @@ const report = {
   // so which of the two a session actually got is a fact about that session
   // rather than about this build. It stays null on a browser that ignores the
   // option without saying so, which is the honest answer there.
+  // `unadjusted` is null until a lock is asked for, then true or false: the
+  // request below asks for raw pointer deltas and accepts the ordinary ones,
+  // so which of the two a session got is a fact about that session rather than
+  // about this build. It stays null on a browser that ignores the option
+  // without saying so, which is the honest answer there.
+  //
+  // `optionRefusals` is separate from `errors` on purpose. A platform that has
+  // no raw deltas answers the request with a `pointerlockerror`, and counting
+  // that as a pointer-lock failure would report a broken session on every
+  // platform that simply does not offer the option — measured, not guessed: the
+  // pinned browser on a virtual X server refuses it and reported two.
   pointerLock: {
     supported: "pointerLockElement" in document,
     engaged: false,
     errors: 0,
     unadjusted: null,
+    optionRefusals: 0,
   },
   fullscreen: { supported: Boolean(elements.stage.requestFullscreen), engaged: false },
   progress: { phase: "loading", loadedBytes: 0, totalBytes: null, fraction: 0 },
@@ -168,6 +180,11 @@ let engineBootStarted = false;
 let engineQuit = null;
 let engineQuitInvoked = false;
 const startupAbort = new AbortController();
+// Asked once per document; see requestUnadjustedPointerLock.
+let unadjustedPointerLockRefused = false;
+// Pointer-lock errors this page provoked by asking for an option the platform
+// does not have, which the error listener attributes rather than counts.
+let expectedPointerLockOptionErrors = 0;
 const lifecycle = createHostLifecycle(snapshot, {
   onListenerError: (error) => {
     console.error("arena-web subscriber failed", error);
@@ -1024,6 +1041,18 @@ function installPageBehaviour() {
     lifecycle.publish();
   });
   document.addEventListener("pointerlockerror", () => {
+    // A refusal this page provoked itself, by asking for raw deltas the
+    // platform does not have, is not a pointer-lock failure. The rejection is
+    // observed before the event — the promise settles first — so the count is
+    // already standing when this runs; if that order ever inverted the refusal
+    // would be counted as an error, which is the safe direction to be wrong in.
+    if (expectedPointerLockOptionErrors > 0) {
+      expectedPointerLockOptionErrors -= 1;
+      report.pointerLock.optionRefusals += 1;
+      note("pointerlock-option-refused", null);
+      lifecycle.publish();
+      return;
+    }
     report.pointerLock.errors += 1;
     note("pointerlockerror", null);
     lifecycle.publish();
@@ -1054,27 +1083,37 @@ function installPageBehaviour() {
       note("pointerlock-unadjusted", unadjusted);
       lifecycle.publish();
     };
+    const refuse = () => {
+      // Asked once per document, not once per lock. SDL requests the lock
+      // again after every release, and a platform that has no raw deltas will
+      // not grow them mid-session, so repeating the question would buy one
+      // failed request and one recovery per re-entry for an answer that is
+      // already known.
+      unadjustedPointerLockRefused = true;
+      expectedPointerLockOptionErrors += 1;
+      settle(false);
+      return requestLock();
+    };
+    if (unadjustedPointerLockRefused) {
+      return requestLock();
+    }
     let attempt;
     try {
       attempt = requestLock({ unadjustedMovement: true });
     } catch (_) {
       // A browser that rejects the argument shape outright, rather than by
-      // returning a promise that rejects.
-      settle(false);
-      return requestLock();
+      // returning a promise that rejects. Nothing was requested, so no error
+      // event is coming; take back the one `refuse` accounts for.
+      const retry = refuse();
+      expectedPointerLockOptionErrors -= 1;
+      return retry;
     }
     if (attempt === undefined || typeof attempt.then !== "function") {
       // The pre-promise form: the option was ignored and there is no way to
       // learn whether it took effect, so nothing is claimed about it.
       return attempt;
     }
-    return attempt.then(
-      () => settle(true),
-      () => {
-        settle(false);
-        return requestLock();
-      },
-    );
+    return attempt.then(() => settle(true), refuse);
   };
 
   // A lost drawing context stops the engine dead and is otherwise invisible in
