@@ -17,91 +17,91 @@
   "formatVersion": 1,
   "maps": {
     "aggressor": {
-      "peakHunkBytes": 27413992
+      "peakHunkBytes": 27414056
     },
     "am_galmevish": {
-      "peakHunkBytes": 26977640
+      "peakHunkBytes": 26977704
     },
     "am_galmevish2": {
-      "peakHunkBytes": 29178888
+      "peakHunkBytes": 29178952
     },
     "am_spacecont": {
-      "peakHunkBytes": 30236552
+      "peakHunkBytes": 30236616
     },
     "am_underworks2": {
-      "peakHunkBytes": 32297320
+      "peakHunkBytes": 32297384
     },
     "ce1m7": {
-      "peakHunkBytes": 27400424
+      "peakHunkBytes": 27400488
     },
     "czest1dm": {
-      "peakHunkBytes": 30049352
+      "peakHunkBytes": 30049416
     },
     "czest1tourney": {
-      "peakHunkBytes": 28579368
+      "peakHunkBytes": 28579432
     },
     "dm6ish": {
-      "peakHunkBytes": 29158440
+      "peakHunkBytes": 29158504
     },
     "kaos2": {
-      "peakHunkBytes": 30319496
+      "peakHunkBytes": 30319560
     },
     "mlca1": {
-      "peakHunkBytes": 30275304
+      "peakHunkBytes": 30275368
     },
     "oa_dm1": {
-      "peakHunkBytes": 27803080
+      "peakHunkBytes": 27803144
     },
     "oa_dm2": {
-      "peakHunkBytes": 30087400
+      "peakHunkBytes": 30087464
     },
     "oa_dm3": {
-      "peakHunkBytes": 30262856
+      "peakHunkBytes": 30262920
     },
     "oa_dm4": {
-      "peakHunkBytes": 27478440
+      "peakHunkBytes": 27478504
     },
     "oa_dm5": {
-      "peakHunkBytes": 30273032
+      "peakHunkBytes": 30273096
     },
     "oa_dm6": {
-      "peakHunkBytes": 29814920
+      "peakHunkBytes": 29814984
     },
     "oa_dm7": {
-      "peakHunkBytes": 27086344
+      "peakHunkBytes": 27086408
     },
     "oa_koth1": {
-      "peakHunkBytes": 34341832
+      "peakHunkBytes": 34341896
     },
     "oa_minia": {
-      "peakHunkBytes": 32236712
+      "peakHunkBytes": 32236776
     },
     "oa_pvomit": {
-      "peakHunkBytes": 31441576
+      "peakHunkBytes": 31441640
     },
     "oa_rpg3dm2": {
-      "peakHunkBytes": 32380968
+      "peakHunkBytes": 32381032
     },
     "oa_shine": {
-      "peakHunkBytes": 29625704
+      "peakHunkBytes": 29625768
     },
     "oa_shouse": {
-      "peakHunkBytes": 31362472
+      "peakHunkBytes": 31362536
     },
     "pul1duel-oa": {
-      "peakHunkBytes": 30321160
+      "peakHunkBytes": 30321224
     },
     "sleekgrinder": {
-      "peakHunkBytes": 29895368
+      "peakHunkBytes": 29895432
     },
     "slimefac": {
-      "peakHunkBytes": 29315048
+      "peakHunkBytes": 29315112
     },
     "suspended": {
-      "peakHunkBytes": 35641800
+      "peakHunkBytes": 35641864
     },
     "wrackdm17": {
-      "peakHunkBytes": 33273864
+      "peakHunkBytes": 33273928
     }
   },
   "method": {
@@ -109,12 +109,16 @@
       "These are 64-bit native figures and the browser build is 32-bit, where hunk-resident structures holding pointers are smaller and the raw arrays are the same size, so the figure over-estimates.",
       "An earlier note here said a map measured mid-session differs from a cold-start load by about 1.5 MB. The control below contradicts it and is the direct test: oa_pvomit read as the first map of a cold client and as the tenth gives the identical figure, which is also what the method predicts, because Hunk_Clear zeroes both marks and both tempHighwater values on every map load. The position of a map in a session is therefore not a caveat on these figures.",
       "The figure is base-dependent: s_shaderText is Hunk_Alloc'd, so the base becoming the pack's shader authority moved every map by about 0.15 MB. A release that changes what the base carries must re-measure rather than carry these numbers forward.",
-      "The figure does not depend on how many archives are mounted. That follows from the base being the pack's shader authority - every scripts/*.shader is in the base and in no map archive, so the Hunk_Alloc'd s_shaderText is the same whatever map archives are present - and the control above measures it rather than deriving it. It is why a batch that only adds archives may carry the earlier figures forward unchanged, while the base-dependence caveat above still stands. Checked rather than inferred from one map: qcommon/files.c makes no permanent hunk allocation at all - its only hunk use is Hunk_AllocateTempMemory for one file's bytes, freed - and pak mounting allocates from the zone, which is an independent calloc rather than a slice of the hunk, so s_shaderText and its hash table are the only file-set-dependent hunk allocations in the tree."
+      "The figure does not depend on how many archives are mounted. That follows from the base being the pack's shader authority - every scripts/*.shader is in the base and in no map archive, so the Hunk_Alloc'd s_shaderText is the same whatever map archives are present - and the control above measures it rather than deriving it. It is why a batch that only adds archives may carry the earlier figures forward unchanged, while the base-dependence caveat above still stands. Checked rather than inferred from one map: qcommon/files.c makes no permanent hunk allocation at all - its only hunk use is Hunk_AllocateTempMemory for one file's bytes, freed - and pak mounting allocates from the zone, which is an independent calloc rather than a slice of the hunk, so s_shaderText and its hash table are the only file-set-dependent hunk allocations in the tree.",
+      "The engine move to 663bc0e6 raised every one of the twenty-nine figures by exactly 64 bytes and changed nothing else. Its one effect on a hunk allocation is baseq3/vm/ui.qvm, 40 bytes longer, and VM_Create takes the module out of the hunk; the other two changes in that pin are in the main module, which the hunk does not hold. The uniformity across maps from 27 to 36 MB is what says the move is map-independent, which is what an engine change touching no map has to look like.",
+      "Each figure is one cold client, and that is a condition rather than a convenience. Bots already in the game are clients: they reconnect through a map change and the state they carry lands inside the next map's figure, and clearing bot_minplayers does not remove the ones already there. Measuring the whole set in one session read a constant 15,329,304 bytes high on every map after the first; measuring it in one session while clearing the floor after each reading read high by varying amounts instead - 4,970,216 on the second map and 9,876,096 on the third - because G_CheckMinimumPlayers tops a server up by at most one bot every ten seconds, so each map was measured against whatever fraction of a roster had arrived. One cold client per map removes both by construction and reproduced the published set to the byte.",
+      "Read the other way, the condition above says what these figures are not: they bound loading a map, not playing a populated match. A cold aggressor measured with three players actually in the game read 39,953,688 bytes against its 27,414,056. Both are far inside DEF_COMHUNKMEGS, which is the bound these numbers exist to test, so nothing the release claims changes - but a consumer sizing a hunk from a figure should know which of the two it is holding."
     ],
-    "engineCommit": "d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+    "engineCommit": "663bc0e6d94827c671090178418696aa5b0667c3",
     "measuredOn": [
       "2026-09-01",
-      "2026-09-02"
+      "2026-09-02",
+      "2026-09-03"
     ],
     "peakHunkBytes": "One native client per session on Xvfb inside the pinned WP5 toolchain image, driven over its own console: 'map <name>', bot_minplayers 3, then 'meminfo'. Hunk_Clear zeroes both marks and both tempHighwater values on every map load (ioq3 code/qcommon/common.c), so each report is that map's own figure. The value is 'total hunk in use' plus 'unused highwater'. Sound is off, matching the method the whole set was ranked with. The four sessions behind these figures are tied together by a control rather than by assumption: oa_pvomit was re-measured in three later sessions on 2026-09-02, each time as the first map of a cold client and again after the rest of the batch, against mounts of seventeen, twenty-five and thirty archives instead of the nine it was first measured with, and all seven readings are the same 31441576 bytes."
   }

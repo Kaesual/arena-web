@@ -35,9 +35,9 @@ The primary immutable identities are:
 
 | Input | Identity |
 | --- | --- |
-| Baseline lock | `sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287` |
-| Browser artifact manifest | `sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047` |
-| Content artifact manifest | `sha256:443fbe5c207918b741381e62089dc23b21f90447ae09af74e57caeb6468454f3` |
+| Baseline lock | `sha256:ba723aaccf72500de2ebda2dcd0dfa50afac60ebd345619c6574d2e4a63237ef` |
+| Browser artifact manifest | `sha256:f4e66669056f61701b2e9d112c893cdf47c1523b0c14a3b657828797a5d3eb56` |
+| Content artifact manifest | `sha256:91a123e677860fb4a5c8652cc306c76439c37d8e97491c2048c414c27e09ac95` |
 | Base content archive | `sha256:7cfa98c9fac1274ed45ee653572252e3d3d47c47c6d80163b59afd1c6354277c`, 55,304,102 bytes |
 | Map archives | twenty-nine, one per map, enumerated in the content artifact manifest |
 
@@ -307,8 +307,8 @@ The exact server identities are:
 
 | Input | Identity |
 | --- | --- |
-| OCI configuration/image ID | `sha256:8b3cf3412ee78ce0eb0c91a99fff37016716f0e1768e6b24ea053fd69b7035c7` |
-| Server artifact manifest | `sha256:f09ad477165e0f86b2baa894581c6ec1cdcf59bfbd35f04636cdd3871b5ecb57` |
+| OCI configuration/image ID | `sha256:df9d07cea64c4a948aa3897573458143f116064e201620787cc18e6cb0407168` |
+| Server artifact manifest | `sha256:3bb1dae2ba3abd206660e3ecbeef75895ac2796370382235b8d546b21848e9c6` |
 | Server profile | `sha256:8c3ca45ec0f52c896ab4e41223dfedaaa34fbd62d9138f8eb31672ab0b5a15dc` |
 
 The image is `linux/amd64`, user/group `65534:65534`, workdir
@@ -561,7 +561,7 @@ one-second checks make the observation failed.
 Send `SIGTERM` or `SIGINT` to the entrypoint and allow 10 seconds before a
 forced kill. The normal signal path sends the final server message, closes the
 VM/network and exits with code 1; code 1 is therefore success only when the
-manager requested this stop. The measured graceful exit took 0.109 seconds.
+manager requested this stop. The measured graceful exit took 0.144 seconds.
 Any unsolicited exit, including code 1, is failure.
 
 ## 5. Indivisible compatibility identity
@@ -570,13 +570,13 @@ The following tuple is one unit and must not be mixed with an earlier or later
 loader, profile, QVM, pack, binary or relay profile:
 
 ```text
-baseline          sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287
-ioq3               git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592
-browser manifest   sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047
-content manifest   sha256:443fbe5c207918b741381e62089dc23b21f90447ae09af74e57caeb6468454f3
+baseline          sha256:ba723aaccf72500de2ebda2dcd0dfa50afac60ebd345619c6574d2e4a63237ef
+ioq3               git:663bc0e6d94827c671090178418696aa5b0667c3
+browser manifest   sha256:f4e66669056f61701b2e9d112c893cdf47c1523b0c14a3b657828797a5d3eb56
+content manifest   sha256:91a123e677860fb4a5c8652cc306c76439c37d8e97491c2048c414c27e09ac95
 content base       sha256:7cfa98c9fac1274ed45ee653572252e3d3d47c47c6d80163b59afd1c6354277c
-server manifest    sha256:f09ad477165e0f86b2baa894581c6ec1cdcf59bfbd35f04636cdd3871b5ecb57
-server image ID    sha256:8b3cf3412ee78ce0eb0c91a99fff37016716f0e1768e6b24ea053fd69b7035c7```
+server manifest    sha256:3bb1dae2ba3abd206660e3ecbeef75895ac2796370382235b8d546b21848e9c6
+server image ID    sha256:df9d07cea64c4a948aa3897573458143f116064e201620787cc18e6cb0407168```
 
 `release/browser-release.json.compatibility` repeats these values and its
 validator derives all manifest identities from the named authority files.
@@ -709,8 +709,8 @@ for this exact eight-slot/two-human/three-bot prototype is:
 
 | Resource | Limit | Busy observed maximum | Remaining safety margin |
 | --- | ---: | ---: | ---: |
-| CPU | 1 core | 0.048095-core peak sample | 0.951905 core; 20.792x |
-| Memory | 268,435,456 bytes | 30,355,456-byte peak cgroup; 31,735,808-byte process HWM | 238,080,000 bytes; 8.843x against cgroup peak |
+| CPU | 1 core | 0.049752-core peak sample | 0.950248 core; 20.1x |
+| Memory | 268,435,456 bytes | 30,707,712-byte peak cgroup; 31,895,552-byte process HWM | 237,727,744 bytes; 8.742x against cgroup peak |
 | Writable home | 67,108,864 bytes | 1,272 bytes | 67,107,592 bytes; 52,758.541x |
 | Processes | 128 PIDs | constrained successfully by the probe | guard, not a measured demand claim |
 
@@ -718,9 +718,9 @@ Startup readiness was 1.751 seconds, which is a poll-loop
 figure and not a startup time: the readiness probe waits out a 0.75-second
 socket timeout and then a one-second interval, so it says the server was ready
 before the second poll and no more than that. The ten-second idle phase
-averaged 0.02146 cores. The 30-second two-native-client phase, with
+averaged 0.021497 cores. The 30-second two-native-client phase, with
 movement, weapon, fire, chat and respawn traffic while the bots remained
-active, averaged 0.035315 cores. These values preserve large practical headroom, but are
+active, averaged 0.034731 cores. These values preserve large practical headroom, but are
 capacity guards only—not an SLO, autoscaling rule, production concurrency
 claim or evidence for more than two humans.
 
@@ -767,7 +767,7 @@ records in `locks/baseline.json`; none may be replaced by an aggregate blanket
 licence.
 
 Corresponding source is the public ioq3 commit
-`d594b1cc9bfc5b58ccebffd4d840a13782cb6592`, this repository at the browser
+`663bc0e6d94827c671090178418696aa5b0667c3`, this repository at the browser
 manifest's producer/release commits, emsdk commit
 `e5bd3d0874e302a18f13c5b41f5bacf9a40c8e59`, the digest-pinned SDL port
 archive and IJG source archive. Each archive already contains all six required

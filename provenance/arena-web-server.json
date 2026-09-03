@@ -167,7 +167,7 @@
       "size": 798664
     }
   ],
-  "baselineIdentity": "sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287",
+  "baselineIdentity": "sha256:ba723aaccf72500de2ebda2dcd0dfa50afac60ebd345619c6574d2e4a63237ef",
   "baselineInputIds": [
     "ioq3",
     "native-builder-base",
@@ -178,17 +178,17 @@
   "inputs": [
     {
       "id": "arena-web-browser-client",
-      "identity": "sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047",
+      "identity": "sha256:f4e66669056f61701b2e9d112c893cdf47c1523b0c14a3b657828797a5d3eb56",
       "kind": "artifact-manifest"
     },
     {
       "id": "arena-web-ffa-content",
-      "identity": "sha256:443fbe5c207918b741381e62089dc23b21f90447ae09af74e57caeb6468454f3",
+      "identity": "sha256:91a123e677860fb4a5c8652cc306c76439c37d8e97491c2048c414c27e09ac95",
       "kind": "artifact-manifest"
     },
     {
       "id": "ioq3",
-      "identity": "git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+      "identity": "git:663bc0e6d94827c671090178418696aa5b0667c3",
       "kind": "git"
     },
     {
@@ -208,7 +208,7 @@
     }
   ],
   "producer": {
-    "commit": "47244679be82d69904c0e99b313a7c90e9e37dde",
+    "commit": "205223e30577c5a99e628b830f1c8077b46e1972",
     "name": "arena-web scripts/build-server-image.sh"
   }
 }

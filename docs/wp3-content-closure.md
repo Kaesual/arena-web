@@ -1501,7 +1501,7 @@ survive a move unremeasured.
   dedicated server floors at `MIN_DEDICATED_COMHUNKMEGS` instead. The bound this
   gate enforces is the default, which is what an unconfigured client gets. Every
   declared figure must fit it, read out of `ioq3/code/qcommon/common.c` rather
-  than restated. The published set peaks at 35,641,800 bytes (`suspended`)
+  than restated. The published set peaks at 35,641,864 bytes (`suspended`)
   against 134,217,728.
 - **The published archive set against `BIG_INFO_STRING`.**
   `SV_SpawnServer` assembles all `CVAR_SYSTEMINFO` cvars with

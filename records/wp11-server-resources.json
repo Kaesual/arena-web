@@ -8,16 +8,16 @@
   },
   "formatVersion": 1,
   "headroom": {
-    "cpuCores": 0.951905,
-    "cpuFactor": 20.792,
-    "memoryBytes": 238080000,
-    "memoryFactor": 8.843,
+    "cpuCores": 0.950248,
+    "cpuFactor": 20.1,
+    "memoryBytes": 237727744,
+    "memoryFactor": 8.742,
     "writableHomeBytes": 67107592,
     "writableHomeFactor": 52758.541
   },
   "lifecycle": {
     "gracefulExitCode": 1,
-    "gracefulStopSeconds": 0.109,
+    "gracefulStopSeconds": 0.144,
     "healthIntervalSeconds": 1,
     "postReadyFailureThreshold": 3,
     "startupDeadlineSeconds": 20,
@@ -30,16 +30,16 @@
       "missing"
     ]
   },
-  "measuredAt": "2026-09-02",
+  "measuredAt": "2026-09-03",
   "measurement": {
     "busy": {
-      "cpuSeconds": 1.059458,
+      "cpuSeconds": 1.041922,
       "durationSeconds": 30.0,
-      "meanCpuCores": 0.035315,
-      "peakCgroupMemoryBytes": 30355456,
-      "peakProcessHwmBytes": 31735808,
-      "peakProcessRssBytes": 31735808,
-      "peakSampleCpuCores": 0.048095,
+      "meanCpuCores": 0.034731,
+      "peakCgroupMemoryBytes": 30707712,
+      "peakProcessHwmBytes": 31895552,
+      "peakProcessRssBytes": 31895552,
+      "peakSampleCpuCores": 0.049752,
       "peakWritableHomeBytes": 1272,
       "samples": 53
     },
@@ -53,20 +53,20 @@
       "timelimit": "0"
     },
     "idle": {
-      "cpuSeconds": 0.214606,
+      "cpuSeconds": 0.21498,
       "durationSeconds": 10.0,
-      "meanCpuCores": 0.02146,
-      "peakCgroupMemoryBytes": 30298112,
-      "peakProcessHwmBytes": 31731712,
-      "peakProcessRssBytes": 31731712,
-      "peakSampleCpuCores": 0.024423,
+      "meanCpuCores": 0.021497,
+      "peakCgroupMemoryBytes": 30040064,
+      "peakProcessHwmBytes": 31760384,
+      "peakProcessRssBytes": 31760384,
+      "peakSampleCpuCores": 0.029285,
       "peakWritableHomeBytes": 1272,
       "samples": 18
     },
     "maximums": {
-      "peakCgroupMemoryBytes": 30355456,
-      "peakProcessRssBytes": 31735808,
-      "peakSampleCpuCores": 0.048095,
+      "peakCgroupMemoryBytes": 30707712,
+      "peakProcessRssBytes": 31895552,
+      "peakSampleCpuCores": 0.049752,
       "peakWritableHomeBytes": 1272
     },
     "readOnlyImageBytes": 289788367,
@@ -98,10 +98,10 @@
     "udpPort": 27960
   },
   "release": {
-    "engineCommit": "d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
-    "serverArtifactManifest": "sha256:f09ad477165e0f86b2baa894581c6ec1cdcf59bfbd35f04636cdd3871b5ecb57",
-    "serverImageId": "sha256:8b3cf3412ee78ce0eb0c91a99fff37016716f0e1768e6b24ea053fd69b7035c7",
-    "serverManifestCommit": "47244679be82d69904c0e99b313a7c90e9e37dde"
+    "engineCommit": "663bc0e6d94827c671090178418696aa5b0667c3",
+    "serverArtifactManifest": "sha256:3bb1dae2ba3abd206660e3ecbeef75895ac2796370382235b8d546b21848e9c6",
+    "serverImageId": "sha256:df9d07cea64c4a948aa3897573458143f116064e201620787cc18e6cb0407168",
+    "serverManifestCommit": "205223e30577c5a99e628b830f1c8077b46e1972"
   },
   "scope": "eight-slot prototype capacity guard for the accepted two-human, three-bot profile; not an SLO or larger-capacity claim"
 }

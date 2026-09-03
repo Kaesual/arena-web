@@ -10,7 +10,7 @@
     {
       "map": "aggressor",
       "path": "baseq3/arena-web-ffa-map-aggressor.pk3",
-      "peakHunkBytes": 27413992,
+      "peakHunkBytes": 27414056,
       "sha256": "99ee9bc566cdcff2875000a327bfcc9c5e5b7c022ca64bfb825b6cfc8fd1feee",
       "size": 2589454,
       "uncompressedSize": 3602550
@@ -18,7 +18,7 @@
     {
       "map": "am_galmevish",
       "path": "baseq3/arena-web-ffa-map-am_galmevish.pk3",
-      "peakHunkBytes": 26977640,
+      "peakHunkBytes": 26977704,
       "sha256": "5dd57747e2f7d6def46d8b8c24dfdf76e5a6052b0868af1bdbb89da10f4a3bb8",
       "size": 1404047,
       "uncompressedSize": 3232497
@@ -26,7 +26,7 @@
     {
       "map": "am_galmevish2",
       "path": "baseq3/arena-web-ffa-map-am_galmevish2.pk3",
-      "peakHunkBytes": 29178888,
+      "peakHunkBytes": 29178952,
       "sha256": "1d6de81a82a739c7a840ec6cdd8cafa970955bed4eee1dad124835038f74bcec",
       "size": 1625053,
       "uncompressedSize": 5183882
@@ -34,7 +34,7 @@
     {
       "map": "am_spacecont",
       "path": "baseq3/arena-web-ffa-map-am_spacecont.pk3",
-      "peakHunkBytes": 30236552,
+      "peakHunkBytes": 30236616,
       "sha256": "2962ec77faf8b02d3d1005a3a7f995018cb7b204093b61f0320af2bd82e22a9e",
       "size": 4349794,
       "uncompressedSize": 8538193
@@ -42,7 +42,7 @@
     {
       "map": "am_underworks2",
       "path": "baseq3/arena-web-ffa-map-am_underworks2.pk3",
-      "peakHunkBytes": 32297320,
+      "peakHunkBytes": 32297384,
       "sha256": "e41fb0669c74341d031d41143b6b3dc608c6b50eff4b295eb6674523c416e3ac",
       "size": 8965303,
       "uncompressedSize": 20431326
@@ -50,7 +50,7 @@
     {
       "map": "ce1m7",
       "path": "baseq3/arena-web-ffa-map-ce1m7.pk3",
-      "peakHunkBytes": 27400424,
+      "peakHunkBytes": 27400488,
       "sha256": "f042d1ed90ffa40f7e7a4dbac4d3464cf048b8f436e9eeb8083716f76e0514d6",
       "size": 3742390,
       "uncompressedSize": 6697031
@@ -58,7 +58,7 @@
     {
       "map": "czest1dm",
       "path": "baseq3/arena-web-ffa-map-czest1dm.pk3",
-      "peakHunkBytes": 30049352,
+      "peakHunkBytes": 30049416,
       "sha256": "322f6b1ffef9e3d0533b2eeb3d60daa2935b71ba21f6a9f23bc65bad2e7baf92",
       "size": 5341451,
       "uncompressedSize": 8995926
@@ -66,7 +66,7 @@
     {
       "map": "czest1tourney",
       "path": "baseq3/arena-web-ffa-map-czest1tourney.pk3",
-      "peakHunkBytes": 28579368,
+      "peakHunkBytes": 28579432,
       "sha256": "ec7d74e3a8892c2bb8f5dfb5e8f7114ec71da848701f5118acb58df49971049f",
       "size": 3271062,
       "uncompressedSize": 6744099
@@ -74,7 +74,7 @@
     {
       "map": "dm6ish",
       "path": "baseq3/arena-web-ffa-map-dm6ish.pk3",
-      "peakHunkBytes": 29158440,
+      "peakHunkBytes": 29158504,
       "sha256": "afdd1f7d97b05b0821a4c38680f997332e114f882c6a0eb948eab8d65111a5c9",
       "size": 4122810,
       "uncompressedSize": 7108591
@@ -82,7 +82,7 @@
     {
       "map": "kaos2",
       "path": "baseq3/arena-web-ffa-map-kaos2.pk3",
-      "peakHunkBytes": 30319496,
+      "peakHunkBytes": 30319560,
       "sha256": "e746f2b1dc28f20fca313c12d6846fb4333df4fcadaa133bae65f0d53de42b4f",
       "size": 6503335,
       "uncompressedSize": 10859664
@@ -90,7 +90,7 @@
     {
       "map": "mlca1",
       "path": "baseq3/arena-web-ffa-map-mlca1.pk3",
-      "peakHunkBytes": 30275304,
+      "peakHunkBytes": 30275368,
       "sha256": "2e785c0fd463ce0e2d4a2e28c9bac8c680a279b746b8c07d1569604a834aa852",
       "size": 7479132,
       "uncompressedSize": 10698751
@@ -98,7 +98,7 @@
     {
       "map": "oa_dm1",
       "path": "baseq3/arena-web-ffa-map-oa_dm1.pk3",
-      "peakHunkBytes": 27803080,
+      "peakHunkBytes": 27803144,
       "sha256": "e3628b183cc314c9ee27defa500d93e6ce426df44fde040c953f2120b657eefd",
       "size": 4008113,
       "uncompressedSize": 6796464
@@ -106,7 +106,7 @@
     {
       "map": "oa_dm2",
       "path": "baseq3/arena-web-ffa-map-oa_dm2.pk3",
-      "peakHunkBytes": 30087400,
+      "peakHunkBytes": 30087464,
       "sha256": "a4707258dd43c22c7eb5cbb7b8dcf386a47dc9cfc9f0d5749839724d7caf5e9e",
       "size": 9880023,
       "uncompressedSize": 13179286
@@ -114,7 +114,7 @@
     {
       "map": "oa_dm3",
       "path": "baseq3/arena-web-ffa-map-oa_dm3.pk3",
-      "peakHunkBytes": 30262856,
+      "peakHunkBytes": 30262920,
       "sha256": "462ffe978b4614a28eafb534aaec8b8c75bd80c985d44832184652d28e456db4",
       "size": 7181160,
       "uncompressedSize": 12775541
@@ -122,7 +122,7 @@
     {
       "map": "oa_dm4",
       "path": "baseq3/arena-web-ffa-map-oa_dm4.pk3",
-      "peakHunkBytes": 27478440,
+      "peakHunkBytes": 27478504,
       "sha256": "44e8aca3dcc6c2899e939cca78016e4f37f13d9b93a8ff7ec267bba427ad0892",
       "size": 6352364,
       "uncompressedSize": 9175056
@@ -130,7 +130,7 @@
     {
       "map": "oa_dm5",
       "path": "baseq3/arena-web-ffa-map-oa_dm5.pk3",
-      "peakHunkBytes": 30273032,
+      "peakHunkBytes": 30273096,
       "sha256": "ebac45fc68e052b13185c69e973aa61664106a251132a8d2c509c94ff30dbb37",
       "size": 8088989,
       "uncompressedSize": 12027980
@@ -138,7 +138,7 @@
     {
       "map": "oa_dm6",
       "path": "baseq3/arena-web-ffa-map-oa_dm6.pk3",
-      "peakHunkBytes": 29814920,
+      "peakHunkBytes": 29814984,
       "sha256": "bb147f07e8154e91553f287f30c87880e1cc36cd349f638db191f489e2dd150a",
       "size": 6025928,
       "uncompressedSize": 10095565
@@ -146,7 +146,7 @@
     {
       "map": "oa_dm7",
       "path": "baseq3/arena-web-ffa-map-oa_dm7.pk3",
-      "peakHunkBytes": 27086344,
+      "peakHunkBytes": 27086408,
       "sha256": "d2a32b3387be4f4d73cdc52c3b65099766156ce2380b1f1881fda4d61cd8768e",
       "size": 2560688,
       "uncompressedSize": 4910973
@@ -154,7 +154,7 @@
     {
       "map": "oa_koth1",
       "path": "baseq3/arena-web-ffa-map-oa_koth1.pk3",
-      "peakHunkBytes": 34341832,
+      "peakHunkBytes": 34341896,
       "sha256": "d0fd6c5ec61771efd996376ad533182df0279e80bfeaf77736ee9710578c8a06",
       "size": 12252419,
       "uncompressedSize": 20792507
@@ -162,7 +162,7 @@
     {
       "map": "oa_minia",
       "path": "baseq3/arena-web-ffa-map-oa_minia.pk3",
-      "peakHunkBytes": 32236712,
+      "peakHunkBytes": 32236776,
       "sha256": "91d9380e910cf9d4766443c8c821f9a76b6b31ce1f562696a631f883b9428d25",
       "size": 6323852,
       "uncompressedSize": 13664155
@@ -170,7 +170,7 @@
     {
       "map": "oa_pvomit",
       "path": "baseq3/arena-web-ffa-map-oa_pvomit.pk3",
-      "peakHunkBytes": 31441576,
+      "peakHunkBytes": 31441640,
       "sha256": "9a4b9caf4ddd4405b07a33555972d2a043f5679e97af9594096eb40850888931",
       "size": 1915429,
       "uncompressedSize": 5366597
@@ -178,7 +178,7 @@
     {
       "map": "oa_rpg3dm2",
       "path": "baseq3/arena-web-ffa-map-oa_rpg3dm2.pk3",
-      "peakHunkBytes": 32380968,
+      "peakHunkBytes": 32381032,
       "sha256": "d0a4aa742712c5a550f5f4c8d7aadcfd6385f162f0a5ffb0d74f25ad59f41574",
       "size": 3881640,
       "uncompressedSize": 8294818
@@ -186,7 +186,7 @@
     {
       "map": "oa_shine",
       "path": "baseq3/arena-web-ffa-map-oa_shine.pk3",
-      "peakHunkBytes": 29625704,
+      "peakHunkBytes": 29625768,
       "sha256": "d45710fb4ad06e4c7ef38dcba934f2c7ba7df89fb4df4e29b3da5437097230a2",
       "size": 1773961,
       "uncompressedSize": 5453818
@@ -194,7 +194,7 @@
     {
       "map": "oa_shouse",
       "path": "baseq3/arena-web-ffa-map-oa_shouse.pk3",
-      "peakHunkBytes": 31362472,
+      "peakHunkBytes": 31362536,
       "sha256": "1c52b3f3fe0bda3f2321f72e58ff8c4db007cd313cd1d52fd81862b3240ee639",
       "size": 3371024,
       "uncompressedSize": 7634964
@@ -202,7 +202,7 @@
     {
       "map": "pul1duel-oa",
       "path": "baseq3/arena-web-ffa-map-pul1duel-oa.pk3",
-      "peakHunkBytes": 30321160,
+      "peakHunkBytes": 30321224,
       "sha256": "1f27817fc959097dcc5c7f4ea85952be448ad03cec2ac3b9011269cb543f8654",
       "size": 7663290,
       "uncompressedSize": 18497237
@@ -210,7 +210,7 @@
     {
       "map": "sleekgrinder",
       "path": "baseq3/arena-web-ffa-map-sleekgrinder.pk3",
-      "peakHunkBytes": 29895368,
+      "peakHunkBytes": 29895432,
       "sha256": "88f37f5375cce38132e47ac36375ab1e2c6df582b34d85d88b20da90cdcfa7e6",
       "size": 4075717,
       "uncompressedSize": 8481115
@@ -218,7 +218,7 @@
     {
       "map": "slimefac",
       "path": "baseq3/arena-web-ffa-map-slimefac.pk3",
-      "peakHunkBytes": 29315048,
+      "peakHunkBytes": 29315112,
       "sha256": "9c8a461f3b53fd4d4817f1133fd0361220a816b9899f00cf768b91626c2f0ebc",
       "size": 2479876,
       "uncompressedSize": 7334000
@@ -226,7 +226,7 @@
     {
       "map": "suspended",
       "path": "baseq3/arena-web-ffa-map-suspended.pk3",
-      "peakHunkBytes": 35641800,
+      "peakHunkBytes": 35641864,
       "sha256": "a8fd1e84a32178f0ee559cab6aca2429887d197ba65cbd23087a9157a4f45fcf",
       "size": 5415335,
       "uncompressedSize": 11306266
@@ -234,13 +234,13 @@
     {
       "map": "wrackdm17",
       "path": "baseq3/arena-web-ffa-map-wrackdm17.pk3",
-      "peakHunkBytes": 33273864,
+      "peakHunkBytes": 33273928,
       "sha256": "edd8beccbd66737b043e06ead9cd55b9f8816dcf4d0f80273c46ffa324b4583c",
       "size": 9447295,
       "uncompressedSize": 17306552
     }
   ],
-  "baselineIdentity": "sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287",
+  "baselineIdentity": "sha256:ba723aaccf72500de2ebda2dcd0dfa50afac60ebd345619c6574d2e4a63237ef",
   "baselineInputIds": [
     "ioq3"
   ],
@@ -399,12 +399,12 @@
     },
     {
       "id": "arena-web-resource-measurements",
-      "identity": "sha256:b774d1c08e7d2eb9160e510925f8fceb9c81e717f3c336e7ba823f2afbe37a09",
+      "identity": "sha256:16c0bde525a01c99f22a57aa5d263d677fde1da087d09870bc25db6a298f9e97",
       "kind": "archive"
     },
     {
       "id": "ioq3",
-      "identity": "git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+      "identity": "git:663bc0e6d94827c671090178418696aa5b0667c3",
       "kind": "git"
     },
     {
@@ -439,7 +439,7 @@
     }
   ],
   "producer": {
-    "commit": "47244679be82d69904c0e99b313a7c90e9e37dde",
+    "commit": "205223e30577c5a99e628b830f1c8077b46e1972",
     "name": "arena-web scripts/build-content-pack.sh"
   }
 }

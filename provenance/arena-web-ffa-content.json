@@ -57059,7 +57059,7 @@
       ]
     }
   ],
-  "baselineIdentity": "sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287",
+  "baselineIdentity": "sha256:ba723aaccf72500de2ebda2dcd0dfa50afac60ebd345619c6574d2e4a63237ef",
   "formatVersion": 2,
   "package": {
     "id": "arena-web-ffa",

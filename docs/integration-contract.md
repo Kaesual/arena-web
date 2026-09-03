@@ -52,16 +52,16 @@ container tag is not an identity.
 
 | Input | Accepted identity |
 | --- | --- |
-| Baseline lock | `sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287` |
-| ioq3 engine | `git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592` |
-| Browser loader producer | `git:95f45b537dd0bb8b4a542b97d0f4281eefa7604a` |
-| Browser artifact manifest | `sha256:1fca91ba4198398198f90d52222de4e9e2a5d910e275061b2f605f13e45c8047` |
-| Content artifact manifest | `sha256:443fbe5c207918b741381e62089dc23b21f90447ae09af74e57caeb6468454f3` |
+| Baseline lock | `sha256:ba723aaccf72500de2ebda2dcd0dfa50afac60ebd345619c6574d2e4a63237ef` |
+| ioq3 engine | `git:663bc0e6d94827c671090178418696aa5b0667c3` |
+| Browser loader producer | `git:205223e30577c5a99e628b830f1c8077b46e1972` |
+| Browser artifact manifest | `sha256:f4e66669056f61701b2e9d112c893cdf47c1523b0c14a3b657828797a5d3eb56` |
+| Content artifact manifest | `sha256:91a123e677860fb4a5c8652cc306c76439c37d8e97491c2048c414c27e09ac95` |
 | Content base archive | `sha256:7cfa98c9fac1274ed45ee653572252e3d3d47c47c6d80163b59afd1c6354277c` |
 | Content map archives | covered transitively through the content artifact manifest, and each bound byte-for-byte to its counterpart in the server manifest |
-| Server artifact manifest | `sha256:f09ad477165e0f86b2baa894581c6ec1cdcf59bfbd35f04636cdd3871b5ecb57` |
-| Server image producer/build checkout | `git:47244679be82d69904c0e99b313a7c90e9e37dde` |
-| Accepted native server image ID | `sha256:8b3cf3412ee78ce0eb0c91a99fff37016716f0e1768e6b24ea053fd69b7035c7` |
+| Server artifact manifest | `sha256:3bb1dae2ba3abd206660e3ecbeef75895ac2796370382235b8d546b21848e9c6` |
+| Server image producer/build checkout | `git:205223e30577c5a99e628b830f1c8077b46e1972` |
+| Accepted native server image ID | `sha256:df9d07cea64c4a948aa3897573458143f116064e201620787cc18e6cb0407168` |
 
 The image value is the reproducible container configuration/image ID observed
 after loading the accepted single-platform image, not a promise that every
@@ -76,12 +76,12 @@ reproduced from a clean checkout of the commit carrying these records with
 producer commits out of the records rather than taking them from its caller —
 the browser's from `manifests/browser-client.json`, and the content pack's and
 the server image's, both
-`47244679be82d69904c0e99b313a7c90e9e37dde`, from their provenance records — then
+`205223e30577c5a99e628b830f1c8077b46e1972`, from their provenance records — then
 rebuilds browser, content and server image and compares each generated record
 with the committed one in full. It requires server manifest identity
-`sha256:f09ad477165e0f86b2baa894581c6ec1cdcf59bfbd35f04636cdd3871b5ecb57`
+`sha256:3bb1dae2ba3abd206660e3ecbeef75895ac2796370382235b8d546b21848e9c6`
 and loaded image ID
-`sha256:8b3cf3412ee78ce0eb0c91a99fff37016716f0e1768e6b24ea053fd69b7035c7`.
+`sha256:df9d07cea64c4a948aa3897573458143f116064e201620787cc18e6cb0407168`.
 
 A rebuild from the current documentation commit or any other later commit has
 a new image ID even when all four runtime files are byte-identical, because its
@@ -784,7 +784,7 @@ licences** link and meet all of these obligations:
   including the ioquake3/component notices, Emscripten, musl, LLVM
   compiler-rt, IJG and SDL terms. That WP1 section records where the inventory
   originated; repository-local notices for this release resolve at the current
-  engine pin `d594b1cc9bfc5b58ccebffd4d840a13782cb6592`, as the authoritative
+  engine pin `663bc0e6d94827c671090178418696aa5b0667c3`, as the authoritative
   baseline lock requires;
 - offer the corresponding public source identified in
   [`wp1-build-evidence.md`](wp1-build-evidence.md#corresponding-source): the

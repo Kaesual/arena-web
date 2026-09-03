@@ -13,8 +13,8 @@
     },
     {
       "path": "baseq3/vm/ui.qvm",
-      "sha256": "23ba9181726e108be05a0096a9f49f3c7643d4ff8888267a6948c4a4e8389c33",
-      "size": 307164
+      "sha256": "aafc46e5c2080acb2caff1939fc8f2e5711443ec2455756226bfa59052cd9525",
+      "size": 307204
     },
     {
       "path": "ioquake3-config.json",
@@ -28,12 +28,12 @@
     },
     {
       "path": "ioquake3.js",
-      "sha256": "a1dcb36b68911636cf0863b8c3d05483a3e5b7673ac7fce01db21cfcb330b745",
+      "sha256": "d6b54108f181a4c38c6905fb3c2b2b3bf4a784fe742fb46380184322901b26d8",
       "size": 267530
     },
     {
       "path": "ioquake3.wasm",
-      "sha256": "f92cd2fb77ec2c765df188a7f8b5bad3b15b06556f4df616bfe6ae2ac312577e",
+      "sha256": "645c8f018edbcd38f4363b1390eee99e4a558106df47fa65d00bc96c8fd0f6c7",
       "size": 2319488
     },
     {
@@ -52,7 +52,7 @@
       "size": 306680
     }
   ],
-  "baselineIdentity": "sha256:227c9434ba306b5b95bb36f392b1d9faa08fdef5b325dd4d557d8c4b8ee55287",
+  "baselineIdentity": "sha256:ba723aaccf72500de2ebda2dcd0dfa50afac60ebd345619c6574d2e4a63237ef",
   "baselineInputIds": [
     "emscripten-builder",
     "ioq3"
@@ -72,12 +72,12 @@
     },
     {
       "id": "ioq3",
-      "identity": "git:d594b1cc9bfc5b58ccebffd4d840a13782cb6592",
+      "identity": "git:663bc0e6d94827c671090178418696aa5b0667c3",
       "kind": "git"
     }
   ],
   "producer": {
-    "commit": "95f45b537dd0bb8b4a542b97d0f4281eefa7604a",
+    "commit": "205223e30577c5a99e628b830f1c8077b46e1972",
     "name": "arena-web scripts/build-browser.sh"
   }
 }
